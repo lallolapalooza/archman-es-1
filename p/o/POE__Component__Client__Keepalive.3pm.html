@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Component::Client::Keepalive(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Component__Client__Keepalive(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe-component-client-keepalive/">perl-poe-component-client-keepalive</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Component::Client::Keepalive(3)</td>
+    <td class="head-vol">Documentación Perl contribuida por el usuario</td>
+    <td class="head-rtitle">POE::Component::Client::Keepalive(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Component::Client::Keepalive - gestiona conexiones, con
+    mantenimiento de conexión</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">versión 0.272</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use warnings;
+use strict;
+use POE;
+use POE::Component::Client::Keepalive;
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start    =&gt; \&amp;start,
+    got_conn  =&gt; \&amp;got_conn,
+    got_error =&gt; \&amp;handle_error,
+    got_input =&gt; \&amp;handle_input,
+  }
+);
+POE::Kernel-&gt;run();
+exit;
+sub start {
+  $_[HEAP]{ka} = POE::Component::Client::Keepalive-&gt;new();
+  $_[HEAP]{ka}-&gt;allocate(
+    scheme  =&gt; &quot;http&quot;,
+    addr    =&gt; &quot;127.0.0.1&quot;,
+    port    =&gt; 9999,
+    event   =&gt; &quot;got_conn&quot;,
+    context =&gt; &quot;datos arbitrarios (incluso una referencia) aquí&quot;,
+    timeout =&gt; 60,
+  );
+  print &quot;La conexión está en progreso.\n&quot;;
+}
+sub got_conn {
+  my ($kernel, $heap, $response) = @_[KERNEL, HEAP, ARG0];
+  my $conn    = $response-&gt;{connection};
+  my $context = $response-&gt;{context};
+  if (defined $conn) {
+    if ($response-&gt;{from_cache}) {
+      print &quot;La conexión se estableció inmediatamente.\n&quot;;
+    }
+    else {
+      print &quot;La conexión se estableció de forma asíncrona.\n&quot;;
+    }
+    $conn-&gt;start(
+      InputEvent =&gt; &quot;got_input&quot;,
+      ErrorEvent =&gt; &quot;got_error&quot;,
+    );
+    return;
+  }
+  print(
+    &quot;No se pudo establecer la conexión: &quot;,
+    &quot;$response-&gt;{function} error $response-&gt;{error_num}: &quot;,
+    &quot;$response-&gt;{error_str}\n&quot;
+  );
+}
+sub handle_input {
+  my $input = $_[ARG0];
+  print &quot;$input\n&quot;;
+}
+sub handle_error {
+  my $heap = $_[HEAP];
+  delete $heap-&gt;{connection};
+  $heap-&gt;{ka}-&gt;shutdown();
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Component::Client::Keepalive crea y gestiona conexiones
+    para otros componentes. Mantiene una caché de conexiones mantenidas activas
+    para una reutilización rápida. Está escrito específicamente para clientes que
+    pueden beneficiarse de conexiones mantenidas activas, como los clientes HTTP.
+    Usarlo para conexiones de un solo uso probablemente sería una tontería.</p>
+<dl class="Bl-tag">
+  <dt id="new"><a class="permalink" href="#new">new</a></dt>
+  <dd>Crea un nuevo gestor de conexiones de mantenimiento. Un programa puede
+      contener varios gestores de conexiones. Cada uno operará independientemente
+      de los demás. Ninguno sabrá sobre los límites establecidos en los otros, por
+      lo que es posible sobrecargar los descriptores de archivo de un proceso si
+      no se tiene cuidado.
+    <p class="Pp"><b>new()</b> toma hasta cinco parámetros. Todos son opcionales.</p>
+    <p class="Pp">Para limitar el número de conexiones simultáneas a un host
+        particular (definido por una combinación de esquema, dirección y
+        puerto):</p>
+        <pre>max_per_host =&gt; $max_conexiones_simultaneas_por_host, # por defecto es 4
+</pre>
+    <p class="Pp">Para limitar el número total de conexiones que pueden estar
+        abiertas a la vez, use</p>
+        <pre>max_open     =&gt; $max_conexiones_abiertas, # por defecto es 128
+</pre>
+    <p class="Pp">Los programas deben devolver las conexiones al gestor cuando
+        hayan terminado. Consulte el método <b>free()</b> para ver cómo
+        funciona eso. El gestor de conexiones mantendrá las conexiones activas
+        durante un período de tiempo antes de reciclarlas. El tiempo máximo de
+        mantenimiento se puede establecer con</p>
+        <pre>keep_alive   =&gt; $segundos_para_mantener_conexiones_libres_activas, # por defecto es 15
+</pre>
+    <p class="Pp">Los programas pueden no querer esperar mucho tiempo para que se
+        establezca una conexión. Pueden establecer el tiempo de espera de la
+        solicitud para alterar cuánto tiempo el componente mantiene una solicitud
+        antes de generar un error.</p>
+        <pre>timeout      =&gt; $segundos_para_procesar_una_solicitud, # por defecto es 120
+</pre>
+    <p class="Pp">Especifique un bind_address para enlazar todos los sockets de
+        cliente a una dirección local particular. El valor de bind_address se
+        pasará directamente a POE::Wheel::SocketFactory. Consulte la
+        documentación de ese módulo para ver los detalles de implementación.</p>
+  </dd>
+  <dt id="allocate"><a class="permalink" href="#allocate">allocate</a></dt>
+  <dd>Asigna una nueva conexión. <b>Allocate()</b> devolverá un ID de solicitud
+      inmediatamente. La conexión asignada, sin embargo, se publicará de vuelta a
+      la sesión solicitante. Esto ocurre incluso si la conexión se encontró en la
+      caché de mantenimiento de conexión del componente. Es un poco más lento,
+      pero los casos de uso son más limpios de esa manera.
+    <p class="Pp"><b>Allocate()</b> requiere cinco parámetros y tiene un sexto
+        opcional.</p>
+    <p class="Pp">Especifique el esquema que se utilizará para comunicarse en la
+        conexión (típicamente http o https). El esquema es obligatorio, pero
+        usted es libre de inventar algo aquí. Se utiliza internamente para
+        diferenciar diferentes tipos de sockets (por ejemplo, ssl vs. texto plano)
+        en la misma dirección y puerto.</p>
+        <pre>scheme  =&gt; $esquema_de_conexion,
+</pre>
+    <p class="Pp">Solicite una conexión a una dirección y puerto particulares. La
+        dirección y el puerto deben ser numéricos. Tanto la dirección como el
+        puerto son obligatorios.</p>
+        <pre>address =&gt; $direccion_remota,
+port    =&gt; $puerto_remoto,
+</pre>
+    <p class="Pp">Especifique un nombre para el evento que se publicará cuando una
+        respuesta asíncrona esté lista. Esto es, por supuesto, obligatorio.</p>
+        <pre>event   =&gt; $evento_de_retorno,
+</pre>
+    <p class="Pp">Establezca el tiempo de espera de la conexión, en segundos. El
+        gestor de conexiones publicará un mensaje de error si no puede
+        establecer una conexión dentro del tiempo solicitado. Este parámetro es
+        opcional. Por defecto, será el tiempo de espera maestro proporcionado al
+        constructor del gestor de conexiones.</p>
+        <pre>timeout =&gt; $tiempo_de_espera_de_conexion,
+</pre>
+    <p class="Pp">Especifique datos contextuales adicionales. El contexto define el
+        propósito de la conexión. Se utiliza para mantener la continuidad entre
+        una llamada a <b>allocate()</b> y una respuesta asíncrona. Un contexto
+        es extremadamente útil, pero es opcional.</p>
+        <pre>context =&gt; $datos_contextuales,
+</pre>
+    <p class="Pp">En resumen:</p>
+        <pre>$mgr-&gt;allocate(
+  scheme   =&gt; &quot;http&quot;,
+  address  =&gt; &quot;127.0.0.1&quot;,
+  port     =&gt; 80,
+  event    =&gt; &quot;got_a_connection&quot;,
+  context  =&gt; \%connection_context,
+);
+</pre>
+    <p class="Pp">El evento de respuesta (&quot;got_a_connection&quot; en este
+        ejemplo) contiene varios campos, pasados como una lista de pares
+        clave/valor. La lista puede asignarse a un hash para mayor comodidad:</p>
+        <pre>sub got_a_connection {
+  my %response = @_[ARG0..$#_];
+  ...;
+}
+</pre>
+    <p class="Pp">Cuatro de los campos existen para repetir sus datos:</p>
+        <pre>$response{address}    = $direccion_solicitada_por_ti;
+$response{context}    = $contexto_solicitado_por_ti;
+$response{port}       = $puerto_solicitado_por_ti;
+$response{scheme}     = $esquema_solicitado_por_ti;
+</pre>
+    <p class="Pp">Un campo devuelve el objeto de conexión si la conexión fue
+        exitosa, o undef si hubo un fallo:</p>
+        <pre>$response{connection} = $nuevo_manejador_socket;
+</pre>
+    <p class="Pp">En caso de éxito, otro campo le dice si la conexión contiene
+        material completamente nuevo. Es decir, si la conexión se ha reciclado
+        de la caché del componente o se ha creado de nuevo.</p>
+        <pre>$response{from_cache} = $estado;
+</pre>
+    <p class="Pp">El estado from_cache puede ser &quot;immediate&quot; si la
+        conexión estuvo inmediatamente disponible en la caché. Será
+        &quot;deferred&quot; si la conexión se reutilizó, pero otro usuario tuvo que
+        liberarla primero. Finalmente, from_cache será falso si la conexión tuvo
+        que crearse para satisfacer <b>allocate()</b>.</p>
+    <p class="Pp">Tres campos más devuelven información de error si la conexión
+        falló. No están presentes si la conexión fue exitosa.</p>
+        <pre>$response{function}   = $nombre_de_la_funcion_fallida;
+$response{error_num}  = $! como número;
+$response{error_str}  = $! como cadena;
+</pre>
+  </dd>
+  <dt id="free"><a class="permalink" href="#free">free</a></dt>
+  <dd><b>Free()</b> notifica al gestor de conexiones cuando las conexiones están
+      libres para ser reutilizadas. Las conexiones liberadas se introducen en el
+      pool de mantenimiento y pueden ser devueltas por llamadas posteriores a
+      <b>allocate()</b>.
+        <pre>$mgr-&gt;free($socket);
+</pre>
+    <p class="Pp">Por ahora, <b>free()</b> se llama con un socket, no con un
+        objeto de conexión. Esto generalmente no es un problema, ya que los
+        objetos POE::Component::Connection::Keepalive llaman a <b>free()</b>
+        por usted cuando se destruyen.</p>
+    <p class="Pp">No llamar a <b>free()</b> provocará que un programa filtre
+        conexiones. Esto tampoco es generalmente un problema, ya que <b>free()</b>
+        se llama automáticamente cada vez que se destruyen los objetos de
+        conexión.</p>
+  </dd>
+  <dt id="deallocate"><a class="permalink" href="#deallocate">deallocate</a></dt>
+  <dd>Cancela una conexión que aún no se ha establecido. Requiere un
+      parámetro, el ID de solicitud devuelto por <b>allocate()</b>.</dd>
+  <dt id="shutdown"><a class="permalink" href="#shutdown">shutdown</a></dt>
+  <dd>El pool de mantenimiento requiere que las conexiones estén activas
+      internamente. Esto puede mantener un programa activo incluso cuando todas
+      las conexiones están inactivas. El método <b>shutdown()</b> le dice al
+      gestor de conexiones que ya no necesita el pool y que puede terminar de
+      forma segura.</p>
+  </dd>
+</dl>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <title>POE::Component::Client::Keepalive(3pm)</title>
+        <link rel="stylesheet" href="/css/style.css" type="text/css" />
+        <link rel="stylesheet" href="/css/man.css" type="text/css" />
+    </head>
+    <body>
+        <main>
+            <article>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">POE::Component::Client::Keepalive - Un manejador de Keepalive para clientes POE</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSION</a></h1>
+<p class="Pp">0.272</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>
+  use POE::Component::Client::Keepalive;
+
+  # Crear un manejador
+  my $mgr = POE::Component::Client::Keepalive-&gt;new (
+    # Opciones de configuración, ver abajo
+  );
+
+  # Configurar la información de la conexión
+  $mgr-&gt;register (
+    Host    =&gt; 'localhost',
+    Port    =&gt; 8080,
+    # ... otras opciones para POE::Component::Client::TCP
+  );
+
+  # Empezar el bucle de eventos POE
+  POE::Kernel-&gt;run();
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">Este componente proporciona un manejador para gestionar de forma
+    transparente las conexiones de cliente de tipo Keepalive (mantener viva la
+    conexión) en POE. Se basa en POE::Component::Client::TCP, y añade la
+    capacidad de volver a conectar automáticamente y de detectar y solucionar
+    problemas con las conexiones de red que se quedan colgadas.</p>
+<p class="Pp">Este componente está diseñado para usarse con servidores que no
+    cierran las conexiones con los clientes de forma proactiva, pero que se
+    pueden quedar "colgados" si la conexión de red subyacente cae. El objetivo
+    principal es mantener una conexión de red para que un cliente pueda enviar
+    datos al servidor en cualquier momento, sin tener que preocuparse por volver
+    a establecer la conexión cada vez.</p>
+<p class="Pp"><b>Opciones de configuración para `new()`</b>:</p>
+<dl class="Bl-tag">
+    <dt><b>&#39;interval&#39;</b></dt>
+    <dd>El número de segundos que el componente esperará entre comprobaciones de
+        la conexión. El valor por defecto es 5 segundos.</dd>
+    <dt><b>&#39;timeout&#39;</b></dt>
+    <dd>El número de segundos que el componente esperará a que una conexión se
+        establezca antes de rendirse. El valor por defecto es 10 segundos.</dd>
+    <dt><b>&#39;reconnect_delay&#39;</b></dt>
+    <dd>El número de segundos que el componente esperará antes de intentar
+        volver a conectar después de que una conexión haya fallado. El valor por
+        defecto es 30 segundos.</dd>
+    <dt><b>&#39;connect_retries&#39;</b></dt>
+    <dd>El número de intentos de conexión que se harán antes de desistir y
+        esperar a `reconnect_delay`. El valor por defecto es 0 (intentos
+        ilimitados).</dd>
+    <dt><b>&#39;keepalive_interval&#39;</b></dt>
+    <dd>Este es el intervalo en segundos entre pings para el servidor. Si el
+        servidor no responde dentro de este tiempo, la conexión se considerará
+        rota. El valor por defecto es 30 segundos.</dd>
+    <dt><b>&#39;keepalive_timeout&#39;</b></dt>
+    <dd>El número de segundos que se esperará por una respuesta del ping. Si
+        no se recibe respuesta dentro de este tiempo, se considera que la
+        conexión está rota. El valor por defecto es 5 segundos.</dd>
+</dl>
+<p class="Pp"><b>Opciones de configuración para `register()`</b>:</p>
+<p class="Pp">Todas las opciones que se pasan a
+    `POE::Component::Client::TCP-&gt;new()` también se pueden pasar a
+    `register()`. Además, hay las siguientes opciones específicas:</p>
+<dl class="Bl-tag">
+    <dt><b>&#39;keepalive_sent&#39;</b></dt>
+    <dd>Un código Perl (puede ser un string que contiene código, un arrayref
+        de strings, o un coderef) que será ejecutado justo antes de que el
+        componente envíe el paquete de "keepalive". Esto es útil si necesita
+        enviar algún tipo de señal al servidor para mantener la conexión activa
+        (por ejemplo, un carácter de control o un comando NOP).</dd>
+    <dt><b>&#39;keepalive_success&#39;</b></dt>
+    <dd>Un código Perl que se ejecutará cuando el servidor responda
+        correctamente al paquete de "keepalive".</dd>
+    <dt><b>&#39;keepalive_failure&#39;</b></dt>
+    <dd>Un código Perl que se ejecutará si el servidor no responde al paquete
+        de "keepalive" dentro del tiempo especificado. Esto puede ser útil para
+        enviar notificaciones o realizar acciones de limpieza.</dd>
+</dl>
+<p class="Pp"><b>Eventos enviados por el componente</b>:</p>
+<dl class="Bl-tag">
+    <dt><b>&#39;keepalive_sent&#39;</b></dt>
+    <dd>Este evento se dispara cuando se envía el paquete de keepalive. Si se
+        ha proporcionado una opción `keepalive_sent`, su código se ejecutará
+        antes de este evento.</dd>
+    <dt><b>&#39;keepalive_success&#39;</b></dt>
+    <dd>Este evento se dispara cuando se recibe una respuesta exitosa del
+        servidor al keepalive. Si se ha proporcionado una opción
+        `keepalive_success`, su código se ejecutará antes de este evento.</dd>
+    <dt><b>&#39;keepalive_failure&#39;</b></dt>
+    <dd>Este evento se dispara cuando falla el keepalive (ya sea por timeout
+        o por cierre de conexión). Si se ha proporcionado una opción
+        `keepalive_failure`, su código se ejecutará antes de este evento.</dd>
+    <dt><b>&#39;connection_established&#39;</b></dt>
+    <dd>Este evento se dispara cuando se establece una conexión exitosa con el
+        servidor.</dd>
+    <dt><b>&#39;connection_failed&#39;</b></dt>
+    <dd>Este evento se dispara cuando falla la conexión inicial o un intento
+        de reconexión.</dd>
+    <dt><b>&#39;connection_closed&#39;</b></dt>
+    <dd>Este evento se dispara cuando la conexión con el servidor se cierra
+        (ya sea de forma normal o inesperada).</dd>
+</dl>
+<p class="Pp"><b>Método `shutdown()`</b></p>
+<p class="Pp">El método <b>shutdown()</b> fuerza al gestor de conexiones a
+    vaciar su grupo de keep-alive, permitiendo que un programa termine
+    graciosamente.</p>
+<pre>$mgr-&gt;shutdown();
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+<p class="Pp">POE POE::Component::Connection::Keepalive</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENSE</a></h1>
+<p class="Pp">Esta distribución es copyright 2004-2009 por Rocco Caputo. Todos
+    los derechos reservados. Esta distribución es software libre; puede
+    redistribuirla y/o modificarla bajo los mismos términos que Perl mismo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Rocco Caputo &lt;rcaputo@cpan.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONTRIBUTORS'><a class='permalink' href='#CONTRIBUTORS'>CONTRIBUTORS</a></h1>
+<p class="Pp">Rob Bloodgood ayudó mucho. Gracias.</p>
+<p class="Pp">Joel Bernstein resolvió algunas condiciones de carrera difíciles.
+    Portugal Telecom <a href='http://www.sapo.pt/'>http://www.sapo.pt/</a> fue lo
+    suficientemente amable como para apoyar sus contribuciones.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUG_TRACKER'><a class='permalink' href='#BUG_TRACKER'>BUG TRACKER</a></h1>
+<p class="Pp"><a href='https://rt.cpan.org/Dist/Display.html?Queue=POE-Component-Client-Keepalive'>https://rt.cpan.org/Dist/Display.html?Queue=POE-Component-Client-Keepalive</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REPOSITORY'><a class='permalink' href='#REPOSITORY'>REPOSITORY</a></h1>
+<p class="Pp"><a href='http://gitorious.org/poe-component-client-keepalive'>http://gitorious.org/poe-component-client-keepalive</a>
+    <a href='http://github.com/rcaputo/poe-component-client-keepalive'>http://github.com/rcaputo/poe-component-client-keepalive</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OTHER_RESOURCES'><a class='permalink' href='#OTHER_RESOURCES'>OTHER RESOURCES</a></h1>
+<p class="Pp"><a href='http://search.cpan.org/dist/POE-Component-Client-Keepalive/'>http://search.cpan.org/dist/POE-Component-Client-Keepalive/</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe-component-client-keepalive/">extra/perl-poe-component-client-keepalive</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.272-13</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE-Component-Client-Keepalive">https://search.cpan.org/dist/POE-Component-Client-Keepalive</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-poe-component-client-keepalive/">/listing/extra/perl-poe-component-client-keepalive/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#VERSION">VERSIÓN</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#LICENSE">LICENCIA</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#CONTRIBUTORS">CONTRIBUIDORES</a></li>
+        
+            <li><a href="#BUG_TRACKER">SEGUIMIENTO DE ERRORES</a></li>
+        
+            <li><a href="#REPOSITORY">REPOSITORIO</a></li>
+        
+            <li><a href="#OTHER_RESOURCES">OTROS RECURSOS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/POE::Component::Client::Keepalive.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/POE::Component::Client::Keepalive.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Parse::RecDescent(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Parse__RecDescent(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-parse-recdescent/">perl-parse-recdescent</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Parse::RecDescent(3pm)</td>
+    <td class="head-vol">Documentación de Perl contribuida por usuarios</td>
+    <td class="head-rtitle">Parse::RecDescent(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Parse::RecDescent - Generar analizadores descendentes recursivos</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSIÓN'><a class='permalink' href='#VERSIÓN'>VERSIÓN</a></h1>
+<p class="Pp">Este documento describe la versión 1.967015 de Parse::RecDescent
+    publicada el 4 de abril de 2017.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>use Parse::RecDescent;
+# Generar un analizador a partir de la especificación en $grammar:
+    $parser = new Parse::RecDescent ($grammar);
+# Generar un analizador a partir de la especificación en $othergrammar
+    $anotherparser = new Parse::RecDescent ($othergrammar);
+# Analizar $text usando la regla 'startrule' (que debe estar
+# definida en $grammar):
+   $parser-&gt;startrule($text);
+# Analizar $text usando la regla 'otherrule' (que también debe
+# estar definida en $grammar):
+    $parser-&gt;otherrule($text);
+# Cambiar el patrón del prefijo de token universal
+# antes de construir una gramática
+# (el valor predeterminado es: '\s*'):
+   $Parse::RecDescent::skip = '[ \t]+';
+# Reemplazar producciones de reglas existentes (o crear nuevas)
+# con las producciones definidas en $newgrammar:
+   $parser-&gt;Replace($newgrammar);
+# Extender reglas existentes (o crear nuevas)
+# añadiendo producciones adicionales definidas en $moregrammar:
+   $parser-&gt;Extend($moregrammar);
+# Banderas globales (útiles como argumentos de línea de comandos con -s):
+   $::RD_ERRORS       # si no está indefinido, informar errores fatales
+   $::RD_WARN         # si no está indefinido, también informar problemas no fatales
+   $::RD_HINT         # si está definido, también sugerir soluciones
+   $::RD_TRACE        # si está definido, también rastrear el comportamiento de los analizadores
+   $::RD_AUTOSTUB     # si está definido, genera "stubs" para reglas indefinidas
+   $::RD_AUTOACTION   # si está definido, añade la acción especificada a las producciones</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Visión_general'><a class='permalink' href='#Visión_general'>Visión general</a></h2>
+<p class="Pp">Parse::RecDescent genera incrementalmente analizadores de texto
+    descendentes recursivos a partir de sencillas especificaciones de gramática
+    tipo <i>yacc</i>. Proporciona:</p>
+<ul class="Bl-bullet">
+  <li>Expresiones regulares o cadenas literales como terminales (tokens),</li>
+  <li>Múltiples producciones (no contiguas) para cualquier regla,</li>
+  <li>Subreglas repetidas y opcionales dentro de las producciones,</li>
+  <li>Acceso completo a Perl dentro de las acciones especificadas como parte de la gramática,</li>
+  <li>Informes de errores sencillos y automatizados durante la generación del analizador y el análisis,</li>
+  <li>La capacidad de comprometerse, retirarse o rechazar producciones particulares
+      durante un análisis,</li>
+  <li>La capacidad de pasar datos hacia arriba y hacia abajo en el árbol de análisis ("hacia abajo" a través de listas de argumentos de subreglas, "hacia arriba" a través de valores de retorno de subreglas)</li>
+  <li>Extensión incremental de la gramática de análisis (incluso durante un análisis),</li>
+  <li>Precompilación de objetos analizadores,</li>
+  <li>Resolución de conflictos de reducción-reducción definible por el usuario a través de la "puntuación" de producciones coincidentes.</li>
+</ul>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Usando_&amp;quot;Parse::RecDescent&amp;quot;'><a class='permalink' href='#Usando_&amp;quot;Parse::RecDescent&amp;quot;'>Usando   &quot;Parse::RecDescent&quot;</a></h2>
+<p class="Pp">Los objetos analizadores se crean llamando a
+    <span class="Li">&quot;Parse::RecDescent::new&quot;</span>, pasando una
+    especificación de gramática (ver las siguientes subsecciones). Si la gramática es
+    correcta, <span class="Li">&quot;new&quot;</span> devuelve una referencia bendecida
+    que luego se puede usar para iniciar el análisis a través de cualquier regla especificada en la gramática original. Una secuencia típica se ve así:</p>
+<pre>$grammar = q {
+    # ESPECIFICACIÓN DE GRAMÁTICA AQUÍ
+     };
+$parser = new Parse::RecDescent ($grammar) or die &quot;¡Gramática incorrecta!\n&quot;;
+# adquirir $text
+defined $parser-&gt;startrule($text) or print &quot;¡Texto incorrecto!\n&quot;;</pre>
+<p class="Pp">La regla a través de la cual se inicia el análisis debe estar explícitamente
+    definida en la gramática (es decir, para el ejemplo anterior, la gramática debe incluir
+    una regla de la forma: &quot;startrule: &lt;subreglas&gt;&quot;.</p>
+<p class="Pp">Si la regla de inicio tiene éxito, se devuelve su valor (ver más abajo).
+    El fracaso en la generación del analizador original o el fracaso en la coincidencia de un texto se indica devolviendo
+    <span class="Li">&quot;undef&quot;</span>. Tenga en cuenta que es fácil configurar gramáticas que pueden tener éxito, pero que devuelven un valor de 0, &quot;0&quot; o &quot;&quot;. Así que no se sienta tentado a escribir:</p>
+<pre>$parser-&gt;startrule($text) or print &quot;¡Texto incorrecto!\n&quot;;</pre>
+<p class="Pp">Normalmente, el analizador no tiene ningún efecto sobre el texto original.
+    Así que en el ejemplo anterior, el valor de <span class="Li">$text</span> no cambiaría
+    después de haber sido analizado.</p>
+<p class="Pp">Si, sin embargo, el texto a coincidir se pasa por referencia:</p>
+<pre>$parser-&gt;startrule(\$text)</pre>
+<p class="Pp">entonces cualquier texto que se haya consumido durante la coincidencia se eliminará
+    del principio de <span class="Li">$text</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Reglas'><a class='permalink' href='#Reglas'>Reglas</a></h2>
+<p class="Pp">En la gramática a partir de la cual se construye el analizador, las reglas se especifican
+    dando un identificador (que debe cumplir /[A-Za-z]\w*/), seguido de dos puntos
+    <i>en la misma línea</i>, seguido de una o más producciones, separadas por barras
+    verticales simples. La disposición de las producciones es totalmente libre:</p>
+<pre>regla1:  produccion1
+ |  produccion2 |
+produccion3 | produccion4</pre>
+<p class="Pp">En cualquier punto de la gramática, las reglas definidas previamente pueden ser
+    extendidas con producciones adicionales. Esto se logra redeclarando la
+    regla con las nuevas producciones. Por lo tanto:</p>
+<pre>regla1: a | b | c
+regla2: d | e | f
+regla1: g | h</pre>
+<p class="Pp">es exactamente equivalente a:</p>
+<pre>regla1: a | b | c | g | h
+regla2: d | e | f</pre>
+<p class="Pp">Cada producción en una regla consta de cero o más elementos, cada uno de los cuales puede ser: el nombre de otra regla que coincidir (una
+    &quot;subregla&quot;), un patrón o una cadena literal que coincidir directamente (un
+    &quot;token&quot;), un bloque de código Perl que ejecutar (una
+    &quot;acción&quot;), una instrucción especial para el analizador (una
+    &quot;directiva&quot;), o un comentario estándar de Perl (que se ignora).</p>
+<p class="Pp">Una regla coincide con un texto si una de sus producciones coincide. Una
+    producción coincide si cada uno de sus elementos coincide con subcadenas consecutivas del
+    texto. Las producciones de una regla que se está analizando se prueban en el mismo orden
+    en que aparecen en la gramática original, y la primera producción coincidente termina el intento de coincidencia (exitosamente). Si se prueban todas las producciones y ninguna coincide, el intento de coincidencia falla.</p>
+<p class="Pp">Tenga en cuenta que este comportamiento es bastante diferente del
+    comportamiento de &quot;preferir la coincidencia más larga&quot; de
+    <i>yacc</i>. Por ejemplo, si <i>yacc</i> estuviera analizando la regla:</p>
+<pre>seq : 'A' 'B'
+| 'A' 'B' 'C'</pre>
+<p class="Pp">al coincidir &quot;AB&quot; miraría hacia adelante para ver si hay una 'C'
+    siguiente y, si es así, coincidiría con la segunda producción en lugar de la primera. En otras palabras,
+    <i>yacc</i> intenta efectivamente todas las producciones de una regla de amplitud primero en paralelo,
+    y selecciona la &quot;mejor&quot; coincidencia, donde &quot;mejor&quot; significa la más larga (tenga en cuenta que esta es una gran simplificación del comportamiento real de
+    <i>yacc</i>, pero servirá para nuestros propósitos).</p>
+<p class="Pp">En contraste,
+    <span class="Li">&quot;Parse::RecDescent&quot;</span> intenta cada producción de profundidad primero secuencialmente,
+    y selecciona la
+    &quot;mejor&quot; coincidencia, donde &quot;mejor&quot; significa la primera. Esta es la
+    diferencia fundamental entre el análisis
+    &quot;de abajo hacia arriba&quot; y
+    &quot;descendente recursivo&quot;.</p>
+<p class="Pp">Cada elemento emparejado con éxito en una producción recibe un valor, que puede ser accedido en acciones posteriores dentro de la misma producción (o, en algunos casos, como el valor de retorno de una llamada de subregla exitosa). Los elementos fallidos no tienen un valor asociado, ya que el fallo de un elemento provoca que toda la producción circundante falle inmediatamente. Las siguientes secciones describen los diversos tipos de elementos y sus valores de éxito.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Subreglas'><a class='permalink' href='#Subreglas'>Subreglas</a></h2>
+<p class="Pp">Una subregla que aparece en una producción es una instrucción para el analizador de que intente coincidir con la regla nombrada en ese punto del texto que se está analizando. Si la subregla nombrada no está definida cuando se solicita, la producción que la contiene falla inmediatamente (a menos que se haya &quot;autostubbed&quot; - ver Autostubbing).</p>
+<p class="Pp">Una regla puede (recursivamente) llamarse a sí misma como subregla, pero *no* como el elemento más a la izquierda en ninguna de sus producciones (ya que tales recursiones suelen ser no terminantes).</p>
+<p class="Pp">El valor asociado con una subregla es el valor asociado con su variable
+    <span class="Li">$return</span> (ver &quot;Acciones&quot; a continuación), o con el último elemento emparejado con éxito en la coincidencia de la subregla.</p>
+<p class="Pp">Las subreglas también pueden especificarse con un especificador de repetición final, indicando que se deben (codiciosamente) emparejar el número especificado de veces. Los especificadores disponibles son:</p>
+<pre>subregla(?)  # Coincidir una o cero veces
+subregla(s)  # Coincidir una o más veces
+subregla(s?) # Coincidir cero o más veces
+subregla(N)  # Coincidir exactamente N veces para el entero N &gt; 0
+subregla(N..M)   # Coincidir entre N y M veces
+subregla(..M)    # Coincidir entre 1 y M veces
+subrul</pre>
+</div>
+</section>
+{
+  "title": "Parse::RecDescent",
+  "sections": [
+    {
+      "title": "Repetition",
+      "content": [
+        {
+          "type": "code",
+          "code": "e(N..)    # Match at least N times"
+        },
+        {
+          "type": "paragraph",
+          "content": "Las subreglas repetidas continúan coincidiendo hasta que la subregla falla en la coincidencia, o ha coincidido con el número mínimo de veces pero no puede consumir ninguno de los textos analizados (esta segunda condición evita que la subregla coincida para siempre en algunos casos)."
+        },
+        {
+          "type": "paragraph",
+          "content": "Dado que una subregla repetida puede coincidir con muchas instancias de la subregla misma, el valor asociado con ella no es un escalar simple, sino una referencia a una lista de escalares, cada uno de los cuales es el valor asociado con una de las coincidencias individuales de la subregla. En otras palabras, en la regla:"
+        },
+        {
+          "type": "code",
+          "code": "program: statement(s)"
+        },
+        {
+          "type": "paragraph",
+          "content": "el valor asociado con la subregla repetida \"statement(s)\" es una referencia a un array que contiene los valores coincidentes por cada llamada a la subregla individual \"statement\"."
+        },
+        {
+          "type": "paragraph",
+          "content": "Los modificadores de repetición pueden incluir un patrón separador:"
+        },
+        {
+          "type": "code",
+          "code": "program: statement(s /;/)"
+        },
+        {
+          "type": "paragraph",
+          "content": "especificando una secuencia de caracteres a omitir entre cada repetición. Esto es realmente solo una abreviatura de la directiva <leftop:...> (ver más abajo)."
+        }
+      ]
+    },
+    {
+      "title": "Tokens",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": "Si una cadena entrecomillada o una expresión regular de Perl aparece en una producción, el analizador intenta hacer coincidir esa cadena o patrón en ese punto del texto. Por ejemplo:"
+        },
+        {
+          "type": "code",
+          "code": "typedef: \"typedef\" typename identifier ';'\nidentifier: /[A-Za-z_][A-Za-z0-9_]*/"
+        },
+        {
+          "type": "paragraph",
+          "content": "Al igual que en Perl normal, una cadena entre comillas simples no se interpola, mientras que una cadena entre comillas dobles o un patrón se interpolan (en el momento de la coincidencia, *no* cuando se construye el analizador). Por lo tanto, es posible definir reglas en las que los tokens se puedan establecer en tiempo de ejecución:"
+        },
+        {
+          "type": "code",
+          "code": "typedef: \"$::typedefkeyword\" typename identifier ';'\nidentifier: /$::identpat/"
+        },
+        {
+          "type": "paragraph",
+          "content": "Tenga en cuenta que, dado que cada regla se implementa dentro de un espacio de nombres especial que pertenece a su analizador, es necesario cuantificar explícitamente las variables del paquete principal."
+        },
+        {
+          "type": "paragraph",
+          "content": "Los tokens de expresión regular se pueden especificar usando solo barras como delimitadores o con la sintaxis explícita <span class=\"Li\">\"m&lt;delimiter&gt;......&lt;delimiter&gt;\"</span>:"
+        },
+        {
+          "type": "code",
+          "code": "typedef: \"typedef\" typename identifier ';'\ntypename: /[A-Za-z_][A-Za-z0-9_]*/\nidentifier: m{[A-Za-z_][A-Za-z0-9_]*}"
+        },
+        {
+          "type": "paragraph",
+          "content": "Una expresión regular de cualquier tipo también puede tener parámetros finales válidos (es decir, cualquiera de [cgimsox]):"
+        },
+        {
+          "type": "code",
+          "code": "typedef: \"typedef\" typename identifier ';'\nidentifier: / [a-z_]        # LEADING ALPHA OR UNDERSCORE\n      [a-z0-9_]*    # THEN DIGITS ALSO ALLOWED\n    /ix     # CASE/SPACE/COMMENT INSENSITIVE"
+        },
+        {
+          "type": "paragraph",
+          "content": "El valor asociado con cualquier token que coincida con éxito es una cadena que contiene el texto real que coincidió con el token."
+        },
+        {
+          "type": "paragraph",
+          "content": "Es importante recordar que, dado que cada gramática se especifica en una cadena de Perl, todas las instancias del carácter de escape universal '\\' dentro de una gramática deben ser \"duplicadas\", para que se interpolen a '\\' individuales cuando se compile la cadena. Por ejemplo, para usar la gramática:"
+        },
+        {
+          "type": "code",
+          "code": "word:       /\\S+/ | backslash\nline:       prefix word(s) \"\\n\"\nbbackslash:  '\\\\'"
+        },
+        {
+          "type": "paragraph",
+          "content": "se requiere el siguiente código:"
+        },
+        {
+          "type": "code",
+          "code": "$parser = new Parse::RecDescent (q{\n    word:   /\\S+/ | backslash\n    line:   prefix word(s) \"\\\\n\"\n    backslash:  '\\\\\\\\'
+});\n"
+        }
+      ]
+    },
+    {
+      "title": "Anonymous subrules",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": "Los paréntesis introducen un ámbito anidado que es muy similar a una llamada a una subregla anónima. Por lo tanto, son útiles para \"incrustar\" llamadas a subrutinas y otros tipos de comportamiento de agrupación. Por ejemplo, en lugar de:"
+        },
+        {
+          "type": "code",
+          "code": "word:       /\\S+/ | backslash\nline:       prefix word(s) \"\\n\""
+        },
+        {
+          "type": "paragraph",
+          "content": "podrías escribir:"
+        },
+        {
+          "type": "code",
+          "code": "line:       prefix ( /\\S+/ | backslash )(s) \"\\n\""
+        },
+        {
+          "type": "paragraph",
+          "content": "y obtendrías exactamente los mismos efectos."
+        },
+        {
+          "type": "paragraph",
+          "content": "Los paréntesis también se utilizan para recopilar alternancias no repetidas dentro de una sola producción."
+        },
+        {
+          "type": "code",
+          "code": "secret_identity: \"Mr\" (\"Incredible\"|\"Fantastic\"|\"Sheen\") \", Esq.\""
+        }
+      ]
+    },
+    {
+      "title": "Terminal Separators",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": "Para fines de coincidencia, cada terminal en una producción se considera precedido por un \"prefijo\" - un patrón que debe coincidir antes de intentar una coincidencia de token. Por defecto, el prefijo es un espacio en blanco opcional (que siempre coincide, al menos trivialmente), pero este valor predeterminado puede restablecerse en cualquier producción."
+        },
+        {
+          "type": "paragraph",
+          "content": "La variable <span class=\"Li\">$Parse::RecDescent::skip</span> almacena el prefijo universal, que es el valor predeterminado para todas las coincidencias de terminales en todos los analizadores construidos con <span class=\"Li\">\"Parse::RecDescent\"</span>."
+        },
+        {
+          "type": "paragraph",
+          "content": "Si desea cambiar el prefijo universal usando <span class=\"Li\">$Parse::RecDescent::skip</span>, tenga cuidado de establecerlo *antes* de crear el objeto de gramática, porque se aplica estáticamente (cuando se construye una gramática) en lugar de dinámicamente (cuando se usa la gramática). Alternativamente, puede proporcionar una directiva global <span class=\"Li\">\"&lt;skip:...&gt;\"</span> en su gramática antes de cualquier regla (descrita más adelante)."
+        },
+        {
+          "type": "paragraph",
+          "content": "El prefijo para una producción individual se puede alterar utilizando la directiva <span class=\"Li\">\"&lt;skip:...&gt;\"</span> (descrita más adelante). Establecer esta directiva en la regla de nivel superior es un enfoque alternativo para establecer <span class=\"Li\">$Parse::RecDescent::skip</span> antes de crear el objeto, pero en este caso no se obtiene el comportamiento de salto deseado si se invocan directamente métodos diferentes a la regla de nivel superior."
+        }
+      ]
+    },
+    {
+      "title": "Actions",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": "Una acción es un bloque de código Perl que se ejecutará (como el bloque de una sentencia <span class=\"Li\">\"do\"</span>) cuando el analizador llegue a ese punto en una producción. La acción se ejecuta dentro de un espacio de nombres especial que pertenece al analizador activo, por lo que se debe tener cuidado al calificar correctamente los nombres de las variables (ver también \"Acciones de Inicio\" a continuación)."
+        },
+        {
+          "type": "paragraph",
+          "content": "Se considera que la acción tiene éxito si el valor final del bloque está definido (es decir, si la sentencia <span class=\"Li\">\"do\"</span> implícita se evalúa como un valor definido, *incluso uno que se trataría como \"falso\"*). Tenga en cuenta que el valor asociado con una acción exitosa es también el valor final del bloque."
+        },
+        {
+          "type": "paragraph",
+          "content": "Una acción *fallará* si su último valor evaluado es <span class=\"Li\">\"undef\"</span>. Esto es sorprendentemente fácil de lograr por accidente. Por ejemplo, aquí hay un caso frustrante de una acción que hace que su producción falle, pero solo cuando la depuración *no* está activada:"
+        },
+        {
+          "type": "code",
+          "code": "description: name rank serial_number\n    { print \"Got $item[2] $item[1] ($item[3])\\n\"\n    if $::debugging\n    }"
+        },
+        {
+          "type": "paragraph",
+          "content": "Si <span class=\"Li\">$debugging</span> es falso, no se ejecuta ninguna sentencia en el bloque, por lo que el valor final es <span class=\"Li\">\"undef\"</span> y toda la producción falla. La solución es:"
+        },
+        {
+          "type": "code",
+          "code": "description: name rank serial_number\n    { print \"Got $item[2] $item[1] ($item[3])\\n\"\n    if $::debugging;\n      1;\n    }"
+        },
+        {
+          "type": "paragraph",
+          "content": "Dentro de una acción, hay una serie de variables útiles en tiempo de análisis disponibles en el espacio de nombres especial del analizador (hay otras variables también accesibles, pero meterse con ellas probablemente solo romperá su analizador. Como regla general, si evita referirse a variables no calificadas, especialmente aquellas que comienzan con un guión bajo, dentro de una acción, las cosas deberían estar bien):"
+        },
+        {
+          "type": "list",
+          "items": [
+            {
+              "term": "@item y %item",
+              "definition": "El slice del array <span class=\"Li\">@item[1..$#item]</span> almacena el valor asociado con cada elemento (es decir, cada subregla, token o acción) en la producción actual. La analogía es con <span class=\"Li\">$1</span>, <span class=\"Li\">$2</span>, etc. en una gramática de *yacc*. Tenga en cuenta que, por razones obvias, <span class=\"Li\">@item</span> solo contiene los valores de los elementos *antes* del punto actual en la producción.\n        <p class=\"Pp\">El primer elemento (<span class=\"Li\">$item[0]</span>) almacena el nombre de la regla actual que se está coincidiendo.\n        <p class=\"Pp\"><span class=\"Li\">@item</span> es un array normal de Perl, por lo que también se puede indexar con números negativos, lo que representa el número de elementos *hacia atrás* desde la posición actual en el análisis:\n        <pre>stuff: /various/ bits 'and' pieces \"then\" data 'end'\n    { print $item[-2] }  # IMPRIME data\n         # (MÁS FÁCIL QUE: $item[6])\n</pre>\n        El hash <span class=\"Li\">%item</span> complementa el array <span class=\"Li\">@item</span>, proporcionando acceso con nombre a los mismos valores de elementos:\n        <pre>stuff: /various/ bits 'and' pieces \"then\" data 'end'\n    { print $item{data}  # IMPRIME data\n         # (AÚN MÁS FÁCIL QUE USAR @item)\n</pre>\n        Los resultados de las subreglas nombradas se almacenan en el hash bajo el nombre de cada subregla (incluido el especificador de repetición, si lo hay), mientras que todos los demás elementos se almacenan bajo una clave \"posicional nombrada\" que indica su posición ordinal dentro de su tipo de elemento: __STRING<i>n</i>__, __PATTERN<i>n</i>__, __DIRECTIVE<i>n</i>__, __ACTION<i>n</i>__:\n        <pre>stuff: /various/ bits 'and' pieces \"then\" data 'end' { save }\n    { print $item{__PATTERN1__}, # IMPRIME 'various'\n    $item{__STRING2__},  # IMPRIME 'then'\n    $item{__ACTION1__},  # IMPRIME EL VALOR DE RETORNO\n             # DE save\n    }\n</pre>\n        Si desea un acceso con *nombre* adecuado a patrones o literales, debe convertirlos en reglas separadas:\n        <pre>stuff: various bits 'and' pieces \"then\" data 'end'\n    { print $item{various}  # IMPRIME various\n    }\nvarious: /various/\n</pre>\n        La entrada especial <span class=\"Li\">$item{__RULE__}</span> almacena el nombre de la regla actual (es decir, el mismo valor que <span class=\"Li\">$item[0]</span>.\n        <p class=\"Pp\">La ventaja de usar <span class=\"Li\">%item</span>, en lugar de <span class=\"Li\">@items</span>, es que elimina la necesidad de rastrear las posiciones de los elementos que pueden cambiar a medida que evoluciona una gramática. Por ejemplo, agregar una directiva <span class=\"Li\">\"&lt;skip&gt;\"</span> intermedia o una acción puede arruinar silenciosamente una acción de cierre, al mover un elemento de <span class=\"Li\">@item</span> \"hacia abajo\" en el array un lugar. En contraste, la entrada nombrada de <span class=\"Li\">%item</span> no se ve afectada por tal inserción.\n        <p class=\"Pp\">Una limitación del hash <span class=\"Li\">%item</span> es que solo registra el *último* valor de una subregla particular. Por ejemplo:\n        <pre>range: '(' number '..' number )'\n    { $return = $item{number} }\n</pre>\n        solo devolverá el valor correspondiente a la *segunda* coincidencia de la subregla <span class=\"Li\">\"number\"</span>. En otras palabras, las llamadas sucesivas a una subregla sobrescriben la entrada correspondiente en <span class=\"Li\">%item</span>. Una vez más, la solución es renombrar cada subregla en su propia regla:\n        <pre>range: '(' from_num '..' to_num ')'\n    { $return = $item{from_num"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+# Sintaxis de la gramática de Parse::RecDescent
+#
+# El analizador trabaja con un conjunto de reglas. Cada regla tiene el formato:
+#
+#    rulename: expression
+#    rulename: expression { action }
+#    rulename: expression { action } expression { action }
+#    rulename: expression { action } expression { action } ...
+#
+# donde el "expression" puede ser:
+#
+#    &quot;literal&quot;           # coincide con el literal exacto
+#    /regex/              # coincide con la expresión regular
+#    symbol               # coincide con el símbolo (regla) `symbol`
+#    ( list )             # grupo de símbolos
+#    symbol( n )          # coincide con `symbol` n veces
+#    symbol( n, m )       # coincide con `symbol` entre n y m veces
+#    symbol +             # coincide con `symbol` una o más veces
+#    symbol *             # coincide con `symbol` cero o más veces
+#    symbol ?             # coincide con `symbol` cero o una vez
+#    symbol | symbol      # coincide con el primer O el segundo símbolo
+#    symbol & symbol      # coincide con el primer Y el segundo símbolo
+#    symbol - symbol      # coincide con el primer SINO el segundo símbolo
+#    -                    # coincide con la nada
+#    { action }           # ejecuta la acción Perl
+#
+# Los símbolos pueden ser terminales (cadenas o expresiones regulares) o no terminales
+# (nombres de reglas).
+#
+# Las acciones son bloques de código Perl encerrados entre llaves {}.
+# Pueden aparecer después de cualquier subexpresión en una producción.
+#
+# Las variables especiales disponibles dentro de las acciones:
+#
+#  @item
+#      El array @item contiene los resultados de los componentes de la producción
+#      actual. @item[0] es la producción completa, @item[1] es el primer componente,
+#      @item[2] el segundo, y así sucesivamente. Si un componente es una acción,
+#      el valor de retorno de esa acción se almacena en @item. Si el componente
+#      es una regla no terminal, su valor de retorno se almacena en @item.
+#      Si el componente es un literal o una expresión regular, la cadena coincidente
+#      se almacena en @item.
+#
+#  $#item
+#      El índice más alto utilizado en @item.
+#
+#  $item[n]
+#      Alias conveniente para @item[n].
+#
+#  $itempos[n]
+#      Referencia a un hash que contiene información de posición para el n-ésimo
+#      componente de la producción actual. Véase más abajo para más detalles.
+#
+#  $from_num y $to_num
+#      Valores enteros que indican el número de la línea de inicio y fin (respectivamente)
+#      de la producción actual. Por ejemplo, si la producción coincide con el texto
+#      en la línea 5, entonces $from_num es 5 y $to_num es 5.
+#
+#  @arg y %arg
+#      El array @arg y el hash %arg almacenan cualquier argumento pasado a la regla
+#      desde otra regla (ver "Listas de argumentos de subreglas"). Los cambios en
+#      los elementos de cualquiera de las variables no se propagan de vuelta a la
+#      regla que llama (los datos se pueden pasar de vuelta desde una subregla a través
+#      de la variable $return - ver el siguiente elemento).
+#
+#  $return
+#      Si se asigna un valor a $return dentro de una acción, ese valor se devuelve
+#      si la producción que contiene el evento de acción coincide finalmente.
+#      Tenga en cuenta que establecer $return *no* causa que la producción actual
+#      tenga éxito. Simplemente le dice qué devolver si *tiene* éxito. Por lo tanto,
+#      $return es análogo a $$ en una gramática yacc.
+#
+#      Si $return no se asigna dentro de una producción, el valor del último componente
+#      de la producción (es decir: $item[$#item]) se devuelve si la producción tiene
+#      éxito.
+#
+#  $commit
+#      El estado actual de compromiso con la producción actual (ver "Directivas"
+#      más abajo).
+#
+#  $skip
+#      El prefijo terminal actual (ver "Directivas" más abajo).
+#
+#  $text
+#      El texto restante (no analizado). Los cambios en $text *no* se propagan fuera
+#      de las producciones fallidas, pero sí sobreviven a las producciones exitosas.
+#      Por lo tanto, es posible alterar dinámicamente el texto que se está analizando,
+#      por ejemplo, para proporcionar una facilidad similar a "#include":
+#
+#      hash_include: '#include' filename
+#          { $text = ::loadfile($item[2]) . $text }
+#      filename: '&lt;' /[a-z0-9._-]+/i '&gt;'  { $return = $item[2] }
+#      | '&quot;' /[a-z0-9._-]+/i '&quot;'  { $return = $item[2] }
+#
+#  $thisline y $prevline
+#      $thisline almacena el número de línea actual dentro del análisis actual
+#      (comenzando desde 1). $prevline almacena el número de línea del último carácter
+#      que ya se analizó con éxito (esto será diferente de $thisline al final de
+#      cada línea).
+#
+#      Para mayor eficiencia, $thisline y $prevline son en realidad hashes enlazados,
+#      y solo recalculan el número de línea requerido cuando se utiliza el valor de la
+#      variable.
+#
+#      La asignación a $thisline ajusta la calculadora del número de línea, de modo que
+#      crea que el número de línea actual es el valor que se está asignando. Tenga en cuenta
+#      que este ajuste se reflejará en todos los cálculos posteriores de números de línea.
+#
+#      Modificar el valor de la variable $text (como en el ejemplo anterior de
+#      "hash_include", por ejemplo) confundirá el mecanismo de conteo de líneas. Para
+#      evitar esto, debe llamar a Parse::RecDescent::LineCounter::resync($thisline)
+#      *inmediatamente* después de cualquier asignación a la variable $text (o, al
+#      menos, antes del próximo intento de usar $thisline).
+#
+#      Tenga en cuenta que si una producción falla después de asignar o resincronizar
+#      $thisline, el mecanismo del contador de líneas del analizador generalmente se
+#      corromperá.
+#
+#      También vea la entrada para @itempos.
+#
+#      El número de línea se puede establecer en valores distintos de 1, llamando a la
+#      regla de inicio con un segundo argumento. Por ejemplo:
+#
+#      $parser = new Parse::RecDescent ($grammar);
+#      $parser->input($text, 10);  # EMPEZAR LOS NÚMEROS DE LÍNEA EN 10
+#
+#  $thiscolumn y $prevcolumn
+#      $thiscolumn almacena el número de columna actual dentro de la línea actual
+#      que se está analizando (comenzando desde 1). $prevcolumn almacena el número de
+#      columna del último carácter que se analizó con éxito. Normalmente
+#      "$prevcolumn == $thiscolumn-1", pero no al final de las líneas.
+#
+#      Para mayor eficiencia, $thiscolumn y $prevcolumn son en realidad hashes enlazados,
+#      y solo recalculan el número de columna requerido cuando se utiliza el valor de la
+#      variable.
+#
+#      La asignación a $thiscolumn o $prevcolumn es un error fatal.
+#
+#      Modificar el valor de la variable $text (como en el ejemplo anterior de
+#      "hash_include", por ejemplo) puede confundir el mecanismo de conteo de columnas.
+#
+#      Tenga en cuenta que $thiscolumn informa el número de columna *antes* de cualquier
+#      espacio en blanco que pueda omitirse antes de leer un token. Por lo tanto, si
+#      desea saber dónde comenzó (y terminó) un token, use algo como esto:
+#
+#      rule: token1 token2 startcol token3 endcol token4
+#          { print "token3: columnas $item[3] a $item[5]"; }
+#      startcol: '' { $thiscolumn }    # NECESITA EL '' PARA PASAR EL SEPARADOR DE TOKEN
+#      endcol:  { $prevcolumn }
+#
+#      También vea la entrada para @itempos.
+#
+#  $thisoffset y $prevoffset
+#      $thisoffset almacena el desplazamiento de la posición de análisis actual dentro
+#      del texto completo que se está analizando (comenzando desde 0). $prevoffset almacena
+#      el desplazamiento del último carácter que se analizó con éxito. En todos los casos
+#      "$prevoffset == $thisoffset-1".
+#
+#      Para mayor eficiencia, $thisoffset y $prevoffset son en realidad hashes enlazados,
+#      y solo recalculan el desplazamiento requerido cuando se utiliza el valor de la
+#      variable.
+#
+#      La asignación a $thisoffset o $prevoffset es un error fatal.
+#
+#      Modificar el valor de la variable $text *no* afectará al mecanismo de conteo
+#      de desplazamiento.
+#
+#      También vea la entrada para @itempos.
+#
+#  @itempos
+#      El array @itempos almacena una referencia de hash correspondiente a cada elemento de
+#      @item. Los elementos del hash proporcionan lo siguiente:
+#
+#      $itempos[$n]{offset}{from}  # VALOR DE $thisoffset ANTES DE $item[$n]
+#      $itempos[$n]{offset}{to}    # VALOR DE $prevoffset DESPUÉS DE $item[$n]
+#      $itempos[$n]{line}{from}    # VALOR DE $thisline ANTES DE $item[$n]
+#      $itempos[$n]{line}{to}      # VALOR DE $prevline DESPUÉS DE $item[$n]
+#      $itempos[$n]{column}{from}  # VALOR DE $thiscolumn ANTES DE $item[$n]
+#      $itempos[$n]{column}{to}    # VALOR DE $prevcolumn DESPUÉS DE $item[$n]
+#
+#      Tenga en cuenta que los diversos "$itempos[$n]...{from}" registran el valor
+#      apropiado *después* de que se haya omitido cualquier prefijo de token.
+#
+#      Por lo tanto, en lugar del algo tedioso y propenso a errores:
+#
+#      rule: startcol token1 endcol
+#          startcol token2 endcol
+#          startcol token3 endcol
+#          { print "token1: columnas $item[1]
+#                a $item[3]
+#           token2: columnas $item[4]
+#                a $item[6]
+#           token3: columnas $item[7]
+#                a $item[9]" }
+#      startcol: '' { $thiscolumn }    # NECESITA EL '' PARA PASAR EL SEPARADOR DE TOKEN
+#      endcol:  { $prevcolumn }
+#
+#      es posible escribir:
+#
+#      rule: token1 token2 token3
+#          { print "token1: columnas $itempos[1]{column}{from}
+#                a $itempos[1]{column}{to}
+#           token2: columnas $itempos[2]{column}{from}
+#                a $itempos[2]{column}{to}
+#           token3: columnas $itempos[3]{column}{from}
+#                a $itempos[3]{column}{to]" }
+#
+#      Tenga en cuenta, sin embargo, que (en la implementación actual) el uso de
+#      @itempos en cualquier parte de una gramática implica que la información de
+#      posición del ítem se recopila *en todas partes* durante el análisis.
+#      Dependiendo de la gramática y el tamaño del texto a analizar, esto puede ser
+#      prohibitivamente costoso y el uso explícito de $thisline, $thiscolumn, etc.,
+#      puede ser una mejor opción.
+#
+#  $thisparser
+#      Una referencia al objeto "Parse::RecDescent" a través del cual se inició el
+#      análisis.
+#
+#      El valor de $thisparser se propaga hacia abajo a las subreglas de un análisis,
+#      pero no hacia arriba. Por lo tanto, puede invocar subreglas desde otro analizador
+#      para el ámbito de la regla actual de la siguiente manera:
+#
+#      rule: subrule1 subrule2
+#      | { $thisparser = $::otherparser } &lt;reject&gt;
+#      | subrule3 subrule4
+#      | subrule5
+#
+#      El resultado es que la producción llama a "subrule1" y "subrule2" del analizador
+#      actual, y las producciones restantes llaman a las subreglas nombradas desde
+#      $::otherparser. Tenga en cuenta, sin embargo, que ocurrirán "Cosas Malas"
+#      si "::otherparser" no es una referencia bendecida y/o no tiene métodos con los
+#      mismos nombres que las subreglas requeridas.
+#
+#  $thisrule
+#      Una referencia al objeto "Parse::RecDescent::Rule" correspondiente a la regla
+#      que se está coincidiendo actualmente.
+#
+#  $thisprod
+#      Una referencia al objeto "Parse::RecDescent::Production" correspondiente a la
+#      producción que se está coincidiendo actualmente.
+#
+#  $score y $score_return
+#      $score almacena la mejor puntuación de producción hasta la fecha, según lo
+#      especificado por una directiva anterior "<score:...>". $score_return almacena
+#      el valor de retorno correspondiente para la producción exitosa.
+#
+#      Ver "Producciones puntuadas".
+#
+#  Advertencia: el analizador depende de la información en los diversos objetos
+#  "this..." de maneras no obvias. Manipular los otros miembros de estos objetos
+#  probablemente causará "Cosas Malas", a menos que sepa *realmente* lo que está
+#  haciendo. La única excepción a este consejo es que el uso de "$this...->{local}"
+#  es siempre seguro.
+#
+# Acciones de inicio
+#
+# Cualquier acción que aparezca *antes* de la definición de la primera regla en
+# una gramática se trata como acciones de "inicio". Cada acción de este tipo se
+# despoja de sus corchetes más externos y luego se evalúa (en el espacio de nombres
+# especial del analizador) justo antes de que se compilen las reglas de la gramática.
+#
+# El uso principal de las acciones de inicio es declarar variables locales dentro
+# del espacio de nombres especial del analizador:
+#
+# { my $lastitem = '???'; }
+# list: item(s)   { $return = $lastitem }
+# item: book  { $lastitem = 'book'; }
+#   bell  { $lastitem = 'bell'; }
+#   candle    { $lastitem = 'candle'; }
+#
+# pero las acciones de inicio se pueden usar para ejecutar *cualquier* código Perl válido.
+# -*- coding: utf-8 -*-
+---
+name: Parse::RecDescent::Grammar
+version: v1.0.6
+abstract: A Parser Generation System
+author:
+  - Jonathan G. Wright (jonathan.wright@gmail.com)
+distribution_type: module
+dynamic_config: 1
+generated_by: ExtUtils::MakeMaker version 7.16
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-SPEC-1.4
+  version: 1.4
+no_index:
+  directory:
+    - t
+    - examples
+requires:
+  perl: '5.006'
+resources:
+  license: http://dev.perl.org/licenses/
+  repository: https://github.com/Perl-Parsing/Parse-RecDescent
+  bugtracker: https://github.com/Perl-Parsing/Parse-RecDescent/issues
+```
+
+<section class="Ss">
+<h2 class="Ss" id='Start-up-actions'><a class='permalink' href='#Start-up-actions'>Start-up actions</a></h2>
+<p class="Pp">Start-up actions can appear within a grammar extension or
+    replacement (that is, a partial grammar installed via
+    <span class="Li">Parse::RecDescent::Extend()</span> or
+    <span class="Li">Parse::RecDescent::Replace()</span> - see &quot;Incremental
+    Parsing&quot;), and will be executed before the new grammar is installed.
+    Note, however, that a particular start-up action is only ever executed
+  once.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Autoactions'><a class='permalink' href='#Autoactions'>Autoactions</a></h2>
+<p class="Pp">It is sometimes desirable to be able to specify a default action
+    to be taken at the end of every production (for example, in order to easily
+    build a parse tree). If the variable
+    <span class="Li">$::RD_AUTOACTION</span> is defined when
+    <span class="Li">Parse::RecDescent::new()</span> is called, the contents of
+    that variable are treated as a specification of an action which is to
+    appended to each production in the corresponding grammar.</p>
+<p class="Pp">Alternatively, you can hard-code the autoaction within a grammar,
+    using the <span class="Li">&quot;&lt;autoaction:...&gt;&quot;</span>
+    directive.</p>
+<p class="Pp">So, for example, to construct a simple parse tree you could
+  write:</p>
+<pre>$::RD_AUTOACTION = q { [@item] };
+parser = Parse::RecDescent-&gt;new(q{
+expression: and_expr '||' expression | and_expr
+and_expr:   not_expr '&amp;&amp;' and_expr   | not_expr
+not_expr:   '!' brack_expr       | brack_expr
+brack_expr: '(' expression ')'       | identifier
+identifier: /[a-z]+/i
+});</pre>
+<p class="Pp">or:</p>
+<pre>parser = Parse::RecDescent-&gt;new(q{
+&lt;autoaction: { [@item] } &gt;
+expression: and_expr '||' expression | and_expr
+and_expr:   not_expr '&amp;&amp;' and_expr   | not_expr
+not_expr:   '!' brack_expr       | brack_expr
+brack_expr: '(' expression ')'       | identifier
+identifier: /[a-z]+/i
+});</pre>
+<p class="Pp">Either of these is equivalent to:</p>
+<pre>parser = new Parse::RecDescent (q{
+expression: and_expr '||' expression
+    { [@item] }
+  | and_expr
+    { [@item] }
+and_expr:   not_expr '&amp;&amp;' and_expr
+    { [@item] }
+|   not_expr
+    { [@item] }
+not_expr:   '!' brack_expr
+    { [@item] }
+|   brack_expr
+    { [@item] }
+brack_expr: '(' expression ')'
+    { [@item] }
+  | identifier
+    { [@item] }
+identifier: /[a-z]+/i
+    { [@item] }
+});</pre>
+<p class="Pp">Alternatively, we could take an object-oriented approach, use
+    different classes for each node (and also eliminating redundant intermediate
+    nodes):</p>
+<pre>$::RD_AUTOACTION = q
+  { $#item==1 ? $item[1] : &quot;$item[0]_node&quot;-&gt;new(@item[1..$#item]) };
+parser = Parse::RecDescent-&gt;new(q{
+    expression: and_expr '||' expression | and_expr
+    and_expr:   not_expr '&amp;&amp;' and_expr   | not_expr
+    not_expr:   '!' brack_expr           | brack_expr
+    brack_expr: '(' expression ')'       | identifier
+    identifier: /[a-z]+/i
+});</pre>
+<p class="Pp">or:</p>
+<pre>parser = Parse::RecDescent-&gt;new(q{
+    &lt;autoaction:
+      $#item==1 ? $item[1] : &quot;$item[0]_node&quot;-&gt;new(@item[1..$#item])
+    &gt;
+    expression: and_expr '||' expression | and_expr
+    and_expr:   not_expr '&amp;&amp;' and_expr   | not_expr
+    not_expr:   '!' brack_expr           | brack_expr
+    brack_expr: '(' expression ')'       | identifier
+    identifier: /[a-z]+/i
+});</pre>
+<p class="Pp">which are equivalent to:</p>
+<pre>parser = Parse::RecDescent-&gt;new(q{
+    expression: and_expr '||' expression
+        { &quot;expression_node&quot;-&gt;new(@item[1..3]) }
+    | and_expr
+    and_expr:   not_expr '&amp;&amp;' and_expr
+        { &quot;and_expr_node&quot;-&gt;new(@item[1..3]) }
+    |   not_expr
+    not_expr:   '!' brack_expr
+        { &quot;not_expr_node&quot;-&gt;new(@item[1..2]) }
+    |   brack_expr
+    brack_expr: '(' expression ')'
+        { &quot;brack_expr_node&quot;-&gt;new(@item[1..3]) }
+    | identifier
+    identifier: /[a-z]+/i
+        { &quot;identifer_node&quot;-&gt;new(@item[1]) }
+});</pre>
+<p class="Pp">Note that, if a production already ends in an action, no
+    autoaction is appended to it. For example, in this version:</p>
+<pre>$::RD_AUTOACTION = q
+  { $#item==1 ? $item[1] : &quot;$item[0]_node&quot;-&gt;new(@item[1..$#item]) };
+parser = Parse::RecDescent-&gt;new(q{
+    expression: and_expr '&amp;&amp;' expression | and_expr
+    and_expr:   not_expr '&amp;&amp;' and_expr   | not_expr
+    not_expr:   '!' brack_expr           | brack_expr
+    brack_expr: '(' expression ')'       | identifier
+    identifier: /[a-z]+/i
+        { 'terminal_node'-&gt;new($item[1]) }
+});</pre>
+<p class="Pp">each <span class="Li">&quot;identifier&quot;</span> match produces
+    a <span class="Li">&quot;terminal_node&quot;</span> object, <i>not</i> an
+    <span class="Li">&quot;identifier_node&quot;</span> object.</p>
+<p class="Pp">A level 1 warning is issued each time an &quot;autoaction&quot; is
+    added to some production.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Autotrees'><a class='permalink' href='#Autotrees'>Autotrees</a></h2>
+<p class="Pp">A commonly needed autoaction is one that builds a parse-tree. It
+    is moderately tricky to set up such an action (which must treat terminals
+    differently from non-terminals), so Parse::RecDescent simplifies the process
+    by providing the <span class="Li">&quot;&lt;autotree&gt;&quot;</span>
+    directive.</p>
+<p class="Pp">If this directive appears at the start of grammar, it causes
+    Parse::RecDescent to insert autoactions at the end of any rule except those
+    which already end in an action. The action inserted depends on whether the
+    production is an intermediate rule (two or more items), or a terminal of the
+    grammar (i.e. a single pattern or string item).</p>
+<p class="Pp">So, for example, the following grammar:</p>
+<pre>&lt;autotree&gt;
+file    : command(s)
+command : get | set | vet
+get : 'get' ident ';'
+set : 'set' ident 'to' value ';'
+vet : 'check' ident 'is' value ';'
+ident   : /\w+/
+value   : /\d+/</pre>
+<p class="Pp">is equivalent to:</p>
+<pre>file    : command(s)        { bless \%item, $item[0] }
+command : get       { bless \%item, $item[0] }
+| set           { bless \%item, $item[0] }
+| vet           { bless \%item, $item[0] }
+get : 'get' ident ';'   { bless \%item, $item[0] }
+set : 'set' ident 'to' value ';'    { bless \%item, $item[0] }
+vet : 'check' ident 'is' value ';'  { bless \%item, $item[0] }
+ident   : /\w+/  { bless {__VALUE__=&gt;$item[1]}, $item[0] }
+value   : /\d+/  { bless {__VALUE__=&gt;$item[1]}, $item[0] }</pre>
+<p class="Pp">Note that each node in the tree is blessed into a class of the
+    same name as the rule itself. This makes it easy to build object-oriented
+    processors for the parse-trees that the grammar produces. Note too that the
+    last two rules produce special objects with the single attribute
+    '__VALUE__'. This is because they consist solely of a single terminal.</p>
+<p class="Pp">This autoaction-ed grammar would then produce a parse tree in a
+    data structure like this:</p>
+<pre>{
+  file =&gt; {
+    command =&gt; {
+     [ get =&gt; {
+        identifier =&gt; { __VALUE__ =&gt; 'a' },
+          },
+       set =&gt; {
+        identifier =&gt; { __VALUE__ =&gt; 'b' },
+        value      =&gt; { __VALUE__ =&gt; '7' },
+          },
+       vet =&gt; {
+        identifier =&gt; { __VALUE__ =&gt; 'b' },
+        value      =&gt; { __VALUE__ =&gt; '7' },
+          },
+      ],
+       },
+  }
+}</pre>
+<p class="Pp">(except, of course, that each nested hash would also be blessed
+    into the appropriate class).</p>
+<p class="Pp">You can also specify a base class for the
+    <span class="Li">&quot;&lt;autotree&gt;&quot;</span> directive. The supplied
+    prefix will be prepended to the rule names when creating tree nodes. The
+    following are equivalent:</p>
+<pre>&lt;autotree:MyBase::Class&gt;
+&lt;autotree:MyBase::Class::&gt;</pre>
+<p class="Pp">And will produce a root node blessed into the
+    <span class="Li">&quot;MyBase::Class::file&quot;</span> package in the
+    example above.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Autostubbing'><a class='permalink' href='#Autostubbing'>Autostubbing</a></h2>
+<p class="Pp">Normally, if a subrule appears in some production, but no rule of
+    that name is ever defined in the grammar, the production which refers to the
+    non-existent subrule fails immediately. This typically occurs as a result of
+    misspellings, and is a sufficiently common occurrence that a warning is
+    generated for such situations.</p>
+<p class="Pp">However, when prototyping a grammar it is sometimes useful to be
+    able to use subrules before a proper specification of them is really
+    possible. For example, a grammar might include a section like:</p>
+<pre>function_call: identifier '(' arg(s?) ')'
+identifier: /[a-z]\w*/i</pre>
+<p class="Pp">where the possible format of an argument is sufficiently complex
+    that it is not worth specifying in full until the general function call
+    syntax has been debugged. In this situation it is convenient to leave the
+    real rule <span class="Li">&quot;arg&quot;</span> undefined and just slip in
+    a placeholder (or &quot;stub&quot;):</p>
+<pre>arg: 'arg'</pre>
+<p class="Pp">so that the function call syntax can be tested with dummy input
+    such as:</p>
+<pre>f0()
+f1(arg)
+f2(arg arg)
+f3(arg arg arg)</pre>
+<p class="Pp">et cetera.</p>
+<p class="Pp">Early in prototyping, many such &quot;stubs&quot; may be required,
+    so <span class="Li">&quot;Parse::RecDescent&quot;</span> provides a means of
+    automating their definition. If the variable
+    <span class="Li">$::RD_AUTOSTUB</span> is defined when a parser is built, a
+    subrule reference to any non-existent rule (say,
+    <span class="Li">&quot;subrule&quot;</span>), will cause a &quot;stub&quot;
+    rule to be automatically defined in the generated parser. If
+    <span class="Li">&quot;$::RD_AUTOSTUB eq '1'&quot;</span> or is false, a
+    stub rule of the form:</p>
+<pre>subrule: 'subrule'</pre>
+<p class="Pp">will be generated. The special-case for a value of
+    <span class="Li">'1'</span> is to allow the use of the <b>perl -s</b> with
+    <b>-RD_AUTOSTUB</b> without generating <span class="Li">&quot;subrule:
+    '1'&quot;</span> per below. If <span class="Li">$::RD_AUTOSTUB</span> is
+    true, a stub rule of the form:</p>
+<pre>subrule: $::RD_AUTOSTUB</pre>
+<p class="Pp">will be generated. <span class="Li">$::RD_AUTOSTUB</span> must
+    contain a valid production item, no checking is performed. No lazy
+    evaluation of <span class="Li">$::RD_AUTOSTUB</span> is performed, it is
+    evaluated at the time the Parser is generated.</p>
+<p class="Pp">Hence, with <span class="Li">$::RD_AUTOSTUB</span> defined, it is
+    possible to only partially specify a grammar, and then &quot;fake&quot;
+    matches of the unspecified (sub)rules by just typing in their name, or a
+    literal value that was assigned to
+  <span class="Li">$::RD_AUTOSTUB</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Look-ahead'><a class='permalink' href='#Look-ahead'>Look-ahead</a></h2>
+<p class="Pp">If a subrule, token, or action is prefixed by &quot;...&quot;,
+    then it is treated as a &quot;look-ahead&quot; request. That means that the
+    current production can (as usual) only succeed if the specified item is
+    matched, but that the matching <i>does not consume any of the text being
+    parsed</i>. This is very similar to the
+    <span class="Li">&quot;/(?=...)/&quot;</span> look-ahead construct in Perl
+    patterns. Thus, the rule:</p>
+<pre>inner_word: word ...word</pre>
+<p class="Pp">will match whatever the subrule &quot;word&quot; matches, provided
+    that match is followed by some more text which subrule &quot;word&quot;
+    would also match (although this second substring is not actually consumed by
+    &quot;inner_word&quot;)</p>
+<p class="Pp">Likewise, a &quot;...!&quot; prefi<section class="Sd">
+<h1 class="Sh" id="SPECIAL_TOKENS"><a class="permalink" href="#SPECIAL_TOKENS">SPECIAL TOKENS</a></h1>
+<p class="Pp">The following are keywords which may be used as terminals in
+    rules, or which may be used as parts of rules. They are, for the most part,
+    self-explanatory.</p>
+<dl class="Bl-tag">
+  <dt id="any"><a class="permalink" href="#any"><code>any</code></a></dt>
+  <dd>Matches any single character.</dd>
+  <dt id="empty"><a class="permalink" href="#empty"><code>empty</code></a></dt>
+  <dd>Matches the empty string. Succeeds without consuming any text.</dd>
+  <dt id="eof"><a class="permalink" href="#eof"><code>eof</code></a></dt>
+  <dd>Matches the end of the input text. Fails if called anywhere but the end
+      of the input.</dd>
+  <dt id="eoi"><a class="permalink" href="#eoi"><code>eoi</code></a></dt>
+  <dd>Matches the end of the input. Succeeds without consuming any text. Is
+      synonymous with <code class="Nm">eof</code>.</dd>
+  <dt id="fail"><a class="permalink" href="#fail"><code>fail</code></a></dt>
+  <dd>Always fails. Is synonymous with the action <code class="Nm">undef</code>.</dd>
+  <dt id="literal"><a class="permalink" href="#literal"><code>literal</code></a></dt>
+  <dd>Matches the literal string given as its argument. For example,
+      <code class="Nm">literal 'foo'</code> matches the string <code class="Nm">foo</code>.
+      The argument may be quoted in any of the standard Perl quote-delimited
+      formats.</dd>
+  <dt id="lookup"><a class="permalink" href="#lookup"><code>lookup</code></a></dt>
+  <dd>Matches a string from a list of strings. The list is given as the
+      argument. For example, <code class="Nm">lookup qw( if else while )</code>
+      matches any of the strings <code class="Nm">if</code>,
+      <code class="Nm">else</code>, or <code class="Nm">while</code>.</dd>
+  <dt id="match"><a class="permalink" href="#match"><code>match</code></a></dt>
+  <dd>Matches a Perl regular expression. The expression is given as the
+      argument. For example, <code class="Nm">match qr/[a-z]+/</code> matches
+      one or more lower-case letters. The argument may be quoted in any of the
+      standard Perl quote-delimited formats.</dd>
+  <dt id="token"><a class="permalink" href="#token"><code>token</code></a></dt>
+  <dd>Matches a token previously defined using the <code class="Nm">token</code>
+      directive (see below).</dd>
+</dl>
+</section>
+<section class="Sd">
+<h1 class="Sh" id="PREFIX_OPERATORS"><a class="permalink" href="#PREFIX_OPERATORS">PREFIX OPERATORS</a></h1>
+<p class="Pp">The following are operators which may precede any rule, subrule,
+    or token.</p>
+<dl class="Bl-tag">
+  <dt id="none"><a class="permalink" href="#none"><code>none</code></a></dt>
+  <dd>The opposite of <code class="Nm">any</code>. Matches any single character,
+      except the one given as its argument.</dd>
+  <dt id="not"><a class="permalink" href="#not"><code>not</code></a></dt>
+  <dd>The opposite of <code class="Nm">literal</code>, <code class="Nm">lookup</code>,
+      or <code class="Nm">match</code>. If the argument would normally succeed,
+      this operator makes it fail. If the argument would normally fail, this
+      operator makes it succeed (without consuming any text). Hence, a rule
+      such as:</p>
+    <pre>identifier: ...!keyword ...!'_' /[A-Za-z_]\w*/</pre>
+    <p class="Pp">matches a string of characters which satisfies the pattern
+      <span class="Li">&quot;/[A-Za-z_]\w*/&quot;</span>, but only if the same
+      sequence of characters would not match either subrule &quot;keyword&quot; or
+      the literal token '_'.</p>
+    <p class="Pp">Sequences of look-ahead prefixes accumulate, multiplying their
+      positive and/or negative senses. Hence:</p>
+    <pre>inner_word: word ...!......!word</pre>
+    <p class="Pp">is exactly equivalent to the original example above (a warning is
+      issued in cases like these, since they often indicate something left out, or
+      misunderstood).</p>
+    <p class="Pp">Note that actions can also be treated as look-aheads. In such
+      cases, the state of the parser text (in the local variable
+      <span class="Li">$text</span>) <i>after</i> the look-ahead action is
+      guaranteed to be identical to its state <i>before</i> the action, regardless
+      of how it's changed <i>within</i> the action (unless you actually undefine
+      <span class="Li">$text</span>, in which case you get the disaster you
+      deserve :-).</p>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Directives"><a class="permalink" href="#Directives">Directives</a></h2>
+<p class="Pp">Directives are special pre-defined actions which may be used to
+  alter the behaviour of the parser. There are currently twenty-three
+  directives: <span class="Li">&quot;&lt;commit&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;uncommit&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;reject&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;score&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;autoscore&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;skip&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;resync&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;error&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;warn&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;hint&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;trace_build&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;trace_parse&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;nocheck&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;rulevar&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;matchrule&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;leftop&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;rightop&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;defer&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;nocheck&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;perl_quotelike&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;perl_codeblock&gt;&quot;</span>,
+  <span class="Li">&quot;&lt;perl_variable&gt;&quot;</span>, and
+  <span class="Li">&quot;&lt;token&gt;&quot;</span>.</p>
+<dl class="Bl-tag">
+  <dt id="Committing"><a class="permalink" href="#Committing">Committing and
+    uncommitting</a></dt>
+  <dd>The <span class="Li">&quot;&lt;commit&gt;&quot;</span> and
+      <span class="Li">&quot;&lt;uncommit&gt;&quot;</span> directives permit the
+      recursive descent of the parse tree to be pruned (or &quot;cut&quot;) for
+      efficiency. Within a rule, a
+      <span class="Li">&quot;&lt;commit&gt;&quot;</span> directive instructs the
+      rule to ignore subsequent productions if the current production fails. For
+      example:
+    <pre>command: 'find' &lt;commit&gt; filename
+   | 'open' &lt;commit&gt; filename
+   | 'move' filename filename
+</pre>
+    <p class="Pp">Clearly, if the leading token 'find' is matched in the first
+        production but that production fails for some other reason, then the
+        remaining productions cannot possibly match. The presence of the
+        <span class="Li">&quot;&lt;commit&gt;&quot;</span> causes the
+        &quot;command&quot; rule to fail immediately if an invalid
+        &quot;find&quot; command is found, and likewise if an invalid
+        &quot;open&quot; command is encountered.</p>
+    <p class="Pp">It is also possible to revoke a previous commitment. For
+        example:</p>
+    <pre>if_statement: 'if' &lt;commit&gt; condition
+    'then' block &lt;uncommit&gt;
+    'else' block
+    | 'if' &lt;commit&gt; condition
+    'then' block
+</pre>
+    <p class="Pp">In this case, a failure to find an &quot;else&quot; block in
+        the first production shouldn't preclude trying the second production,
+        but a failure to find a &quot;condition&quot; certainly should.</p>
+    <p class="Pp">As a special case, any production in which the <i>first</i>
+        item is an <span class="Li">&quot;&lt;uncommit&gt;&quot;</span>
+        immediately revokes a preceding
+        <span class="Li">&quot;&lt;commit&gt;&quot;</span> (even though the
+        production would not otherwise have been tried). For example, in the
+        rule:</p>
+    <pre>request: 'explain' expression
+       | 'explain' &lt;commit&gt; keyword
+       | 'save'
+       | 'quit'
+       | &lt;uncommit&gt; term '?'
+</pre>
+    <p class="Pp">if the text being matched was &quot;explain?&quot;, and the
+        first two productions failed, then the
+        <span class="Li">&quot;&lt;commit&gt;&quot;</span> in production two
+        would cause productions three and four to be skipped, but the leading
+        <span class="Li">&quot;&lt;uncommit&gt;&quot;</span> in the production
+        five would allow that production to attempt a match.</p>
+    <p class="Pp">Note in the preceding example, that the
+        <span class="Li">&quot;&lt;commit&gt;&quot;</span> was only placed in
+        production two. If production one had been:</p>
+    <pre>request: 'explain' &lt;commit&gt; expression
+</pre>
+    <p class="Pp">then production two would be (inappropriately) skipped if a
+        leading &quot;explain...&quot; was encountered.</p>
+    <p class="Pp">Both <span class="Li">&quot;&lt;commit&gt;&quot;</span> and
+        <span class="Li">&quot;&lt;uncommit&gt;&quot;</span> directives always
+        succeed, and their value is always 1.</p>
+  </dd>
+  <dt id="Rejecting"><a class="permalink" href="#Rejecting">Rejecting a
+    production</a></dt>
+  <dd>The <span class="Li">&quot;&lt;reject&gt;&quot;</span> directive
+      immediately causes the current production to fail (it is exactly
+      equivalent to, but more obvious than, the action
+      <span class="Li">&quot;{undef}&quot;</span>). A
+      <span class="Li">&quot;&lt;reject&gt;&quot;</span> is useful when it is
+      desirable to get the side effects of the actions in one production,
+      without prejudicing a match by some other production later in the rule.
+      For example, to insert tracing code into the parse:
+    <pre>complex_rule: { print &quot;In complex rule...\n&quot;; } &lt;reject&gt;
+complex_rule: simple_rule '+' 'i' '*' simple_rule
+    | 'i' '*' simple_rule
+    | simple_rule
+</pre>
+    <p class="Pp">It is also possible to specify a conditional rejection, using
+        the form
+        <span class="Li">&quot;&lt;reject:</span><span class="Li"><i>condition</i></span><span class="Li">&gt;&quot;</span>,
+        which only rejects if the specified condition is true. This form of
+        rejection is exactly equivalent to the action
+        <span class="Li">&quot;{(</span><span class="Li"><i>condition</i></span><span class="Li">)?undef:1}&gt;&quot;</span>.
+        For example:</p>
+    <pre>command: save_command
+   | restore_command
+   | &lt;reject: defined $::tolerant&gt; { exit }
+   | &lt;error: Unknown command. Ignored.&gt;
+</pre>
+    <p class="Pp">A <span class="Li">&quot;&lt;reject&gt;&quot;</span> directive
+        never succeeds (and hence has no associated value). A conditional
+        rejection may succeed (if its condition is not satisfied), in which case
+        its value is 1.</p>
+    <p class="Pp">As an extra optimization,
+        <span class="Li">&quot;Parse::RecDescent&quot;</span> ignores any
+        production which <i>begins</i> with an unconditional
+        <span class="Li">&quot;&lt;reject&gt;&quot;</span> directive, since any
+        such production can never successfully match or have any useful
+        side-effects. A level 1 warning is issued in all such cases.</p>
+    <p class="Pp">Note that productions beginning with conditional
+        <span class="Li">&quot;&lt;reject:...&gt;&quot;</span> directives are
+        <i>never</i> &quot;optimized away&quot; in this manner, even if they are
+        always guaranteed to fail (for example:
+        <span class="Li">&quot;&lt;reject:1&gt;&quot;</span>)</p>
+    <p class="Pp">Due to the way grammars are parsed, there is a minor
+        restriction on the condition of a conditional
+        <span class="Li">&quot;&lt;reject:...&gt;&quot;</span>: it cannot
+        contain any raw '&lt;' or '&gt;' characters. For example:</p>
+    <pre>line: cmd &lt;reject: $thiscolumn &gt; max&gt; data
+</pre>
+    <p class="Pp">results in an error when a parser is built from this grammar
+        (since the grammar parser has no way of knowing whether the first &gt;
+        is a &quot;less than&quot; or the end of the
+        <span class="Li">&quot;&lt;reject:...&gt;&quot;</span>.</p>
+    <p class="Pp">To overcome this problem, put the condition inside a do{}
+        block:</p>
+    <pre>line: cmd &lt;reject: do{$thiscolumn &gt; max}&gt; data
+</pre>
+    <p class="Pp">Note that the same problem may occur in other directives that
+        take arguments. The same solution will work in all cases.</p>
+  </dd>
+  <dt id="Skipping"><a class="permalink" href="#Skipping">Skipping between
+    terminals</a></dt>
+  <dd>The <span class="Li">&quot;&lt;skip&gt;&quot;</span> directive enables the
+      terminal prefix used in a production to be changed. For example:
+    <pre>OneLiner: Command &lt;skip:'[ \t]*'&gt; Arg(s) /;/
+</pre>
+    <p class="Pp">causes only blanks and tabs to be skipped before terminals in
+        the <span class="Li">&quot;Arg&quot;</span> subrule (and any of
+        <i>its</i> subrules&gt;, and also before the final
+        <span class="Li">&quot;/;/&quot;</span> terminal. Once the production is
+        complete, the previous terminal prefix is reinstated. Note that this
+        implies that distinct productions of a rule must reset their terminal
+        prefixes individually.</p>
+    <p class="Pp">The <span class="Li">&quot;&lt;skip&gt;&quot;</span> directive
+        evaluates to the <i>previous</i> terminal prefix, so it's easy to
+        reinstate a prefix later in a production:</p>
+    <pre>Command: &lt;skip:&quot;,&quot;&gt; CSV(s) &lt;skip:$item[1]&gt; Modifier
+</pre>
+    <p class="Pp">The value specified after the colon is interpolated into a
+        pattern, so all of the following are equivalent (though their efficiency
+        increases down the list):</p>
+    <pre>&lt;skip: &quot;$colon|$comma&quot;&gt;   # ASSUMING THE VARS HOLD THE OBVIOUS VALUES
+&lt;skip: ':|,'&gt;
+&lt;skip: q{[:,]}&gt;
+&lt;skip: qr/[:,]/&gt;
+</pre>
+    <p class="Pp">There is no way of directly setting the prefix for an entire
+        rule, except as follows:</p>
+    <pre>Rule: &lt;skip: '[ \t]*'&gt; Prod1
+    | &lt;skip: '[ \t]*'&gt; Prod2a Prod2b
+    | &lt;skip: '[ \t]*'&gt; Prod3
+</pre>
+    <p class="Pp">or, better:</p>
+    <pre>Rule: &lt;skip: '[ \t]*'&gt;
+(
+    Prod1
+  | Prod2a Prod2b
+  | Prod3
+)
+</pre>
+    <p class="Pp">The skip pattern is passed down to subrules, so setting the
+        skip for the top-level rule as described above actually sets the prefix
+        for the entire grammar (provided that you only call the method
+        corresponding to the top-level rule itself). Alternatively, or if you
+        have more than one top-level rule in your grammar, you can provide a
+        global <span class="Li">&quot;&lt;skip&gt;&quot;</span> directive prior
+        to defining any rules in the grammar. These are the preferred
+        alternatives to setting
+        <span class="Li">$Parse::RecDescent::skip</span>.</p>
+    <p class="Pp">Additiona</p>
+  </dd>
+</dl>
+</section>
+        <span class="Li">&quot;&lt;skip&gt;&quot;</span>, de hecho, te permite
+        tener un comportamiento de salto completamente dinámico. Por ejemplo:</p>
+        <pre>Rule_with_dynamic_skip: &lt;skip: $::skip_pattern&gt; Rule
+</pre>
+    <p class="Pp">Luego puedes establecer <span class="Li">$::skip_pattern</span>
+        antes de invocar
+        <span class="Li">&quot;Rule_with_dynamic_skip&quot;</span> y hacer que
+        salte lo que hayas especificado.</p>
+    <p class="Pp"><b>Nota: Hasta la versión 1.51 de Parse::RecDescent, se
+        utilizaba un mecanismo completamente diferente para especificar
+        prefijos terminales. El método actual no es retrocompatible con ese
+        enfoque temprano. El enfoque actual es estable y no volverá a cambiar.</b></p>
+    <p class="Pp"><b>Nota: la directiva global
+        </b><span class="Li"><b>&quot;&lt;skip&gt;&quot;</b></span><b>, añadida
+        en 1.967_004, no interpolaba el argumento del patrón, sino que el patrón
+        se colocaba entre comillas simples y luego se interpolaba. Este
+        comportamiento se cambió en 1.967_010 para que todas las directivas
+        </b><span class="Li"><b>&quot;&lt;skip&gt;&quot;</b></span><b> se
+        comportaran de manera similar.</b></p>
+  </dd>
+  <dt id="Resynchronization"><a class="permalink" href="#Resynchronization">Resincronización</a></dt>
+  <dd>La directiva <span class="Li">&quot;&lt;resync&gt;&quot;</span> proporciona
+      un medio visualmente distintivo para consumir parte del texto que se está
+      analizando, generalmente para omitir una entrada errónea. En su forma más
+      simple, <span class="Li">&quot;&lt;resync&gt;&quot;</span> simplemente
+      consume texto hasta e incluyendo el siguiente carácter de nueva línea
+      (<span class="Li">&quot;\n&quot;</span>), teniendo éxito solo si se
+      encuentra la nueva línea, en cuyo caso hace que su regla circundante
+      devuelva cero en caso de éxito.
+    <p class="Pp">En otras palabras, un
+        <span class="Li">&quot;&lt;resync&gt;&quot;</span> es exactamente equivalente
+        al token <span class="Li">&quot;/[^\n]*\n/&quot;</span> seguido de la
+        acción
+        <span class="Li">&quot;{&#x00A0;$return&#x00A0;=&#x00A0;0&#x00A0;}&quot;</span>
+        (excepto que las producciones que comienzan con un
+        <span class="Li">&quot;&lt;resync&gt;&quot;</span> se ignoran al generar
+        mensajes de error). Un uso típico podría ser:</p>
+        <pre>script : command(s)
+command: save_command
+   | restore_command
+   | &lt;resync&gt; # INTENTA LA SIGUIENTE LÍNEA, SI ES POSIBLE
+</pre>
+    <p class="Pp">También es posible especificar explícitamente un patrón de
+        resincronización, utilizando la variante
+        <span class="Li">&quot;&lt;resync:</span><span class="Li"><i>patrón</i></span><span class="Li">&gt;&quot;</span>.
+        Esta versión tiene éxito solo si el patrón especificado coincide (y
+        consume) el texto analizado. En otras palabras,
+        <span class="Li">&quot;&lt;resync:</span><span class="Li"><i>patrón</i></span><span class="Li">&gt;&quot;</span>
+        es exactamente equivalente al token
+        <span class="Li">&quot;/</span><span class="Li"><i>patrón</i></span><span class="Li">/&quot;</span>
+        (seguido de una acción
+        <span class="Li">&quot;{&#x00A0;$return&#x00A0;=&#x00A0;0&#x00A0;}&quot;</span>).
+        Por ejemplo, si los comandos se terminaban con nuevas líneas o puntos y
+        comas:</p>
+        <pre>command: save_command
+   | restore_command
+   | &lt;resync:[^;\n]*[;\n]&gt;
+</pre>
+    <p class="Pp">El valor de una directiva <span class="Li">&quot;&lt;resync&gt;&quot;</span>
+        (de cualquier tipo) que haya coincidido con éxito es el texto que ha
+        consumido. Tenga en cuenta, sin embargo, que dado que la directiva
+        también establece <span class="Li">$return</span>, una producción que
+        consiste en un único <span class="Li">&quot;&lt;resync&gt;&quot;</span>
+        tiene éxito pero devuelve el valor cero (que una regla de llamada puede
+        encontrar útil para distinguir entre coincidencias "verdaderas" y
+        coincidencias "tolerantes"). Recuerde que devolver un valor cero indica
+        que la regla *tuvo éxito* (ya que solo un <span class="Li">&quot;undef&quot;</span>
+        denota un fallo dentro de los analizadores de
+        <span class="Li">&quot;Parse::RecDescent&quot;</span>).</p>
+  </dd>
+  <dt id="Error"><a class="permalink" href="#Error">Manejo de errores</a></dt>
+  <dd>La directiva <span class="Li">&quot;&lt;error&gt;&quot;</span> proporciona la
+      generación automática o definida por el usuario de mensajes de error
+      durante un análisis. En su forma más simple,
+      <span class="Li">&quot;&lt;error&gt;&quot;</span> prepara un mensaje de
+      error basado en la discrepancia entre el último elemento esperado y el
+      texto que causó el fallo. Por ejemplo, dada la regla:
+        <pre>McCoy: curse ',' name ', soy un doctor, no un' a_profession '!'
+ | pronoun 'muerto,' name '!'
+ | &lt;error&gt;
+</pre>
+    <p class="Pp">las siguientes cadenas producirían los siguientes
+        mensajes:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt>&quot;Amén, Jim&quot;</dt>
+  <dd>
+    <pre>ERROR (línea 1): McCoy inválido: Se esperaba maldición o pronombre
+    no encontrado
+</pre>
+  </dd>
+  <dt>&quot;¡Maldición, Jim, soy un doctor, no un extraterrestre de orejas puntiagudas!&quot;</dt>
+  <dd>
+    <pre>ERROR (línea 1): McCoy inválido: Se esperaba ", I'm a doctor, not a"
+    pero se encontró ", I'm a doctor!" en su lugar
+</pre>
+  </dd>
+  <dt>&quot;Él está muerto,\n&quot;</dt>
+  <dd>
+    <pre>ERROR (línea 2): McCoy inválido: No se encontró el nombre esperado
+</pre>
+  </dd>
+  <dt>&quot;Él está vivo&quot;</dt>
+  <dd>
+    <pre>ERROR (línea 1): McCoy inválido: Se esperaba 'muerto,' pero se encontró
+    "vivo!" en su lugar
+</pre>
+  </dd>
+  <dt>&quot;¡Maldición, Jim, soy un doctor, no un extraterrestre de orejas puntiagudas!&quot;</dt>
+  <dd>
+    <pre>ERROR (línea 1): McCoy inválido: Se esperaba una profesión pero se encontró
+    "extraterrestre de orejas puntiagudas!" en su lugar
+</pre>
+  </dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Tenga en cuenta que, al generar automáticamente mensajes de error, todos
+    los guiones bajos en los nombres de las reglas utilizados en un mensaje se
+    reemplazan por espacios simples (por ejemplo, "a_production" se convierte en
+    "a production"). Por lo tanto, una elección juiciosa de nombres de reglas
+    puede mejorar considerablemente la legibilidad de los mensajes de error
+    automáticos (así como la mantenibilidad de la gramática original).</p>
+<p class="Pp">Si el error generado automáticamente no es suficiente, es posible
+    proporcionar un mensaje explícito como parte de la directiva de error. Por
+    ejemplo:</p>
+<pre>Spock: &quot;Fascinante ',' (name | 'Captain') '.'
+ | &quot;Altamente ilógico, doctor.&quot;
+ | &lt;error: ¡Nunca dijo eso!&gt;</pre>
+<p class="Pp">lo que resultaría en que *todos* los fallos al analizar una
+    subregla de "Spock" imprimieran el siguiente mensaje:</p>
+<pre>ERROR (línea &lt;N&gt;): Spock inválido:  Nunca dijo eso!</pre>
+<p class="Pp">El mensaje de error se trata como una cadena "qq{...}" y se
+    interpola cuando se genera el error (¡*no* cuando se especifica la
+    directiva!). Por lo tanto:</p>
+<pre>&lt;error: Error místico cerca de &quot;$text&quot;&gt;</pre>
+<p class="Pp">insertaría correctamente la cadena de texto ambiental que causó
+    el error.</p>
+<p class="Pp">Hay otras dos formas de directiva de error:
+    <span class="Li">&quot;&lt;error?&gt;&quot;</span> y
+    <span class="Li">&quot;&lt;error?:&#x00A0;msg&gt;&quot;</span>. Estas se
+    comportan igual que
+    <span class="Li">&quot;&lt;error&gt;&quot;</span> y
+    <span class="Li">&quot;&lt;error:&#x00A0;msg&gt;&quot;</span>,
+    respectivamente, excepto que solo se activan si la regla está
+    "confirmada" en el momento en que se encuentran. Por ejemplo:</p>
+<pre>Scotty: &quot;Ya sabes que no puedes cambiar las Leyes de la Física,&quot; &lt;commit&gt; name
+  | name &lt;commit&gt; ',' '¡se va a volar!'
+  | &lt;error?&gt;</pre>
+<p class="Pp">solo generará un error para una cadena que comience con "Ya sabes
+    que no puedes cambiar las Leyes de la Física,", o un nombre válido, pero que
+    aún así no coincida con la producción correspondiente. Es decir,
+    <span class="Li">&quot;$parser-&gt;Scotty(&quot;¡Sí,
+    Capitán&quot;)&quot;</span> fallará silenciosamente (ya que ninguna
+    producción "confirmará" la regla con esa entrada), mientras que
+    <span class="Li">&quot;$parser-&gt;Scotty(&quot;Sr.
+    Spock, ¡no puedo hacerlo!&quot;)&quot;</span> fallará con el mensaje
+    de error:</p>
+<pre>ERROR (línea 1): Scotty inválido: se esperaba '¡se va a volar!'
+    pero se encontró '¡no puedo hacerlo!' en su lugar.</pre>
+<p class="Pp">ya que en ese caso la segunda producción confirmaría después de
+    coincidir con el nombre inicial.</p>
+<p class="Pp">Tenga en cuenta que para permitir este comportamiento, todas las
+    directivas <span class="Li">&quot;&lt;error&gt;&quot;</span> que son el primer
+    elemento de una producción anulan la confirmación de la regla el tiempo
+    suficiente para permitir que se intente su producción (es decir, cuando su
+    producción falla, la confirmación se restablece para que se omitan las
+    producciones subsiguientes).</p>
+<p class="Pp">Para anular la confirmación de la regla *permanentemente* antes
+    de un mensaje de error, es necesario colocar un
+    <span class="Li">&quot;&lt;uncommit&gt;&quot;</span> explícito antes del
+    <span class="Li">&quot;&lt;error&gt;&quot;</span>. Por ejemplo:</p>
+<pre>line: 'Kirk:'  &lt;commit&gt; Kirk
+| 'Spock:' &lt;commit&gt; Spock
+| 'McCoy:' &lt;commit&gt; McCoy
+| &lt;uncommit&gt; &lt;error?&gt; &lt;reject&gt;
+| &lt;resync&gt;</pre>
+<p class="Pp">Los mensajes de error generados por los diversos directivas de tipo
+    <span class="Li">&quot;&lt;error...&gt;&quot;</span> no se muestran
+    inmediatamente. En su lugar, se "enfilan" en un búfer y solo se muestran una
+    vez que el análisis finalmente falla. Además, las directivas
+    <span class="Li">&quot;&lt;error...&gt;&quot;</span> que causan que una
+    producción de una regla falle se eliminan automáticamente de la cola de
+    mensajes si otra producción hace que la regla completa tenga éxito
+    posteriormente. Esto significa que puede colocar directivas
+    <span class="Li">&quot;&lt;error...&gt;&quot;</span> donde sea útil el
+    diagnóstico, y solo se mostrarán aquellas asociadas con fallos reales del
+    analizador. Consulte también "GOTCHAS".</p>
+<p class="Pp">Como regla general, los diagnósticos más útiles se generan
+    generalmente en el nivel más bajo dentro de la gramática, o en el nivel más
+    alto. Una buena regla general es identificar aquellas subreglas que consisten
+    principalmente (o en su totalidad) en terminales, y luego colocar una
+    directiva <span class="Li">&quot;&lt;error...&gt;&quot;</span> al final de
+    cualquier otra regla que llame a una o más de esas subreglas.</p>
+<p class="Pp">Hay otra situación en la que se suprime la salida de los diversos
+    tipos de directivas de error; a saber, cuando la regla que las contiene se
+    está analizando como parte de una "anticipación" (consulte "Anticipación").
+    En este caso, la directiva de error aún hará que la regla falle, pero lo hará
+    silenciosamente.</p>
+<p class="Pp">Una directiva <span class="Li">&quot;&lt;error&gt;&quot;</span>
+    incondicional siempre falla (y, por lo tanto, no tiene un valor asociado).
+    Esto significa que encontrar tal directiva siempre hace que la producción que
+    la contiene falle. Por lo tanto, una directiva
+    <span class="Li">&quot;&lt;error&gt;&quot;</span> será inevitablemente el
+    último elemento (útil) de una regla (se emite una advertencia de nivel 3 si
+    una producción contiene elementos después de una directiva
+    <span class="Li">&quot;&lt;error&gt;&quot;</span> incondicional).</p>
+<p class="Pp">Una directiva <span class="Li">&quot;&lt;error?&gt;&quot;</span>
+    *tendrá éxito* (es decir: no fallará :-) si la regla actual no está
+    confirmada cuando se encuentra la directiva. En ese caso, el valor asociado
+    de la directiva es cero. Por lo tanto, este tipo de directiva de error *puede*
+    usarse antes del final de una producción. Por ejemplo:</p>
+<pre>command: 'do' &lt;commit&gt; something
+   | 'report' &lt;commit&gt; something
+   | &lt;error?: Error de sintaxis&gt; &lt;error: Comando desconocido&gt;</pre>
+<p class="Pp"><b>Advertencia:</b>
+<div class="manual-content">
+<p>El directive
+    <span class="Li">&quot;&lt;error?&gt;&quot;</span> <i>no</i>
+    significa &quot;fallar siempre (pero hacerlo silenciosamente a menos que se confirme)&quot;. En realidad, significa &quot;fallar (e informar) solo si se confirma, de lo contrario
+    <i>tener éxito</i>&quot;. Para lograr la semántica de &quot;fallar silenciosamente si no se confirma&quot;, es necesario usar:</p>
+<pre>regla: item &lt;commit&gt; item(s)
+| &lt;error?&gt; &lt;reject&gt;  # FALLAR SILENCIOSAMENTE A MENOS QUE SE CONFIRME</pre>
+<p class="Pp">Sin embargo, como la gente parece esperar que un directive solitario
+    <span class="Li">&quot;&lt;error?&gt;&quot;</span> funcione así:</p>
+<pre>regla: item &lt;commit&gt; item(s)
+| &lt;error?: Mensaje de error si se confirma&gt;
+| &lt;error:  Mensaje de error si no se confirma&gt;</pre>
+<p class="Pp">Parse::RecDescent agrega automáticamente un directive
+    <span class="Li">&quot;&lt;reject&gt;&quot;</span> si el directive
+    <span class="Li">&quot;&lt;error?&gt;&quot;</span> es el único elemento en una producción. Se emite una advertencia de nivel 2 (ver más abajo) cuando esto sucede.</p>
+<p class="Pp">El nivel de reporte de errores durante la construcción del parser y el análisis se controla por la presencia o ausencia de cuatro variables globales:
+    <span class="Li">$::RD_ERRORS</span>, <span class="Li">$::RD_WARN</span>,
+    <span class="Li">$::RD_HINT</span>, y &lt;$::RD_TRACE&gt;. Si
+    <span class="Li">$::RD_ERRORS</span> está definida (y, por defecto, lo está)
+    entonces se reportan errores fatales.</p>
+<p class="Pp">Siempre que <span class="Li">$::RD_WARN</span> esté definida, también se reportan ciertos problemas no fatales.</p>
+<p class="Pp">Las advertencias tienen un &quot;nivel&quot; asociado: 1, 2 o 3. Cuanto mayor sea el nivel, más seria será la advertencia. El valor de la variable global correspondiente (<span class="Li">$::RD_WARN</span>)
+    determina el <i>nivel más bajo</i> de advertencia que se mostrará. Por lo tanto, para ver <i>todas</i> las advertencias, establezca <span class="Li">$::RD_WARN</span> a 1. Para ver solo las advertencias más serias, establezca <span class="Li">$::RD_WARN</span> a 3.
+    Por defecto, <span class="Li">$::RD_WARN</span> se inicializa a 3, asegurando que los errores serios pero no fatales se reporten automáticamente.</p>
+<p class="Pp">También hay un directive de gramática para activar advertencias desde dentro de la gramática: <span class="Li">&quot;&lt;warn&gt;&quot;</span>. Toma un argumento opcional, que especifica el nivel de advertencia:
+    <span class="Li">&quot;&lt;warn: 2&gt;&quot;</span>.</p>
+<p class="Pp">Consulte <i>&quot;DIAGNÓSTICOS&quot;</i> para obtener una lista de los diversos mensajes de error y advertencia que genera Parse::RecDescent cuando estas dos
+    variables están definidas.</p>
+<p class="Pp">Definir cualquiera de las variables restantes (que no están definidas por defecto) aumenta aún más la cantidad de información reportada. Definir
+    <span class="Li">$::RD_HINT</span> hace que el generador de parser ofrezca análisis y sugerencias más detalladas sobre errores y advertencias. Tenga en cuenta que establecer
+    <span class="Li">$::RD_HINT</span> en cualquier punto establece automáticamente
+    <span class="Li">$::RD_WARN</span> a 1. También hay un directive
+    <span class="Li">&quot;&lt;hint&gt;&quot;</span>, que se puede codificar directamente en una gramática.</p>
+<p class="Pp">Definir <span class="Li">$::RD_TRACE</span> hace que el generador de parser y el parser reporten su progreso a STDERR con detalles agobiantes (aunque, sin sugerencias a menos que <span class="Li">$::RD_HINT</span> esté definida por separado). Este detalle se puede moderar de una sola manera: si
+    <span class="Li">$::RD_TRACE</span> tiene un valor entero (<i>N</i>) mayor que 1, solo los <i>N</i> caracteres del &quot;contexto de análisis actual&quot; (es decir, dónde estamos en la cadena de entrada en cualquier momento del análisis) se reportan en cada momento.</p>
+<p class="Pp"><span class="Li">$::RD_TRACE</span> es principalmente útil para depurar una gramática que no se comporta como se espera. Para este fin, si
+    <span class="Li">$::RD_TRACE</span> está definida cuando se construye un parser, cualquier código de parser real que se genere también se escribe en un archivo llamado
+    &quot;RD_TRACE&quot; en el directorio local.</p>
+<p class="Pp">Hay dos directivas asociadas con la variable
+    <span class="Li">$::RD_TRACE</span>. Si una gramática contiene un directive
+    <span class="Li">&quot;&lt;trace_build&gt;&quot;</span> en cualquier parte de su especificación, <span class="Li">$::RD_TRACE</span> se activa durante la fase de construcción del parser. Si una gramática contiene un directive
+    <span class="Li">&quot;&lt;trace_parse&gt;&quot;</span> en cualquier parte de su especificación, <span class="Li">$::RD_TRACE</span> se activa durante cualquier análisis que realice el parser.</p>
+<p class="Pp">Tenga en cuenta que las cuatro variables pertenecen al paquete &quot;main&quot;, lo que las hace más fáciles de referenciar en el código que controla el parser, y también facilita su conversión en flags de línea de comandos
+    (&quot;-RD_ERRORS&quot;, &quot;-RD_WARN&quot;, &quot;-RD_HINT&quot;,
+    &quot;-RD_TRACE&quot;) bajo <b>perl -s</b>.</p>
+<p class="Pp">Los directivas correspondientes son útiles para &quot;hardcodear&quot;
+    las diversas características de depuración en una gramática particular (en lugar de tener que establecer y restablecer variables externas).</p>
+<dl class="Bl-tag">
+  <dt id="Redireccionando"><a class="permalink" href="#Redireccionando">Redireccionando
+    diagnósticos</a></dt>
+  <dd>Los diagnósticos proporcionados por el mecanismo de trazado siempre van a STDERR. Si
+      necesita que vayan a otro lugar, localice y reabra STDERR antes del análisis.
+    <p class="Pp">Por ejemplo:</p>
+        <pre>{
+    local *STDERR = IO::File-&gt;new(&quot;&gt;$filename&quot;) or die $!;
+    my $result = $parser-&gt;startrule($text);
+}
+</pre>
+  </dd>
+  <dt id="Consistencia"><a class="permalink" href="#Consistencia">Verificaciones de
+    consistencia</a></dt>
+  <dd>Cada vez que se construye un parser, Parse::RecDescent realiza una serie de
+      verificaciones de consistencia (potencialmente costosas). Estas incluyen: verificar que la gramática no sea recursiva a la izquierda y que ninguna regla haya quedado sin definir.
+    <p class="Pp">Estas verificaciones son salvaguardas importantes durante el desarrollo, pero representan una sobrecarga innecesaria cuando la gramática es estable y está lista para ser desplegada. Por lo tanto, Parse::RecDescent proporciona un directive para deshabilitarlas:
+        <span class="Li">&quot;&lt;nocheck&gt;&quot;</span>.</p>
+    <p class="Pp">Si una gramática contiene un directive
+        <span class="Li">&quot;&lt;nocheck&gt;&quot;</span> en cualquier parte de su especificación, se omiten las verificaciones adicionales en tiempo de compilación.</p>
+  </dd>
+  <dt id="Especificando"><a class="permalink" href="#Especificando">Especificando
+    variables locales</a></dt>
+  <dd>Ocasionalmente es conveniente especificar variables que son locales a una sola
+      regla. Esto se puede lograr incluyendo un directive
+      <span class="Li">&quot;&lt;rulevar:...&gt;&quot;</span> en cualquier parte de la regla. Por ejemplo:
+        <pre>markup: &lt;rulevar: $tag&gt;
+markup: tag {($tag=$item[1]) =~ s/^&lt;|&gt;$//g} body[$tag]
+</pre>
+    <p class="Pp">El directive de ejemplo <span class="Li">&quot;&lt;rulevar:
+        $tag&gt;&quot;</span> hace que se declare una variable &quot;my&quot; llamada
+        <span class="Li">$tag</span> al inicio de la subrutina que implementa la
+        regla <span class="Li">&quot;markup&quot;</span> (es decir, <i>antes</i> de la primera producción, independientemente de dónde se especifique dentro de la regla).</p>
+    <p class="Pp">Específicamente, cualquier directive de la forma:
+        <span class="Li">&quot;&lt;rulevar:</span><span class="Li"><i>texto</i></span><span class="Li">&gt;&quot;</span>
+        causa que una línea de la forma <span class="Li">&quot;my
+        </span><span class="Li"><i>texto</i></span><span class="Li">;&quot;</span>
+        se agregue al principio de la subrutina de la regla, inmediatamente después
+        de las definiciones de las siguientes variables locales:</p>
+        <pre>$thisparser $commit
+$thisrule   @item
+$thisline   @arg
+$text   %arg
+</pre>
+    <p class="Pp">Esto significa que los siguientes
+        directivos <span class="Li">&quot;&lt;rulevar&gt;&quot;</span> funcionan como se espera:</p>
+        <pre>&lt;rulevar: $count = 0 &gt;
+&lt;rulevar: $firstarg = $arg[0] || '' &gt;
+&lt;rulevar: $myItems = \@item &gt;
+&lt;rulevar: @context = ( $thisline, $text, @arg ) &gt;
+&lt;rulevar: ($name,$age) = $arg{&quot;name&quot;,&quot;age&quot;} &gt;
+</pre>
+    <p class="Pp">Si se requiere una variable que también sea visible para las subreglas, debe ser
+        <span class="Li">&quot;local&quot;</span>izada, no
+        <span class="Li">&quot;my&quot;</span>izada.
+        <span class="Li">&quot;rulevar&quot;</span> por defecto es
+        <span class="Li">&quot;my&quot;</span>, pero si
+        <span class="Li">&quot;local&quot;</span> se especifica explícitamente:</p>
+        <pre>&lt;rulevar: local $count = 0 &gt;
+</pre>
+    <p class="Pp">entonces se declara una variable <span class="Li">&quot;local&quot;</span>izada, y estará disponible dentro de las subreglas.</p>
+    <p class="Pp">Sin embargo, tenga en cuenta que, dado que todas estas variables son
+        variables &quot;my&quot;, sus valores <i>no persisten</i> entre los intentos de coincidencia en una regla dada. Para preservar los valores entre los intentos de coincidencia, los valores se pueden almacenar dentro del miembro &quot;local&quot; del objeto
+        <span class="Li">$thisrule</span>:</p>
+        <pre>countedrule: { $thisrule-&gt;{&quot;local&quot;}{&quot;count&quot;}++ }
+     &lt;reject&gt;
+   | subrule1
+   | subrule2
+   | &lt;reject: $thisrule-&gt;{&quot;local&quot;}{&quot;count&quot;} == 1&gt;
+     subrule3
+</pre>
+    <p class="Pp">Al hacer coincidir una regla, cada directive
+        <span class="Li">&quot;&lt;rulevar&gt;&quot;</span> se interpreta como si fuera un directive
+        <span class="Li">&quot;&lt;reject&gt;&quot;</span> incondicional
+        (es decir, causa que cualquier producción en la que aparezca falle inmediatamente la coincidencia). Por esta razón (y para mejorar la legibilidad), es habitual especificar cualquier directive
+        <span class="Li">&quot;&lt;rulevar&gt;&quot;</span>
+        en una producción separada al principio de la regla (esto tiene la ventaja adicional de permitir que
+        <span class="Li">&quot;Parse::RecDescent&quot;</span> optimice y elimine
+        dichas producciones, al igual que lo hace para el directive
+        <span class="Li">&quot;&lt;reject&gt;&quot;</span>).</p>
+  </dd>
+  <dt id="Dinamicas"><a class="permalink" href="#Dinamicas">Reglas con coincidencia
+    dinámica</a></dt>
+  <dd>Dado que las expresiones regulares y las cadenas entre comillas dobles se interpolan, es
+      relativamente fácil especificar producciones con tokens &quot;sensibles al contexto&quot;. Por ejemplo:
+        <pre>command:  keyword  body  &quot;end $item[1]&quot;
+</pre>
+    <p class="Pp">lo que asegura que un bloque de comandos esté delimitado por un par
+        &quot;<i>&lt;keyword&gt;</i>...end <i>&lt;mismo keyword&gt;</i>&quot;.</p>
+    <p class="Pp">Construir producciones en las que las subreglas sean sensibles al contexto también es posible, a través del directive
+        <span class="Li">&quot;&lt;matchrule:...&gt;&quot;</span>.
+        Este directive se comporta de manera idéntica a un elemento de subregla, excepto que la regla que se invoca para hacer coincidirlo está determinada por la cadena especificada después de los dos puntos. Por ejemplo, podríamos reescribir la
+        regla <span class="Li">&quot;command&quot;</span> de esta manera:</p>
+        <pre>command:  keyword  &lt;matchrule:body&gt;  &quot;end $item[1]&quot;
+</pre>
+    <p class="Pp">Lo que aparezca después de los dos puntos en el directive se trata como una cadena interpolada (es decir, como si apareciera en el operador
+        <span class="Li">&quot;qq{...}&quot;</span>) y el valor de esa cadena interpolada es el nombre de la subregla que se debe hacer coincidir.</p>
+    <p class="Pp">Por supuesto, simplemente poner una cadena constante como
+        <span class="Li">&quot;body&quot;</span> en un directive
+        <span class="Li">&quot;&lt;matchrule:...&gt;&quot;</span> tiene poco interés o beneficio. El poder del directiv</p>
+  </dd>
+</dl>
+</div>
+e se ve cuando
+    usamos una cadena que se interpola a algo interesante. Por
+    ejemplo:</p>
+<pre>comando:    palabra clave &lt;regla_match:$item[1]_cuerpo&gt; "fin $item[1]"
+palabra clave:    'mientras' | 'si' | 'funcion'
+cuerpo_mientras: condicion bloque
+cuerpo_si:    condicion bloque ('si no' bloque)(?)
+cuerpo_funcion:  lista_argumentos bloque
+</pre>
+<p class="Pp">Ahora la regla <span class="Li">"comando"</span>
+    selecciona cómo proceder basándose en la palabra clave que se encuentra. Es
+    como si <span class="Li">"comando"</span> se declarara:</p>
+<pre>comando:    'mientras'    cuerpo_mientras    "fin mientras"
+   |    'si'       cuerpo_si   "fin si"
+   |    'funcion' funcion_cuerpo &quot;fin funcion&quot;
+</pre>
+<p class="Pp">Cuando una
+    directiva <span class="Li">"&lt;regla_match:...&gt;"</span> se utiliza
+    como subregla repetida, la expresión del nombre de la regla se
+    "enlaza tardíamente". Es decir, el nombre de la regla a llamar se
+    re-evalúa *cada vez* que se intenta una coincidencia. Por lo tanto, la
+    siguiente gramática:</p>
+<pre>{ $::especie = 'perros' }
+par:   'dos' &lt;regla_match:$::especie&gt;(s)
+perros:   /perros/ { $::especie = 'gatos' }
+gatos:   /gatos/
+</pre>
+<p class="Pp">coincidirá completamente con la cadena "dos perros gatos
+    gatos", mientras que solo coincidirá con la cadena "dos perros perros
+    perros" hasta la octava letra. Si el nombre de la regla estuviera
+    "enlanzado temprano" (es decir, evaluado solo la primera vez que se
+    encuentra la directiva en una producción), se esperaría el comportamiento
+    inverso.</p>
+<p class="Pp">Tenga en cuenta que la directiva
+    <span class="Li">"regla_match"</span> toma una cadena que se tratará como
+    un nombre de regla, *no* como una invocación de regla. Es decir, es como una
+    referencia simbólica de Perl, no un <span class="Li">"eval"</span>. Así como
+    puede decir:</p>
+<pre>$subnombre = 'foo';
+# y más tarde...
+&amp;{$foo}(@args);
+</pre>
+<p class="Pp">pero no:</p>
+<pre>$subnombre = 'foo(@args)';
+# y más tarde...
+&amp;{$foo};
+</pre>
+<p class="Pp">del mismo modo puede decir:</p>
+<pre>$nombre_regla = 'foo';
+# y en la gramática...
+&lt;regla_match:$nombre_regla&gt;[@args]
+</pre>
+<p class="Pp">pero no:</p>
+<pre>$nombre_regla = 'foo[@args]';
+# y en la gramática...
+&lt;regla_match:$nombre_regla&gt;
+</pre>
+<dt id="Acciones_Diferidas"><a class="permalink" href="#Acciones_Diferidas">Acciones
+    Diferidas</a></dt>
+<dd>La directiva <span class="Li">"&lt;diferir:...&gt;"</span> se utiliza para
+    especificar una acción a realizar cuando (¡y solo si!) la producción actual
+    tiene éxito finalmente.
+<p class="Pp">Siempre que aparece una directiva
+    <span class="Li">"&lt;diferir:...&gt;"</span>, el código que especifica se
+    convierte en un cierre (una referencia anónima a una subrutina) que se pone
+    en cola dentro del objeto analizador activo. Tenga en cuenta que, dado que el
+    código diferido se convierte en un cierre, los valores de cualquier variable
+    "local" (como <span class="Li">$texto</span>, &lt;@item&gt;, etc.) se
+    conservan hasta que el código diferido se ejecuta realmente.</p>
+<p class="Pp">Si el análisis finalmente tiene éxito *y* la producción en la
+    que se evaluó la directiva
+    <span class="Li">"&lt;diferir:...&gt;"</span> formó parte del análisis
+    exitoso, entonces el código diferido se ejecuta inmediatamente antes de que el
+    análisis retorne. Si, sin embargo, la producción que puso en cola una acción
+    diferida falla, o una de las reglas de nivel superior que llamó a esa
+    producción falla, entonces la acción diferida se elimina de la cola y, por lo
+    tanto, nunca se ejecuta.</p>
+<p class="Pp">Por ejemplo, dada la gramática:</p>
+<pre>frase: sustantivo trans sustantivo
+| sustantivo intrans
+sustantivo:     'el perro'
+    { print "$item[1]\t(sustantivo)\n" }
+|     'la carne'
+    { print "$item[1]\t(sustantivo)\n" }
+trans:    'comió'
+    { print "$item[1]\t(transitivo)\n" }
+intrans:  'comió'
+    { print "$item[1]\t(intransitivo)\n" }
+   |  'ladró'
+    { print "$item[1]\t(intransitivo)\n" }
+</pre>
+<p class="Pp">entonces analizar la frase "el perro comió" produciría la salida:</p>
+<pre>el perro  (sustantivo)
+comió  (transitivo)
+el perro  (sustantivo)
+comió  (intransitivo)
+</pre>
+<p class="Pp">Esto se debe a que, aunque la primera producción de
+    <span class="Li">"frase"</span> finalmente falla, sus subreglas
+    iniciales <span class="Li">"sustantivo"</span> y
+    <span class="Li">"trans"</span> coinciden y, por lo tanto, ejecutan sus
+    acciones asociadas. Luego, la segunda producción de
+    <span class="Li">"frase"</span> tiene éxito, lo que hace que las acciones de
+    las subreglas <span class="Li">"sustantivo"</span> y
+    <span class="Li">"intrans"</span> también se ejecuten.</p>
+<p class="Pp">Por otro lado, si las acciones se reemplazaran por directivas
+    <span class="Li">"&lt;diferir:...&gt;"</span>:</p>
+<pre>frase: sustantivo trans sustantivo
+| sustantivo intrans
+sustantivo:     'el perro'
+    &lt;diferir: print "$item[1]\t(sustantivo)\n" &gt;
+|     'la carne'
+    &lt;diferir: print "$item[1]\t(sustantivo)\n" &gt;
+trans:    'comió'
+    &lt;diferir: print "$item[1]\t(transitivo)\n" &gt;
+intrans:  'comió'
+    &lt;diferir: print "$item[1]\t(intransitivo)\n" &gt;
+   |  'ladró'
+    &lt;diferir: print "$item[1]\t(intransitivo)\n" &gt;
+</pre>
+<p class="Pp">la salida sería:</p>
+<pre>el perro  (sustantivo)
+comió  (intransitivo)
+</pre>
+<p class="Pp">ya que las acciones diferidas solo se ejecutan si se evaluaron en
+    una producción que finalmente contribuye al análisis exitoso.</p>
+<p class="Pp">En este caso, aunque la primera producción de
+    <span class="Li">"frase"</span> hizo que las subreglas
+    <span class="Li">"sustantivo"</span> y
+    <span class="Li">"trans"</span> coincidieran, esa producción falló
+    finalmente y, por lo tanto, las acciones diferidas puestas en cola por esas
+    subreglas se descartaron posteriormente. Luego, la segunda producción tuvo
+    éxito, lo que hizo que todo el análisis tuviera éxito, y por lo tanto las
+    acciones diferidas puestas en cola por la (segunda) coincidencia de la
+    subregla <span class="Li">"sustantivo"</span> y la coincidencia posterior
+    de <span class="Li">"intrans"</span> *se* conservan y eventualmente se
+    ejecutan.</p>
+<p class="Pp">Las acciones diferidas proporcionan un medio para mejorar el
+    rendimiento de un analizador, ejecutando solo aquellas acciones que forman
+    parte del árbol de análisis final para los datos de entrada.</p>
+<p class="Pp">Alternativamente, las acciones diferidas pueden verse como un
+    mecanismo para construir (y ejecutar) una subrutina personalizada que
+    corresponde a los datos de entrada dados, de manera muy similar a cómo las
+    autoacciones (ver "Autoacciones") pueden usarse para construir una estructura
+    de datos personalizada para una entrada específica.</p>
+<p class="Pp">Independientemente de si la acción que especifica se ejecuta o no,
+    una directiva <span class="Li">"&lt;diferir:...&gt;"</span> siempre tiene
+    éxito, devolviendo el número de acciones diferidas actualmente en cola en ese
+    momento.</p>
+<dt id="Analisis_Perl"><a class="permalink" href="#Analisis_Perl">Análisis de Perl</a></dt>
+<dd>Parse::RecDescent proporciona soporte limitado para analizar subconjuntos de
+    Perl, a saber: operadores tipo comilla, variables de Perl y bloques de
+    código completos.
+<p class="Pp">La directiva
+    <span class="Li">"&lt;perl_comillalike&gt;"</span> puede usarse para
+    analizar cualquier operador tipo comilla de Perl:
+    <span class="Li">'una cadena'</span>, <span class="Li">"m/un patrón/"</span>,
+    <span class="Li">"tr{trans}{formación}"</span>, etc. Lo hace llamando a
+    <b>Text::Balanced::quotelike()</b>.</p>
+<p class="Pp">Si se encuentra un operador tipo comilla, se devuelve una
+    referencia a una matriz de ocho elementos. Esos elementos son idénticos a los
+    últimos ocho elementos devueltos por <b>Text::Balanced::extract_quotelike()</b>
+    en contexto de matriz, a saber:</p>
+</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt>[0]</dt>
+  <dd>el nombre del operador tipo comilla -- 'q', 'qq', 'm', 's', 'tr' -- si el
+      operador tenía nombre; de lo contrario,
+      <span class="Li">"undef"</span>,</dd>
+  <dt>[1]</dt>
+  <dd>el delimitador izquierdo del primer bloque de la operación,</dd>
+  <dt>[2]</dt>
+  <dd>el texto del primer bloque de la operación (es decir, el contenido de una
+      comilla, la expresión regular de una coincidencia, o sustitución o la lista
+      de destino de una traducción),</dd>
+  <dt>[3]</dt>
+  <dd>el delimitador derecho del primer bloque de la operación,</dd>
+  <dt>[4]</dt>
+  <dd>el delimitador izquierdo del segundo bloque de la operación si existe (es
+      decir, si es una <span class="Li">"s"</span>,
+      <span class="Li">"tr"</span> o
+      <span class="Li">"y"</span>); de lo contrario,
+      <span class="Li">"undef"</span>,</dd>
+  <dt>[5]</dt>
+  <dd>el texto del segundo bloque de la operación si existe (es decir, el
+      reemplazo de una sustitución o la lista de traducción de una traducción);
+      de lo contrario, <span class="Li">"undef"</span>,</dd>
+  <dt>[6]</dt>
+  <dd>el delimitador derecho del segundo bloque de la operación (si lo hay); de
+      lo contrario, <span class="Li">"undef"</span>,</dd>
+  <dt>[7]</dt>
+  <dd>los modificadores finales en la operación (si los hay); de lo contrario,
+      <span class="Li">"undef"</span>.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Si no se encuentra una expresión tipo comilla, la directiva falla
+    con el valor habitual <span class="Li">"undef"</span>.</p>
+<p class="Pp">La directiva
+    <span class="Li">"&lt;perl_variable&gt;"</span> puede usarse para analizar
+    cualquier variable de Perl:
+    <span class="Li">$escalar</span>, <span class="Li">@array</span>,
+    <span class="Li">%hash</span>,
+    <span class="Li">$ref</span>-&gt;{campo}[$indice], etc. Lo hace llamando a
+    <b>Text::Balanced::extract_variable()</b>.</p>
+<p class="Pp">Si la directiva coincide con texto que representa una especificación
+    válida de variable de Perl, devuelve ese texto. De lo contrario, falla con el
+    valor habitual <span class="Li">"undef"</span>.</p>
+<p class="Pp">La directiva
+    <span class="Li">"&lt;perl_codeblock&gt;"</span> puede usarse para analizar
+    bloques de código Perl delimitados por llaves, como: {
+    <span class="Li">$a</span> = 1; f() =~ m/pat/; }. Lo hace llamando a
+    <b>Text::Balanced::extract_codeblock()</b>.</p>
+<p class="Pp">Si la directiva coincide con texto que representa un bloque de código
+    Perl válido, devuelve ese texto. De lo contrario, falla con el valor habitual
+    <span class="Li">"undef"</span>.</p>
+<p class="Pp">También puedes indicarle qué tipo de corchetes usar como delimitadores
+    externos. Por ejemplo:</p>
+<pre>lista_argumentos: &lt;perl_codeblock ()&gt;</pre>
+<p class="Pp">hace que una lista de argumentos coincida con un bloque de código perl
+    cuyos delimitadores externos sean <span class="Li">"(...)"</span> (en lugar
+    del predeterminado <span class="Li">"{...}"</span>).</p>
+</div>
+<dl class="Bl-tag">
+  <dt id="Construccion_tokens"><a class="permalink" href="#Construccion_tokens">Construcción
+      de tokens</a></dt>
+  <dd>Eventualmente, Parse::RecDescent podrá analizar entrada tokenizada, así como
+      cadenas ordinarias. En preparación para este día gozoso, se ha proporcionado
+      la directiva <span class="Li">"&lt;token:...&gt;"</span>. Esta directiva
+      crea un token que será adecuado para la entrada de un analizador
+      Parse::RecDescent (cuando finalmente admita entrada tokenizada).
+    <p class="Pp">El texto del token es el valor de la inmediatamente</p>
+</dd>
+</dl>  elemento anterior en la producción. Una
+        <span class="Li">&quot;&lt;token:...&gt;&quot;</span> directiva siempre
+        tiene éxito con un valor de retorno que es la referencia hash que es el nuevo
+        token. También establece el valor de retorno para la producción a esa referencia hash.</p>
+    <p class="Pp">La
+        <span class="Li">&quot;&lt;token:...&gt;&quot;</span> directiva facilita la
+        creación de un analizador léxico compatible con Parse::RecDescent en
+        Parse::RecDescent:</p>
+        <pre>my $lexer = new Parse::RecDescent q
+{
+lex:    token(s)
+token:  /a\b/          &lt;token:INDEF&gt;
+     |  /the\b/        &lt;token:DEF&gt;
+     |  /fly\b/        &lt;token:NOUN,VERB&gt;
+     |  /[a-z]+/i { lc $item[1] }  &lt;token:ALPHA&gt;
+     |  &lt;error: Unknown token&gt;
+};
+</pre>
+    <p class="Pp">que eventualmente podrá ser utilizado con una gramática
+        Parse::RecDescent regular:</p>
+        <pre>my $parser = new Parse::RecDescent q
+{
+startrule: subrule1 subrule 2
+# ETC...
+};
+</pre>
+    <p class="Pp">ya sea con una fase de pre-análisis léxico:</p>
+        <pre>$parser-&gt;startrule( $lexer-&gt;lex($data) );
+</pre>
+    <p class="Pp">o con un enfoque de análisis léxico bajo demanda:</p>
+        <pre>$parser-&gt;startrule( sub{$lexer-&gt;token(\$data)} );
+</pre>
+    <p class="Pp">Pero actualmente, solo la
+        <span class="Li">&quot;&lt;token:...&gt;&quot;</span> directiva está
+        realmente implementada. El resto es vaporware.</p>
+  </dd>
+  <dt id="Especificando~2"><a class="permalink" href="#Especificando~2">Especificando
+    operaciones</a></dt>
+  <dd>Uno de los requisitos más comunes al construir un analizador es especificar
+      operadores binarios. Desafortunadamente, en una gramática normal, las reglas
+      para tales cosas son incómodas:
+        <pre>disjunction:    conjunction ('or' conjunction)(s?)
+    { $return = [ $item[1], @{$item[2]} ] }
+conjunction:    atom ('and' atom)(s?)
+    { $return = [ $item[1], @{$item[2]} ] }
+</pre>
+    <p class="Pp">o ineficientes:</p>
+        <pre>disjunction:    conjunction 'or' disjunction
+    { $return = [ $item[1], @{$item[2]} ] }
+   |    conjunction
+    { $return = [ $item[1] ] }
+conjunction:    atom 'and' conjunction
+    { $return = [ $item[1], @{$item[2]} ] }
+   |    atom
+    { $return = [ $item[1] ] }
+</pre>
+    <p class="Pp">y de cualquier manera es feo y difícil de acertar.</p>
+    <p class="Pp">Las directivas
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> y
+        <span class="Li">&quot;&lt;rightop:...&gt;&quot;</span> proporcionan una
+        forma más fácil de especificar tales operaciones. Usando
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> los ejemplos
+        anteriores se convierten en:</p>
+        <pre>disjunction:    &lt;leftop: conjunction 'or' conjunction&gt;
+conjunction:    &lt;leftop: atom 'and' atom&gt;
+</pre>
+    <p class="Pp">La directiva
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> especifica un
+        operador binario asociativo por la izquierda. Se especifica alrededor de
+        tres elementos de gramática más (típicamente subreglas o terminales),
+        que coinciden con el operando izquierdo, el operador en sí y el operando
+        derecho respectivamente.</p>
+    <p class="Pp">Una directiva
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> como:</p>
+        <pre>disjunction:    &lt;leftop: conjunction 'or' conjunction&gt;
+</pre>
+    <p class="Pp">se convierte en lo siguiente:</p>
+        <pre>disjunction:    ( conjunction ('or' conjunction)(s?)
+    { $return = [ $item[1], @{$item[2]} ] } )
+</pre>
+    <p class="Pp">En otras palabras, una directiva
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> coincide con el
+        operando izquierdo seguido de cero o más repeticiones tanto del operador
+        como del operando derecho. Luego aplana los elementos coincidentes en un
+        array anónimo que se convierte en el valor (único) de toda la directiva
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span>.</p>
+    <p class="Pp">Por ejemplo, una directiva
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> como:</p>
+        <pre>output:  &lt;leftop: ident '&lt;&lt;' expr &gt;
+</pre>
+    <p class="Pp">dada una cadena como:</p>
+        <pre>cout &lt;&lt; var &lt;&lt; &quot;str&quot; &lt;&lt; 3
+</pre>
+    <p class="Pp">coincidiría, y <span class="Li">$item[1]</span> se establecería
+        en:</p>
+        <pre>[ 'cout', 'var', '&quot;str&quot;', '3' ]
+</pre>
+    <p class="Pp">En otras palabras:</p>
+        <pre>output:  &lt;leftop: ident '&lt;&lt;' expr &gt;
+</pre>
+    <p class="Pp">es equivalente a un operador asociativo por la izquierda:</p>
+        <pre>output:  ident          { $return = [$item[1]]   }
+      |  ident '&lt;&lt;' expr        { $return = [@item[1,3]]     }
+      |  ident '&lt;&lt;' expr '&lt;&lt;' expr      { $return = [@item[1,3,5]]   }
+      |  ident '&lt;&lt;' expr '&lt;&lt;' expr '&lt;&lt;' expr    { $return = [@item[1,3,5,7]] }
+      #  ...etc...
+</pre>
+    <p class="Pp">De manera similar, la directiva
+        <span class="Li">&quot;&lt;rightop:...&gt;&quot;</span> toma un operando
+        izquierdo, un operador y un operando derecho:</p>
+        <pre>assign:  &lt;rightop: var '=' expr &gt;
+</pre>
+    <p class="Pp">y los convierte en:</p>
+        <pre>assign:  ( (var '=' {$return=$item[1]})(s?) expr
+    { $return = [ @{$item[1]}, $item[2] ] } )
+</pre>
+    <p class="Pp">que es equivalente a un operador asociativo por la derecha:</p>
+        <pre>assign:  expr       { $return = [$item[1]]       }
+      |  var '=' expr       { $return = [@item[1,3]]     }
+      |  var '=' var '=' expr   { $return = [@item[1,3,5]]   }
+      |  var '=' var '=' var '=' expr   { $return = [@item[1,3,5,7]] }
+      #  ...etc...
+</pre>
+    <p class="Pp">Tenga en cuenta que para ambas directivas
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> y
+        <span class="Li">&quot;&lt;rightop:...&gt;&quot;</span>, la directiva
+        normalmente no devuelve el operador en sí, solo una lista de los
+        operandos involucrados. Esto es particularmente útil para especificar
+      listas:</p>
+        <pre>list: '(' &lt;leftop: list_item ',' list_item&gt; ')'
+    { $return = $item[2] }
+</pre>
+    <p class="Pp">Sin embargo, hay un problema: a veces el operador es
+        significativo en sí mismo. Por ejemplo, en una lista de Perl, una coma
+        y un <span class="Li">&quot;=&gt;&quot;</span> son ambos separadores
+        válidos, pero el <span class="Li">&quot;=&gt;&quot;</span> tiene
+        semántica de stringificación adicional. Por lo tanto, es importante
+        saber cuál se usó en cada caso.</p>
+    <p class="Pp">Para resolver este problema, las directivas
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> y
+        <span class="Li">&quot;&lt;rightop:...&gt;&quot;</span>
+        *sí* devuelven los operadores también, bajo dos circunstancias. El primer
+        caso es cuando el operador se especifica como una subregla. En ese
+        instante, se devuelve lo que sea que coincida con el operador (asumiendo
+        que si el operador es lo suficientemente importante como para tener su
+        propia subregla, entonces es lo suficientemente importante como para
+        devolverlo).</p>
+    <p class="Pp">El segundo caso es cuando el operador se especifica como una
+        expresión regular. En ese caso, si el primer subpatrón entre paréntesis
+        de la expresión regular coincide, se devuelve ese valor coincidente
+        (esto es análogo al comportamiento de la función Perl
+        <span class="Li">&quot;split&quot;</span>, excepto que solo se devuelve
+        el primer subpatrón).</p>
+    <p class="Pp">En otras palabras, dada la entrada:</p>
+        <pre>( a=&gt;1, b=&gt;2 )
+</pre>
+    <p class="Pp">las especificaciones:</p>
+        <pre>list:      '('  &lt;leftop: list_item separator list_item&gt;  ')'
+separator: ',' | '=&gt;'
+</pre>
+    <p class="Pp">o:</p>
+        <pre>list:      '('  &lt;leftop: list_item /(,|=&gt;)/ list_item&gt;  ')'
+</pre>
+    <p class="Pp">hacen que los separadores de lista se intercalen con los
+        operandos en el array anónimo en <span class="Li">$item[2]</span>:</p>
+        <pre>[ 'a', '=&gt;', '1', ',', 'b', '=&gt;', '2' ]
+</pre>
+    <p class="Pp">Pero la siguiente versión:</p>
+        <pre>list:      '('  &lt;leftop: list_item /,|=&gt;/ list_item&gt;  ')'
+</pre>
+    <p class="Pp">devuelve solo los operadores:</p>
+        <pre>[ 'a', '1', 'b', '2' ]
+</pre>
+    <p class="Pp">Por supuesto, ninguna de las especificaciones anteriores maneja el
+        caso de una lista vacía, ya que las directivas
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> y
+        <span class="Li">&quot;&lt;rightop:...&gt;&quot;</span> requieren al menos
+        un operando derecho o izquierdo para coincidir. Para especificar que el
+        operador puede coincidir &quot;trivialmente&quot;, es necesario agregar un
+        calificador <span class="Li">&quot;(s?)&quot;</span> a la directiva:</p>
+        <pre>list:      '('  &lt;leftop: list_item /(,|=&gt;)/ list_item&gt;(s?)  ')'
+</pre>
+    <p class="Pp">Tenga en cuenta que en casi todos los ejemplos anteriores, el
+        primer y tercer argumento de la directiva
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> eran la misma subregla.
+        Esto se debe a que los
+        <span class="Li">&quot;&lt;leftop:...&gt;&quot;</span> se utilizan
+        frecuentemente para especificar listas &quot;separadas&quot; del mismo
+        tipo de elemento. Para hacer que tales listas sean más fáciles de
+        especificar, la siguiente sintaxis:</p>
+        <pre>list:   element(s /,/)
+</pre>
+    <p class="Pp">es exactamente equivalente a:</p>
+        <pre>list:   &lt;leftop: element /,/ element&gt;
+</pre>
+    <p class="Pp">Tenga en cuenta que el separador debe especificarse como un patrón
+        crudo (es decir, no como una cadena o subregla).</p>
+  </dd>
+  <dt id="Producciones~Tituladas"><a class="permalink" href="#Producciones~Tituladas">Producciones
+    con puntuación</a></dt>
+  <dd>Por defecto, las reglas de gramática de Parse::RecDescent siempre aceptan la
+      primera producción que coincide con la entrada. Pero si dos o más
+      producciones pueden coincidir potencialmente con la misma entrada, elegir
+      la primera que lo haga puede no ser óptimo.
+    <p class="Pp">Por ejemplo, si estuviera analizando la oración &quot;time flies
+        like an arrow&quot;, podría usar una regla como esta:</p>
+        <pre>sentence: verb noun preposition article noun { [@item] }
+| adjective noun verb article noun   { [@item] }
+| noun verb preposition article noun { [@item] }
+</pre>
+    <p class="Pp">Cada una de estas producciones coincide con la oración, pero la
+        tercera es la interpretación más probable. Sin embargo, si la oración
+        hubiera sido &quot;fruit flies like a banana&quot;, entonces la segunda
+        producción es probablemente la coincidencia correcta.</p>
+    <p class="Pp">Para atender tales situaciones, se puede usar la
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span>. La directiva es
+        equivalente a un <span class="Li">&quot;&lt;reject&gt;&quot;</span> incondicional,
+        excepto que le permite especificar una &quot;puntuación&quot; para la
+        producción actual. Si esa puntuación es numéricamente mayor que la mejor
+        puntuación de cualquier producción anterior, la producción actual se
+        almacena en caché para su posterior consideración. Si ninguna producción
+        posterior coincide, la producción almacenada en caché se trata como si
+        hubiera coincidido, y el valor del elemento inmediatamente anterior a su
+        directiva
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span> se devuelve como
+        resultado.</p>
+    <p class="Pp">En otras palabras, al colocar una directiva
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span> al final de cada
+        producción, puede seleccionar qué producción coincide utilizando criterios
+        distintos del orden de especificación. Por ejemplo:</p>
+        <pre>sentence: verb noun preposition article noun { [@item] } &lt;score: sensible(@item)&gt;
+| adjective noun verb article noun   { [@item] } &lt;score: sensible(@item)&gt;
+| noun verb preposition article noun { [@item] } &lt;score: sensible(@item)&gt;
+</pre>
+    <p class="Pp">Ahora, cuando cada producción alcanza su respectiva directiva
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span>, la subrutina
+        <span class="Li">&quot;sensible&quot;</span> será llamada para evaluar
+      late los elementos coincidentes (de alguna manera). Una vez que se hayan
+        probado todas las producciones, la que tenga la puntuación más alta
+        será la que se acepte como coincidencia para la regla. </p>
+    <p class="Pp">La variable <span class="Li">$score</span> siempre contiene
+        la mejor puntuación actual de cualquier producción, y la variable
+        <span class="Li">$score_return</span> contiene el valor de retorno
+        correspondiente.</p>
+    <p class="Pp">Como otro ejemplo, la siguiente gramática coincide con líneas
+        que pueden estar separadas por comas, dos puntos o punto y coma. Esto
+        puede ser complicado si una línea separada por dos puntos también contiene
+        comas, o viceversa. La gramática resuelve la ambigüedad seleccionando
+        la regla que da como resultado el menor número de campos:</p>
+        <pre>line: seplist[sep=&gt;',']  &lt;score: -@{$item[1]}&gt;
+| seplist[sep=&gt;':']  &lt;score: -@{$item[1]}&gt;
+| seplist[sep=&gt;&quot; &quot;]  &lt;score: -@{$item[1]}&gt;
+seplist: &lt;skip:&quot;&quot;&gt; &lt;leftop: /[^$arg{sep}]*/ &quot;$arg{sep}&quot; /[^$arg{sep}]*/&gt;
+</pre>
+    <p class="Pp">Note el uso de la negación dentro de la directiva
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span> para garantizar
+        que la lista separada con la mayor cantidad de elementos obtenga la
+        puntuación más baja.</p>
+    <p class="Pp">Como indican los ejemplos anteriores, a menudo ocurre que todas
+        las producciones de una regla utilizan exactamente la misma directiva
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span>. Es tedioso tener
+        que repetir esta directiva idéntica en cada producción, por lo que
+        Parse::RecDescent también proporciona la directiva
+        <span class="Li">&quot;&lt;autoscore:...&gt;&quot;</span>.</p>
+    <p class="Pp">Si aparece una directiva
+        <span class="Li">&quot;&lt;autoscore:...&gt;&quot;</span> en cualquier
+        producción de una regla, el código que especifica se utiliza como
+        código de puntuación para todas las producciones de esa regla, excepto
+        las producciones que ya terminan con una directiva explícita
+        <span class="Li">&quot;&lt;score:...&gt;&quot;</span>. Por lo tanto, las
+        reglas anteriores podrían reescribirse:</p>
+        <pre>line: &lt;autoscore: -@{$item[1]}&gt;
+line: seplist[sep=&gt;',']
+| seplist[sep=&gt;':']
+| seplist[sep=&gt;&quot; &quot;]
+sentence: &lt;autoscore: sensible(@item)&gt;
+| verb noun preposition article noun { [@item] }
+| adjective noun verb article noun   { [@item] }
+| noun verb preposition article noun { [@item] }
+</pre>
+    <p class="Pp">Tenga en cuenta que la directiva
+        <span class="Li">&quot;&lt;autoscore:...&gt;&quot;</span> en sí misma
+        actúa como un <span class="Li">&quot;&lt;reject&gt;&quot;</span>
+        incondicional y (al igual que la directiva
+        <span class="Li">&quot;&lt;rulevar:...&gt;&quot;</span>) se poda en
+        tiempo de compilación siempre que sea posible.</p>
+  </dd>
+  <dt id="Dispensing"><a class="permalink" href="#Dispensing">Prescindir de las
+    comprobaciones de gramática</a></dt>
+  <dd>Durante la fase de compilación de la construcción del analizador, Parse::RecDescent
+      realiza un pequeño número de comprobaciones en la gramática que se le
+      proporciona. Específicamente, comprueba que la gramática no sea
+      izquierdamente recursiva, que no haya construcciones "insaciables" de la
+      forma:
+        <pre>rule: subrule(s) subrule
+</pre>
+    <p class="Pp">y que no falten reglas (es decir, que se haga referencia a
+        ellas pero nunca se definan).</p>
+    <p class="Pp">Estas comprobaciones son importantes durante el desarrollo, pero
+        pueden ralentizar la construcción del analizador en código estable. Por
+        lo tanto, Parse::RecDescent proporciona la directiva &lt;nocheck&gt;
+        para desactivarlas. La directiva solo puede aparecer antes de la primera
+        definición de regla y desactiva la comprobación en el resto de la
+        gramática actual.</p>
+    <p class="Pp">Normalmente, esta directiva se añadiría cuando un analizador
+        ha sido probado a fondo y está listo para su lanzamiento.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Subrule_argument_lists'><a class='permalink' href='#Subrule_argument_lists'>Listas de argumentos de subreglas</a></h2>
+<p class="Pp">Ocasionalmente, es útil pasar datos a una subregla que se está
+    invocando. Por ejemplo, considere el siguiente fragmento de gramática:</p>
+<pre>classdecl: keyword decl
+keyword:   'struct' | 'class';
+decl:      # WHATEVER</pre>
+<p class="Pp">La regla <span class="Li">&quot;decl&quot;</span> podría desear
+    saber cuál de las dos palabras clave se utilizó (ya que puede afectar algún
+    aspecto de cómo se interpreta la declaración posterior).
+    <span class="Li">&quot;Parse::RecDescent&quot;</span> permite al diseñador
+    de la gramática pasar datos a una regla, colocando esos datos en una
+    *lista de argumentos* (es decir, entre corchetes) inmediatamente después de
+    cada elemento de subregla en una producción. Por lo tanto, podríamos pasar
+    la palabra clave a <span class="Li">&quot;decl&quot;</span> de la
+    siguiente manera:</p>
+<pre>classdecl: keyword decl[ $item[1] ]
+keyword:   'struct' | 'class';
+decl:      # WHATEVER</pre>
+<p class="Pp">La lista de argumentos puede constar de cualquier número (¡incluido
+    cero!) de expresiones Perl separadas por comas. En otras palabras, se parece
+    exactamente a una referencia a una matriz anónima de Perl. Por ejemplo,
+    podríamos pasar la palabra clave, el nombre de la regla circundante y la
+    cadena literal 'keyword' a <span class="Li">&quot;decl&quot;</span> así:</p>
+<pre>classdecl: keyword decl[$item[1],$item[0],'keyword']
+keyword:   'struct' | 'class';
+decl:      # WHATEVER</pre>
+<p class="Pp">Dentro de la regla a la que se pasan los datos
+    (<span class="Li">&quot;decl&quot;</span> en los ejemplos anteriores) esos
+    datos están disponibles como elementos de una variable local
+    <span class="Li">@arg</span>. Por lo tanto, <span class="Li">&quot;decl&quot;</span>
+    podría informar sus intenciones de la siguiente manera:</p>
+<pre>classdecl: keyword decl[$item[1],$item[0],'keyword']
+keyword:   'struct' | 'class';
+decl:      { print &quot;Declarando $arg[0] (un $arg[2])\n&quot;;
+     print &quot;(esta regla llamada por $arg[1])&quot; }</pre>
+<p class="Pp">Las listas de argumentos de subreglas también pueden interpretarse
+    como hashes, simplemente usando la variable local <span class="Li">%arg</span>
+    en lugar de <span class="Li">@arg</span>. Por lo tanto, podríamos reescribir
+    el ejemplo anterior:</p>
+<pre>classdecl: keyword decl[keyword =&gt; $item[1],
+    caller  =&gt; $item[0],
+    type    =&gt; 'keyword']
+keyword:   'struct' | 'class';
+decl:      { print &quot;Declarando $arg{keyword} (un $arg{type})\n&quot;;
+     print &quot;(esta regla llamada por $arg{caller})&quot; }</pre>
+<p class="Pp">Tanto <span class="Li">@arg</span> como <span class="Li">%arg</span>
+    siempre están disponibles, por lo que el diseñador de la gramática puede
+    elegir la convención (o combinación de convenciones) que mejor se adapte.</p>
+<p class="Pp">Las listas de argumentos de subreglas también son útiles para
+    crear "plantillas de reglas" (especialmente cuando se usan junto con la
+    directiva <span class="Li">&quot;&lt;matchrule:...&gt;&quot;</span>). Por
+    ejemplo, la subregla:</p>
+<pre>list:     &lt;matchrule:$arg{rule}&gt; /$arg{sep}/ list[%arg]
+    { $return = [ $item[1], @{$item[3]} ] }
+|     &lt;matchrule:$arg{rule}&gt;
+    { $return = [ $item[1]] }</pre>
+<p class="Pp">es una plantilla útil para el problema común de hacer coincidir
+    una lista separada. Por ejemplo:</p>
+<pre>function: 'func' name '(' list[rule=&gt;'param',sep=&gt;';'] ')'
+param:    list[rule=&gt;'name',sep=&gt;','] ':' typename
+name:     /\w+/
+typename: name</pre>
+<p class="Pp">Cuando una lista de argumentos de subreglas se utiliza con una
+    subregla repetida, la lista de argumentos va *antes* del especificador de
+    repetición:</p>
+<pre>list:   /some|many/ thing[ $item[1] ](s)</pre>
+<p class="Pp">La lista de argumentos está "vinculada tardíamente". Es decir, se
+    revalúa por cada repetición de la subregla repetida. Esto significa que cada
+    intento de repetición para hacer coincidir la subregla puede recibir un
+    conjunto de argumentos completamente diferente si el valor de la expresión
+    en la lista de argumentos cambia entre intentos. Así, por ejemplo, la
+    gramática:</p>
+<pre>{ $::species = 'dogs' }
+pair:   'two' animal[$::species](s)
+animal: /$arg[0]/ { $::species = 'cats' }</pre>
+<p class="Pp">coincidirá completamente con la cadena "two dogs cats cats",
+    mientras que solo coincidirá con la cadena "two dogs dogs dogs" hasta la
+    octava letra. Si el valor de la lista de argumentos estuviera "vinculado
+    tempranamente" (es decir, evaluado solo la primera vez que se intenta una
+    coincidencia de subregla repetida), se esperaría que los comportamientos de
+    coincidencia se invirtieran.</p>
+<p class="Pp">Por supuesto, es posible "vincular tempranamente" de forma efectiva
+    dichas listas de argumentos pasándoles un valor que no cambie en cada
+    repetición. Por ejemplo:</p>
+<pre>{ $::species = 'dogs' }
+pair:   'two' { $::species } animal[$item[2]](s)
+animal: /$arg[0]/ { $::species = 'cats' }</pre>
+<p class="Pp">Los argumentos también se pueden pasar a la regla de inicio,
+    simplemente añadiéndolos a la lista de argumentos con la que se llama a la
+    regla de inicio ( *después* del parámetro "número de línea"). Por ejemplo,
+  dado:</p>
+<pre>$parser = new Parse::RecDescent ( $grammar );
+$parser-&gt;data($text, 1, &quot;str&quot;, 2, \@arr);
+#         ^^^^^  ^  ^^^^^^^^^^^^^^^
+#       |    |     |
+# TEXTO A ANALIZAR    |     |
+# NÚMERO DE LÍNEA DE INICIO     |
+# ELEMENTOS DE @arg QUE SE PASAN A LA REGLA data</pre>
+<p class="Pp">entonces, dentro de las producciones de la regla
+    <span class="Li">&quot;data&quot;</span>, la matriz
+    <span class="Li">@arg</span> contendrá
+    <span class="Li">&quot;(&quot;str&quot;, 2, \@arr)&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Alternations'><a class='permalink' href='#Alternations'>Alternaciones</a></h2>
+<p class="Pp">Las alternaciones son reglas implícitas (sin nombre) definidas como
+    parte de una producción. Una alternación se define como una serie de
+    producciones separadas por '|' dentro de un par de corchetes. Por ejemplo:</p>
+<pre>character: 'the' ( good | bad | ugly ) /dude/</pre>
+<p class="Pp">Cada alternación define implícitamente una nueva subregla, cuyo
+    nombre generado automáticamente indica su origen:
+    &quot;_alternation_&lt;I&gt;_of_production_&lt;P&gt;_of_rule&lt;R&gt;&quot;
+    para los valores apropiados de &lt;I&gt;, &lt;P&gt; y &lt;R&gt;. Se inserta
+    una llamada a esta subregla implícita en lugar de los corchetes. Por lo tanto,
+    el ejemplo anterior es simplemente una forma abreviada conveniente de:</p>
+<pre>character: 'the'
+   _alternation_1_of_production_1_of_rule_character
+   /dude/
+_alternation_1_of_production_1_of_rule_character:
+   good | bad | ugly</pre>
+<p class="Pp">Dado que las alternaciones se analizan llamando recursivamente al
+    generador de analizadores, cualquier tipo de elemento puede aparecer en una
+    alternación. Por ejemplo:</p>
+<pre>character: 'the' ( 'high' &quot;plains&quot;  # Silencioso, con poncho
+     | /no[- ]name/ # Silencioso, sin poncho
+     | vengeance_seeking    # Poncho opcional
+     | &lt;error&gt;
+     ) drifter</pre>
+<p class="Pp">En este caso, si ocurriera un error, el mensaje generado
+    automáticamente sería:</p>
+<pre>ERROR (line &lt;N&gt;): Subregla implícita inválida: Se esperaba
+      'high' o /no[- ]name/ o genérico,
+      pero se encontró "pacifista" en su lugar</pre>
+<p class="Pp">Dado que cada alternación tiene de hecho un nombre, incluso es
+    posible extenderlas o reemplazarlas:</p>
+<pre>parser-&gt;Replace(
+&quot;_alternation_1_of_production_1_of_rule_character:
+    'generic Eastwood'&quot;
+    );</pre>
+<p class="Pp">Más importante aún, dado que las alternaciones son una forma de
+    subregla, se les pueden dar especificadores de repetición:</p>
+<pre>character: 'the' ( good | bad | ugly )(?) /dude/</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Incremental_Parsing'><a class='permalink' href='#Incremental_Parsing'>Análisis incremental</a></h2>
+<p class="Pp"><span class="Li">&quot;Parse::RecDescent&quot;</span> proporciona
+    dos métodos - <span class="Li">&quot;Extend&quot;</span> y
+    <span class="Li">&quot;Replace&quot;</span> - que se pueden utilizar para
+    alterar la gramática que coincide con un analizador. Ambos métodos toman el
+    mismo argumento que <span class="Li">&quot;Parse::RecDesc</span>ent::new&quot;</span>, a saber de gramática
+    cadena</p>
+<p class="Pp"><span class="Li">&quot;Parse::RecDescent::Extend&quot;</span>
+    interpreta la especificación de la gramática y añade las producciones que encuentra al final de las reglas para las que se especifican. Por ejemplo:</p>
+<pre>$add = &quot;nombre: 'Jimmy-Bob' | 'Bobby-Jim'\ndescripción: color /cuellos?/&quot;;
+parser-&gt;Extend($add);</pre>
+<p class="Pp">añade dos producciones a la regla &quot;nombre&quot; (creándola si es necesario) y una producción a la regla &quot;descripción&quot;.</p>
+<p class="Pp"><span class="Li">&quot;Parse::RecDescent::Replace&quot;</span> es
+    idéntico, excepto que primero restablece cada regla especificada en la gramática adicional, eliminando cualquier producción existente. Por lo tanto, después de:</p>
+<pre>$add = &quot;nombre: 'Jimmy-Bob' | 'Bobby-Jim'\ndescripción: color /cuellos?/&quot;;
+parser-&gt;Replace($add);</pre>
+<p class="Pp">solo existen los &quot;nombre&quot; válidos y la única descripción posible.</p>
+<p class="Pp">Un uso más interesante de los métodos
+    <span class="Li">&quot;Extend&quot;</span> y
+    <span class="Li">&quot;Replace&quot;</span> es llamarlos dentro de la acción de un analizador en ejecución. Por ejemplo:</p>
+<pre>typedef: 'typedef' nombre_tipo identificador ';'
+       { $thisparser-&gt;Extend(&quot;nombre_tipo: '$item[3]'&quot;) }
+   | &lt;error&gt;
+identificador: ...!nombre_tipo /[A-Za-z_]w*/</pre>
+<p class="Pp">lo que evita automáticamente que los nombres de tipo se definan como typedef, o:</p>
+<pre>comando: 'map' nombre_clave 'a' clave_abortar
+       { $thisparser-&gt;Replace(&quot;clave_abortar: '$item[2]'&quot;) }
+   | 'map' nombre_clave 'a' nombre_clave
+       { map_key($item[2],$item[4]) }
+   | clave_abortar
+       { exit if confirm(&quot;¿abortar?&quot;) }
+clave_abortar: 'q'
+nombre_clave: ...!clave_abortar /[A-Za-z]/</pre>
+<p class="Pp">que permite al usuario cambiar el enlace de la clave de abortar, pero no desvincularlo.</p>
+<p class="Pp">El uso cuidadoso de tales construcciones hace posible reconfigurar un analizador en ejecución, eliminando la necesidad de retroalimentación semántica al proporcionar retroalimentación sintáctica en su lugar. Sin embargo, como está implementado actualmente,
+    <span class="Li">Replace()</span> y <span class="Li">Extend()</span> tienen que regenerar y volver a <span class="Li">&quot;evaluar&quot;</span> todo el analizador cada vez que se llaman. Esto los hace bastante lentos para gramáticas grandes.</p>
+<p class="Pp">En tales casos, el uso juicioso de una expresión regular interpolada probablemente será mucho más eficiente:</p>
+<pre>typedef: 'typedef' nombre_tipo/ identificador ';'
+       { $thisparser-&gt;{local}{nombre_tipo} .= &quot;|$item[3]&quot; }
+   | &lt;error&gt;
+identificador: ...!nombre_tipo /[A-Za-z_]w*/
+nombre_tipo: /$thisparser-&gt;{local}{nombre_tipo}/</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Precompilando_analizadores'><a class='permalink' href='#Precompilando_analizadores'>Precompilando   analizadores</a></h2>
+<p class="Pp">Normalmente Parse::RecDescent construye un analizador a partir de una gramática en tiempo de ejecución. Ese enfoque simplifica el diseño e implementación del código de análisis, pero tiene la desventaja de que ralentiza el proceso de análisis: tienes que esperar a que Parse::RecDescent construya el analizador cada vez que se ejecuta el programa. Las gramáticas largas o complejas pueden ser particularmente lentas de construir, lo que provoca retrasos inaceptables al inicio.</p>
+<p class="Pp">Para superar esto, el módulo proporciona una forma de
+    &quot;precompilar&quot; un objeto analizador y guardarlo en un módulo separado. Ese módulo puede ser utilizado luego para crear clones del analizador original.</p>
+<p class="Pp">Una gramática puede precompilarse utilizando el método de clase
+    <span class="Li">&quot;Precompile&quot;</span>. Por ejemplo, para precompilar una gramática almacenada en el escalar <span class="Li">$grammar</span>, y producir una clase llamada PreGrammar en un archivo de módulo llamado PreGrammar.pm, podría usar:</p>
+<pre>use Parse::RecDescent;
+Parse::RecDescent-&gt;Precompile([$options_hashref], $grammar, &quot;PreGrammar&quot;, [&quot;RuntimeClass&quot;]);</pre>
+<p class="Pp">El primer argumento requerido es la cadena de la gramática, el segundo es el nombre de la clase a construir. El nombre del archivo del módulo se genera automáticamente añadiendo &quot;.pm&quot; al último elemento del nombre de la clase. Por lo tanto:</p>
+<pre>Parse::RecDescent-&gt;Precompile($grammar, &quot;My::New::Parser&quot;);</pre>
+<p class="Pp">produciría un archivo de módulo llamado Parser.pm.</p>
+<p class="Pp">Después del nombre de la clase, puede especificar el nombre de la
+    clase de tiempo de ejecución (runtime_class) llamada por el analizador precompilado. Consulte &quot;Tiempos de ejecución precompilados&quot; para obtener más detalles.</p>
+<p class="Pp">Se puede proporcionar una referencia de hash opcional como primer argumento a <span class="Li">&quot;Precompile&quot;</span>. Este argumento es actualmente EXPERIMENTAL y puede cambiar en una futura versión de Parse::RecDescent. La única opción admitida actualmente es
+    <span class="Li">&quot;-standalone&quot;</span>, consulte &quot;Analizadores precompilados independientes&quot;.</p>
+<p class="Pp">Es algo tedioso tener que escribir un pequeño programa Perl solo para generar una clase de gramática precompilada, por lo que Parse::RecDescent tiene una magia especial que le permite hacer el trabajo directamente desde la línea de comandos.</p>
+<p class="Pp">Si su gramática se especifica en un archivo llamado <i>grammar</i>, puede generar una clase llamada Yet::Another::Grammar de la siguiente manera:</p>
+<pre>&gt; perl -MParse::RecDescent - grammar Yet::Another::Grammar [Runtime::Class]</pre>
+<p class="Pp">Esto produciría un archivo llamado <i>Grammar.pm</i> que contiene la definición completa de una clase llamada Yet::Another::Grammar. Por supuesto, para usar esa clase, necesitaría poner el archivo <i>Grammar.pm</i> en un directorio llamado <i>Yet/Another</i>, en algún lugar de su ruta de inclusión de Perl.</p>
+<p class="Pp">Habiendo creado la nueva clase, es muy fácil usarla para construir un analizador. Simplemente <span class="Li">&quot;use&quot;</span> el nuevo módulo, y luego llame a su método <span class="Li">&quot;new&quot;</span> para crear un objeto analizador. Por ejemplo:</p>
+<pre>use Yet::Another::Grammar;
+my $parser = Yet::Another::Grammar-&gt;new();</pre>
+<p class="Pp">El efecto de estas dos líneas es exactamente el mismo que:</p>
+<pre>use Parse::RecDescent;
+open GRAMMAR_FILE, &quot;grammar&quot; or die;
+local $/;
+my $grammar = &lt;GRAMMAR_FILE&gt;;
+my $parser = Parse::RecDescent-&gt;new($grammar);</pre>
+<p class="Pp">solo que considerablemente más rápido.</p>
+<p class="Pp">Sin embargo, tenga en cuenta que los analizadores producidos por cualquiera de los enfoques son exactamente los mismos, por lo que, si bien la precompilación tiene un efecto en la velocidad de <i>configuración</i>, no tiene ningún efecto en la velocidad de <i>análisis</i>. RecDescent 2.0 abordará ese problema.</p>
+<p class="Pp"><i>Analizadores precompilados independientes</i></p>
+<p class="Pp">Hasta la versión 1.967003 de Parse::RecDescent, los módulos analizadores construidos con <span class="Li">&quot;Precompile&quot;</span> dependían de Parse::RecDescent. Las futuras versiones de Parse::RecDescent con implementaciones internas diferentes romperían los analizadores precompilados preexistentes.</p>
+<p class="Pp">La versión 1.967_005 añadió la capacidad para que Parse::RecDescent se incluya en el archivo .pm resultante si pasa la opción booleana
+    <span class="Li">&quot;-standalone&quot;</span> a
+    <span class="Li">&quot;Precompile&quot;</span>:</p>
+<pre>Parse::RecDescent-&gt;Precompile({ -standalone =&gt; 1, },
+    $grammar, &quot;My::New::Parser&quot;);</pre>
+<p class="Pp">Parse::RecDescent se incluye como
+    <span class="Li">$class::_Runtime</span> para evitar conflictos entre una versión instalada de Parse::RecDescent y otros analizadores precompilados creados con Parse::RecDescent. El nombre de esta clase se puede cambiar con la opción
+    <span class="Li">&quot;-runtime_class&quot;</span> a Precompile. Este cambio de nombre es experimental y está sujeto a cambios en futuras versiones.</p>
+<p class="Pp">Los analizadores precompilados siguen dependiendo de Parse::RecDescent por defecto, ya que esta característica todavía se considera experimental. En el futuro, los analizadores independientes se convertirán en la opción predeterminada.</p>
+<p class="Pp"><i>Tiempos de ejecución precompilados</i></p>
+<p class="Pp">Los analizadores precompilados independientes incluyen cada uno una copia de Parse::RecDescent. Para los usuarios que tienen una familia de analizadores precompilados relacionados, esto es muy ineficiente.
+    <span class="Li">&quot;Precompile&quot;</span> ahora admite una opción experimental
+    <span class="Li">&quot;-runtime_class&quot;</span>. Para construir un analizador precompilado con un nombre de tiempo de ejecución diferente, llame:</p>
+<pre>Parse::RecDescent-&gt;Precompile({
+        -standalone =&gt; 1,
+        -runtime_class =&gt; &quot;My::Runtime&quot;,
+    },
+    $grammar, &quot;My::New::Parser&quot;);</pre>
+<p class="Pp">El analizador independiente resultante contendrá una copia de
+    Parse::RecDescent, renombrada a &quot;My::Runtime&quot;.</p>
+<p class="Pp">Para construir un conjunto de analizadores que
+    <span class="Li">&quot;use&quot;</span> un tiempo de ejecución con nombre personalizado, sin incluir ese tiempo de ejecución en la salida, simplemente construya esos analizadores con
+    <span class="Li">&quot;-runtime_class&quot;</span> y sin
+    <span class="Li">&quot;-standalone&quot;</span>:</p>
+<pre>Parse::RecDescent-&gt;Precompile({
+        -runtime_class =&gt; &quot;My::Runtime&quot;,
+    },
+    $grammar, &quot;My::New::Parser&quot;);</pre>
+<p class="Pp">El propio tiempo de ejecución debe generarse también, para que pueda ser
+    <span class="Li">&quot;use&quot;</span>d por My::New::Parser. Para generar el archivo de tiempo de ejecución, utilice una de las dos siguientes llamadas:</p>
+<pre>Parse::RecDescent-&gt;PrecompiledRuntime(&quot;My::Runtime&quot;);
+Parse::RecDescent-&gt;Precompile({
+        -standalone =&gt; 1,
+        -runtime_class =&gt; &quot;My::Runtime&quot;,
+    },
+    '', # gramática vacía
+    &quot;My::Runtime&quot;);</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TRAMPAS'><a class='permalink' href='#TRAMPAS'>TRAMPAS</a></h1>
+<p class="Pp">Esta sección describe errores comunes que los escritores de gramáticas parecen cometer habitualmente.</p>
+<section class="Ss">
+<h2 class="Ss" id='1._Esperar_que_un_error_invalide_siempre_un_análisis'><a class='permalink' href='#1._Esperar_que_un_error_invalide_siempre_un_análisis'>1.   Esperar que un error invalide siempre un análisis</a></h2>
+<p class="Pp">Un error común al usar mensajes de error es escribir la gramática de esta manera:</p>
+<pre>archivo: línea(s)
+línea: tipo_línea_1
+| tipo_línea_2
+| tipo_línea_3
+| &lt;error&gt;</pre>
+<p class="Pp">La expectativa parece ser que cualquier línea que no sea de tipo 1, 2 o 3 invocará la directiva
+    <span class="Li">&quot;&lt;error&gt;&quot;</span> y, por lo tanto, provocará que el análisis falle.</p>
+<p class="Pp">Desafortunadamente, eso solo sucede si el error ocurre en la primera línea. La primera regla establece que un
+    <span class="Li">&quot;archivo&quot;</span> se corresponde con una o más líneas, por lo que si incluso una sola línea tiene éxito, la primera regla se satisface por completo y el análisis en su conjunto tiene éxito. Eso significa que cualquier mensaje de error generado por fallos posteriores en la regla
+    <span class="Li">&quot;línea&quot;</span> se ignora silenciosamente.</p>
+<p class="Pp">Normalmente, lo que realmente se necesita es esto:</p>
+<pre>archivo: línea(s) fin_archivo    { $return = $item[1] }
+línea: tipo_línea_1
+| tipo_línea_2
+| tipo_línea_3
+| &lt;error&gt;
+fin_archivo: /^\Z/</pre>
+<p class="Pp">La adición de la subregla <span class="Li">&quot;fin_archivo&quot;</span> a la primera producción significa que un archivo solo coincide con una serie de coincidencias de <span class="Li">&quot;línea&quot;</span> exitosas <i>que consumen el</i> <i>texto de entrada completo</i>. Si queda algún texto de entrada después de que se hayan hecho coincidir las líneas, debe haber habido un error en la última
+    <span class="Li">&quot;línea&quot;</span>. En ese caso, la regla
+    <span class="Li">&quot;fin_archivo&quot;</span> fallará, provocando que toda la regla
+    <span class="Li">&quot;archivo&quot;</span> también falle.</p>
+<p class="Pp">Tenga en cuenta también que <span class="Li">&quot;fin_archivo&quot;</span> debe coincidir con
+    <span class="Li">&quot;/^\Z/&quot;</span> (fin de texto), <i>no</i>
+    <span class="Li">&quo
+t;/^\cZ/&quot;</span> o
+    <span class="Li">&quot;/^\cD/&quot;</span> (fin de archivo).</p>
+<p class="Pp">Y no olvides la acción al final de la producción. Si solo escribes:</p>
+<pre>file: line(s) eofile</pre>
+<p class="Pp">entonces el valor devuelto por la regla
+    <span class="Li">&quot;file&quot;</span> será el valor de su último
+    elemento: <span class="Li">&quot;eofile&quot;</span>. Dado que
+    <span class="Li">&quot;eofile&quot;</span> siempre devuelve una cadena vacía
+    en caso de éxito, eso hará que la regla <span class="Li">&quot;file&quot;</span>
+    devuelva esa cadena vacía. Aparte de devolver el valor incorrecto, devolver
+    una cadena vacía provocará fallos en código como:</p>
+<pre>$parser-&gt;file($filetext) || die;</pre>
+<p class="Pp">(ya que &quot;&quot; es falso).</p>
+<p class="Pp">Recuerda que Parse::RecDescent devuelve undef en caso de fallo,
+    por lo que la única comprobación segura de fallo es:</p>
+<pre>defined($parser-&gt;file($filetext)) || die;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='2._Usando_un_&amp;quot;return&amp;quot;_en_una_acción'><a class='permalink' href='#2._Usando_un_&amp;quot;return&amp;quot;_en_una_acción'>2.   Usando un &quot;return&quot; en una acción</a></h2>
+<p class="Pp">Una acción es como un bloque <span class="Li">&quot;do&quot;</span>
+    dentro de la subrutina que implementa la regla circundante. Por lo tanto, si
+    pones una instrucción <span class="Li">&quot;return&quot;</span> en una
+    acción:</p>
+<pre>range: '(' start '..' end )'
+    { return $item{end} }
+   /\s+/ </pre>
+<p class="Pp">esa subrutina devolverá inmediatamente, sin comprobar el resto de
+    los elementos de la producción actual (por ejemplo, el
+    <span class="Li">&quot;/\s+/&quot;</span>) y sin configurar las estructuras
+    de datos necesarias para indicar al analizador que la regla ha tenido
+    éxito.</p>
+<p class="Pp">La forma correcta de establecer un valor de retorno en una acción
+    es establecer la variable <span class="Li">$return</span>:</p>
+<pre>range: '(' start '..' end )'
+            { $return = $item{end} }
+       /\s+/ </pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='2._Estableciendo_$Parse::RecDescent::skip_en_tiempo_de_análisis'><a class='permalink' href='#2._Estableciendo_$Parse::RecDescent::skip_en_tiempo_de_análisis'>2.   Estableciendo $Parse::RecDescent::skip en tiempo de análisis</a></h2>
+<p class="Pp">Si deseas cambiar el comportamiento de omisión predeterminado (ver
+    &quot;Separadores de Terminales&quot; y la directiva
+    <span class="Li">&quot;&lt;skip:...&gt;&quot;</span>) estableciendo
+    <span class="Li">$Parse::RecDescent::skip</span>, debes recordar establecer
+    esta variable *antes* de crear el objeto de gramática.</p>
+<p class="Pp">Por ejemplo, es posible que desees omitir todos los comentarios
+    similares a Perl con esta expresión regular:</p>
+<pre>my $skip_spaces_and_comments = qr/
+      (?mxs:
+         \s+         # o bien espacios
+         | \# .*?$   # o un guión y lo que sea hasta el final de línea
+      )*             # repetido a voluntad (en cualquier orden)
+   /;</pre>
+<p class="Pp">Y luego:</p>
+<pre>my $parser1 = Parse::RecDescent-&gt;new($grammar);
+$Parse::RecDescent::skip = $skip_spaces_and_comments;
+my $parser2 = Parse::RecDescent-&gt;new($grammar);
+$parser1-&gt;parse($text); # esto no maneja comentarios
+$parser2-&gt;parse($text); # esto omite comentarios correctamente</pre>
+<p class="Pp">Los dos analizadores se comportan de manera diferente, porque cualquier
+    comportamiento de omisión especificado a través de
+    <span class="Li">$Parse::RecDescent::skip</span> se codifica de forma rígida
+    cuando se construye el objeto de gramática, no en tiempo de análisis.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DIAGNÓSTICOS'><a class='permalink' href='#DIAGNÓSTICOS'>DIAGNÓSTICOS</a></h1>
+<p class="Pp">Los diagnósticos están destinados a ser autoexplicativos (especialmente
+    si usas <b>-RD_HINT</b> (con <b>perl -s</b>) o defines
+    <span class="Li">$::RD_HINT</span> dentro del programa).</p>
+<p class="Pp"><span class="Li">&quot;Parse::RecDescent&quot;</span> actualmente
+    diagnostica lo siguiente:</p>
+<ul class="Bl-bullet">
+  <li>Expresiones regulares inválidas usadas como terminales de patrón (error
+      fatal).</li>
+  <li>Código Perl inválido en bloques de código (error fatal).</li>
+  <li>Lookahead usado en el lugar incorrecto o de manera sin sentido (error
+      fatal).</li>
+  <li>Casos &quot;obvios&quot; de recursividad de izquierda (error fatal).</li>
+  <li>Componentes faltantes o extraños en una directiva
+      <span class="Li">&quot;&lt;leftop&gt;&quot;</span> o
+      <span class="Li">&quot;&lt;rightop&gt;&quot;</span>.</li>
+  <li>Componentes irreconocibles en la especificación de la gramática (error
+      fatal).</li>
+  <li>Componentes de regla &quot;huérfanos&quot; especificados antes de la primera
+      regla (error fatal) o después de una directiva
+      <span class="Li">&quot;&lt;error&gt;&quot;</span> (advertencia de nivel
+      3).</li>
+  <li>Reglas faltantes (esto solo genera una advertencia de nivel 3, ya que
+      podrías proporcionarlas más tarde a través de
+      <span class="Li">Parse::RecDescent::Extend()</span>).</li>
+  <li>Instancias donde el comportamiento de repetición codicioso probablemente
+      causará el fallo de una producción (una advertencia de nivel 3 - ver
+      &quot;ASUNTOS EN CURSO Y DIRECCIONES FUTURAS&quot; a continuación).</li>
+  <li>Intentos de definir reglas llamadas 'Replace' o 'Extend', que no pueden ser
+      llamadas directamente a través del objeto analizador debido al significado
+      predefinido de <span class="Li">&quot;Parse::RecDescent::Replace&quot;</span>
+      y <span class="Li">&quot;Parse::RecDescent::Extend&quot;</span>. (Solo se
+      genera una advertencia de nivel 2, ya que tales reglas *aún* pueden ser
+      usadas como subreglas).</li>
+  <li>Producciones que consisten en una única directiva
+      <span class="Li">&quot;&lt;error?&gt;&quot;</span>, y que por lo tanto pueden
+      tener éxito inesperadamente (una advertencia de nivel 2, ya que esto
+      concebiblemente podría ser el efecto deseado).</li>
+  <li>Múltiples especificadores de lookahead consecutivos (solo una advertencia
+      de nivel 1, ya que sus efectos simplemente se acumulan).</li>
+  <li>Producciones que comienzan con una directiva
+      <span class="Li">&quot;&lt;reject&gt;&quot;</span> o
+      <span class="Li">&quot;&lt;rulevar:...&gt;&quot;</span>. Dichas
+      producciones se optimizan (una advertencia de nivel 1).</li>
+  <li>Reglas que se generan automáticamente bajo <span class="Li">$::AUTOSTUB</span>
+      (una advertencia de nivel 1).</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Damian Conway (damian@conway.org) Jeremy T. Braun
+    (JTBRAUN@CPAN.org) [mantenedor actual]</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES_E_IRRITACIONES'><a class='permalink' href='#ERRORES_E_IRRITACIONES'>ERRORES E IRRITACIONES</a></h1>
+<p class="Pp">Sin duda, hay errores graves acechando en algún lugar de este gran
+    código :-) Se agradecen informes de errores, casos de prueba y otros
+    comentarios.</p>
+<p class="Pp">Las molestias continuas incluyen:</p>
+<ul class="Bl-bullet">
+  <li>No hay soporte para analizar directamente desde un flujo de entrada. Si los
+      Dioses de Perl nos otorgan expresiones regulares en flujos, esto debería
+      ser trivial de implementar (¡ejem!).</li>
+  <li>El generador de analizadores puede confundirse si las acciones no se
+      cierran correctamente o si contienen errores de sintaxis de Perl particularmente
+      difíciles (especialmente llaves no emparejadas).</li>
+  <li>El generador solo detecta la forma más obvia de recursividad de izquierda
+      (recursividad potencial en la primera subregla de una regla). No se
+      encuentran formas más sutiles de recursividad de izquierda (por ejemplo,
+      a través del segundo elemento de una regla después de una coincidencia
+      &quot;cero&quot; de una repetición anterior de &quot;cero o más&quot;, o
+      después de una coincidencia de una subregla con una producción vacía).</li>
+  <li>En lugar de quejarse de la recursividad de izquierda, el generador debería
+      transformar silenciosamente la gramática para eliminarla. No esperes esta
+      característica en el corto plazo, ya que requeriría un enfoque más
+      sofisticado para la generación de analizadores del que se utiliza
+      actualmente.</li>
+  <li>Los analizadores generados no siempre se ejecutan tan rápido como se
+      desearía.</li>
+  <li>El meta-analizador debería ser autoalojado usando
+      <span class="Li">&quot;Parse::RecDescent&quot;</span> :-)</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ASUNTOS_EN_CURSO_Y_DIRECCIONES_FUTURAS'><a class='permalink' href='#ASUNTOS_EN_CURSO_Y_DIRECCIONES_FUTURAS'>ASUNTOS EN CURSO Y DIRECCIONES FUTURAS</a></h1>
+<dl class="Bl-tag">
+  <dt>1.</dt>
+  <dd>Las repeticiones son &quot;incorregiblemente codiciosas&quot; en el sentido de
+      que consumirán todo lo que puedan y no retrocederán si ese comportamiento
+      causa que una producción falle innecesariamente. Por lo tanto, por ejemplo:
+        <pre>rule: subrule(s) subrule
+</pre>
+    <p class="Pp">*nunca* tendrá éxito, porque la repetición consumirá todas las
+        subreglas que encuentre, sin dejar ninguna para que coincida con el
+        segundo elemento. Tales construcciones son relativamente raras (y
+        <span class="Li">&quot;Parse::RecDescent::new&quot;</span> genera una
+        advertencia siempre que ocurren) por lo que esto puede no ser un problema,
+        especialmente ya que el comportamiento insaciable se puede superar
+        &quot;manualmente&quot; escribiendo:</p>
+        <pre>rule: penultimate_subrule(s) subrule
+penultimate_subrule: subrule ...subrule
+</pre>
+    <p class="Pp">El problema es que esta construcción es exactamente el doble de
+        cara que la original, mientras que la retroceso solo añadiría 1/<i>N</i>
+        al costo (para que coincida con <i>N</i> repeticiones de
+        <span class="Li">&quot;subrule&quot;</span>). Agradecería comentarios sobre
+        la necesidad de retroceso; particularmente sobre casos donde la falta de
+        ello hace que el rendimiento del análisis sea problemático.</p>
+  </dd>
+  <dt>2.</dt>
+  <dd>Habiendo abierto esa lata de gusanos, también es necesario considerar si
+      hay una necesidad de especificadores de repetición no codiciosos. De nuevo,
+      es posible (con cierto costo) proporcionar la funcionalidad requerida
+      manualmente:
+        <pre>rule: nongreedy_subrule(s) othersubrule
+nongreedy_subrule: subrule ...!othersubrule
+</pre>
+    <p class="Pp">En general, el problema es si el beneficio de esta funcionalidad
+        adicional supera los inconvenientes de complicar aún más la sintaxis de
+        especificación de gramática (actualmente minimalista) y (peor) introducir
+        más sobrecarga en los analizadores generados.</p>
+  </dd>
+  <dt>3.</dt>
+  <dd>Una directiva <span class="Li">&quot;&lt;autocommit&gt;&quot;</span> sería
+      agradable. Es decir, sería útil poder decir:
+        <pre>command: &lt;autocommit&gt;
+command: 'find' name
+   | 'find' address
+   | 'do' command 'at' time 'if' condition
+   | 'do' command 'at' time
+   | 'do' command
+   | unusual_command
+</pre>
+    <p class="Pp">y que el generador dedujera que esto debería ser
+        &quot;podado&quot; así:</p>
+        <pre>command: 'find' name
+   | 'find' &lt;commit&gt; address
+   | 'do' &lt;commit&gt; command &lt;uncommit&gt;
+    'at' time
+    'if' &lt;commit&gt; condition
+   | 'do' &lt;commit&gt; command &lt;uncommit&gt;
+    'at' &lt;commit&gt; time
+   | 'do' &lt;commit&gt; command
+   | unusual_command
+</pre>
+    <p class="Pp">Hay varias cuestiones aquí. Primero, ¿debería el
+        <span class="Li">&quot;&lt;autocommit&gt;&quot;</span> instalar
+        automáticamente un <span class="Li">&quot;&lt;uncommit&gt;&quot;</span> al
+        inicio de la última producción (en el entendido de que la regla
+        &quot;command&quot; no sabe si un &quot;unusual_command&quot; podría
+        comenzar con &quot;find&quot; o &quot;do&quot;) o debería analizarse el
+        subgrafo &quot;unusual_command&quot; (para ver si *podría* ser viable
+        después de un &quot;find&quot; o &quot;do&quot;)?</p>
+    <p class="Pp">La segunda cuestión es cómo tratar las expresiones regulares.
+        El enfoque más simple sería simplemente hacer un commit antes de ellas (en
+        el entendido de que *podrían* coincidir). Se obtendría una mejor
+        eficiencia analizando todos los tokens literales anteriores para
+        determinar si el patrón coincidiría con ellos.</p>
+    <p class="Pp">En general, las cuestiones son: ¿puede tal
+        &quot;poda&quot; automatizada acercarse a una mano</p>
+<section class="Sh">
+<h1 class="Sh" id='SUPPORT'><a class='permalink' href='#SUPPORT'>SOPORTE</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Source_Code_Repository'><a class='permalink' href='#Source_Code_Repository'>Almacenamiento de código fuente</a></h2>
+<p class="Pp"><a href='https://github.com/jtbraun/Parse-RecDescent'>https://github.com/jtbraun/Parse-RecDescent</a></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Mailing_List'><a class='permalink' href='#Mailing_List'>Lista de correo</a></h2>
+<p class="Pp">Visite <a href='https://www.perlfoundation.org/perl5/index.cgi?parse_recdescent'>https://www.perlfoundation.org/perl5/index.cgi?parse_recdescent</a> para registrarse en la lista de correo.</p>
+<p class="Pp">También es una buena manera de hacer preguntas en <a href='http://www.PerlMonks.org'>http://www.PerlMonks.org</a>. Puede encontrar posts antiguos sobre Parse::RecDescent con esta búsqueda: <a href='http://perlmonks.org/index.pl?node=recdescent'>http://perlmonks.org/index.pl?node=recdescent</a>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='FAQ'><a class='permalink' href='#FAQ'>Preguntas frecuentes</a></h2>
+<p class="Pp">Visite Parse::RecDescent::FAQ para encontrar respuestas a preguntas frecuentes (y no tanto) sobre Parse::RecDescent.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='View/Report_Bugs'><a class='permalink' href='#View/Report_Bugs'>Ver/Reportar errores</a></h2>
+<p class="Pp">Para ver la lista actual de errores o reportar un nuevo problema, visite <a href='https://rt.cpan.org/Public/Dist/Display.html?Name=Parse-RecDescent'>https://rt.cpan.org/Public/Dist/Display.html?Name=Parse-RecDescent</a>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>TAMBIÉN VER</a></h1>
+<p class="Pp">Regexp::Grammars proporciona parsing similar a Parse::RecDescent usando expresiones regulares nativas de Perl 5.10.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENCE_AND_COPYRIGHT'><a class='permalink' href='#LICENCE_AND_COPYRIGHT'>LICENCIA Y CREDITOS</a></h1>
+<p class="Pp">Copyright (c) 1997-2007, Damian Conway <span class="Li">&quot;&lt;DCONWAY@CPAN.org&gt;&quot;</span>. Todos los derechos reservados.</p>
+<p class="Pp">Este módulo es software libre; puede redistribuirlo y/o modificarlo bajo las mismas condiciones que Perl mismo. Consulte perlartistic.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DISCLAIMER_OF_WARRANTY'><a class='permalink' href='#DISCLAIMER_OF_WARRANTY'>DESCARGO DE GARANTÍA</a></h1>
+<p class="Pp">Aunque este software está liberado gratuitamente, no hay garantía alguna sobre el software, a menos que sea permitida por la ley aplicable. Excepto en casos específicos escritos por los propietarios de derechos o terceros que puedan modificar y redistribuir el software según la licencia anterior, los propietarios de derechos o terceros no garantizan el software "sin garantía alguna", ya sea explícita o implícita, incluyendo, pero no limitado a, las garantías de comerciabilidad y adecuación para un propósito específico. El riesgo completo sobre la calidad y la performance del software está con usted. Si el software se revela defectuoso, usted asume el costo de todo el servicio de mantenimiento, reparación, o corrección necesario.</p>
+<p class="Pp">En ningún caso, salvo que sea requerido por la ley o acordado por escrito, los propietarios de derechos o cualquier otro partido que pueda modificar y/o redistribuir el software según la licencia anterior no serán responsables de daños, incluyendo pero no limitado a, los daños generales, especiales, consecuentes o consecuencias derivadas de la utilización o imposibilidad de utilizar el software (incluyendo pero no limitado a la pérdida de datos o la presentación de datos inexactos o pérdidas sufridas por usted o terceros o el fallo del software para operar con cualquier otro software), incluso si tal propietario o partido hubiera sido previamente informado de tales daños.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información de paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-parse-recdescent/">extra/perl-parse-recdescent</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.967015-4</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Parse-RecDescent">https://search.cpan.org/dist/Parse-RecDescent</a></dd>
+        <dt>Licencia:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-parse-recdescent/">/listing/extra/perl-parse-recdescent/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Contenido de tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#VERSION">VERSIÓN</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#GOTCHAS">GOTCHAS</a></li>
+        
+            <li><a href="#DIAGNOSTICS">DIAGNÓSTICOS</a></li>
+        
+            <li><a href="#AUTHOR">AUTORES</a></li>
+        
+            <li><a href="#BUGS_AND_IRRITATIONS">ERRORES E IRRITACIONES</a></li>
+        
+            <li><a href="#ON-GOING_ISSUES_AND_FUTURE_DIRECTIONS">PROBLEMAS EN CURSO Y DIRECCIONES FUTURAS</a></li>
+        
+            <li><a href="#SUPPORT">SOPORTE</a></li>
+        
+            <li><a href="#SEE_ALSO">TAMBIÉN VER</a></li>
+        
+            <li><a href="#LICENCE_AND_COPYRIGHT">LICENCIA Y CRÉDITOS</a></li>
+        
+            <li><a href="#DISCLAIMER_OF_WARRANTY">DESCARGO DE GARANTÍA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Formatos adicionales:
+        
+            <a href="/man/Parse::RecDescent.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/Parse::RecDescent.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>, excepto que los contenidos de las páginas de manuales tengan su propia licencia especificada en el paquete correspondiente de Arch Linux.</p>
+        </footer>
+    </body>
+</html>

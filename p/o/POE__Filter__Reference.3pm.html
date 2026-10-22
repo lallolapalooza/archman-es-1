@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Filter::Reference(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Filter__Reference(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Filter::Reference(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">POE::Filter::Reference(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">POE::Filter::Reference - serializar y deserializar datos de Perl arbitrarios</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>#!perl
+use YAML;
+use POE qw(Wheel::ReadWrite Filter::Reference);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      pipe(my($read, $write)) or die $!;
+      $_[HEAP]{io} = POE::Wheel::ReadWrite-&gt;new(
+        InputHandle =&gt; $read,
+        OutputHandle =&gt; $write,
+        Filter =&gt; POE::Filter::Reference-&gt;new(),
+        InputEvent =&gt; &quot;got_perl_data&quot;,
+      );
+      $_[HEAP]{io}-&gt;put(
+        { key_1 =&gt; 111, key_2 =&gt; 222 }
+      );
+    },
+    got_perl_data =&gt; sub {
+      print &quot;Recibido:\n&quot;, YAML::Dump($_[ARG0]);
+      print &quot;¡Adiós!\n&quot;;
+      delete $_[HEAP]{io};
+    }
+  }
+);
+POE::Kernel-&gt;run();
+exit;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Filter::Reference permite a los programas enviar y recibir
+    estructuras de datos de Perl arbitrarias sin preocuparse por un protocolo de
+    línea. Su método <b>put()</b> serializa datos de Perl en un flujo de bytes
+    adecuado para la transmisión. <b>get_one()</b> analiza las estructuras de
+    datos de nuevo a partir de dicho flujo.</p>
+<p class="Pp">Por defecto, POE::Filter::Reference utiliza Storable para hacer su
+    magia. Se puede especificar un serializador diferente en el momento de la
+    construcción.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS_PÚBLICOS_DEL_FILTRO'><a class='permalink' href='#MÉTODOS_PÚBLICOS_DEL_FILTRO'>MÉTODOS PÚBLICOS DEL FILTRO</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<p class="Pp"><b>new()</b> crea e inicializa un objeto POE::Filter::Reference.
+    Acepta una lista de parámetros con nombre.</p>
+<p class="Pp"><i>Serializer</i></p>
+<p class="Pp">Cualquier clase que soporte <b>nfreeze()</b> (o <b>freeze()</b>)
+    y <b>thaw()</b> puede usarse como Serializador. Si un Serializador implementa
+    tanto <b>nfreeze()</b> como <b>freeze()</b>, entonces se usará la versión
+    &quot;de red&quot; (nfreeze).</p>
+<p class="Pp">Serializer puede ser un nombre de clase:</p>
+<pre># Usar Storable explícitamente, especificado por el nombre del paquete.
+my $filter = POE::Filter::Reference-&gt;newer( Serializer=&gt;&quot;Storable&quot; );
+# Usar YAML en su lugar. Comprimir su salida, ya que puede ser verbosa.
+my $filter = POE::Filter::Reference-&gt;new(&quot;YAML&quot;, 1);</pre>
+<p class="Pp">Serializer también puede ser un objeto:</p>
+<pre># Usar un objeto.
+my $serializer = Data::Serializer::Something-&gt;new();
+my $filter = POE::Filter::Reference-&gt;newer( Serializer =&gt; $serializer );</pre>
+<p class="Pp">Si Serializer se omite o es undef, el filtro Reference intentará
+    usar Storable, FreezeThaw y YAML en ese orden. POE::Filter::Reference fallará
+    si no puede encontrar uno de estos serializadores, pero esto rara vez sucede
+    ya que Storable y YAML vienen incluidos con Perl.</p>
+<p class="Pp"><i>Compression</i></p>
+<p class="Pp">Si Compression es verdadero, Compress::Zlib se utilizará para
+    reducir el tamaño de los datos serializados. También descomprimirá los datos
+    de entrada del flujo.</p>
+<p class="Pp"><i>MaxBuffer</i></p>
+<p class="Pp"><span class="Li">&quot;MaxBuffer&quot;</span> establece la cantidad
+    máxima de datos que el filtro retendrá mientras intenta construir una nueva
+    referencia. El valor predeterminado es 512 MB.</p>
+<p class="Pp"><i>NoFatals</i></p>
+<p class="Pp">Si NoFatals es verdadero, los mensajes se deserializarán dentro de
+    un bloque eval. Por defecto, sin embargo, <b>thaw()</b> puede fallar
+    normalmente. Si ocurre un error mientras NoFatals está en efecto,
+    POE::Filter::Reference devolverá una cadena que contiene el contenido de $@
+    en el momento en que el eval falló. Por lo tanto, al usar NoFatals, es
+    importante verificar si la entrada es realmente una referencia:</p>
+<pre>sub got_reference {
+  my $message = $_[ARG0];
+  if (ref $message) {
+    print &quot;Recibido:\n&quot;, YAML::Dump($message);
+  }
+  else {
+    warn &quot;Error de decodificación de entrada: $message\n&quot;;
+  }
+}</pre>
+<p class="Pp"><b>new()</b> intentará cargar cualquier clase que necesite para
+    &quot;Compression&quot; o &quot;Serializer&quot;.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='new_[SERIALIZER_[,_COMPRESSION_[,_NO_FATALS]]]'><a class='permalink' href='#new_%5BSERIALIZER_%5B,_COMPRESSION_%5B,_NO_FATALS%5D%5D%5D'>new   [SERIALIZER [, COMPRESSION [, NO_FATALS]]]</a></h2>
+<p class="Pp">Esta es la sintaxis antigua del constructor. No se ajusta a la
+    sintaxis normal de parámetros del constructor de POE::Filter. Utilice la nueva
+    sintaxis en su lugar.</p>
+<p class="Pp">Llamar a <span class="Li">&quot;new&quot;</span> de esta manera es
+    equivalente a</p>
+<pre>POE::Filter::Reference-&gt;new( Serializer =&gt; SERIALIZER,
+                             Compression =&gt; COMPRESSION,
+                             NoFatals  =&gt; NO_FATALS );</pre>
+<p class="Pp">Tenga en cuenta que si tiene una clase serializadora personalizada
+    llamada <span class="Li">&quot;Serializer&quot;</span>, deberá actualizar su
+    código a la nueva sintaxis.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='API_DEL_SERIALIZADOR'><a class='permalink' href='#API_DEL_SERIALIZADOR'>API DEL SERIALIZADOR</a></h1>
+<p class="Pp">Esto es lo que POE::Filter::Reference espera de sus serializadores.</p>
+<section class="Ss">
+<h2 class="Ss" id='thaw_SERIALIZADO'><a class='permalink' href='#thaw_SERIALIZADO'>thaw   SERIALIZADO</a></h2>
+<p class="Pp"><b>thaw()</b> es obligatorio. Acepta dos parámetros:
+    <span class="Li">$self</span> y un escalar que contiene un flujo de bytes
+    SERIALIZADO que representa una única estructura de datos de Perl. Devuelve una
+    estructura de datos de Perl reconstituida.</p>
+<pre>sub thaw {
+  my ($self, $stream) = @_;
+  my $reference = $self-&gt;_deserialization_magic($stream);
+  return $reference;
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='nfreeze_REFERENCIA'><a class='permalink' href='#nfreeze_REFERENCIA'>nfreeze   REFERENCIA</a></h2>
+<p class="Pp">Se requiere <b>nfreeze()</b> o <b>freeze()</b>. Se
+    comportan de manera idéntica, excepto que se garantiza que <b>nfreeze()</b>
+    es portable a través de redes y entre arquitecturas de máquinas.</p>
+<p class="Pp">Estos serializadores aceptan dos parámetros:
+    <span class="Li">$self</span> y una REFERENCIA a datos de Perl. Devuelven una
+    versión serializada de los datos referenciados.</p>
+<pre>sub nfreeze {
+  my ($self, $reference) = @_;
+  my $stream = $self-&gt;_serialization_magic($reference);
+  return $stream;
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='freeze_REFERENCIA'><a class='permalink' href='#freeze_REFERENCIA'>freeze   REFERENCIA</a></h2>
+<p class="Pp"><b>freeze()</b> es una forma alternativa de <b>nfreeze()</b>. Tiene
+    la misma firma de llamada que <b>nfreeze()</b>, pero no garantiza que los
+    datos serializados sean portables entre arquitecturas de máquinas.</p>
+<p class="Pp">Si debe elegir entre implementar <b>freeze()</b> y <b>nfreeze()</b>
+    para su uso con POE::Filter::Reference, opte por <b>nfreeze()</b>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp">Por favor, consulte POE::Filter para la documentación sobre la
+    interfaz base.</p>
+<p class="Pp">La sección SEE ALSO en POE contiene una tabla de contenido que cubre
+    toda la distribución de POE.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES'><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<p class="Pp">No tantos errores como advertencias:</p>
+<p class="Pp">Es importante usar serializadores idénticos en cada extremo de una
+    conexión. Incluso diferentes versiones del mismo serializador pueden romper
+    los datos en tránsito.</p>
+<p class="Pp">La mayoría (si no todos) los serializadores volverán a bendecir los
+    datos en el destino, pero muchos de ellos no cargarán las clases necesarias
+    para que esas bendiciones funcionen. Asegúrese de que las mismas clases y
+    versiones estén disponibles en ambos extremos del cable.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTORES_Y_DERECHOS_DE_AUTOR'><a class='permalink' href='#AUTORES_Y_DERECHOS_DE_AUTOR'>AUTORES Y DERECHOS DE AUTOR</a></h1>
+<p class="Pp">El filtro Reference fue contribuido por Artur Bergman, con cambios
+    de Philip Gwyn.</p>
+<p class="Pp">Por favor, consulte POE para obtener más información sobre autores
+    y colaboradores.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a h
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/styles.css">
+        <link rel="icon" href="/favicon.ico">
+        <title>POE::Filter::Reference(3pm) — ArchWiki</title>
+    </head>
+    <body>
+        
+        <main>
+            <aside>
+                <nav>
+    <details>
+        <summary>POE::Filter::Reference(3pm)</summary>
+        <ul>
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PUBLIC_FILTER_METHODS">MÉTODOS DE FILTRO PÚBLICOS</a></li>
+        
+            <li><a href="#SERIALIZER_API">API DEL SERIALIZADOR</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#BUGS">ERRORES</a></li>
+        
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTORES Y COPYRIGHTS</a></li>
+        
+        </ul>
+    </details>
+</nav>
+
+                <nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/POE::Filter::Reference.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/POE::Filter::Reference.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

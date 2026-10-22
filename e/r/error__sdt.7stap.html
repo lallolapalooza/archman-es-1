@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>error::sdt(7stap) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+        <link rel="alternate" href="/man/error::sdt.7stap.cs" hreflang="cs">
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">error__sdt.7stap</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/systemtap/">systemtap</a></p>
+<p class="lic">Licencias: GPL-2.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">ERROR::SDT(7stap)</td>
+    <td class="head-vol"></td>
+    <td class="head-rtitle">ERROR::SDT(7stap)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">error::sdt - fallos de marcadores de &lt;sys/sdt.h&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Las sondas <b>&lt;sys/sdt.h&gt;</b> de Systemtap están modeladas según
+    la API USDT de dtrace, pero se implementan de forma diferente. Dejan solo una
+    instrucción NOP en el segmento de texto del programa de espacio de usuario y
+    añaden una nota ELF al binario con metadatos. Estos metadatos describen el
+    nombre y los parámetros del marcador. Esta codificación está diseñada para
+    ser analizable por múltiples herramientas (no solo systemtap: GDB, el Depurador
+    de GNU, también contiene soporte). Esto permite a las herramientas encontrar
+    parámetros y sus tipos, dondequiera que residan, incluso sin información de
+    depuración DWARF.</p>
+<p class="Pp">La razón por la que encontrar parámetros es complicado es que los
+    marcadores STAP_PROBE / DTRACE_PROBE almacenan una expresión de lenguaje
+    ensamblador para cada operando, como resultado del uso de directivas de
+    ensamblaje en línea de gcc. Al compilador se le da una cadena de restricción
+    de operando gcc amplia ("nor") para los operandos, lo que generalmente
+    funciona bien. Normalmente, no obliga al compilador a cargar los parámetros
+    dentro o fuera de los registros, lo que ralentizaría un programa instrumentado.
+    Sin embargo, algunos sitios de instrumentación con algunos parámetros no
+    funcionan bien con la restricción predeterminada "nor".</p>
+<dl class="Bl-tag">
+  <dt id="unresolveable"><a class="permalink" href="#unresolveable">no resoluble
+    en tiempo de ejecución</a></dt>
+  <dd>GCC puede emitir cadenas que un ensamblador podría resolver (desde el
+      contexto de compilación del programa original), pero una herramienta en
+      tiempo de ejecución no puede. Por ejemplo, la cadena del operando podría
+      referirse a una etiqueta de un símbolo local que no se emite en el archivo
+      objeto ELF en absoluto, lo que no deja rastro para el tiempo de ejecución.
+      La referencia a dichos parámetros dentro de systemtap puede resultar en
+      errores de "ensamblaje SDT no entendido".
+      </dd>
+  <dt id="too"><a class="permalink" href="#too">expresión demasiado complicada</a></dt>
+  <dd>GCC podría sintetizar modos de direccionamiento de ensamblaje muy complicados
+      a partir de tipos de datos C complejos / expresiones de puntero. Systemtap
+      o gdb pueden no ser capaces de analizar algunas expresiones válidas pero
+      complicadas. La referencia a dichos parámetros dentro de systemtap puede
+      resultar en errores de "ensamblaje SDT no entendido".
+      </dd>
+  <dt id="overly"><a class="permalink" href="#overly">restricción demasiado restrictiva</a></dt>
+  <dd>GCC podría no ser capaz de compilar incluso el programa original con la
+      restricción predeterminada "nor" debido a la escasez de registros u otras
+      razones. Puede resultar un error de gcc en tiempo de compilación como
+      "el operando asm tiene restricciones imposibles".
+      </dd>
+</dl>
+<p class="Pp">Hay dos soluciones generales para esta familia de problemas.</p>
+<dl class="Bl-tag">
+  <dt id="change"><a class="permalink" href="#change">cambiar las
+    restricciones</a></dt>
+  <dd>Mientras se compila el programa instrumentado original, establezca la macro
+      <i>STAP_SDT_ARG_CONSTRAINT</i> a diferentes cadenas de restricción. Vea el
+      manual de GCC sobre varias opciones. Por ejemplo, en muchas arquitecturas
+      de máquina, "r" fuerza los operandos a registros, y "g" deja los operandos
+      esencialmente sin restricciones.
+      </dd>
+  <dt id="revert"><a class="permalink" href="#revert">volver a la información de
+    depuración</a></dt>
+  <dd>Mientras el programa instrumentado compile, puede estar bien simplemente
+      seguir usando &lt;sys/sdt.h&gt; pero evitar la extracción de algunos
+      parámetros individuales. En el peor de los casos, deshabilite las macros de
+      &lt;sys/sdt.h&gt; por completo para evitar la instrumentación compilada. Si
+      se generó y conservó información de depuración DWARF, un script de
+      systemtap podría referirse a las variables del contexto fuente subyacentes
+      en lugar de los parámetros posicionales de STAP_PROBE.
+      </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<pre><a href='/man/stap.1.en'>stap(1)</a>,
+<i>stapprobes</i>(3stap),
+<i>error::dwarf</i>(7stap),
+<i>http://gcc.gnu.org/onlinedocs/gcc/Constraints.html</i>,
+<i>http://sourceware.org/systemtap/wiki/UserSpaceProbeImplementation</i>,
+<i>error::reporting</i>(7stap)</pre>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/systemtap/">extra/systemtap</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.4-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://sourceware.org/systemtap/">https://sourceware.org/systemtap/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL-2.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/systemtap/">/listing/extra/systemtap/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+<nav class="other-languages">
+    <p>En otros idiomas:</p>
+    <ul>
+    
+        <li><a href="/man/error::sdt.7stap.cs">cs</a></li>
+    
+    </ul>
+</nav>
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/error::sdt.7stap.en.txt">txt</a>, 
+        
+            <a href="/man/error::sdt.7stap.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

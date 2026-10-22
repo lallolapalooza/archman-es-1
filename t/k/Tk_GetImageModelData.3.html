@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tk_GetImageModelData(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Tk_GetImageModelData(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/tk/">tk</a></p>
+<p class="lic">Licencias: TCL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Tk_CreateImageType(3)</td>
+    <td class="head-vol">Procedimientos de la biblioteca Tk</td>
+    <td class="head-rtitle">Tk_CreateImageType(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp"><b>Tk_CreateImageType</b>, <b>Tk_GetImageMasterData</b>,
+    <b>Tk_GetImageModelData</b>, <b>Tk_InitImageArgs</b> - definir un nuevo
+    tipo de imagen</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre><b>#include &lt;tk.h&gt;</b>
+
+<b>Tk_CreateImageType</b>(<i>typePtr</i>)
+
+ClientData
+<b>Tk_GetImageMasterData</b>(<i>interp, name, typePtrPtr</i>)
+
+ClientData
+<b>Tk_GetImageModelData</b>(<i>interp, name, typePtrPtr</i>)
+
+<b>Tk_InitImageArgs</b>(<i>interp, argc, argvPtr</i>)</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTS'><a class='permalink' href='#ARGUMENTS'>ARGUMENTOS</a></h1>
+<dl class="Bl-tag">
+  <dt>const Tk_ImageType <i>*typePtr</i> (entrada)</dt>
+  <dd>Estructura que define el nuevo tipo de imagen. Para Tk 8.4 y anteriores,
+      esto debe ser estático: el código de imagen conserva un puntero a esta
+      estructura. En Tk 8.5, esta limitación se relajó.</dd>
+  <dt>Tcl_Interp <i>*interp</i> (entrada)</dt>
+  <dd>Intérprete en el que se creó la imagen.</dd>
+  <dt>const char <i>*name</i> (entrada)</dt>
+  <dd>Nombre de la imagen existente.</dd>
+  <dt>Tk_ImageType <i>**typePtrPtr</i> (salida)</dt>
+  <dd>Punta a la palabra en la que se almacenará un puntero a la información del
+      tipo para la imagen dada, si existe.</dd>
+  <dt>int <i>argc</i> (entrada)</dt>
+  <dd>Número de argumentos</dd>
+  <dt>char <i>***argvPtr</i> (entrada/salida)</dt>
+  <dd>Puntero a la lista de argumentos
+        <br/>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>Tk_CreateImageType</b> se invoca para definir un nuevo tipo de
+    imagen. Un tipo de imagen corresponde a un valor particular del argumento
+    <i>type</i> para el comando <b>image create</b>. Puede existir cualquier
+    número de tipos de imagen diferentes, y se pueden definir nuevos tipos
+    dinámicamente llamando a <b>Tk_CreateImageType</b>. Por ejemplo, podría
+    haber un tipo para mapas de bits de 2 colores, otro para imágenes multicolor,
+    otro para imágenes difuminadas, otro para video, etc.</p>
+<p class="Pp">El código que implementa un nuevo tipo de imagen se llama
+    <i>gestor de imágenes</i>. Consiste en una colección de procedimientos más
+    tres tipos diferentes de estructuras de datos. La primera estructura de datos
+    es una estructura Tk_ImageType, que contiene el nombre del tipo de imagen y
+    punteros a cinco procedimientos proporcionados por el gestor de imágenes para
+    manejar imágenes de este tipo:</p>
+<div class="Bd-indent">
+<pre>typedef struct Tk_ImageType {
+    const char *<i>name</i>;
+    Tk_ImageCreateProc *<i>createProc</i>;
+    Tk_ImageGetProc *<i>getProc</i>;
+    Tk_ImageDisplayProc *<i>displayProc</i>;
+    Tk_ImageFreeProc *<i>freeProc</i>;
+    Tk_ImageDeleteProc *<i>deleteProc</i>;
+} <b>Tk_ImageType</b>;</pre>
+</div>
+Los campos de esta estructura se describirán en subsecciones posteriores de esta
+  entrada.
+<p class="Pp">La segunda estructura de datos principal manipulada por un gestor de
+    imágenes se denomina <i>modelo de imagen</i>; contiene información general
+    sobre una imagen particular, como los valores de las opciones de
+    configuración especificadas en un comando <b>image create</b>. Normalmente
+    habrá una de estas estructuras por cada invocación del comando <b>image
+    create</b>.</p>
+<p class="Pp">La tercera estructura de datos relacionada con las imágenes es una
+    <i>instancia de imagen</i>. Normalmente habrá una de estas estructuras por
+    cada uso de una imagen en un widget particular. Es posible que una sola imagen
+    aparezca simultáneamente en varios widgets, o incluso varias veces en el
+    mismo widget. Además, diferentes instancias pueden estar en diferentes
+    pantallas o displays. La estructura de datos de la instancia de imagen describe
+    cosas que pueden variar de una instancia a otra, como los colores y los
+    contextos gráficos para la redibujación. Normalmente hay una estructura de
+    instancia por cada opción <b>-image</b> especificada para un widget o un
+    elemento del canvas.</p>
+<p class="Pp">Las siguientes subsecciones describen los campos de una Tk_ImageType
+    con más detalle.</p>
+<section class="Ss">
+<h2 class="Ss" id='NAME_2'><a class='permalink' href='#NAME_2'>NOMBRE</a></h2>
+<p class="Pp"><i>typePtr-&gt;name</i> proporciona un nombre para el tipo de
+    imagen. Una vez que <b>Tk_CreateImageType</b> retorna, este nombre puede ser
+    utilizado en comandos <b>image create</b> para crear imágenes del nuevo
+    tipo. Si ya existía un tipo de imagen con este nombre, el nuevo tipo de
+    imagen reemplaza al antiguo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='CREATEPROC'><a class='permalink' href='#CREATEPROC'>CREATEPROC</a></h2>
+<p class="Pp"><i>typePtr-&gt;createProc</i> proporciona la dirección de un
+    procedimiento que Tk llamará cada vez que se invoque <b>image create</b>
+    para crear una imagen del nuevo tipo. <i>typePtr-&gt;createProc</i> debe
+    coincidir con el siguiente prototipo:</p>
+<div class="Bd-indent">
+<pre>typedef int <b>Tk_ImageCreateProc</b>(
+        Tcl_Interp *<i>interp</i>,
+        const char *<i>name</i>,
+        int <i>objc</i>,
+        Tcl_Obj *const <i>objv</i>[],
+        const Tk_ImageType *<i>typePtr</i>,
+        Tk_ImageMaster <i>model</i>,
+        ClientData *<i>modelDataPtr</i>);</pre>
+</div>
+El argumento <i>interp</i> es el intérprete en el que se invocó el comando
+  <b>image</b>, y <i>name</i> es el nombre de la nueva imagen, que fue especificado
+  explícitamente en el comando <b>image</b> o generado automáticamente por el
+  comando <b>image</b>. Los argumentos <i>objc</i> y <i>objv</i> describen todas
+  las opciones de configuración para la nueva imagen (todo lo que sigue al
+  argumento de nombre para <b>image</b>). El argumento <i>model</i> es un token
+  que hace referencia a la información de Tk sobre esta imagen; el gestor de
+  imágenes debe devolver este token a Tk al invocar el procedimiento
+  <b>Tk_ImageChanged</b>. Normalmente, <i>createProc</i> analizará <i>objc</i> y
+  <i>objv</i> y creará una estructura de datos del modelo de imagen para la nueva
+  imagen. <i>createProc</i> puede almacenar un valor arbitrario de una palabra en
+  *<i>modelDataPtr</i>, que se devolverá al gestor de imágenes al invocar otros
+  callbacks. Normalmente, el valor es un puntero a la estructura de datos del
+  modelo para la imagen.
+<p class="Pp">Si <i>createProc</i> encuentra un error, debe dejar un mensaje de
+    error en el resultado del intérprete y devolver <b>TCL_ERROR</b>; de lo
+    contrario, debe devolver <b>TCL_OK</b>.</p>
+<p class="Pp"><i>createProc</i> debe llamar a <b>Tk_ImageChanged</b> para
+    establecer el tamaño de la imagen y solicitar una redibujación inicial.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='GETPROC'><a class='permalink' href='#GETPROC'>GETPROC</a></h2>
+<p class="Pp">Tk invoca <i>typePtr-&gt;getProc</i> cada vez que un widget llama a
+    <b>Tk_GetImage</b> para usar una imagen particular. Este procedimiento debe
+    coincidir con el siguiente prototipo:</p>
+<div class="Bd-indent">
+<pre>typedef ClientData <b>Tk_ImageGetProc</b>(
+        Tk_Window <i>tkwin</i>,
+        ClientData <i>modelData</i>);</pre>
+</div>
+El argumento <i>tkwin</i> identifica la ventana en la que se usará la imagen y
+  <i>modelData</i> es el valor devuelto por <i>createProc</i> cuando se creó el
+  modelo de imagen. <i>getProc</i> normalmente creará una estructura de datos para
+  la nueva instancia, incluyendo cosas como los recursos necesarios para mostrar
+  la imagen en la ventana dada. <i>getProc</i> devuelve un token de una palabra
+  para la instancia, que normalmente es la dirección de la estructura de datos de
+  la instancia. Tk devolverá este valor al gestor de imágenes al invocar sus
+  procedimientos <i>displayProc</i> y <i>freeProc</i>.
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DISPLAYPROC'><a class='permalink' href='#DISPLAYPROC'>DISPLAYPROC</a></h2>
+<p class="Pp">Tk invoca <i>typePtr-&gt;displayProc</i> cada vez que una imagen
+    necesita ser mostrada (es decir, cada vez que un widget llama a
+    <b>Tk_RedrawImage</b>). <i>displayProc</i> debe coincidir con el siguiente
+    prototipo:</p>
+<div class="Bd-indent">
+<pre>typedef void <b>Tk_ImageDisplayProc</b>(
+        ClientData <i>instanceData</i>,
+        Display *<i>display</i>,
+        Drawable <i>drawable</i>,
+        int <i>imageX</i>,
+        int <i>imageY</i>,
+        int <i>width</i>,
+        int <i>height</i>,
+        int <i>drawableX</i>,
+        int <i>drawableY</i>);</pre>
+</div>
+<i>instanceData</i> será el mismo que el valor devuelto por <i>getProc</i>
+  cuando se creó la instancia. <i>display</i> y <i>drawable</i> indican dónde
+  mostrar la imagen; <i>drawable</i> puede ser un pixmap en lugar de la ventana
+  especificada a <i>getProc</i> (este es generalmente el caso, ya que la mayoría
+  de los widgets usan doble búfer para su redibujación para obtener efectos
+  visuales más suaves). <i>imageX</i>, <i>imageY</i>, <i>width</i> y
+  <i>height</i> identifican la región de la imagen que debe ser redibujada. Esta
+  región siempre estará dentro del tamaño de la imagen según lo especificado en
+  la llamada más reciente a <b>Tk_ImageChanged</b>. <i>drawableX</i> y
+  <i>drawableY</i> indican dónde en <i>drawable</i> se debe mostrar la imagen;
+  <i>displayProc</i> debe mostrar la región dada de la imagen de manera que el
+  punto (<i>imageX</i>, <i>imageY</i>) en la imagen aparezca en
+  (<i>drawableX</i>, <i>drawableY</i>) en <i>drawable</i>.
+</section>
+<section class="Ss">
+<h2 class="Ss" id='FREEPROC'><a class='permalink' href='#FREEPROC'>FREEPROC</a></h2>
+<p class="Pp"><i>typePtr-&gt;freeProc</i> contiene la dirección de un procedimiento
+    que Tk invocará cuando se libere una instancia de imagen (es decir, cuando se
+    invoque <b>Tk_FreeImage</b>). Esto puede suceder, por ejemplo, cuando se
+    elimina un widget o un elemento de imagen en un canvas, o cuando se cambia
+    la imagen mostrada en un widget o elemento de canvas. <i>freeProc</i> debe
+    coincidir con el siguiente prototipo:</p>
+<div class="Bd-indent">
+<pr
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp"><b>Tk_DefineImage</b>(3), <b>Tk_GetImage</b>(3),
+    <b>Tk_RedrawImage</b>(3), <b>Tk_ImageChanged</b>(3)</p>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+    </body>
+</html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Tk_GetImageModelData(3) — Tk</title>
+        <meta name="generator" content="mandoc 1.29.1">
+        <meta name="mandoctitle" content="Tk_GetImageModelData(3) — Tk">
+        <meta name="mandoctitle" content="Tk_GetImageModelData(3) — Tk">
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="stylesheet" href="/css/mandoc.css">
+    </head>
+    <body>
+        <article>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp"><code class="Nm">Tk_GetImageModelData</code>, <code class="Nm">Tk_GetImageMasterData</code> — retrieve image model data</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>
+#include &lt;tk.h&gt;</pre>
+<pre>
+ClientData
+<b>Tk_GetImageMasterData</b>(interp, name, typePtrPtr)</pre>
+<pre>
+Tcl_Interp *<i>interp</i>;
+const char *<i>name</i>;
+Tk_ImageType **<i>typePtrPtr</i>;</pre>
+<pre>
+ClientData
+<b>Tk_GetImageModelData</b>(interp, name, typePtrPtr);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTS'><a class='permalink' href='#ARGUMENTS'>ARGUMENTS</a></h1>
+<dl class="Bl-tag">
+<dt id="interp"><code>interp</code> (in)</dt>
+<dd>The interpreter to search for the image.</dd>
+<dt id="name"><code>name</code> (in)</dt>
+<dd>The name of the image to look up.</dd>
+<dt id="typePtrPtr"><code>typePtrPtr</code> (out)</dt>
+<dd>Pointer to where the <code class="Tf">Tk_ImageType</code> pointer for the
+    image will be stored if found.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">Tk manages images through a system of image types. Each image type
+    is registered with Tk by calling <b>Tk_CreateImageType</b>. This function takes
+    a pointer to a <code class="Tf">Tk_ImageType</code> structure, which contains
+    function pointers for managing instances of that image type. The
+    <code class="Tf">Tk_ImageType</code> structure has the following fields:</p>
+<div class="Bd-indent">
+<pre>typedef struct Tk_ImageType {
+    const char *name;              <i>/* Name of image type */</i>
+    Tk_ImageCreateProc *createProc;  <i>/* Called when image is created */</i>
+    Tk_ImageFreeProc *freeProc;      <i>/* Called when image instance is deleted */</i>
+    Tk_ImageDeleteProc *deleteProc;  <i>/* Called when image itself is deleted */</i>
+    Tk_ImageChangedProc *chainChangedProc; <i>/* Called when image is changed */</i>
+} Tk_ImageType;</pre>
+</div>
+<p class="Pp">The fields are procedures with the following prototypes:</p>
+<section class="Ss">
+<h2 class="Ss" id='CREATEPROC'><a class='permalink' href='#CREATEPROC'>CREATEPROC</a></h2>
+<pre>typedef ClientData
+<b>Tk_ImageCreateProc</b>(Tcl_Interp *<i>interp</i>,
+        const char *<i>name</i>, int <i>argc</i>, const char **<i>argv</i>,
+        Tk_ImageType *<i>typePtr</i>, Tk_ImageMaster <i>master</i>,
+        ClientData *<i>modelDataPtr</i>);</pre>
+<p class="Pp">The <i>createProc</i> procedure is invoked when a new image is
+    created using the <b>image create</b> command. <i>name</i> is the name of
+    the image being created, <i>argc</i> and <i>argv</i> are the arguments that
+    follow the image name, <i>typePtr</i> points to the <code class="Tf">Tk_ImageType</code>
+    structure for this image, and <i>master</i> is a handle that can be used to
+    refer to the image itself (see <b>Tk_ImageMaster</b> below). The
+    <i>createProc</i> should allocate and initialize any data structures needed
+    to manage this image, storing a pointer to them in the location pointed to by
+    <i>modelDataPtr</i>. The return value of <i>createProc</i> is
+    ClientData that will be associated with each instance of the image; this
+    value is passed to <i>freeProc</i> when an instance is deleted.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='FREEPROC'><a class='permalink' href='#FREEPROC'>FREEPROC</a></h2>
+<pre>typedef void
+<b>Tk_ImageFreeProc</b>(ClientData <i>instanceData</i>, Display *<i>display</i>);</pre>
+<p class="Pp">The <i>instanceData</i> will be the same as the value returned by
+    <i>createProc</i> when the instance was created, and <i>display</i> is the
+    display containing the window for the instance. <i>freeProc</i> should
+    release any resources associated with the image instance, since the instance
+    will never be used again.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DELETEPROC'><a class='permalink' href='#DELETEPROC'>DELETEPROC</a></h2>
+<p class="Pp"><i>typePtr-&gt;deleteProc</i> is a procedure that Tk invokes when an
+    image is being deleted (i.e. when the <b>image delete</b> command is
+    invoked). Before invoking <i>deleteProc</i> Tk will invoke <i>freeProc</i>
+    for each of the image's instances. <i>deleteProc</i> must match the
+    following prototype:</p>
+<div class="Bd-indent">
+<pre>typedef void
+<b>Tk_ImageDeleteProc</b>(ClientData <i>modelData</i>);</pre>
+</div>
+<p class="Pp">The <i>modelData</i> argument will be the same as the value stored in
+    <i>*modelDataPtr</i> by <i>createProc</i> when the image was created.
+    <i>deleteProc</i> should release any resources associated with the image.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TK_GETIMAGEMODELDATA'><a class='permalink' href='#TK_GETIMAGEMODELDATA'>TK_GETIMAGEMODELDATA</a></h1>
+<p class="Pp">The procedure <b>Tk_GetImageMasterData</b> may be invoked to
+    retrieve information about an image. For example, an image manager can use
+    this procedure to locate its image model data for an image. If there exists
+    an image named <i>name</i> in the interpreter given by <i>interp</i>, then
+    <i>*typePtrPtr</i> is filled in with type information for the image (the
+    <i>typePtr</i> value passed to <b>Tk_CreateImageType</b> when the image type
+    was registered) and the return value is the ClientData value returned by the
+    <i>createProc</i> when the image was created (this is typically a pointer to
+    the image model data structure). If no such image exists then NULL is
+    returned and NULL is stored at <i>*typePtrPtr</i>.</p>
+<p class="Pp"><b>Tk_GetImageModelData</b> is synonym for
+    <b>Tk_GetImageMasterData</b></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LEGACY_INTERFACE_SUPPORT'><a class='permalink' href='#LEGACY_INTERFACE_SUPPORT'>LEGACY   INTERFACE SUPPORT</a></h1>
+<p class="Pp">In Tk 8.2 and earlier, the definition of <b>Tk_ImageCreateProc</b>
+    was incompatibly different, with the following prototype:</p>
+<div class="Bd-indent">
+<pre>typedef int
+<b>Tk_ImageCreateProc</b>(Tcl_Interp *<i>interp</i>, char *<i>name</i>,
+        int <i>argc</i>, char **<i>argv</i>, Tk_ImageType *<i>typePtr</i>,
+        Tk_ImageMaster <i>model</i>, ClientData *<i>modelDataPtr</i>);</pre>
+</div>
+<p class="Pp">Legacy programs and libraries dating from those days may still
+    contain code that defines extended Tk image types using the old interface.
+    The Tk header file will still support this legacy interface if the code is
+    compiled with the macro <b>USE_OLD_IMAGE</b> defined.</p>
+<p class="Pp"><i>Tk_ImageModel</i> is synonym for <i>Tk_ImageMaster</i></p>
+<p class="Pp">When the <b>USE_OLD_IMAGE</b> legacy support is enabled, you may
+    see the routine <b>Tk_InitImageArgs</b> in use. This was a migration tool
+    used to create stub-enabled extensions that could be loaded into interps
+    containing all versions of Tk 8.1 and later. Tk 8.5 no longer provides this
+    routine, but uses a macro to convert any attempted calls of this routine
+    into an empty comment. Any stub-enabled extension providing an extended
+    image type via the legacy interface that is compiled against Tk 8.5 headers
+    and linked against the Tk 8.5 stub library will produce a file that can be
+    loaded only into interps with Tk 8.5 or later; that is, the normal
+    stub-compatibility rules. If a developer needs to generate from such code a
+    file that is loadable into interps with Tk 8.4 or earlier, they must use Tk
+    8.4 headers and stub libraries to do so.</p>
+<p class="Pp">Any new code written today should not make use of the legacy
+    interfaces. Expect their support to go away in Tk 9.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp"><a href="Tk_ImageChanged.html">Tk_ImageChanged(3)</a>, <a href="Tk_GetImage.html">Tk_GetImage(3)</a>, <a href="Tk_FreeImage.html">Tk_FreeImage(3)</a>, <a href="Tk_RedrawImage.html">Tk_RedrawImage(3)</a>, <a href="Tk_SizeOfImage.html">Tk_SizeOfImage(3)</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='KEYWORDS'><a class='permalink' href='#KEYWORDS'>KEYWORDS</a></h1>
+<p class="Pp">image manager, image type, instance, model</p>
+</section>
+</article>
+<aside id="sidebar">
+<section class="search">
+<form action="/search" class="search direct-search" role="search">
+<input type="search" placeholder="Search manual page" name="q" value="">
+<input type="submit" name="go" value="Go">
+</form>
+</section>
+<section class="package-info">
+<p>Package information:</p>
+<dl>
+<dt>Package name:</dt>
+<dd><a href="https://www.archlinux.org/packages/extra/x86_64/tk/">extra/tk</a></dd>
+<dt>Version:</dt>
+<dd>8.6.16-1</dd>
+<dt>Upstream:</dt>
+<dd><a href="http://tcl.sourceforge.net/">http://tcl.sourceforge.net/</a></dd>
+<dt>Licenses:</dt>
+<dd>TCL</dd>
+<dt>Manuals:</dt>
+<dd><a href="/listing/extra/tk/">/listing/extra/tk/</a></dd>
+</dl>
+</section>
+<details>
+<summary>Table of contents</summary>
+<nav class="toc">
+<ul>
+<li><a href="#NAME">NAME</a></li>
+<li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+<li><a href="#ARGUMENTS">ARGUMENTS</a></li>
+<li><a href="#DESCRIPTION">DESCRIPTION</a>
+<ul>
+<li><a href="#CREATEPROC">CREATEPROC</a></li>
+<li><a href="#FREEPROC">FREEPROC</a></li>
+<li><a href="#DELETEPROC">DELETEPROC</a></li>
+</ul>
+</li>
+<li><a href="#TK_GETIMAGEMODELDATA">TK_GETIMAGEMODELDATA</a></li>
+<li><a href="#LEGACY_INTERFACE_SUPPORT">LEGACY INTERFACE SUPPORT</a></li>
+<li><a href="#SEE_ALSO">SEE ALSO</a></li>
+<li><a href="#KEYWORDS">KEYWORDS</a></li>
+</ul>
+</nav>
+</details>
+<nav class="other-formats">
+<p>Other formats:
+<a href="/man/Tk_GetImageModelData.3.en.txt">txt</a>,
+<a href="/man/Tk_GetImageModelData.3.en.raw">raw</a>
+</p>
+</nav>
+</aside>
+<footer>
+
+<p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+license, except for the contents of the manual pages, which have their own license
+specified in the corresponding Arch Linux package.
+</p>
+</footer>
+</body>
+</html>

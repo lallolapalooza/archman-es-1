@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Filter(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Filter(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Filter(3)</td>
+    <td class="head-vol">User Contributed Perl Documentation</td>
+    <td class="head-rtitle">POE::Filter(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Filter - abstracciones de protocolo para POE::Wheel y uso independiente</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Para usar con clases POE::Wheel, pasa un objeto POE::Filter a uno de
+    los parámetros del constructor &quot;...Filter&quot;:</p>
+<pre>#!perl
+use POE qw(Filter::Line Wheel::FollowTail);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[HEAP]{tailor} = POE::Wheel::FollowTail-&gt;new(
+        Filename =&gt; &quot;/var/log/system.log&quot;,
+        InputEvent =&gt; &quot;got_log_line&quot;,
+        Filter =&gt; POE::Filter::Line-&gt;new(),
+      );
+    },
+    got_log_line =&gt; sub {
+      print &quot;Log: $_[ARG0]\n&quot;;
+    }
+  }
+);
+POE::Kernel-&gt;run();
+exit;</pre>
+<p class="Pp">Uso independiente sin POE:</p>
+<pre>#!perl
+use warnings;
+use strict;
+use POE::Filter::Line;
+my $filter = POE::Filter::Line-&gt;new( Literal =&gt; &quot;\n&quot; );
+# Imprime tres líneas: one, two three.
+$filter-&gt;get_one_start([&quot;one\ntwo\nthr&quot;, &quot;ee\nfour&quot;]);
+while (1) {
+  my $line = $filter-&gt;get_one();
+  last unless @$line;
+  print $line-&gt;[0], &quot;\n&quot;;
+}
+# Imprime dos líneas: four, five.
+$filter-&gt;get_one_start([&quot;\nfive\n&quot;]);
+while (1) {
+  my $line = $filter-&gt;get_one();
+  last unless @$line;
+  print $line-&gt;[0], &quot;\n&quot;;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Los objetos POE::Filter se conectan a las ruedas (wheels) y definen
+    cómo se serializarán los datos para escritura y se analizarán después de la
+    lectura. Los objetos POE::Wheel son responsables de mover datos, y los
+    objetos POE::Filter definen cómo deben verse esos datos.</p>
+<p class="Pp">Los objetos POE::Filter son simples por diseño. No usan POE internamente,
+    por lo que se limitan a la serialización y el análisis. Esto puede complicar
+    la implementación de ciertos protocolos (como HTTP 1.x), pero permite que los
+    filtros se utilicen en programas independientes.</p>
+<p class="Pp">El uso independiente es muy importante. Permite a los desarrolladores
+    de aplicaciones crear bibliotecas de bloqueo ligeras que pueden usarse como
+    clientes simples para servidores POE. POE::Component::IKC::ClientLite es un
+    ejemplo notable. Este cliente ligero y de bloqueo de paso de eventos soporta
+    clientes delgados para aplicaciones POE en rejilla. El caso de uso canónico
+    es inyectar eventos en una aplicación IKC o rejilla desde interfaces CGI, que
+    requieren un uso ligero de recursos.</p>
+<p class="Pp">Los filtros y drivers de POE pasan datos en referencias a arreglos.
+    Esto es un poco incómodo, pero minimiza la cantidad de datos que deben copiarse
+    en la pila de Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_INTERFACE'><a class='permalink' href='#PUBLIC_INTERFACE'>INTERFAZ PÚBLICA</a></h1>
+<p class="Pp">Todas las clases POE::Filter deben soportar la interfaz mínima,
+    definida aquí. Filtros específicos pueden implementar y documentar métodos
+    adicionales.</p>
+<section class="Ss">
+<h2 class="Ss" id='new_PARAMETERS'><a class='permalink' href='#new_PARAMETERS'>PARÁMETROS DE new</a></h2>
+<p class="Pp"><b>new()</b> crea e inicializa un nuevo filtro. Los parámetros del
+    constructor varían de una subclase de POE::Filter a otra, así que por favor
+    consulta la documentación de tu filtro deseado.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='clone'><a class='permalink' href='#clone'>clone</a></h2>
+<p class="Pp"><b>clone()</b> crea e inicializa un nuevo filtro basado en los
+    parámetros del constructor del existente. El nuevo filtro es una copia casi
+    idéntica, excepto que sus búferes están vacíos.</p>
+<p class="Pp">Ciertos componentes, como POE::Component::Server::TCP, usan
+    <b>clone()</b>. Estos componentes aceptan un filtro maestro o plantilla en el
+    momento de la creación, y luego clonan ese filtro para cada nueva conexión.</p>
+<pre>my $new_filter = $old_filter-&gt;clone();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_one_start_ARRAYREF'><a class='permalink' href='#get_one_start_ARRAYREF'>get_one_start   ARRAYREF</a></h2>
+<p class="Pp"><b>get_one_start()</b> acepta una referencia a un arreglo que contiene
+    fragmentos de flujo sin procesar. Los fragmentos se agregan al búfer interno
+    del filtro para ser analizados por <b>get_one()</b>.</p>
+<p class="Pp">La &quot;SINOPSIS&quot; muestra <b>get_one_start()</b> en uso.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_one'><a class='permalink' href='#get_one'>get_one</a></h2>
+<p class="Pp"><b>get_one()</b> analiza cero o un ítem completo del búfer interno
+    del filtro. Los datos se devuelven como un ARRAYREF adecuado para pasarlo a
+    otro filtro o a un objeto POE::Wheel. Los filtros devolverán ARRAYREFs vacíos
+    si no tienen suficientes datos crudos para construir un ítem completo.</p>
+<p class="Pp"><b>get_one()</b> es la forma perezosa (lazy) de <b>get()</b>. Solo
+    analiza un ítem a la vez del búfer del filtro. Esto es vital para aplicaciones
+    que pueden cambiar filtros a mitad de transmisión, ya que asegura que el filtro
+    correcto esté en uso en cualquier momento dado.</p>
+<p class="Pp">La &quot;SINOPSIS&quot; muestra <b>get_one()</b> en uso. Nota cómo
+    asume que el retorno es siempre un ARRAYREF, y maneja implícitamente los
+    vacíos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_ARRAYREF'><a class='permalink' href='#get_ARRAYREF'>get   ARRAYREF</a></h2>
+<p class="Pp"><b>get()</b> es la forma codiciosa (greedy) de <b>get_one()</b>.
+    Acepta una referencia a un arreglo que contiene fragmentos de flujo sin
+    procesar, y agrega esos datos al búfer interno del filtro. Luego, analiza tantos
+    ítems completos como sea posible del búfer y los devuelve en otra referencia
+    a arreglo. Cualquier dato sin procesar permanece en el búfer del filtro para
+    la próxima llamada.</p>
+<p class="Pp">Al igual que con <b>get_one()</b>, <b>get()</b> devolverá una referencia
+    a arreglo vacía si el filtro no contiene suficientes datos crudos para construir
+    un ítem completo.</p>
+<p class="Pp">De hecho, <b>get()</b> se implementa en POE::Filter en términos de
+    <b>get_one_start()</b> y <b>get_one()</b>.</p>
+<p class="Pp">Aquí está la forma <b>get()</b> del ejemplo independiente de la
+    SINOPSIS:</p>
+<pre>#!perl
+use warnings;
+use strict;
+use POE::Filter::Line;
+my $filter = POE::Filter::Line-&gt;new( Literal =&gt; &quot;\n&quot; );
+# Imprime tres líneas: one, two three.
+my $lines = $filter-&gt;get([&quot;one\ntwo\nthr&quot;, &quot;ee\nfour&quot;]);
+foreach my $line (@$lines) {
+  print &quot;$line\n&quot;;
+}
+# Imprime dos líneas: four, five.
+$lines = $filter-&gt;get([&quot;\nfive\n&quot;]);
+foreach my $line (@$lines) {
+  print &quot;$line\n&quot;;
+}</pre>
+<p class="Pp"><b>get()</b> no debe usarse con ruedas que soporten el cambio de
+    filtros. Su naturaleza codiciosa significa que a menudo analiza transmisiones
+    con mucha antelación a los eventos de una rueda. Para cuando una aplicación
+    cambia el filtro de la rueda, es demasiado tarde: el filtro antiguo ya ha
+    analizado el resto de los datos recibidos.</p>
+<p class="Pp">Considere una transmisión de letras, números y puntos. Los puntos
+    indican cuándo cambiar los filtros de uno que analiza letras a uno que analiza
+    números.</p>
+<p class="Pp">En nuestra aplicación hipotética, las letras deben manejarse una por
+    una, pero los números pueden manejarse en fragmentos. Usaremos POE::Filter::Block
+    con un BlockSize de 1 para analizar letras, y POE::Filter::Line con un terminador
+    Literal de &quot;.&quot; para manejar números.</p>
+<p class="Pp">Aquí está la transmisión de ejemplo:</p>
+<pre>abcdefg.1234567.hijklmnop.890.q</pre>
+<p class="Pp">Comenzaremos con una rueda ReadWrite configurada para analizar
+    caracteres.</p>
+<pre>$_[HEAP]{wheel} = POE::Wheel::ReadWrite-&gt;new(
+  Filter =&gt; POE::Filter::Block-&gt;new( BlockSize =&gt; 1 ),
+  Handle =&gt; $socket,
+  InputEvent =&gt; &quot;got_letter&quot;,
+);</pre>
+<p class="Pp">El manejador &quot;got_letter&quot; será llamado 8 veces. Una por cada
+    letra de la a a la g, y una por el punto que sigue a la g. Al recibir el punto,
+    cambiará la rueda a modo de números.</p>
+<pre>sub handle_letter {
+  my $letter = $_[ARG0];
+  if ($letter eq &quot;.&quot;) {
+    $_[HEAP]{wheel}-&gt;set_filter(
+      POE::Filter::Line-&gt;new( Literal =&gt; &quot;.&quot; )
+    );
+    $_[HEAP]{wheel}-&gt;event( InputEvent =&gt; &quot;got_number&quot; );
+  }
+  else {
+    print &quot;Got letter: $letter\n&quot;;
+  }
+}</pre>
+<p class="Pp">Si se usara el método <b>get()</b> codicioso, toda la transmisión
+    de entrada habría sido analizada como caracteres antes de la primera llamada a
+    <b>handle_letter()</b>. La llamada a <b>set_filter()</b> habría sido inútil,
+    ya que no habría quedado datos para ser analizados.</p>
+<p class="Pp">El manejador &quot;got_number&quot; recibe secuencias continuas de
+    dígitos como líneas terminadas por punto. El método <b>get()</b> codicioso
+    causaría un problema similar al anterior.</p>
+<pre>sub handle_numbers {
+  my $numbers = $_[ARG0];
+  print &quot;Got number(s): $numbers\n&quot;;
+  $_[HEAP]-&gt;{wheel}-&gt;set_filter(
+    POE::Filter::Block-&gt;new( BlockSize =&gt; 1 )
+  );
+  $_[HEAP]-&gt;{wheel}-&gt;event( InputEvent =&gt; &quot;got_letter&quot; );
+}</pre>
+<p class="Pp">¡Así que no lo hagas!</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='put_ARRAYREF'><a class='permalink' href='#put_ARRAYREF'>put   ARRAYREF</a></h2>
+<p class="Pp"><b>put()</b> serializa ítems en una transmisión de octetos que puede
+    ser escrita en un archivo o enviada a través de un socket. Acepta una referencia
+    a una lista de ítems y devuelve una referencia a una lista de fragmentos de
+    transmisión serializados. El número de fragmentos de salida no está necesariamente
+    relacionado con el número de ítems de entrada.</p>
+<p class="Pp">En uso independiente, <b>put()</b></p>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>POE::Filter(3pm)</title>
+        <link rel="stylesheet" href="https://archlinux.org/static/style.css">
+        <link rel="stylesheet" href="https://archlinux.org/static/man.css">
+        <link rel="alternate" type="application/atom+xml" title="Arch Linux News"
+              href="https://archlinux.org/feeds/news.atom">
+        <link rel="alternate" type="application/rss+xml" title="Arch Linux News"
+              href="https://archlinux.org/feeds/news.rss">
+    </head>
+    <body>
+        
+        <main class="container">
+            <article>
+                <section class="man-page">
+    <section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">POE::Filter - A framework for creating POE input/output filters</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>  package My::Filter;
+  use base 'POE::Filter';
+  sub new { ... }
+  sub get_pending { ... }
+  sub get_one { ... }
+  sub put { ... }
+  sub flush { ... }
+  1;
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">POE filters are used to transform data as it passes between POE
+    components, or between POE components and the outside world. They are
+    particularly useful for implementing protocols, such as HTTP, IRC, or
+    simple line-based protocols.</p>
+<p class="Pp">Filters are objects that implement a common interface, so they can
+    be stacked.</p>
+<p class="Pp">A filter must implement the methods <b>get_one()</b>, <b>put()</b>,
+    and <b>flush()</b>. It may optionally implement <b>get_pending()</b>.</p>
+<p class="Pp">POE::Filter is the base class for filters. It doesn't do much
+    itself, but it provides a place to store shared functionality, and to
+    enforce the filter interface.</p>
+<p class="Pp">Filters are composed of two parts: a serialization part and a
+    deserialization part. The serialization part is implemented by <b>put()</b>
+    and <b>flush()</b>. The deserialization part is implemented by
+    <b>get_one()</b> and <b>get_pending()</b>.</p>
+<p class="Pp">The serialization methods are concerned with converting Perl data
+    structures into a stream of bytes. The deserialization methods are concerned
+    with converting a stream of bytes back into Perl data structures.</p>
+<p class="Pp">A filter's state is stored in its input and output buffers. The
+    input buffer holds data that has been received from the outside world but
+    has not yet been processed. The output buffer holds data that has been
+    processed but has not yet been sent to the outside world.</p>
+<p class="Pp">Filters may be chained together to form a pipeline. For example,
+    a filter that compresses data could be placed before a filter that
+    encrypts data. The data would then be compressed and then encrypted before
+    being sent to the outside world.</p>
+<p class="Pp">Filters are typically used in conjunction with POE::Wheel objects.
+    A POE::Wheel object can be configured to use a filter to process its
+    input and output data.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_INTERFACE'><a class='permalink' href='#PUBLIC_INTERFACE'>PUBLIC INTERFACE</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='put'><a class='permalink' href='#put'>put</a></h2>
+<p class="Pp"><b>put( $data )</b> takes a Perl data structure, serializes it
+    into a stream of bytes, and appends it to the filter's output buffer.
+    It returns a list reference of any complete, ready-to-send data fragments
+    that result from this operation. The list reference it returns may be passed
+    directly to a driver or filter.</p>
+<pre>  my $filter = POE::Filter::Line-&gt;new();
+  my @things_to_send = ( "hello", "world\n", "how are you?" );
+  my $outgoing_data = $filter-&gt;put(\@things_to_send);
+  # $outgoing_data might be ['hello\n', "how are you?"] or similar,
+  # depending on the filter type. It's guaranteed to be a list ref.
+  # POE::Filter::Line, for example, will add newlines if they are missing.
+  #
+  # The output may be sent directly:
+  print $outgoing_data-&gt;[0] if @$outgoing_data;
+  print $outgoing_data-&gt;[1] if @$outgoing_data &gt; 1;
+</pre>
+<p class="Pp">The list reference it returns may be passed directly to a driver
+    or filter. Drivers and filters deliberately share the same <b>put()</b>
+    interface so that things like this are possible:</p>
+<pre>  $driver-&gt;put(
+    $transfer_encoding_filter-&gt;put(
+      $content_encoding_filter-&gt;put(
+        \@items
+      )
+    )
+  );
+  1 while $driver-&gt;flush(\*STDOUT);
+</pre>
+</section>
+<section class=" Ss">
+<h2 class="Ss" id='get_pending'><a class='permalink' href='#get_pending'>get_pending</a></h2>
+<p class="Pp"><b>get_pending()</b> returns any data remaining in a filter's
+    input buffer. The filter's input buffer is not cleared, however.
+    <b>get_pending()</b> returns a list reference if there's any data, or undef
+    if the filter was empty.</p>
+<p class="Pp">POE::Wheel objects use <b>get_pending()</b> during filter
+    switching. Unprocessed data is fetched from the old filter with
+    <b>get_pending()</b> and injected into the new filter with
+    <b>get_one_start()</b>.</p>
+<pre>  use POE::Filter::Line;
+  use POE::Filter::Stream;
+  my $line_filter = POE::Filter::Line-&gt;new();
+  $line_filter-&gt;get_one_start([ "not a complete line" ]);
+  my $stream_filter = POE::Filter::Stream-&gt;new();
+  my $line_buffer = $line_filter-&gt;get_pending();
+  $stream_filter-&gt;get_one_start($line_buffer) if $line_buffer;
+  print "Stream: $_\n" foreach (@{ $stream_filter-&gt;get_one });
+</pre>
+<p class="Pp">Full items are serialized whole, so there is no corresponding
+    &quot;put&quot; buffer or accessor.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp">The SEE ALSO section in POE contains a table of contents covering
+    the entire POE distribution.</p>
+<p class="Pp">POE is bundled with the following filters:</p>
+<p class="Pp">POE::Filter::Block POE::Filter::Grep POE::Filter::HTTPD
+    POE::Filter::Line POE::Filter::Map POE::Filter::RecordBlock
+    POE::Filter::Reference POE::Filter::Stackable POE::Filter::Stream</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">In theory, filters should be interchangeable. In practice, stream
+    and block protocols tend to be incompatible.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTHORS   &amp; COPYRIGHTS</a></h1>
+<p class="Pp">Please see POE for more information about authors and
+    contributors.</p>
+</section>
+</section>
+                </article>
+                <aside id="sidebar">
+                    
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Version:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licenses:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#PUBLIC_INTERFACE">PUBLIC INTERFACE</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+            <li><a href="#BUGS">BUGS</a></li>
+        
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTHORS &amp; COPYRIGHTS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/POE::Filter.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/POE::Filter.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+                </aside>
+            </main>
+            <footer>
+                
+                <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+                   license, except for the contents of the manual pages, which have their own license
+                   specified in the corresponding Arch Linux package.
+                </p>
+            </footer>
+        </body>
+    </html>

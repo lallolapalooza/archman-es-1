@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>fanotify(7) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">fanotify(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/any/man-pages/">man-pages</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">fanotify(7)</td>
+    <td class="head-vol">Manual de Información Miscelánea</td>
+    <td class="head-rtitle">fanotify(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">fanotify - monitorización de eventos del sistema de archivos</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La API fanotify proporciona notificación e interceptación de
+    eventos del sistema de archivos. Los casos de uso incluyen escaneo de virus y
+    gestión jerárquica de almacenamiento. En la API fanotify original, solo un
+    conjunto limitado de eventos era compatible. En particular, no había soporte
+    para eventos de creación, eliminación o movimiento. El soporte para esos
+    eventos se agregó en Linux 5.1. (Ver <a href='/man/inotify.7.en'>inotify(7)</a> para detalles de una API que
+    notificaba esos eventos antes de Linux 5.1).</p>
+<p class="Pp">Las capacidades adicionales en comparación con la API de <a href='/man/inotify.7.en'>inotify(7)</a>
+    incluyen la capacidad de monitorizar todos los objetos en un sistema de
+    archivos montado, la capacidad de tomar decisiones de permiso de acceso y la
+    posibilidad de leer o modificar archivos antes de que sean accedidos por otras
+    aplicaciones.</p>
+<p class="Pp">Las siguientes llamadas al sistema se utilizan con esta API:
+    <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>, <a href='/man/fanotify_mark.2.en'>fanotify_mark(2)</a>, <a href='/man/read.2.en'>read(2)</a>,
+    <a href='/man/write.2.en'>write(2)</a> y <a href='/man/close.2.en'>close(2)</a>.</p>
+<section class="Ss">
+<h2 class="Ss" id='fanotify_init(),_fanotify_mark(),_y_grupos_de_notificación'><a class='permalink' href='#fanotify_init(),_fanotify_mark(),_y_grupos_de_notificación'>fanotify_init(), fanotify_mark(), y grupos de notificación</a></h2>
+<p class="Pp">La llamada al sistema <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a> crea e inicializa un
+    grupo de notificación fanotify y devuelve un descriptor de archivo que
+    hace referencia a él.</p>
+<p class="Pp">Un grupo de notificación fanotify es un objeto interno del kernel
+    que contiene una lista de archivos, directorios, sistemas de archivos y
+    montajes para los cuales se crearán eventos.</p>
+<p class="Pp">Para cada entrada en un grupo de notificación fanotify, existen
+    dos máscaras de bits: la máscara de <i>marcado</i> (mark) y la máscara de
+    <i>ignorar</i> (ignore). La máscara de marcado define las actividades del
+    archivo para las cuales se creará un evento. La máscara de ignorar define las
+    actividades para las cuales no se generará ningún evento. Tener estos dos
+    tipos de máscaras permite que un sistema de archivos, montaje o directorio
+    se marque para recibir eventos, mientras que al mismo tiempo se ignoran
+    eventos para objetos específicos bajo un montaje o directorio.</p>
+<p class="Pp">La llamada al sistema <a href='/man/fanotify_mark.2.en'>fanotify_mark(2)</a> agrega un archivo,
+    directorio, sistema de archivos o montaje a un grupo de notificación y
+    especifica qué eventos deben informarse (o ignorarse), o elimina o modifica
+    dicha entrada.</p>
+<p class="Pp">Un uso posible de la máscara de ignorar es para una caché de
+    archivos. Los eventos de interés para una caché de archivos son la
+    modificación de un archivo y el cierre del mismo. Por lo tanto, el
+    directorio o montaje cacheados deben marcarse para recibir estos eventos.
+    Después de recibir el primer evento que informa que un archivo ha sido
+    modificado, la entrada de caché correspondiente se invalidará. No son de
+    interés más eventos de modificación para este archivo hasta que el archivo
+    se cierre. Por lo tanto, el evento de modificación se puede agregar a la
+    máscara de ignorar. Al recibir el evento de cierre, el evento de
+    modificación se puede eliminar de la máscara de ignorar y la entrada de
+    caché de archivos se puede actualizar.</p>
+<p class="Pp">Las entradas en los grupos de notificación fanotify se refieren a
+    archivos y directorios a través de su número de inodo y a montajes a través
+    de su ID de montaje. Si los archivos o directorios se renombran o mueven
+    dentro del mismo montaje, las entradas respectivas sobreviven. Si los
+    archivos o directorios se eliminan o mueven a otro montaje o si los sistemas
+    de archivos o montajes se desmontan, las entradas correspondientes se
+    eliminan.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='La_cola_de_eventos'><a class='permalink' href='#La_cola_de_eventos'>La cola de eventos</a></h2>
+<p class="Pp">A medida que ocurren eventos en los objetos del sistema de
+    archivos monitorizados por un grupo de notificación, el sistema fanotify
+    genera eventos que se recopilan en una cola. Estos eventos pueden luego ser
+    leídos (usando <a href='/man/read.2.en'>read(2)</a> o similar) desde el descriptor de archivo
+    fanotify devuelto por <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>.</p>
+<p class="Pp">Se generan dos tipos de eventos: eventos de <i>notificación</i> y
+    eventos de <i>permiso</i>. Los eventos de notificación son meramente
+    informativos y no requieren ninguna acción por parte de la aplicación
+    receptora, con una excepción: si se proporciona un descriptor de archivo
+    válido dentro de un evento genérico, el descriptor de archivo debe
+    cerrarse. Los eventos de permiso son solicitudes a la aplicación receptora
+    para decidir si se debe otorgar el permiso para un acceso al archivo. Para
+    estos eventos, el destinatario debe escribir una respuesta que decida si el
+    acceso se otorga o no.</p>
+<p class="Pp">Un evento se elimina de la cola de eventos del grupo fanotify
+    cuando ha sido leído. Los eventos de permiso que han sido leídos se mantienen
+    en una lista interna del grupo fanotify hasta que se haya tomado una
+    decisión de permiso escribiendo en el descriptor de archivo fanotify o hasta
+    que se cierre el descriptor de archivo fanotify.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Lectura_de_eventos_fanotify'><a class='permalink' href='#Lectura_de_eventos_fanotify'>Lectura de eventos fanotify</a></h2>
+<p class="Pp">Llamar a <a href='/man/read.2.en'>read(2)</a> para el descriptor de archivo devuelto por
+    <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a> se bloquea (si la bandera <b>FAN_NONBLOCK</b> no
+    se especifica en la llamada a <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>) hasta que ocurra un evento de
+    archivo o la llamada sea interrumpida por una señal (ver <a href='/man/signal.7.en'>signal(7)</a>).</p>
+<p class="Pp">Después de una llamada exitosa a <a href='/man/read.2.en'>read(2)</a>, el búfer de lectura contiene
+    una o más de las siguientes estructuras:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_metadata {
+    __u32 event_len;
+    __u8 vers;
+    __u8 reserved;
+    __u16 metadata_len;
+    __aligned_u64 mask;
+    __s32 fd;
+    __s32 pid;
+};</pre>
+<p class="Pp">Los registros de información son piezas de información suplementarias
+    que pueden proporcionarse junto con la estructura genérica
+    <i>fanotify_event_metadata</i>. Las <i>flags</i> pasadas a
+    <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a> influyen en el tipo de registros de información que
+    pueden devolverse para un evento. Por ejemplo, si un grupo de notificación
+    se inicializa con <b>FAN_REPORT_FID</b> o <b>FAN_REPORT_DIR_FID</b>, entonces
+    los oyentes de eventos también deben esperar recibir una estructura
+    <i>fanotify_event_info_fid</i> junto con la estructura
+    <i>fanotify_event_metadata</i>, donde los identificadores de archivo se usan
+    para identificar objetos del sistema de archivos en lugar de descriptores de
+    archivo. Los registros de información también pueden apilarse, lo que
+    significa que el uso de las diversas banderas <b>FAN_REPORT_*</b> en
+    conjunción entre sí es compatible. En tales casos, se pueden devolver
+    múltiples registros de información para un evento junto con la estructura
+    genérica <i>fanotify_event_metadata</i>. Por ejemplo, si un grupo de
+    notificación se inicializa con <b>FAN_REPORT_TARGET_FID</b> y
+    <b>FAN_REPORT_PIDFD</b>, entonces un oyente de eventos debe esperar recibir
+    hasta dos registros de información <i>fanotify_event_info_fid</i> y un
+    registro de información <i>fanotify_event_info_pidfd</i> junto con la
+    estructura genérica <i>fanotify_event_metadata</i>. Es importante destacar
+    que fanotify no proporciona ninguna garantía sobre el orden de los registros
+    de información cuando un grupo de notificación se inicializa con una
+    configuración basada en pila. Cada registro de información tiene una
+    estructura anidada de tipo <i>fanotify_event_info_header</i>. Es imperativo
+    que los oyentes de eventos inspeccionen el campo <i>info_type</i> de esta
+    estructura para determinar el tipo de registro de información que se ha
+    recibido para un evento dado.</p>
+<p class="Pp">En los casos en que un grupo fanotify identifica objetos del
+    sistema de archivos por identificadores de archivo, los oyentes de eventos
+    también deben esperar recibir uno o más de los siguientes objetos de registro
+    de información junto con la estructura genérica
+    <i>fanotify_event_metadata</i> dentro del búfer de lectura:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_info_fid {
+    struct fanotify_event_info_header hdr;
+    __kernel_fsid_t fsid;
+    unsigned char handle[];
+};</pre>
+<p class="Pp">En los casos en que un grupo fanotify se inicializa con
+    <b>FAN_REPORT_PIDFD</b>, los oyentes de eventos deben esperar recibir el
+    siguiente objeto de registro de información junto con la estructura genérica
+    <i>fanotify_event_metadata</i> dentro del búfer de lectura:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_info_pidfd {
+        struct fanotify_event_info_header hdr;
+        __s32 pidfd;
+};</pre>
+<p class="Pp">En los casos en que un grupo fanotify se inicializa con
+    <b>FAN_REPORT_MNT</b>, los oyentes de eventos deben esperar recibir el
+    siguiente objeto de registro de información junto con la estructura genérica
+    <i>fanotify_event_metadata</i> dentro del búfer de lectura. Esta estructura
+    se define de la siguiente manera:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_info_mnt {
+    struct fanotify_event_info_header hdr;
+    __u64 mnt_id;
+};</pre>
+<p class="Pp">En caso de un evento <b>FAN_FS_ERROR</b>, se devuelve un registro
+    de información adicional que describe el error que ocurrió junto con la
+    estructura genérica <i>fanotify_event_metadata</i> dentro del búfer de
+    lectura. Esta estructura se define de la siguiente manera:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_info_error {
+    struct fanotify_event_info_header hdr;
+    __s32 error;
+    __u32 error_count;
+};</pre>
+<p c
+</p></div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<p class="Pp">En caso de eventos <b>FAN_PRE_ACCESS</b>, se devuelve un registro de información
+    adicional que describe el rango de acceso junto con la estructura genérica
+    <i>fanotify_event_metadata</i> dentro del búfer de lectura. Esta
+    estructura se define de la siguiente manera:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_info_range {
+    struct fanotify_event_info_header hdr;
+    __u32 pad;
+    __u64 offset;
+    __u64 count;
+};</pre>
+<p class="Pp">Todos los registros de información contienen una estructura anidada de tipo
+    <i>fanotify_event_info_header</i>. Esta estructura contiene metadatos sobre el registro de información que puede haberse devuelto junto con la estructura genérica
+    <i>fanotify_event_metadata</i>. Esta estructura se define de la siguiente manera:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_event_info_header {
+	__u8 info_type;
+	__u8 pad;
+	__u16 len;
+};</pre>
+<p class="Pp">Por razones de rendimiento, se recomienda utilizar un tamaño de búfer grande (por ejemplo, 4096 bytes), de modo que se puedan recuperar varios eventos con una única llamada a <a href='/man/read.2.en'>read(2)</a>.</p>
+<p class="Pp">El valor de retorno de <a href='/man/read.2.en'>read(2)</a> es el número de bytes colocados
+    en el búfer, o -1 en caso de error (pero véase BUGS).</p>
+<p class="Pp">Los campos de la estructura <i>fanotify_event_metadata</i> son los
+    siguientes:</p>
+<dl class="Bl-tag">
+  <dt id="event_len"><a class="permalink" href="#event_len"><i>event_len</i></a></dt>
+  <dd>Este es el tamaño de los datos para el evento actual y el desplazamiento al siguiente evento en el búfer. A menos que el grupo identifique objetos del sistema de archivos por identificadores de archivo, el valor de <i>event_len</i> es siempre
+    <b>FAN_EVENT_METADATA_LEN</b>. Para un grupo que identifica objetos del sistema de archivos por identificadores de archivo, <i>event_len</i> también incluye los registros de identificador de archivo de tamaño variable.</dd>
+  <dt id="vers"><a class="permalink" href="#vers"><i>vers</i></a></dt>
+  <dd>Este campo contiene un número de versión para la estructura. Debe compararse con
+    <b>FANOTIFY_METADATA_VERSION</b> para verificar que las estructuras devueltas en tiempo de ejecución coinciden con las estructuras definidas en tiempo de compilación. En caso de discrepancia, la aplicación debe dejar de intentar usar el descriptor de archivo fanotify.</dd>
+  <dt id="reserved"><a class="permalink" href="#reserved"><i>reserved</i></a></dt>
+  <dd>Este campo no se utiliza.</dd>
+  <dt id="metadata_len"><a class="permalink" href="#metadata_len"><i>metadata_len</i></a></dt>
+  <dd>Este es el tamaño de la estructura. El campo se introdujo para facilitar
+    la implementación de encabezados opcionales por tipo de evento. No existen tales encabezados opcionales en la implementación actual.</dd>
+  <dt id="mask"><a class="permalink" href="#mask"><i>mask</i></a></dt>
+  <dd>Esta es una máscara de bits que describe el evento (ver más abajo).</dd>
+  <dt id="fd"><a class="permalink" href="#fd"><i>fd</i></a></dt>
+  <dd>Este es un descriptor de archivo abierto para el objeto al que se accede, o
+    <b>FAN_NOFD</b> si se produjo un desbordamiento de la cola. Con un grupo fanotify que
+    identifica objetos del sistema de archivos por identificadores de archivo, las aplicaciones deben esperar que este valor se establezca en <b>FAN_NOFD</b> para cada evento recibido.
+    El descriptor de archivo se puede utilizar para acceder al contenido del archivo
+    o directorio monitorizado. La aplicación receptora es responsable de cerrar este
+    descriptor de archivo.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Al llamar a <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>, el llamador puede especificar (a través del
+    argumento <i>event_f_flags</i>) varias banderas de estado de archivo que se establecerán en la descripción de archivo que corresponde a este descriptor de archivo.
+    Además, la bandera de estado de archivo (interna del kernel) <b>FMODE_NONOTIFY</b> se establece en la descripción de archivo. Esta bandera suprime la generación de eventos fanotify. Por lo tanto, cuando el receptor del evento fanotify accede
+    al archivo o directorio notificado utilizando este descriptor de archivo, no se crearán eventos adicionales.</dd>
+  <dt></dt>
+  <dd>Cuando se inicializa un grupo fanotify utilizando <b>FAN_REPORT_FD_ERROR</b>,
+    este campo contendrá un valor de error negativo en caso de que no se pueda abrir un descriptor de archivo y, en caso de desbordamiento de la cola, el valor será
+    <b>-EBADF</b>.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt id="pid"><a class="permalink" href="#pid"><i>pid</i></a></dt>
+  <dd>Si la bandera <b>FAN_REPORT_TID</b> se estableció en <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>, este es
+    el TID del hilo que causó el evento. De lo contrario, este es el PID del
+    proceso que causó el evento.</dd>
+</dl>
+<p class="Pp">Un programa que escucha eventos fanotify puede comparar este PID con el
+    PID devuelto por <a href='/man/getpid.2.en'>getpid(2)</a>, para determinar si el evento es causado
+    por el propio oyente, o se debe al acceso a un archivo por otro proceso.</p>
+<p class="Pp">La máscara de bits en <i>mask</i> indica qué eventos han ocurrido para un
+    único objeto del sistema de archivos. Se pueden establecer varios bits en esta máscara, si
+    ocurrieron más de un evento para el objeto del sistema de archivos monitorizado. En
+    particular, los eventos consecutivos para el mismo objeto del sistema de archivos y
+    originados por el mismo proceso pueden fusionarse en un único evento, con la
+    excepción de que dos eventos de permiso nunca se fusionan en una sola entrada de cola.</p>
+<p class="Pp">Los bits que pueden aparecer en <i>mask</i> son los siguientes:</p>
+<dl class="Bl-tag">
+  <dt id="FAN_ACCESS"><a class="permalink" href="#FAN_ACCESS"><b>FAN_ACCESS</b></a></dt>
+  <dd>Se accedió a un archivo o directorio (pero véase BUGS) (lectura).</dd>
+  <dt id="FAN_OPEN"><a class="permalink" href="#FAN_OPEN"><b>FAN_OPEN</b></a></dt>
+  <dd>Se abrió un archivo o directorio.</dd>
+  <dt id="FAN_OPEN_EXEC"><a class="permalink" href="#FAN_OPEN_EXEC"><b>FAN_OPEN_EXEC</b></a></dt>
+  <dd>Se abrió un archivo con la intención de ser ejecutado. Véase NOTAS en
+    <a href='/man/fanotify_mark.2.en'>fanotify_mark(2)</a> para obtener detalles adicionales.</dd>
+  <dt id="FAN_ATTRIB"><a class="permalink" href="#FAN_ATTRIB"><b>FAN_ATTRIB</b></a></dt>
+  <dd>Se modificaron los metadatos de un archivo o directorio.</dd>
+  <dt id="FAN_CREATE"><a class="permalink" href="#FAN_CREATE"><b>FAN_CREATE</b></a></dt>
+  <dd>Se creó un archivo o directorio hijo en un padre vigilado.</dd>
+  <dt id="FAN_DELETE"><a class="permalink" href="#FAN_DELETE"><b>FAN_DELETE</b></a></dt>
+  <dd>Se eliminó un archivo o directorio hijo en un padre vigilado.</dd>
+  <dt id="FAN_DELETE_SELF"><a class="permalink" href="#FAN_DELETE_SELF"><b>FAN_DELETE_SELF</b></a></dt>
+  <dd>Se eliminó un archivo o directorio vigilado.</dd>
+  <dt id="FAN_RENAME"><a class="permalink" href="#FAN_RENAME"><b>FAN_RENAME</b></a></dt>
+  <dd>Un archivo o directorio ha sido movido desde o hacia un directorio padre vigilado.</dd>
+  <dt id="FAN_MOVED_FROM"><a class="permalink" href="#FAN_MOVED_FROM"><b>FAN_MOVED_FROM</b></a></dt>
+  <dd>Un archivo o directorio ha sido movido desde un directorio padre vigilado.</dd>
+  <dt id="FAN_MOVED_TO"><a class="permalink" href="#FAN_MOVED_TO"><b>FAN_MOVED_TO</b></a></dt>
+  <dd>Un archivo o directorio ha sido movido hacia un directorio padre vigilado.</dd>
+  <dt id="FAN_MOVE_SELF"><a class="permalink" href="#FAN_MOVE_SELF"><b>FAN_MOVE_SELF</b></a></dt>
+  <dd>Se movió un archivo o directorio vigilado.</dd>
+  <dt id="FAN_MODIFY"><a class="permalink" href="#FAN_MODIFY"><b>FAN_MODIFY</b></a></dt>
+  <dd>Se modificó un archivo.</dd>
+  <dt id="FAN_CLOSE_WRITE"><a class="permalink" href="#FAN_CLOSE_WRITE"><b>FAN_CLOSE_WRITE</b></a></dt>
+  <dd>Se cerró un archivo que se abrió para escritura (<b>O_WRONLY</b> o <b>O_RDWR</b>).</dd>
+  <dt id="FAN_CLOSE_NOWRITE"><a class="permalink" href="#FAN_CLOSE_NOWRITE"><b>FAN_CLOSE_NOWRITE</b></a></dt>
+  <dd>Se cerró un archivo o directorio que se abrió de solo lectura (<b>O_RDONLY</b>).</dd>
+  <dt id="FAN_MNT_ATTACH"><a class="permalink" href="#FAN_MNT_ATTACH"><b>FAN_MNT_ATTACH</b></a></dt>
+  <dd>Se adjuntó un montaje al espacio de nombres de montaje.</dd>
+  <dt id="FAN_MNT_DETACH"><a class="permalink" href="#FAN_MNT_DETACH"><b>FAN_MNT_DETACH</b></a></dt>
+  <dd>Se desadjuntó un montaje del espacio de nombres de montaje.</dd>
+  <dt id="FAN_FS_ERROR"><a class="permalink" href="#FAN_FS_ERROR"><b>FAN_FS_ERROR</b></a></dt>
+  <dd>Se detectó un error del sistema de archivos.</dd>
+  <dt id="FAN_Q_OVERFLOW"><a class="permalink" href="#FAN_Q_OVERFLOW"><b>FAN_Q_OVERFLOW</b></a></dt>
+  <dd>La cola de eventos superó el límite en el número de eventos. Este límite puede ser
+    anulado especificando la bandera <b>FAN_UNLIMITED_QUEUE</b> al llamar a
+    <a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>.</dd>
+  <dt id="FAN_ACCESS_PERM"><a class="permalink" href="#FAN_ACCESS_PERM"><b>FAN_ACCESS_PERM</b></a></dt>
+  <dd>Una aplicación quiere leer un archivo o directorio, por ejemplo usando
+    <a href='/man/read.2.en'>read(2)</a> o <a href='/man/readdir.2.en'>readdir(2)</a>. El lector debe escribir una respuesta (como
+    se describe a continuación) que determine si se concede el permiso para acceder al objeto del sistema de archivos.</dd>
+  <dt id="FAN_OPEN_PERM"><a class="permalink" href="#FAN_OPEN_PERM"><b>FAN_OPEN_PERM</b></a></dt>
+  <dd>Una aplicación quiere abrir un archivo o directorio. El lector debe escribir una
+    respuesta que determine si se concede el permiso para abrir el objeto del sistema de archivos.</dd>
+  <dt id="FAN_OPEN_EXEC_PERM"><a class="permalink" href="#FAN_OPEN_EXEC_PERM"><b>FAN_OPEN_EXEC_PERM</b></a></dt>
+  <dd>Una aplicación quiere abrir un archivo para ejecución. El lector debe escribir una
+    respuesta que determine si se concede el permiso para abrir el objeto del sistema de archivos
+    para ejecución. Véase NOTAS en
+    <a href='/man/fanotify_mark.2.en'>fanotify_mark(2)</a> para obtener detalles adicionales.</dd>
+</dl>
+<p class="Pp">Para comprobar cualquier evento de cierre, se puede utilizar la siguiente máscara de bits:</p>
+<dl class="Bl-tag">
+  <dt id="FAN_CLOSE"><a class="permalink" href="#FAN_CLOSE"><b>FAN_CLOSE</b></a></dt>
+  <dd>Se cerró un archivo. Esto es un sinónimo de:</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>FAN_CLOSE_WRITE | FAN_CLOSE_NOWRITE
+</pre>
+    <br/>
+  </dd>
+</dl>
+<p class="Pp">Para comprobar cualquier evento de movimiento, se puede utilizar la siguiente máscara de bits:</p>
+<dl class="Bl-tag">
+  <dt id="FAN_MOVE"><a class="permalink" href="#FAN_MOVE"><b>FAN_MOVE</b></a></dt>
+  <dd>Se movió un archivo o directorio. Esto es un sinónimo de:</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>FAN_MOVED_FROM | FAN_MOVED_TO
+</pre>
+    <br/>
+  </dd>
+</dl>
+<p class="Pp">Los siguientes bits pueden aparecer en <i>mask</i> solo en conjunción
+    con otros bits de tipo de evento:</p>
+<dl class="Bl-tag">
+  <dt id="FAN_ONDIR"><a class="permalink" href="#FAN_ONDIR"><b>FAN_ONDIR</b></a></dt>
+  <dd>Los eventos descritos en la <i>mask</i> han ocurrido en un objeto de directorio.
+    La notificación de eventos en directorios requiere el establecimiento de esta bandera en la máscara de marca. Véase <a href='/man/fanotify_mark.2.en'>fanotify_mark(2)</a> para obtener detalles adicionales. La
+    bandera <b>FAN_ONDIR</b> se notifica en una máscara de evento solo si el grupo fanotify identifica objetos del sistema de archivos por identificadores de archivo.</dd>
+</dl>
+<p class="Pp">Los registros de información que se suministran junto con la estructura
+    genérica <i>fanotify_event_metadata</i> siempre contendrán una estructura anidada de tipo
+    <i>fanotify_event_info_header</i>. Los campos de
+    <i>fanotify_event_info_header</i> son los siguientes:</p>
+<dl class="Bl-tag">
+  <dt id="info_type"><a class="permalink" href="#info_type"><i>info_type</i></a></dt>
+  <dd>Un valor entero único que representa el tipo de objeto de registro de información
+    recibido para un evento. El valor de este campo puede establecerse en uno de los siguientes.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="FAN_EVENT_INFO_TYPE_FID"><a class="permalink" href="#FAN_EVENT_INFO_TYPE_FID"><b>FAN_EVENT_INFO_TYPE_FID</b></a></dt>
+  <dd></dd>
+  <dt id="FAN_EVENT_INFO_TYPE_DFID"><a class="permalink" href="#FAN_EVENT_INFO_TYPE_DFID"><b>FAN_EVENT_INFO_TYPE_DFID</b></a></dt>
+  <dd></dd>
+  <dt id="FAN_EVENT_INFO_TYPE_DFID_NAME"&gt;<a class="permalink" href="#FAN_EVENT_INFO_TYPE_DFID_NAME"><b>FAN_EVENT_INFO_TYPE_DFID_N</b></a></dt>AME
+  <dd></dd>
+  <dt id="FAN_EVENT_INFO_TYPE_PIDFD"><a class="permalink" href="#FAN_EVENT_INFO_TYPE_PIDFD"><b>FAN_EVENT_INFO_TYPE_PI</b></a></dt>DFD
+  <dd></dd>
+  <dt id="FAN_EVENT_INFO_TYPE_ERROR"><a class="permalink" href="#FAN_EVENT_INFO_TYPE_ERROR"><b>FAN_EVENT_INFO_TYPE_ER</b></a></dt>ROR
+  <dd></dd>
+  <dt id="FAN_EVENT_INFO_TYPE_RANGE"><a class="permalink" href="#FAN_EVENT_INFO_TYPE_RANGE"><b>FAN_EVENT_INFO_TYPE_RA</b></a></dt>NGE
+  <dd></dd>
+  <dt id="FAN_EVENT_INFO_TYPE_MNT"><a class="permalink" href="#FAN_EVENT_INFO_TYPE_MNT"><b>FAN_EVENT_INFO_TYPE_</b></a></dt>MNT
+  <dd></dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>El valor establecido para este campo depende de los indicadores que se han proporcionado a <a href='/man/fanotify_init.2.en'>fanotify_init(2). </a>Consulte los detalles de cada campo de los tipos de objetos de registro de información a continuación para comprender los diferentes casos en los que se pueden establecer los <i>valor</i>es de</dd> info_</dl>type.
+<dl class="Bl-tag">
+  <dt id="pad"><a class="permalink" href="#pad"><i>pa</i></a></dt>d
+  <dd>Este campo actualmente no es utilizado por ningún tipo de objeto de registro de información y, por lo tanto, se establece en </dd>cero.
+  <dt id="len"><a class="permalink" href="#len"><i>le</i></a></dt>n
+  <dd>El valor de <i>len </i>se establece en el tamaño del objeto de registro de información, incluyendo el <i>fanotify_event_info_header.</i> Se espera que el tamaño total de todos los registros de información adicionales no sea mayor que (<i>event_len </i>- <i>meta</i>dat</dd>a_l</dl>en).
+<p class="Pp">Los campos de la estructura <i>fanotify_event_info_fid </i>son los </p>siguientes:
+<dl class="Bl-tag">
+  <dt id="hdr"><a class="permalink" href="#hdr"><i>hd</i></a></dt>r
+  <dd>Esta es una estructura de tipo <i>fanotify_event_info_header.</i> Por ejemplo, cuando se crea un descriptor de archivo fanotify usando
+      <b>FAN_REPORT_FID,</b> se espera que un único registro de registro de información se adjunte al evento con <i>valor de </i>campo info_type de
+      <b>FAN_EVENT_INFO_TYPE_FID.</b> Cuando se crea un descriptor de archivo fanotify usando la combinación de <b>FAN_REPORT_FID </b>y
+      <b>FAN_REPORT_DIR_FID,</b> puede haber dos registros de información adjuntos al evento: uno con <i>valor de </i>campo info_type de
+      <b>FAN_EVENT_INFO_TYPE_DFID,</b> identificando un objeto de directorio padre, y uno con <i>valor de </i>campo info_type de
+      <b>FAN_EVENT_INFO_TYPE_FID, </b>identificando un objeto hijo. Tenga en cuenta que para los eventos de modificación de entrada de directorio <b>FAN_CR</b>EATE,
+      <b>FAN_DELET</b>E, <b>FAN_MOVE </b>y <b>FAN_RENAME,</b> un registro de información que identifica el objeto hijo creado/eliminado/movido se informa solo si un grupo fanotify se inicializó con el indicador
+      <b>FAN_REPORT_TARGET_</b>F</dd>ID.
+  <dt id="fsid"><a class="permalink" href="#fsid"><i>fs</i></a></dt>id
+  <dd>Este es un identificador único del sistema de archivos que contiene el objeto asociado al evento. Es una estructura de tipo
+      <i>__kernel_fsid_t </i>y contiene el mismo valor que <i>f_fsid </i>cuando se llama a <a href='/man/statfs.2.en'>statfs(2). </a>Tenga en cuenta que algunos sistemas de archivos (por ejemplo,
+      <a href='/man/fuse.4.en'>fuse(4)</a>) informan un <i>fsid </i>cero. En estos casos, no es posible usar <i>fsid </i>para asociar el evento con una instancia específica del sistema de archivos, por lo que no se admite el monitoreo de diferentes instancias de sistema de archivos que informan un <i>fsid </i>cero con el mismo grupo </dd>fanotify.
+  <dt id="handle"><a class="permalink" href="#handle"><i>hand</i></a></dt>le
+  <dd>Este campo contiene una estructura de tamaño variable de tipo <i>struct
+      file_handle. </i>Es un identificador opaco que corresponde a un objeto especificado en un sistema de archivos tal como lo devuelve <a href='/man/name_to_handle_at.2.en'>name_to_handle_at(2).</a> Puede usarse para identificar de forma única un archivo en un sistema de archivos y puede pasarse como argumento a <a href='/man/open_by_handle_at.2.en'>open_by_handle_at(2)</a>. Si el valor del campo
+      <i>info_type </i>es <b>FAN_EVENT_INFO_TYPE_DFID_NAME,</b> el identificador de archivo es seguido por una cadena terminada en nulo que identifica el nombre de la entrada de directorio creada/eliminada/movida. Para otros eventos como
+      <b>FAN_OPE</b>N, <b>FAN_ATTRI</b>B, <b>FAN_DELETE_SELF </b>y
+      <b>FAN_MOVE_SELF, </b>si el valor del campo <i>info_type </i>es
+      <b>FAN_EVENT_INFO_TYPE_FID,</b> el <i>handle </i>identifica el objeto correlacionado con el evento. Si el valor del campo <i>info_type </i>es
+      <b>FAN_EVENT_INFO_TYPE_DFID,</b> el <i>handle </i>identifica el objeto de directorio correlacionado con el evento o el directorio padre de un objeto que no es directorio correlacionado con el evento. Si el valor del campo
+      <i>info_type </i>es <b>FAN_EVENT_INFO_TYPE_DFID_NAME,</b> el
+      <i>handle </i>identifica el mismo objeto de directorio que se informaría con <b>FAN_EVENT_INFO_TYPE_DFID y el identificador de archivo e</b>s seguido por una cadena terminada en nulo que identific</dd>a el nombre de una entrada de directorio en ese directori</dl>o, o '.' para identificar el objeto de directorio en sí.
+<p class="Pp">Los campos de la estructura <i>fanotify_event_info_pidfd </i>son los </p>siguientes:
+<dl class="Bl-tag">
+  <dt id="hdr~2"><a class="permalink" href="#hdr~2"><i>hd</i></a></dt>r
+  <dd>Esta es una estructura de tipo <i>fanotify_event_info_header.</i> Cuando un grupo fanotify se inicializa usando <b>FAN_REPORT_PIDFD,</b> el
+      <i>valor de </i>campo info_type del <i>fanotify_event_info_header </i>se establece en <b>FAN_EVENT_INFO_TYPE_PI</b>D</dd>FD.
+  <dt id="pidfd"><a class="permalink" href="#pidfd"><i>pid</i></a></dt>fd
+  <dd>Este es un descriptor de archivo de proceso que se refiere al proceso responsable de generar el evento. El descriptor de archivo de proceso devuelto no es diferente de uno que se podría obtener manualmente si se llamara a
+      <a href='/man/pidfd_open.2.en'>pidfd_open(2)</a> sobre
+      <i>fanotify_event_metadata.</i>pid. En el caso de que se encuentre un error durante la creación del pidfd, se puede devolver en este
+      <i>campo </i>pidfd uno de dos tipos de error posibles representados por un valor entero negativo. En los casos en que el proceso responsable de generar el evento ha terminado antes de que el oyente de eventos pueda leer eventos de la cola de notificaciones, <b>se devuelve </b>FAN_NOPIDFD. La creación del pidfd para un evento solo se realiza en el momento en que se leen los eventos de la cola de notificaciones. Todas las demás posibles fallas en la creación del pidfd se representan por <b>FAN_EPIDFD.</b> Una vez que el oyente de eventos ha tratado un evento y el pidfd ya no es necesario, el pidfd debe cerrarse a través de <a href='/man/close.2.en'>cl</a>os</dd>e(2</dl>).
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Cuando un grupo fanotify se inicializa usando <b>FAN_REPORT_FD_ERROR,</b>
+      este campo contendrá un valor de error negativo en caso de una falla en la creación del pidfd y, en caso de un proceso terminado, el valor será
+      <b>-E</b>SR</dd>C</dl>H.
+<p class="Pp">Los campos de la estructura <i>fanotify_event_info_mnt </i>son los </p>siguientes:
+<dl class="Bl-tag">
+  <dt><i>.</i></dt>hdr
+  <dd>Esta es una estructura de tipo <i>fanotify_event_info_header.</i> El
+      <i>campo .</i>info_type se establece en <b>FAN_EVENT_INFO_TYPE_</b>M</dd>NT.
+  <dt><i>.</i></dt>mnt_id
+  <dd>Identifica la montaje asociado con el evento. Es un id de montaje único de 64 bits como el devuelto por <a href='/man/statx.2.en'>statx(2)</a> con el
+      <b>indicador </b>STATX_MNT_ID_UNIQU</dd>E</dl>.
+<p class="Pp">Los campos de la estructura <i>fanotify_event_info_error </i>son los </p>siguientes:
+<dl class="Bl-tag">
+  <dt id="hdr~3"><a class="permalink" href="#hdr~3"><i>hd</i></a></dt>r
+  <dd>Esta es una estructura de tipo <i>fanotify_event_info_header.</i> El
+      <i>campo </i>info_type se establece en <b>FAN_EVENT_INFO_TYPE_ER</b>R</dd>OR.
+  <dt id="error"><a class="permalink" href="#error"><i>err</i></a></dt>or
+  <dd>Identifica el tipo de error que </dd>ocurrió.
+  <dt id="error_count"><a class="permalink" href="#error_count"><i>error_cou</i></a></dt>nt
+  <dd>Este es un contador del númer</dd>o de errores suprimidos desde</dl> que se leyó el último error.
+<p class="Pp">Los campos de la estructura <i>fanotify_event_info_range </i>son los </p>siguientes:
+<dl class="Bl-tag">
+  <dt id="hdr~4"><a class="permalink" href="#hdr~4"><i>hd</i></a></dt>r
+  <dd>Esta es una estructura de tipo <i>fanotify_event_info_header.</i> El
+      <i>campo </i>info_type se establece en <b>FAN_EVENT_INFO_TYPE_RA</b>N</dd>GE.
+  <dt id="count"><a class="permalink" href="#count"><i>cou</i></a></dt>nt
+  <dd>El número de bytes que se están leyendo o escribiendo en el </dd>archivo.
+  <dt id="offset"><a class="permalink" href="#offset"><i>offs</i></a></dt>et
+  <dd>El desplazamiento desde </dd>el cual se leen o escri</dl>ben bytes en el archivo.
+<p class="Pp">Se proporcionan las siguientes macros para iterar sobre un búfer que contiene metadatos de eventos de fanotify devueltos por una <a href='/man/read.2.en'>read(2) </a>desde un
+    descriptor de archivo de </p>fanotify:
+<dl class="Bl-tag">
+  <dt id="FAN_EVENT_OK(meta,"><a class="permalink" href="#FAN_EVENT_OK(meta,"><b>FAN_EVENT_OK(meta,
+    </b></a></dt>size)
+  <dd>Esta macro verifica el tamaño restante <i>size </i>del búfer <i>meta
+</i>      contra el tamaño de la estructura de metadatos y el <i>campo </i>event_len de la primera estructura de metadatos en el </dd>búfer.
+  <dt id="FAN_EVENT_NEXT(meta,"><a class="permalink" href="#FAN_EVENT_NEXT(meta,"><b>FAN_EVENT_NEXT(meta,
+    </b></a></dt>size)
+  <dd>Esta macro usa el tamaño indicado en el <i>campo </i>event_len de la
+      estructura de metadatos a la que apunta <i>meta </i>para calcular la dirección de
+      la siguiente estructura de metadatos que sigue a <i>met</i>a. <i>size </i>es el
+      número de bytes de metadatos que actualmente permanecen en el búfer. La macro devuelve un puntero a la siguiente estructura de metadatos que sigue a <i>meta,</i>
+      y reduce <i>size </i>por el número de bytes en la estructura de metadatos
+      que se ha omitido (es decir, resta <i>meta-&gt;event_len
+</i>      de <i>si</i>z</dd>e</dl>).
+<p class="Pp">Además, </p>hay:
+<dl class="Bl-tag">
+  <dt id="FAN_EVENT_METADATA_LEN"><a class="permalink" href="#FAN_EVENT_METADATA_LEN"><b>FAN_EVENT_METADATA_</b></a></dt>LEN
+  <dd>Esta macro devuelve el tamaño (en bytes) de la estructura
+      <i>fanotify_event_metadata.</i> Este es el tamaño mínim</dd>o (y actualmente
+      e</dl>l único tamaño) de cualq</section>uier metadato de evento.
+<section class="Ss">
+<h2 class="Ss" id='Monitoring_an_fanotify_file_descriptor_for_events'><a class='permalink' href='#Monitoring_an_fanotify_file_descriptor_for_events'>Monitoreo   de un descriptor de archivo de fanotify para </a></h2>eventos
+<p class="Pp">Cuando ocurre un evento de fanotify, el descriptor de archivo de fanotify
+    indica que es legible cuando se pasa a <a href='/man/epoll.7.en'>epoll(7)</a>, <a href='/man/poll.2.en'>poll(2)</a> o
+    <a href='/man/select.2.en'>se</a>lec</p>t(2</section>).
+<section class="Ss">
+<h2 class="Ss" id='Dealing_with_permission_events'><a class='permalink' href='#Dealing_with_permission_events'>Manejo   de eventos de </a></h2>permisos
+<p class="Pp">Para los eventos de permisos, la aplicación debe <a href='/man/write.2.en'>write(2) </a>una
+    estructura de la siguiente forma en el descriptor de archivo de </p>fanotify:
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_response {
+    __s32 fd;
+    __u32 response;
+}</pre>;
+<p class="Pp">Los campos de esta estructura son los </p>siguientes:
+<dl class="Bl-tag">
+  <dt id="fd~2"><a class="permalink" href="#fd~2"><i>f</i></a></dt>d
+  <dd>Este es el descriptor de archivo de la estructura
+      <i>fanotify_event_metad</i>a</dd>ta.
+  <dt id="response"><a class="permalink" href="#response"><i>respon</i></a></dt>se
+  <dd>Este campo indica si el permiso se va a concedido. Su
+      valor debe contener o bien la bandera <b>FAN_ALLOW </b>para permitir la
+      operación sobre el archivo o <b>FAN_DENY para</b> denegar la o</dd>peración sobr</dl>e el archivo.
+<p class="Pp">Si se deniega el acceso, la llamada de la aplicación solicitante recibirá
+    un error <b>EPERM.</b> Desde Linux 6.13, si un grupo de notificaciones se
+    inicializa con la clase <b>FAN_CLASS_PRE_CONTENT, la </b>operación sobre el archivo puede
+    denegarse con errores distintos de <b>EPERM.</b> Por ejemplo, para que
+    la aplicación solicitante obtenga el error <b>EIO,</b> el oyente de eventos puede
+    escribir la respuesta <b>FAN_DENY_ERRNO</b>(<b>EIO)</b>. En el momento de
+    escribir, solo los siguientes valores de error podían devolverse a la
+    aplicación con la macro <b>FAN_DENY_ERRNO</b>(<i>e)</i>: <b>EPE</b>RM,
+    <b>EI</b>O, <b>EBUS</b>Y, <b>ETXTBS</b>Y, <b>EAGAI</b>N, <b>ENOS</b>PC,
+    <b>EDQUO</b>T</p>.
+<p class="Pp">Adicionalmente, si el grupo de notificaciones se ha creado con la
+    <b>bandera FAN_ENABLE_AUDIT,</b> entonces la <b>bandera </b>FAN_AUDIT puede establecerse en el
+    campo <i>response.</i> En ese caso, el subsistema de auditoría registrará
+    información sobre la decisión de acceso en los registros de </p>auditoría.
+<p class="Pp">Desde Linux 6.3, la <b>bandera </b>FAN_INFO puede establecerse en el campo
+    <i>.response.</i> Indica que un registro de respuesta adicional de longitud
+    variable sigue a la <i>estructura fanotify_response.</i> Los registros de respuesta
+    adicionales comienzan con una cabecera </p>común:
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct fanotify_response_info_header {
+    __u8 type;
+    __u8 pad;
+    __u16 len;
+}</pre>;
+<p class="Pp">El valor de <i>.type </i>determina el formato del registro de respuesta
+    </p>adicional.
+<dl class="Bl-tag">
+  <dt id="FAN_RESPONSE_INFO_AUDIT_RULE"><a class="permalink" href="#FAN_RESPONSE_INFO_AUDIT_RULE"><b>FAN_RESPONSE_INFO_AUDIT_R</b></a></dt>ULE
+  <dd>Se espera el siguiente registro de </dd>respuesta con detalles adicionales p</dl>ara
+      el registro de auditoría:
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>struct fanotify_response_info_audit_rule {
+    struct fanotify_response_info_header hdr;
+    __u32 rule_number;
+    __u32 subj_trust;
+    __u32 obj_trust;</pre>
+};
+    <br/>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Monitoring_filesystems_for_errors'><a class='permalink' href='#Monitoring_filesystems_for_errors'>Monitoreo   de sistemas de archivos en busca de </a></h2>errores
+<p class="Pp">Un solo <b>evento FAN_FS_ERROR </b>se almacena por sistema de archivos a la
+    vez. Los mensajes de error adicionales se suprimen y se contabilizan en el
+    <i>campo error_count </i>del registro de evento <b>FAN_FS_ERROR </b>existente,
+    pero se pierden los detalles sobre los </p>errores.
+<p class="Pp">Los errores reportados por <b>FAN_FS_ERROR </b>son valores <i>errno
+</i>    genéricos, pero no todos los tipos de errores son reportados por todos los
+  sistemas de </p>archivos.
+<p class="Pp">Los errores no directamente relacionados con un archivo (es decir, la
+    corrupción del superbloque) se reportan con un <i>handle </i>inválido. Para estos errores,
+    el <i>handle </i>tendrá el campo <i>handle_type </i>establecido a
+    <b>FILEID_INVALID, </b>y el tamaño del búfer del handle establecido a <b></b>0</p>.</section>
+<section class="Ss">
+<h2 class="Ss" id='Closing_the_fanotify_file_descriptor'><a class='permalink' href='#Closing_the_fanotify_file_descriptor'>Cierre   del descriptor de archivo de </a></h2>fanotify
+<p class="Pp">Cuando se cierran todos los descriptores de archivo que se refieren al grupo
+    de notificaciones de fanotify, el grupo de fanotify se libera y sus recursos
+    se liberan para su reutilización por el kernel. Al <a href='/man/close.2.en'>close(2), los evento</a>s de permiso pendien</p>tes
+    se establece</section>rán como permitidos.
+<section class="Ss">
+<h2 class="Ss" id='/proc_interfaces'><a class='permalink' href='#/proc_interfaces'>Interfaces   de </a></h2>/proc
+<p class="Pp">El archivo <i>/proc/</i>pid<i>/fdinfo/fd </i>contiene información
+    sobre las marcas de fanotify para el descriptor de archivo <i>fd </i>del proceso <i>pid.</i>
+    Consulte <a href='/man/proc.5.en'>proc(5) </a>para más </p>detalles.
+<p class="Pp">Desde Linux 5.13 (y 5.10.220), las siguientes interfaces pueden
+    usarse para controlar la cantidad de recursos del kernel consumidos por </p>fanotify:
+<dl class="Bl-tag">
+  <dt><i>/proc/sys/fs/fanotify/max_queued_eve</i></dt>nts
+  <dd>El valor de este archivo se utiliza cuando una aplicación llama a
+      <a href='/man/fanotify_init.2.en'>fanotify_init(2) para </a>establecer un límite superior en el número de
+      eventos que pueden encolarse en el grupo de fanotify correspondiente. Los
+      eventos que excedan este límite se descartan, pero siempre se genera un <b>evento </b>FAN_Q_OVERFLOW. Antes del kernel de Linux 5.13, el límite
+      codificado era de 16384 </dd>eventos.
+  <dt><i>/proc/sys/fs/fanotify/max_user_gr</i></dt>oup
+  <dd>Esto especifica un límite superior en el número de grupos de fanotify que
+      pueden crearse por ID de usuario real. Antes del kernel de Linux 5.13, el
+      límite codificado era de 128 grupos por </dd>usuario.
+  <dt><i>/proc/sys/fs/fanotify/max_user_ma</i></dt>rks
+  <dd>Esto especifica un límite superior en el núme</dd>ro de marcas de fanotify que
+      pueden cre</dl>arse por ID de usuario real. Antes del kerne</section>l de Linux 5.13, el
+      límite codificado e</section>ra de 8192 marcas por grupo (no por usuario).
+<section class="Sh">
+<h1 class="Sh" id='ERRORS'><a class='permalink' href='#ERRORS'>ERRORE</a></h1>S
+<p class="Pp">Además de los errores habituales de <a href='/man/read.2.en'>read(2)</a>, pueden ocurrir los
+    siguientes errores al leer del descriptor de archivo de </p>fanotify:
+<dl class="Bl-tag">
+  <dt id="EINVAL"><a class="permalink" href="#EINVAL"><b>EINV</b></a></dt>AL
+  <dd>El búfer es demasiado pequeño para contener el </dd>evento.
+  <dt id="EMFILE"><a class="permalink" href="#EMFILE"><b>EMFI</b></a></dt>LE
+  <dd>Se ha alcanzado el límite por proceso del número de archivos abiertos.
+      Consulte la descripción de <b>RLIMIT_NOFILE </b>en <a href='/man/getrlimit.2.en'>getr</a>limit</dd>(2).
+  <dt id="ENFILE"><a class="permalink" href="#ENFILE"><b>ENFI</b></a></dt>LE
+  <dd>Se ha alcanzado el límite del sistema en el número total de archivos
+      abiertos. Consulte <i>/proc/sys/fs/file-max </i>en <a href='/man/proc.5.en'>pro</a>c(</dd>5).
+  <dt id="ETXTBSY"><a class="permalink" href="#ETXTBSY"><b>ETXTB</b></a></dt>SY
+  <dd>Este error lo devuelve <a href='/man/read.2.en'>read(2)</a> si <b>O_RDWR </b>o
+      <b>O_WRONLY </b>se especificó en el <i>argumento </i>event_f_flags al
+      llamar a <a href='/man/fanotify_init.2.en'>fanotify_init(2) y ocurrió </a>un evento para un archivo
+ </dd>     monitoreado que está si</dl>endo ejecutado actualmente.
+<p class="Pp">Además de los errores habituales de <a href='/man/write.2.en'>write(2),</a> pueden ocurrir los
+    siguientes errores al escribir en el descriptor de archivo de </p>fanotify:
+<dl class="Bl-tag">
+  <dt id="EINVAL~2"><a class="permalink" href="#EINVAL~2"><b>EINV</b></a></dt>AL
+  <dd>Los permisos de acceso de fanotify no están habilitados en la
+      configuración del kernel o el valor de <i>response </i>en la estructura de respuesta no es </dd>válido.
+  <dt id="ENOENT"><a class="permalink" href="#ENOENT"><b>ENOE</b></a></dt>NT
+  <dd>El descriptor de archivo <i>fd en la estructura de respu</i>esta no es válido. Esto
+     </dd> puede ocurrir cuando ya se </dl>ha escrito una respuesta para</section> el evento de
+      permiso.
+<section class="Sh">
+<h1 class="Sh" id='STANDARDS'><a class='permalink' href='#STANDARDS'>ESTÁNDARE</a></h1>S
+<p class="Pp">Linu</p>x</section>.
+<section class="Sh">
+<h1 class="Sh" id='HISTORY'><a class='permalink' href='#HISTORY'>HISTORIA</a></h1>L
+<p class="Pp">La API de fanotify se introdujo en Linux 2.</p>6.36 y se habilitó en
+    Linux 2.6.37. El </section>soporte para fdinfo se añadió en Linux 3.8.
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTA</a></h1>S
+<p class="Pp">La API de fanotify solo está disponible si el kernel se compiló con la <b>opción de </b>configuración CONFIG_FANOTIFY habilitada. Además,
+    el manejo de permisos de fanotify solo está disponible si la
+    <b>opción de configuración </b>CONFIG_FANOTIFY_ACCESS_PERMISSIONS está
+  </p>habilitada.
+<section class="Ss">
+<h2 class="Ss" id='Limitations_and_caveats'><a class='permalink' href='#Limitations_and_caveats'>Limitaciones   y </a></h2>advertencias
+<p class="Pp">Fanotify solo reporta eventos que un programa en espacio de usuario
+    desencadena a través de la API del sistema de archivos. Como resultado, no
+    captura eventos remotos que ocurren en sistemas de archivos de </p>red.
+<p class="Pp">La API de fanotify no reporta accesos y modificaciones de archivos
+    que pueden ocurrir debido a <a href='/man/mmap.2.en'>mmap(2)</a>, <a href='/man/msync.2.en'>msync(2)</a> y
+    <a href='/man/munmap.2.en'>mun</a>map(</p>2).
+<p class="Pp">Los eventos para directorios se crean solo si el directorio en sí es
+    abierto, leído y cerrado. Agregar, eliminar o cambiar hijos de un directorio
+    marcado no crea eventos para el directorio monitoreado en </p>sí.
+<p class="Pp">El monitoreo de directorios con fanotify no es recursivo: para monitorear
+    subdirectorios bajo un directorio, se deben crear marcas adicionales. El
+    <b>evento FAN_CREATE </b>puede usarse para detectar cuándo se ha creado un
+    subdirectorio bajo un directorio marcado. Luego se debe establecer una marca
+    adicional en el subdirectorio recién creado. Este enfoque es propenso a
+    condiciones de carrera, porque puede perder eventos que ocurrieron dentro del
+    subdirectorio recién creado, antes de que se agregue una marca en ese
+    subdirectorio. Monitorear puntos de montaje ofrece la capacidad de monitorear
+    un árbol de directorios completo de manera libre de condiciones de carrera.
+    Monitorear sistemas de archivos ofrece la capacidad de monitorear cambios
+    realizados desde cualquier punto de montaje de una instancia de sistema de
+    archivos de manera libre de condiciones de </p>carrera.
+<p class="Pp">La cola de eventos</p> puede desbordarse</section>. En este caso, s</section>e pierden eventos.
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>ERRORE</a></h1>S
+<p class="Pp">Antes de Linux 3.19, <a href='/man/fallocate.2.en'>fallocate(2) </a>no generaba eventos de fanotify. Desde Linux 3.19, las
+    llamadas a <a href='/man/fallocate.2.en'>fallocate(2)</a> generan
+    <b>evento</b>s FAN_M</p>ODIFY.
+<p class="Pp">A partir de Linux 3.17, existen los siguientes </p>errores:
+<dl class="Bl-tag">
+  <dt></dt>•
+  <dd>En Linux, un objeto del sistema de archivos puede ser accesible a través
+      de múltiples rutas, por ejemplo, una parte de un sistema de archivos puede
+      remontarse usando la
+      <i>opción </i>--bind de <a href='/man/mount.8.en'>mount(8). </a>Un oyente que haya marcado un punto de montaje
+      solo será notificado de los eventos que se desencadenaron para un objeto
+      del sistema de archivos usando el mismo punto de montaje. Cualquier otro
+      evento pasará </dd>desapercibido.
+  <dt></dt>•
+  <dd>Cuando se genera un evento, no se realiza ninguna comprobación para ver si
+      el ID de usuario del proceso receptor tiene autorización para leer o
+      escribir el archivo antes de pasarle un descriptor de archivo para ese
+      archivo. Esto plantea un riesgo de seguridad cuando la <b>capacidad </b>CAP_SYS_ADMIN está establecida para programas ejecutados por
+      usuarios no </dd>privilegiados.
+  <dt></dt>•
+  <dd>Si una llamada a <a href='/man/read.2.en'>read(2)</a> procesa múltiples eventos de la cola de fanotify
+      y ocurre un error, el valor de retorno será el tamaño total de los
+      eventos copiados exitosamente al búfer de espacio de usuario antes de que
+      ocurriera el error. El valor de retorno no será -1, y <i>errno no se
+      esta</i>blecerá. Por lo tanto,</dd> la aplicación que le</dl>e no tiene forma de
+  </section>    detectar el error.
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLO</a></h1>S
+<p class="Pp">Los dos programas de ejemplo a continuación demuestran el uso de la
+    API de </p>fanotify.
+<section class="Ss">
+<h2 class="Ss" id='Example_program:_fanotify_example.c'><a class='permalink' href='#Example_program:_fanotify_example.c'>Programa   de ejemplo: fanotify_example.</a></h2>c
+<p class="Pp">El primer programa es un ejemplo de fanotify utilizado con la
+    información de su objeto de evento pasada en la forma de un descriptor de
+    archivo. El programa marca el punto de montaje pasado como argumento de línea
+    de comandos y espera eventos del tipo <b>FAN_OPEN_PERM </b>y <b>FAN_CLOSE_WRITE. Cuando
+</b>    ocurre un evento de permiso, se da una respuesta <b>FAN</b>_ALLOW</p>.p class="Pp"&gt;La siguiente sesión de shell muestra un ejemplo de ejecución de este
+    programa. Esta sesión implicó editar el archivo
+    <i>/home/user/temp/notes.</i> Antes de que se abriera el archivo,
+    <b>se produjo un
+</b>evento FAN_OPEN_PERM. Después de que se cerrara
+    <b>el archivo, se </b>produjo un
+evento FAN_CLOSE_WRITE. La ejecución del programa termina cuando
+    el </p>usuario
+<p class="Pp">
+  <br/>
+</p>
+<pre>p<b> resiona la tecla ENTER.
+</b>#
+./fanotify_example /home;
+Press enter key to terminate.
+Listening for events.
+FAN_OPEN_PERM: File /home/user/temp/notes
+FAN_CLOSE_WRITE: File /home/user/temp/not</pre>e</section>s
+<section class="Ss">
+<h2 class="Ss" id='Program_source:_fanotify_example.c'><a class='permalink' href='#Program_source:_fanotify_example.c'>Listening for events stopped.
+</a></h2>Program
+<pre>source: fanotify_example.c
+#define _GNU_SOURCE     /* Needed to get O_LARGEFILE definition */
+#include &lt;errno.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;limits.h&gt;
+#include &lt;poll.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;sys/fanotify.h&gt;
+#include &lt;unistd.h&gt;
+/* Read all available fanotify events from the file descriptor 'fd'.  */
+static void
+handle_events(int fd)
+{
+    const struct fanotify_event_metadata *metadata;
+    struct fanotify_event_metadata buf[200];
+    ssize_t size;
+    char path[PATH_MAX];
+    ssize_t path_len;
+    char procfd_path[PATH_MAX];
+    struct fanotify_response response;
+    /* Loop while events can be read from fanotify file descriptor.  */
+    for (;;) {
+        /* Read some events.  */
+        size = read(fd, buf, sizeof(buf));
+        if (size == -1 &amp;&amp; errno != EAGAIN) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+        /* Check if end of available data reached.  */
+        if (size &lt;= 0)
+            break;
+        /* Point to the first event in the buffer.  */
+        metadata = buf;
+        /* Loop over all events in the buffer.  */
+        while (FAN_EVENT_OK(metadata, size)) {
+            /* Check that run-time and compile-time structures match.  */
+            if (metadata-&gt;vers != FANOTIFY_METADATA_VERSION) {
+                fprintf(stderr,
+                        "Mismatch of fanotify metadata version.\n");
+                exit(EXIT_FAILURE);
+            }
+            /* metadata-&gt;fd contains either FAN_NOFD, indicating a
+               queue overflow, or a file descriptor (a nonnegative
+               integer).  Here, we simply ignore queue overflow.  */
+            if (metadata-&gt;fd &gt;= 0) {
+                /* Handle open permi</pre>ssion event.  */
+                if (metadata-&gt;mask &amp; FAN_OPEN_PERM) {
+                    printf("FAN_OPEN_PERM: ");
+                    /* Allow file to be opened.  */
+                    response.fd = metadata-&gt;fd;
+                    response.response = FAN_ALLOW;
+                    write(fd, &amp;response, sizeof(response));
+                }
+                /* Handle closing of writable file event.  */
+                if (metadata-&gt;mask &amp; FAN_CLOSE_WRITE)
+                    printf("FAN_CLOSE_WRITE: ");
+                /* Retrieve and print pathname of the accessed file.  */
+                snprintf(procfd_path, sizeof(procfd_path),
+                         "/proc/self/fd/%d", metadata-&gt;fd);
+                path_len = readlink(procfd_path, path,
+                                    sizeof(path) - 1);
+                if (path_len == -1) {
+                    perror("readlink");
+                    exit(EXIT_FAILURE);
+                }
+                path[path_len] = '\0';
+                printf("File %s\n", path);
+                /* Close the file descriptor of the event.  */
+                close(metadata-&gt;fd);
+            }
+            /* Advance to next event.  */
+            metadata = FAN_EVENT_NEXT(metadata, size);
+        }
+    }
+}
+int
+main(int argc, char *argv[])
+{
+    char buf;
+    int fd, poll_num;
+    nfds_t nfds;
+    struct pollfd fds[2];
+    /* Check mount point is supplied.  */
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s MOUNT\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    printf("Press enter key to terminate.\n");
+    /* Create the file descriptor for accessing the fanotify API.  */
+    fd = fanotify_init(FAN_CLOEXEC | FAN_CLASS_CONTENT | FAN_NONBLOC</section>K,
+                       O_RDONLY | O_LARGEFILE);
+    if (fd == -1) {
+        perror("fanotify_init");
+        exit(EXIT_FAILURE);
+    }
+    /* Mark the mount for:
+       - permission events before opening files
+       - notification events after closing a write-enabled
+         file descriptor.  */
+    if (fanotify_mark(fd, FAN_MARK_ADD | FAN_MARK_MOUNT,
+                      FAN_OPEN_PERM | FAN_CLOSE_WRITE, AT_FDCWD,
+                      argv[1]) == -1) {
+        perror("fanotify_mark");
+        exit(EXIT_FAILURE);
+    }
+    /* Prepare for polling.  */
+    nfds = 2;
+    fds[0].fd = STDIN_FILENO;       /* Console input */
+    fds[0].events = POLLIN;
+    fds[1].fd = fd;                 /* Fanotify input */
+    fds[1].events = POLLIN;
+    /* This is the loop to wait for incoming events.  */
+    printf("Listening for events.\n");
+    while (1) {
+        poll_num = poll(fds, nfds, -1);
+        if (poll_num == -1) {
+            if (errno == EINTR)     /* Interrupted by a signal */
+                continue;           /* Restart poll() */
+            perror("poll");         /* Unexpected error */
+            exit(EXIT_FAILURE);
+        }
+        if (poll_num &gt; 0) {
+            if (fds[0].revents &amp; POLLIN) {
+                /* Console input is available: empty stdin and quit.  */
+                while (read(STDIN_FILENO, &amp;buf, 1) &gt; 0 &amp;&amp; buf != '\n')
+                    continue;
+                break;
+            }
+            if (fds[1].revents &amp; POLLIN) {
+                /* Fanotify events are available.  */
+                handle_events(fd);
+            }
+        }
+    }
+    printf("Listening for events stopped.\n");
+    exit(EXIT_SUCCESS);
+}
+Example   program: fanotify_fid.c
+El segundo
+<section class="Ss">
+<h2 class="Ss" id='Example_program:_fanotify_fid.c'><a class='permalink' href='#Example_program:_fanotify_fid.c'>programa es un ejemplo de </a></h2>fanotify
+<p class="Pp">utilizado con un
+    grupo que identifica objetos por manejadores de archivos. El programa marca el
+    objeto del sistema de archivos que se pasa como argumento de línea de comandos y espera hasta que
+    se haya producido un evento de tipo <b>FAN_CREATE.</b> La máscara del evento indica
+    qué tipo de objeto del sistema de archivos—ya sea un archivo o un
+    directorio—fue creado. Una vez que todos los eventos han sido leídos del búfer
+    y procesados en consecuencia, el </p>programa
+<p class="Pp">simplemente termina.
+Las siguientes sesiones de shell muestran dos invocaciones diferentes de
+    este programa, con diferentes </p>acciones
+<p class="Pp">realizadas sobre un objeto vigilado.
+La primera <i>sesión </i>muestra una marca colocada en
+/home/user.
+    A continuación, se crea
+    <i>un archivo regular,
+</i>/home/user/testfile. <b>txt. Esto </b>resulta en un
+evento FAN_CREATE
+    generado y reportado contra el objeto de directorio vigilado padre del archivo
+    y con el nombre del archivo creado. La ejecución del programa termina una vez que todos
+    los </p>eventos
+<p class="Pp">
+  <br/>
+</p>
+<pre>c<b> apturados dentro del búfer </b>han sido procesados.
+#
+./fanotify_fid /home/user;
+Listening for events.
+FAN_CREATE (file created):
+        Directory /home/user has been modified.
+        Entry 'testfile.txt' is not a subdirectory.
+All events<b> processed successfully.  Program </b>exiting.
+$
+touch /home/user/testfile</pre>.
+<p class="Pp">txt;              # In another terminal
+La <i>segunda </i>sesión muestra una marca colocada en
+/home/user.
+    A <i>continuación, se </i>crea un directorio,
+/home/user/testdir. <b>Esta acción </b>específica resulta en un
+evento FAN_CREATE generado <b>y se </b>reporta con el
+    indicador [[23]] </p>FAN_ONDIR
+<p class="Pp">
+  <br/>
+</p>
+<pre>establecido<b> y con el nombre del
+    </b>directorio creado.
+#
+./fanotify_fid /home/user;
+Listening for events.
+FAN_CREATE | FAN_ONDIR (subdirectory created):
+        Directory /home/user has been modified.
+        Entry 'testdir' is a subdirectory.
+All events<b> processed suc</b>cessfully.  P</pre>rogram exitin</section>g.
+$
+mkdir -p
+<section class="Ss">
+<h2 class="Ss" id='Program_source:_fanotify_fid.c'><a class='permalink' href='#Program_source:_fanotify_fid.c'>/home/user/testdir;          # In </a></h2>another
+<pre>terminal
+Program   source: fanotify_fid.c
+#define _GNU_SOURCE
+#include &lt;errno.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;limits.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;sys/stat.h&gt;
+#include &lt;sys/fanotify.h&gt;
+#include &lt;unistd.h&gt;
+#define BUF_SIZE 256
+int
+main(int argc, char *argv[])
+{
+    int fd, ret, event_fd, mount_fd;
+    ssize_t size, path_len;
+    char path[PATH_MAX];
+    char procfd_path[PATH_MAX];
+    char events_buf[BUF_SIZE];
+    struct file_handle *file_handle;
+    struct fanotify_event_metadata *metadata;
+    struct fanotify_event_info_fid *fid;
+    const char *file_name;
+    struct stat sb;
+    if (argc != 2) {
+        fprintf(stderr, "Invalid number of command line arguments.\n");
+        exit(EXIT_FAILURE);
+    }
+    mount_fd = open(argv[1], O_DIRECTORY | O_RDONLY);
+    if (mount_fd == -1) {
+        perror(argv[1]);
+        exit(EXIT_FAILURE);
+    }
+    /* Create an fanotify file descriptor with FAN_REPORT_DFID_NAME as
+       a flag so that program can receive fid events with directory
+       entry name.  */
+    fd = fanotify_init(FAN_CLASS_NOTIF | FAN_REPORT_DFID_NAME, 0);
+    if (fd == -1) {
+        perror("fanotify_init");
+        exit(EXIT_FAILURE);
+    }
+    /* Place a mark on the filesystem object supplied in argv[1].  */
+    ret = fanotify_mark(fd, FAN_MARK_ADD | FAN_MARK_ONLYDIR,
+                        FAN_CREATE | FAN_ONDIR,
+                        AT_FDCWD, argv[1]);
+    if (ret == -1) {
+        perror("fanotify_mark");
+        exit(EXIT_FAILURE);
+    }
+    printf("Listening for events.\n");
+    /* Read events from the event queue into a buffer.  */
+    size = read(fd, events_buf, sizeof(events_buf));
+    if (size == -1 &amp;&amp; errno != EAGAIN) {
+        perror("read");
+        exit(EXIT_FAILURE);
+    }
+    /* Process all events within the buffer.  */
+    for (metadata = (struct fanotify_event_metadata *) events_buf;
+            FAN_EVENT_OK(metadata, size);
+            metadata = FAN_EVENT_NEXT(metadata, size)) {
+        fid = (struct fanotify_event_info_fid *) (metadata + 1);
+        file_handle = (struct file_handle *) fid-&gt;handle;
+        /* Ensure that the event info is of the correct type.  */
+        if (fid-&gt;hdr.info_type == FAN_EVENT_INFO_TYPE_FID ||
+            fid-&gt;hdr.info_type == FAN_EVENT_INFO_TYPE_DFID) {
+            file_name = NULL;
+        } else if (fid-&gt;hdr.info_type == FAN_EVENT_INFO_TYPE_DFID_NAME) {
+            file_name = file_handle-&gt;f_handle +
+                        file_handle-&gt;handle_bytes;
+        } else {
+            fprintf(stderr, "Received unexpected event info type.\n");
+            exit(EXIT_FAILURE);
+        }
+        if (metadata-&gt;mask == FAN_CREATE)
+            printf("FAN_CREATE (file created):\n");
+        if (metadata-&gt;mask == (FAN_CREATE | FAN_ONDIR))
+            printf("FAN_CREATE | FAN_ONDIR (subdirectory created):\n");
+	/* metadata-&gt;fd is set to FAN_NOFD when the group identifies
+	   objects by file handles.  To obtain a file descriptor for
+	   the file object corresponding to an event you can use the
+	   struct file_handle that's provided within the
+	   fanotify_event_info_fid in conjunction with the
+	   open_by_handle_at(2) system call.  A check for ESTALE se
+	   devuelve para acomodar la situación en la que el descriptor de archivo
+	   del objeto fue eliminado antes de esta llamada al sistema.  */
+        event_fd = open_by_handle_at(mount_fd, file_handle, O_RDONLY);
+        if (event_fd == -1) {
+            if (errno == ESTALE) {
+                printf("File handle is no longer valid.  "
+                        "File has been deleted\n");
+                continue;
+            } else {
+                perror("open_by_handle_at");
+                exit(EXIT_FAILURE);
+            }
+        }
+        snprintf(procfd_path, sizeof(procfd_path), "/proc/self/fd/%d",
+                event_fd);
+        /* Retrieve and print the path of the modified dentry.  */
+        path_len = readlink(procfd_path, path, sizeof(path) - 1);
+        if (path_len == -1) {
+            perror("readlink");
+            exit(EXIT_FAILURE);
+        }
+        path[path_len] = '\0';
+        printf("\tEl directorio '%s' ha sido modificado.\n", path);
+        if (file_name) {
+            ret = fstatat(event_fd, file_name, &amp;sb, 0);
+            if (ret == -1) {
+                if (errno != ENOENT) {
+                    perror("fstatat");
+                    exit(EXIT_FAILURE);
+                }
+                printf("\tLa entrada '%s' no existe.\n", file_name);
+            } else if ((sb.st_mode &amp; S_IFMT) == S_IFDIR) {
+                printf("\tLa entrada '%s' es un subdirectorio.\n", file_name);
+            } else {
+                printf("\tLa entrada '%s' no es un subdirectorio.\n",
+                        file_name);
+            }
+        }
+        /* Close associated file descriptor for this event.  */
+        close(event_fd);
+    }
+    printf("Todos los eventos fueron procesados exitosamente.  El programa está saliendo.\n");
+    exit(EXIT_SUCCESS)</pre>;</section>
+</section>}
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VÉASE   </a></h1>TAMBIÉN
+<p class="Pp"><a href='/man/fanotify_init.2.en'>fanotify_init(2)</a>, <a href='/man/fanotify_mark.2.en'>fanotify_mark(2)</a>,
+    <a href='/man/inotify.7.en'>in</a></p>oti</section>fy(</div>7)
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-09</td>-21
+    <td class="foot-os">Lin</td>ux m</tr>an-</table>pag</section>es 6</article>.16
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/core/any/man-pages/">core/man-</a></dd>pages
+        <dt>Vers</dt>ión:
+        <dd>6.</dd>16-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://www.kernel.org/doc/man-pages/">https://www.kernel.</a></dd>org/doc/man-pages/
+        <dt>Licen</dt>cias:
+        <dd>BSD-2-Clause, BSD-3-Clause, BSD-4.3TAHOE, BSD-4-Clause-UC, GPL-1.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-3.0-or-later, LGPL-3.0-linking-exception, LicenseRef-Public-Domain, LicenseRef-UltraPermissive, Linux-man-pages-1-para, Linux-man-pages-copyleft, Linux-man-pages-copyleft-2-para, Linux-man-pages-copyleft-var, MIT, </dd>Spencer-94
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/core/man-pages/">/listi</a></dd>ng/cor</dl>e/man-</section>pages/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#ERRORS">ER</a></li>RORES
+        
+            <li><a href="#STANDARDS">EST</a></li>ÁNDARES
+        
+            <li><a href="#HISTORY">HI</a></li>STORIA
+        
+            <li><a href="#NOTES">N</a></li>OTAS
+        
+            <li><a href="#BUGS">ERRORES </a></li>DE PROGRAMACIÓN
+        
+            <li><a href="#EXAMPLES">EJ</a></li>EMPLOS
+        
+            <li><a href="#SEE_ALSO">VÉA</a></li>SE</ul> TA</nav>MB</details>IÉN
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/fanotify.7.en.txt">t</a>xt, 
+        
+            <a href="/man/fanotify.7.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            del manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas del manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> de Arch Linux correspondiente.

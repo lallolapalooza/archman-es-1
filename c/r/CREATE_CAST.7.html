@@ -1,0 +1,318 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CREATE_CAST(7) — Páginas manuales </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">CREATE_CAST(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/postgresql/">postgresql</a></p>
+
+        a
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">CREATE </td>CAST(7)
+    <td class="head-vol">Documentación de PostgreSQL </td>18.1
+    <td class="head-rtitle">CREA</td>TE </tr>CAS</table>T(7)
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">CREATE_CAST - de</p>fine una nueva c</section>onversión (cast)
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<pre>CREATE CAST (<i>tipo_origen </i>AS <i>tipo_destino)</i>
+    WITH FUNCTION <i>nombre_función </i>[ (<i>tipo_argumento </i>[, ...]) ]
+    [ AS ASSIGNMENT | AS IMPLICIT ]
+CREATE CAST (<i>tipo_origen </i>AS <i>tipo_destino)</i>
+    WITHOUT FUNCTION
+    [ AS ASSIGNMENT | AS IMPLICIT ]
+CREATE CAST (<i>tipo_origen </i>AS <i>tipo_destino)
+  </i>  WITH INOUT
+   </pre> [ AS ASSIGNMENT</section> | AS IMPLICIT ]
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp"><b>CREATE CAST </b>define una nueva conversión. Una conversión especifica cómo
+    realizar una transformación entre dos tipos de datos. Por </p>ejemplo,
+<div class="Bd-indent">
+<pre>SELECT CA</pre>ST(42 AS</div> float8);
+<p class="Pp">convierte la constante entera 42 al tipo float8 invocando una
+    función previamente especificada, en este caso float8(int4). (Si no se ha
+    definido una conversión adecuada, la transformación falla.</p>)
+<p class="Pp">Dos tipos pueden ser coercibles binarios, lo que significa que la
+    conversión se puede realizar “gratis” sin invocar ninguna función.
+    Esto requiere que los valores correspondientes usen la misma
+    representación interna. Por ejemplo, los tipos text y varchar son
+    coercibles binarios en ambos sentidos. La coercibilidad binaria no es
+    necesariamente una relación simétrica. Por ejemplo, la conversión de xml a
+    text se puede realizar gratis en la implementación actual, pero la
+    dirección inversa requiere una función que realice al menos una comprobación
+    de sintaxis. (Dos tipos que son coercibles binarios en ambos sentidos también se
+    denominan binariamente compatibles.</p>)
+<p class="Pp">Puedes definir una conversión como una conversión de E/S usando la
+    sintaxis WITH INOUT. Una conversión de E/S se realiza invocando la
+    función de salida del tipo de datos de origen y pasando la cadena resultante a la
+    función de entrada del tipo de datos de destino. En muchos casos comunes, esta
+    característica evita la necesidad de escribir una función de conversión separada. Una
+    conversión de E/S actúa igual que una conversión basada en función regular; solo la
+    implementación es </p>diferente.
+<p class="Pp">Por defecto, una conversión solo puede ser invocada por una solicitud
+    de conversión explícita, es decir, una construcción explícita CAST(<i>x </i>AS <i>nombre_tipo)</i> o
+    <i>x:</i>:<i>nombr</i>e_tipo</p>.
+<p class="Pp">Si la conversión está marcada como AS ASSIGNMENT, puede ser invocada
+    implícitamente al asignar un valor a una columna del tipo de datos de destino. Por
+    ejemplo, suponiendo que foo.f1 es una columna de tipo text, </p>entonces:
+<div class="Bd-indent">
+<pre>INSERT INTO</pre> foo (f1) V</div>ALUES (42);
+<p class="Pp">se permitirá si la conversión del tipo integer al tipo text está
+    marcada como AS ASSIGNMENT, de lo contrario no. (Generalmente usamos el término conversión
+    de asignación para describir este tipo de conversión.</p>)
+<p class="Pp">Si la conversión está marcada como AS IMPLICIT, puede ser invocada
+    implícitamente en cualquier contexto, ya sea de asignación o internamente en una
+    expresión. (Generalmente usamos el término conversión implícita para describir este tipo
+    de conversión.) Por ejemplo, considera esta </p>consulta:
+<div class="Bd-indent">
+<pre>SELEC</pre>T 2 +</div> 4.0;
+<p class="Pp">El analizador inicialmente marca las constantes como siendo de tipo
+    integer y numeric respectivamente. No hay un operador integer + numeric en los
+    catálogos del sistema, pero sí hay un operador numeric + numeric. La consulta
+    por lo tanto tendrá éxito si hay disponible una conversión de integer a numeric y está
+    marcada como AS IMPLICIT — lo cual de hecho lo está. El analizador aplicará la
+    conversión implícita y resolverá la consulta como si se hubiera </p>escrito
+<div class="Bd-indent">
+<pre>SELECT CAST </pre>( 2 AS nume</div>ric ) + 4.0;
+<p class="Pp">Ahora, los catálogos también proporcionan una conversión de numeric a integer. Si
+    esa conversión estuviera marcada como AS IMPLICIT — lo cual no está — entonces el
+    analizador se enfrentaría a elegir entre la interpretación anterior y la
+    alternativa de convertir la constante numeric a integer y aplicar el
+    operador integer + integer. Sin ningún conocimiento de qué elección preferir,
+    se rendiría y declararía la consulta ambigua. El hecho de que solo una de
+    las dos conversiones sea implícita es la forma en que enseñamos al analizador a preferir
+    la resolución de una expresión mixta de numeric e integer como numeric; no hay
+    conocimiento incorporado sobre </p>eso.
+<p class="Pp">Es prudente ser conservador al marcar conversiones como implícitas. Un
+    exceso de rutas de conversión implícitas puede causar que PostgreSQL elija
+    interpretaciones sorprendentes de los comandos, o que no pueda resolver
+    comandos en absoluto porque hay múltiples interpretaciones posibles. Una buena regla
+    general es hacer que una conversión sea invocable implícitamente solo para transformaciones
+    que preserven información entre tipos en la misma categoría de tipo general. Por
+    ejemplo, la conversión de int2 a int4 puede razonablemente ser implícita, pero la conversión
+    de float8 a int4 probablemente debería ser solo de asignación. Las conversiones entre categorías de tipo,
+    como text a int4, es mejor hacerlas solo </p>explícitas.
+<div class="Bd-indent">
+<br/>
+<b>Not</b>a
+<br/>
+<p class="Pp">A veces es necesario por razones de usabilidad o cumplimiento de estándares
+    proporcionar múltiples conversiones implícitas entre un conjunto de tipos, resultando
+    en ambigüedad que no se puede evitar como arriba. El analizador tiene una heurística de respaldo
+    basada en categorías de tipos y tipos preferidos que puede ayudar a
+    proporcionar el comportamiento deseado en tales casos. Ver CREATE TYPE
+    (<a href='/man/CREATE_TYPE.7.en'>CREATE_TY</a>PE(7)) pa</p>ra más inf</div>ormación.
+<p class="Pp">Para poder crear una conversión, debes ser propietario del tipo de datos de origen o del destino
+    y tener el priv</p>ilegio USAGE sobre el otro tipo. Para crear una
+    conversión coercible binaria, debes ser superusuario. (Esta res</section>tricción se hace
+    porque una conversión coercible binaria errónea puede fácilmente hacer fallar
+    al servidor.)
+<section class="Sh">
+<h1 class="Sh" id='PARAMETERS'><a class='permalink' href='#PARAMETERS'>PARÁMETRO</a></h1>S
+<p class="Pp"><i>tipo_orige</i></p>n
+<div class="Bd-indent">El nombre del tipo de datos de origen de la </div>conversión.
+<p class="Pp"><i>tipo_destin</i></p>o
+<div class="Bd-indent">El nombre del tipo de datos de destino de la </div>conversión.
+<p class="Pp"><i>nombre_función</i>[(<i>tipo_argumento </i>[, ...])</p>]
+<div class="Bd-indent">La función usada para realizar la conversión. El nombre de la función
+  puede estar calificada por esquema. Si no lo está, la función se buscará en la
+  ruta de búsqueda de esquemas. El tipo de datos de resultado de la función debe coincidir con el tipo de destino
+  de la conversión. Sus argumentos se discuten más abajo. Si no se especifica
+  una lista de argumentos, el nombre de la función debe ser único en su </div>esquema.
+<p class="Pp">WITHOUT </p>FUNCTION
+<div class="Bd-indent">Indica que el tipo de origen es coercible binariamente al
+  tipo de destino, por lo que no se requiere ninguna función para realizar la </div>conversión.
+<p class="Pp">WITH </p>INOUT
+<div class="Bd-indent">Indica que la conversión es una conversión de E/S,
+  realizada invocando la función de salida del tipo de datos de origen y pasando
+  la cadena resultante a la función de entrada del tipo de datos de </div>destino.
+<p class="Pp">AS </p>ASSIGNMENT
+<div class="Bd-indent">Indica que la conversión puede ser invocada implícitamente en
+  contextos de </div>asignación.
+<p class="Pp">AS </p>IMPLICIT
+<div class="Bd-indent">Indica que la conversión puede ser invocada implícitamente en cualquier
+  </div>contexto.
+<p class="Pp">Las funciones de implementación de conversión pueden tener de uno a tres argumentos. El
+    tipo del primer argumento debe ser idéntico al tipo de origen de la conversión o coercible binariamente desde él. El
+    segundo argumento, si está presente, debe ser de tipo integer; recibe
+    el modificador de tipo asociado con el tipo de destino, o -1 si
+    no hay ninguno. El tercer argumento, si está presente, debe ser de tipo boolean; recibe
+    true si la conversión es una conversión explícita, false en caso contrario. (Extrañamente,
+    el estándar SQL exige comportamientos diferentes para conversiones explícitas e implícitas
+    en algunos casos. Este argumento se proporciona para funciones que deben implementar
+    tales conversiones. No se recomienda que diseñes tus propios tipos de datos de modo
+    que esto importe.</p>)
+<p class="Pp">El tipo de retorno de una función de conversión debe ser idéntico al tipo de destino de la conversión
+    o coercible binariamente a </p>él.
+<p class="Pp">Ordinariamente una conversión debe tener tipos de datos de origen y destino
+    diferentes. Sin embargo, se permite declarar una conversión con tipos de origen y destino idénticos si tiene una función de implementación de conversión con más de un
+    argumento. Esto se usa para representar funciones de coerción de longitud específicas de tipo
+    en los catálogos del sistema. La función nombrada se usa para forzar un valor
+    del tipo al valor del modificador de tipo dado por su segundo </p>argumento.
+<p class="Pp">Cuando una conversión tiene tipos de origen y destino diferentes y una
+    función que toma más de un argumento, soporta convertir de un tipo a
+    otro y aplicar una coerción de longitud en un solo paso. Cuando no hay disponible tal entrada,
+    la coerción a un tipo que usa un modificador de tipo implica dos
+    pasos de conversión, uno para convertir entre tipos de datos y un segundo para aplicar el
+  </p>modificador.
+<p class="Pp">Una conversión hacia o desde un tipo de dominio actualmen</p>te no tiene
+    efecto. Convertir hacia o desde un domin</section>io usa las conversiones asociadas con su tipo subyacente.
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTA</a></h1>S
+<p class="Pp">Usa <b>DROP CAST para </b>eliminar conversiones definidas por el </p>usuario.
+<p class="Pp">Recuerda que si quieres poder convertir tipos en ambos sentidos
+    necesitas declarar conversiones en ambos sentidos </p>explícitamente.
+<p class="Pp">Normalmente no es necesario para crear conversiones entre tipos definidos por el usuario y los tipos de cadena estándar (text,<i>varchar </i>y char(
+n)), así como tipos definidos por el usuario que están definidos para estar en la categoría de cadenas). PostgreSQL proporciona conversiones automáticas de E/S para eso. Las conversiones automáticas a tipos de cadena se tratan como conversiones de asignación, mientras que las conversiones automáticas desde tipos de cadena son solo explícitas. Puedes anular este comportamiento declarando tu propia conversión para reemplazar una automática, pero generalmente la única razón para hacerlo es si quieres que la conversión sea más fácil de invocar que la configuración estándar de solo asignación o solo explícita. Otra posible razón es que quieres que la conversión se comporte de manera diferente a la función de E/S del tipo; pero eso es lo suficientemente sorprendente como para que pienses dos veces sobre si es una buena idea. (Un pequeño número de tipos integrados sí </p>tienen
+<p class="Pp">comportamientos diferentes para las conversiones, principalmente debido a requisitos del estándar SQL).
+Aunque no es obligatorio, se recomienda que continúes siguiendo esta convención antigua de nombrar las funciones de implementación de la conversión <i>con </i>el<i>nombre </i>del tipo de datos de destino. Muchos usuarios están acostumbrados a poder convertir tipos de datos usando una notación de estilo de función, es decir,
+nombre_tipo(
+x). Esta notación es de hecho nada más ni nada menos que una llamada a la función de implementación de la conversión; no se trata especialmente como una conversión. Si tus funciones de conversión no están nombradas para soportar esta convención, tendrás usuarios sorprendidos. Dado que PostgreSQL </p>permite
+<div class="Bd-indent">
+<br/>
+<b>l</b>a
+<br/>
+<p class="Pp">sobrecarga del mismo nombre de función con diferentes tipos de argumentos, no hay dificultad en tener múltiples funciones de conversión desde diferentes tipos que todas usen el nombre del tipo de destino.
+Nota
+En realidad, el
+    <i></i>p<i>árrafo </i>anterior es una simplificación excesiva: hay dos
+    <i>casos </i>en los que una construcción de llamada a función se tratará como una solicitud de conversión sin haberla <i>asociado a una función real. Si una llamada a función
+nombre(
+x) no coincide exactamente con ninguna función</i> existente, pero
+nombre es el nombre de un tipo de datos y pg_cast proporciona una conversión coercible bina</p>ria a este tipo desde el tipo de
+x, entonces la llamada
+    se interpretará como una conversión coercible bi</div>naria. Esta excepción se hace para que las conversiones coercibles binarias puedan invocarse usando sintaxis
+<div class="Bd-indent">
+<br/>
+<b></b>f
+<br/>
+<p class="Pp">uncional, aunque carecen de cualquier función. De manera similar, si no hay una entrada en pg_cast pero la conve</p>rsión sería hacia o desde un tipo de cadena, la llamada se interpretará como una conversión de E/S. Esta excepci</div>ón permite que las conversiones de E/S se invoquen usando sintaxis funcional.
+Nota
+También hay una excepción a la</section> excepción: las conversiones de E/S desde tipos compuestos a tipos de cadena no pueden invocarse usando sintaxis
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>funcional</a></h1>,
+<p class="Pp">sino que deben escribirse en sintaxis de conversión explícita (ya sea la notación CAST </p>o
+<div class="Bd-indent">
+<pre>::). Esta excepción se </pre>añadió porque después de</div> la introducción de las
+<p class="Pp">conversiones de E/S proporcionadas </p>automáticamente</section>,
+<section class="Sh">
+<h1 class="Sh" id='COMPATIBILITY'><a class='permalink' href='#COMPATIBILITY'>se </a></h1>descubrió
+<p class="Pp">q <b>ue era demasiado fácil invocar accidentalmente una de </b>estas conversiones cuando se pretendía una referencia </p>a una función o columna.
+EJEMPLOS
+Para crear una conv</section>ersión de asignación desde el tipo bigint al tipo int4
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>usando </a></h1>la
+<p class="Pp">función int4(bigint)<a href='/man/CREATE_FUNCTION.7.en'>:
+CREATE CAST </a>(bigint AS int4) WITH<a href='/man/CREATE_TYPE.7.en'>FUNCTION </a>int4(bigint) AS<a href='/man/DROP_CAST.7.en'>ASS</a>IGNM</p>ENT</section>;
+(E</div>sta
+<table class="foot">
+  <tr>
+    <td class="foot-date">conv</td>ersión
+    <td class="foot-os">ya está </td>predefini</tr>da en el</table> sistema</section>.)
+COMPAT</article>IBILIDAD
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>El
+comando </p>CREATE
+    <dl>
+        <dt>CAST se </dt>ajusta al
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/postgresql/">estándar SQL, </a></dd>excepto que
+        <dt>SQL </dt>no hace
+        <dd>disposiciones </dd>para
+        <dt>tipos </dt>coercibles
+        <dd><a href="https://www.postgresql.org/">binarios ni argumentos </a></dd>adicionales para
+        <dt>las </dt>funciones de
+        <dd>implemen</dd>tación.
+        <dt>AS </dt>IMPLICIT es
+        <dd><a href="/listing/extra/postgresql/">también u</a></dd>na extens</dl>ión de Po</section>stgreSQL.
+
+<details>
+    <summary>VÉASE   TAMBIÉN
+</summary>CREATE
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">FUNCTION </a></li>(
+CREATE_FUNCTION(7)
+        
+            <li><a href="#SYNOPSIS">), </a></li>CREATE TYPE
+    (
+        
+            <li><a href="#DESCRIPTION">CREATE_TYPE(7)</a></li>), DROP CAST (
+        
+            <li><a href="#PARAMETERS">DROP_CAST(7)</a></li>)
+2025
+PostgreSQL 18.1
+        
+            <li><a href="#NOTES">Información </a></li>del paquete:
+        
+            <li><a href="#EXAMPLES">Nombre del </a></li>paquete:
+extra/postgresql
+        
+            <li><a href="#COMPATIBILITY">Versión:
+</a></li>18.1-1
+Upstream:
+        
+            <li><a href="#SEE_ALSO">https://</a></li>www.pos</ul>tgresql.</nav>org/
+Li</details>cencias:
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>PostgreSQL
+/listing/extra/postgresql/
+        
+            <a href="/man/CREATE_CAST.7.en.txt">Índice
+</a>NOMBRE
+SINOPSIS 
+        
+            <a href="/man/CREATE_CAST.7.en.raw">DESCRIPCIÓN</a>
+PARÁMETROS</p>
+NOTAS
+EJEM</nav>PLOS
+COMPAT</aside>IBILIDAD
+VÉ</main>ASE TAMBIÉN
+        <footer>
+            conversión de las
+            <p>páginas de manual.
+El sitio web está disponible <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">bajo los términos de la
+GPL-3.0
+ </a>              licencia, excepto </p>para el contenido de las páginas </footer>de manual, que tienen su propia l</body>icencia especificada en el paque</html>te correspondiente de Arch Linux.

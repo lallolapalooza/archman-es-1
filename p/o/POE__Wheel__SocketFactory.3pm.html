@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Wheel::SocketFactory(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Wheel__SocketFactory(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Wheel::SocketFactory(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">POE::Wheel::SocketFactory(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">POE::Wheel::SocketFactory - creación de sockets no bloqueantes</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Ver &quot;SINOPSIS&quot; en POE::Component::Server::TCP para una versión mucho más sencilla de este programa.</p>
+<pre>#!perl
+use warnings;
+use strict;
+use IO::Socket;
+use POE qw(Wheel::SocketFactory Wheel::ReadWrite);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      # Inicia el servidor.
+      $_[HEAP]{server} = POE::Wheel::SocketFactory-&gt;new(
+        BindPort =&gt; 12345,
+        SuccessEvent =&gt; &quot;on_client_accept&quot;,
+        FailureEvent =&gt; &quot;on_server_error&quot;,
+      );
+    },
+    on_client_accept =&gt; sub {
+      # Comienza a interactuar con el cliente.
+      my $client_socket = $_[ARG0];
+      my $io_wheel = POE::Wheel::ReadWrite-&gt;new(
+        Handle =&gt; $client_socket,
+        InputEvent =&gt; &quot;on_client_input&quot;,
+        ErrorEvent =&gt; &quot;on_client_error&quot;,
+      );
+      $_[HEAP]{client}{ $io_wheel-&gt;ID() } = $io_wheel;
+    },
+    on_server_error =&gt; sub {
+      # Cierra el servidor.
+      my ($operation, $errnum, $errstr) = @_[ARG0, ARG1, ARG2];
+      warn &quot;Error del servidor $operation $errnum: $errstr\n&quot;;
+      delete $_[HEAP]{server};
+    },
+    on_client_input =&gt; sub {
+      # Maneja la entrada del cliente.
+      my ($input, $wheel_id) = @_[ARG0, ARG1];
+      $input =~ tr[a-zA-Z][n-za-mN-ZA-M]; # rot13 ASCII
+      $_[HEAP]{client}{$wheel_id}-&gt;put($input);
+    },
+    on_client_error =&gt; sub {
+      # Maneja el error del cliente, incluida la desconexión.
+      my $wheel_id = $_[ARG3];
+      delete $_[HEAP]{client}{$wheel_id};
+    },
+  }
+);
+POE::Kernel-&gt;run();
+exit;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Wheel::SocketFactory crea sockets bajo demanda. Puede crear
+    sockets UDP sin conexión, pero brilla especialmente para el trabajo cliente/servidor
+    donde el establecimiento de conexiones normalmente bloquearía.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS_PÚBLICOS'><a class='permalink' href='#MÉTODOS_PÚBLICOS'>MÉTODOS PÚBLICOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<p class="Pp"><b>new()</b> crea un nuevo objeto POE::Wheel::SocketFactory. Para
+    sockets que <b>listen()</b> y <b>accept()</b> conexiones, la rueda generará
+    nuevos sockets para cada cliente aceptado. Las fábricas de sockets para sockets
+    de un solo uso, como peers UDP o clientes establecidos por
+    <b>connect()</b>, emiten un solo socket y pueden ser destruidos después sin
+    efectos adversos.</p>
+<p class="Pp"><b>new()</b> siempre devuelve un objeto POE::Wheel::SocketFactory,
+    incluso si falla al establecer el socket. Esto permite consultar el objeto
+    después de que haya enviado un
+    <span class="Li">&quot;FailureEvent&quot;</span> a su sesión.</p>
+<p class="Pp"><b>new()</b> acepta un buen número de parámetros con nombre, cada
+    uno rige algún aspecto de la creación del socket.</p>
+<p class="Pp"><i>Creación del Socket</i></p>
+<p class="Pp">La creación del socket se realiza con la función incorporada
+    <b>socket()</b> de Perl. Los parámetros de <b>new()</b> que comienzan con
+    <span class="Li">&quot;Socket&quot;</span> determinan cómo se llamará a
+    <b>socket()</b>.</p>
+<p class="Pp">SocketDomain</p>
+<p class="Pp"><span class="Li">&quot;SocketDomain&quot;</span> instruye a la
+    rueda para que cree un socket dentro de un dominio particular. Los dominios
+    soportados son <span class="Li">&quot;AF_UNIX&quot;</span>,
+    <span class="Li">&quot;AF_INET&quot;</span>, <span class="Li">&quot;AF_INET6&quot;</span>,
+    <span class="Li">&quot;PF_UNIX&quot;</span>, <span class="Li">&quot;PF_INET&quot;</span>,
+    y <span class="Li">&quot;PF_INET6&quot;</span>. Si se omite, el socket se creará
+    en el dominio <span class="Li">&quot;AF_INET&quot;</span>.</p>
+<p class="Pp">POE::Wheel::SocketFactory contiene una tabla de dominios
+    soportados y las instrucciones necesarias para crearlos. Por favor, envíe
+    parches para soportar dominios adicionales, según sea necesario.</p>
+<p class="Pp">Nota: <span class="Li">&quot;AF_INET6&quot;</span> y
+    <span class="Li">&quot;PF_INET6&quot;</span> son proporcionados por el módulo
+    Socket incluido en Perl 5.8.0 o posterior. Las versiones de Perl anteriores a
+    5.8.0 no deberían intentar usar IPv6 hasta que alguien contribuya con una
+    solución alternativa.</p>
+<p class="Pp">El soporte de IPv6 requiere un módulo Socket que implemente
+    <b>getaddrinfo()</b> y <b>unpack_sockaddr_in6()</b>. Puede haber otros
+    módulos que realicen estas funciones, pero la mayoría, si no todas, han sido
+    deprecados con la llegada del soporte básico adecuado de Socket para IPv6.</p>
+<p class="Pp">SocketType</p>
+<p class="Pp"><span class="Li">&quot;SocketType&quot;</span> proporciona a la
+    llamada <b>socket()</b> un tipo de socket particular, que puede ser
+    <span class="Li">&quot;SOCK_STREAM&quot;</span> o
+    <span class="Li">&quot;SOCK_DGRAM&quot;</span>.
+    <span class="Li">&quot;SOCK_STREAM&quot;</span> es el valor por defecto si
+    <span class="Li">&quot;SocketType&quot;</span> no se especifica.</p>
+<p class="Pp">SocketProtocol</p>
+<p class="Pp"><span class="Li">&quot;SocketProtocol&quot;</span> establece el
+    protocolo de la llamada <b>socket()</b>. Los protocolos pueden especificarse
+    por número o nombre. <span class="Li">&quot;SocketProtocol&quot;</span> se
+    ignora para los sockets de dominio UNIX.</p>
+<p class="Pp">El protocolo por defecto es &quot;tcp&quot; para los sockets de dominio
+    INET. No hay valor por defecto para otros dominios de socket.</p>
+<p class="Pp"><i>Configuración de Opciones de Socket</i></p>
+<p class="Pp">POE::Wheel::SocketFactory utiliza <b>ioctl()</b>, <b>fcntl()</b>
+    y <b>setsockopt()</b> para establecer opciones de socket después de que el
+    socket sea creado. Todos los sockets se configuran como no bloqueantes, y los
+    sockets enlazados pueden hacerse reutilizables.</p>
+<p class="Pp">Reuse</p>
+<p class="Pp">Cuando se establece, el parámetro <span class="Li">&quot;Reuse&quot;</span>
+    permite que un puerto enlazado se reutilice inmediatamente.
+    <span class="Li">&quot;Reuse&quot;</span> se considera habilitado si contiene
+    &quot;yes&quot;, &quot;on&quot;, o un valor numérico verdadero. Todos los demás
+    valores deshabilitan la reutilización del puerto, al igual que omitir
+    <span class="Li">&quot;Reuse&quot;</span> por completo.</p>
+<p class="Pp">Por razones de seguridad, un puerto no puede reutilizarse durante un
+    minuto o más después de que un servidor lo haya liberado. Esto da tiempo a
+    los clientes para darse cuenta de que el puerto ha sido abandonado. De lo
+    contrario, un servicio malicioso podría apoderarse del puerto y suplantar al
+    servicio legítimo.</p>
+<p class="Pp">También es terriblemente molesto esperar un minuto o más entre
+    invocaciones del servidor, especialmente durante el desarrollo.</p>
+<p class="Pp"><i>Enlace del Socket a una Dirección y Puerto</i></p>
+<p class="Pp">Opcionalmente, un socket puede enlazarse a una interfaz y puerto
+    específicos. La dirección <span class="Li">&quot;INADDR_ANY&quot;</span> puede
+    utilizarse para enlazar a un puerto específico en todas las interfaces.</p>
+<p class="Pp">Los sockets se enlazan usando <b>bind()</b>. Los parámetros de
+    POE::Wheel::SocketFactory que comienzan con <span class="Li">&quot;Bind&quot;</span>
+    controlan cómo se llama a <b>bind()</b>.</p>
+<p class="Pp">BindAddress</p>
+<p class="Pp"><span class="Li">&quot;BindAddress&quot;</span> establece una
+    dirección a la que se enlazará el punto final local del socket. Se usará
+    <span class="Li">&quot;INADDR_ANY&quot;</span> si no se especifica
+    <span class="Li">&quot;BindAddress&quot;</span>.</p>
+<p class="Pp"><span class="Li">&quot;BindAddress&quot;</span> puede contener
+    una cadena o una dirección de Internet empaquetada (para sockets de dominio
+    &quot;INET&quot;). El parámetro de cadena debe ser una dirección numérica con
+    puntos o un nombre de host resoluble. Tenga en cuenta que el nombre del host
+    se resolverá con una llamada bloqueante. Si esto no es deseable, utilice
+    POE::Component::Client::DNS para realizar una resolución de nombres no
+    bloqueante.</p>
+<p class="Pp">Cuando se utiliza para enlazar un socket de dominio &quot;UNIX&quot;,
+    <span class="Li">&quot;BindAddress&quot;</span> debe contener una ruta que
+    describa el nombre del archivo del socket. Esto es obligatorio para los
+    sockets del servidor y los sockets cliente datagrama. <span class="Li">&quot;BindAddress&quot;</span>
+    no tiene un valor por defecto para los sockets UNIX.</p>
+<p class="Pp">BindPort</p>
+<p class="Pp"><span class="Li">&quot;BindPort&quot;</span> solo es significativo
+    para los sockets de dominio &quot;INET&quot;. Contiene un puerto en la
+    interfaz <span class="Li">&quot;BindAddress&quot;</span> donde se enlazará el
+    socket. Por defecto es 0 si se omite, lo que provocará que la llamada
+    <b>bind()</b> elija un puerto no asignado indeterminado.</p>
+<p class="Pp"><span class="Li">&quot;BindPort&quot;</span> puede ser un número
+    de puerto o un nombre que se pueda buscar en la base de datos de servicios
+    (o equivalente) del sistema.</p>
+<p class="Pp"><i>Sockets sin Conexión</i></p>
+<p class="Pp">Los sockets sin conexión pueden interactuar con puntos finales
+    remotos sin necesidad de <b>listen()</b> para conexiones o <b>connect()</b>
+    a direcciones remotas.</p>
+<p class="Pp">Esta clase de sockets se completa después de la llamada
+    <b>bind()</b>.</p>
+<p class="Pp"><i>Conexión del Socket a un Punto Final Remoto</i></p>
+<p class="Pp">Un socket puede escuchar conexiones entrantes, iniciar conexiones a
+    un punto final remoto, o ser sin conexión (como en el caso de los sockets
+    UDP).</p>
+<p class="Pp">POE::Wheel::SocketFactory iniciará una conexión de cliente cuando
+    <b>new()</b> se complete con parámetros que describen un punto final remoto.
+    En todos los demás casos, el socket escuchará conexiones o será sin conexión
+    dependiendo del tipo de socket.</p>
+<p class="Pp">ClientConnect</p>
+<p class="Pp"><span class="Li">&quot;ClientConnect&quot;</span> le dice a la
+    rueda que se conecte a un punto final remoto. Los parámetros para
+    <span class="Li">&quot;ClientConnect&quot;</span> son los mismos que los de
+    <span class="Li">&quot;BindAddress&quot;</span> y
+    <span class="Li">&quot;BindPort&quot;</span>.</p>
+<p class="Pp">Si <span class="Li">&quot;ClientConnect&quot;</span> se proporciona,
+    la rueda se conectará a ese punto final después de que se cree el socket.
+    Una vez que la conexión sea exitosa, se generará un evento
+    <span class="Li">&quot;SuccessEvent&quot;</span>. Si falla, se generará un
+    evento <span class="Li">&quot;FailureEvent&quot;</span>.</p>
+<p class="Pp">Note: Si <span class="Li">&quot;ClientConnect&quot;</span> se proporciona,
+    no se debe proporcionar <span class="Li">&quot;BindAddress&quot;</span> o
+    <span class="Li">&quot;BindPort&quot;</span>.</p>
+<p class="Pp"><i>Eventos del Socket</i></p>
+<p class="Pp">La rueda notificará a la sesión sobre el estado de los sockets
+    mediante eventos.</p>
+<p class="Pp">SuccessEvent</p>
+<p class="Pp">Cuando se crea un socket, o cuando se acepta una conexión, se
+    enviará un evento <span class="Li">&quot;SuccessEvent&quot;</span> a la sesión.
+    El argumento pasado al evento será el socket recién creado. Para las conexiones
+    de servidor, este será un objeto socket que escucha las conexiones entrantes.
+    Para las conexiones de cliente, este será el socket conectado.</p>
+<p class="Pp">FailureEvent</p>
+<p class="Pp">Si la rueda no puede crear el socket, o si falla al aceptar una
+    conexión, se enviará un evento <span class="Li">&quot;FailureEvent&quot;</span>
+    a la sesión. Los argumentos pasados al evento serán una operación (string),
+    un número de error (int) y una cadena de error (string).</p>
+<p class="Pp">ListenEvent</p>
+<p class="Pp">Cuando un socket está escuchando, se puede enviar un evento
+    <span class="Li">&quot;ListenEvent&quot;</span>. Los argumentos pasados al evento
+    serán el objeto socket que está escuchando.</p>
+<p class="Pp">AcceptEvent</p>
+<p class="Pp">Cuando una conexión es aceptada, se puede enviar un evento
+    <span class="Li">&quot;AcceptEvent&quot;</span>. Los argumentos pasados al evento
+    serán el socket que está escuchando y el socket del cliente recién aceptado.</p>
+<p class="Pp">ConnectEvent</p>
+<p class="Pp">Cuando se establece una conexión de cliente, se puede enviar un
+    evento <span class="Li">&quot;ConnectEvent&quot;</span>. Los argumentos pasados
+    al evento serán el socket cliente recién conectado.</p>
+<p class="Pp">ErrorEvent</p>
+<p class="Pp">Cuando se produce un error en el socket, se puede enviar un evento
+    <span class="Li">&quot;ErrorEvent&quot;</span>. Los argumentos pasados al evento
+    serán el objeto socket y una cadena de error.</p>
+<p class="Pp">DestroyEvent</p>
+<p class="Pp">Cuando se destruye el socket, se puede enviar un evento
+    <span class="Li">&quot;DestroyEvent&quot;</span>. El argumento pasado al evento
+    será el objeto socket destruido.</p>
+<p class="Pp"><i>Parámetros Adicionales</i></p>
+<p class="Pp">Handle</p>
+<p class="Pp">Si se proporciona un Handle, el objeto Wheel no intentará crear un
+    nuevo socket. En su lugar, se adjuntará al Handle proporcionado.</p>
+<p class="Pp">Este parámetro es más útil para las conexiones de cliente. El
+    propietario del Handle es responsable de cualquier configuración de socket,
+    como la configuración de opciones de socket (por ejemplo, reutilización de
+    dirección).</p>
+<p class="Pp">ID</p>
+<p class="Pp">Si se proporciona un ID, se utilizará el ID especificado en lugar de
+    generar un nuevo ID para la rueda.</p>
+<p class="Pp">Esto es útil si el usuario desea mantener el mismo ID para un socket
+    que se reinicia o se transfiere a otro objeto Wheel.</p>
+<p class="Pp">Nombre</p>
+<p class="Pp">Este parámetro se utiliza para identificar la rueda de SocketFactory
+    en el registro de la rueda de POE. Si no se proporciona, POE::Wheel::SocketFactory
+    utilizará el nombre de clase como nombre de registro.</p>
+<p class="Pp"><b>new()</b> puede ser llamado de forma no bloqueante. En este caso,
+    el método devolverá undef inmediatamente, y las respuestas se enviarán a la
+    sesión del solicitante a través de los eventos especificados.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Destroy'><a class='permalink' href='#Destroy'>Destroy</a></h2>
+<p class="Pp">Destruye el socket y sus recursos asociados.</p>
+<p class="Pp">Este método es normalmente llamado por el Kernel de POE.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ID'><a class='permalink' href='#ID'>ID</a></h2>
+<p class="Pp">Devuelve el ID único de la rueda.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Name'><a class='permalink' href='#Name'>Name</a></h2>
+<p class="Pp">Devuelve el nombre de la rueda.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Handle'><a class='permalink' href='#Handle'>Handle</a></h2>
+<p class="Pp">Devuelve el handle del socket asociado con la rueda.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='InputHandle'><a class='permalink' href='#InputHandle'>InputHandle</a></h2>
+<p class="Pp">Devuelve el handle de entrada del socket asociado con la rueda.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='OutputHandle'><a class='permalink' href='#OutputHandle'>OutputHandle</a></h2>
+<p class="Pp">Devuelve el handle de salida del socket asociado con la rueda.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='State'><a class='permalink' href='#State'>State</a></h2>
+<p class="Pp">Devuelve el estado actual de la rueda.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE'><a class='permalink' href='#EXAMPLE'>EJEMPLO</a></h1>
+<p class="Pp">El ejemplo de la sinopsis muestra un servidor TCP que acepta conexiones
+    de clientes y les responde con una versión rot13 de lo que escribieron.</p>
+<p class="Pp">El ejemplo incluye la creación de un socket de escucha, la aceptación de
+    conexiones, el manejo de la entrada del cliente y el envío de datos de vuelta al
+    cliente.</p>
+<p class="Pp">El ejemplo también demuestra cómo manejar errores y desconexiones.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Mark Grimes <span class="Li">&lt;mgrimes@cpan.org&gt;</span></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright (c) 2004-2010, Mark Grimes. Todos los derechos reservados.</p>
+<p class="Pp">Este módulo es libre; puedes redistribuirlo y/o modificarlo bajo los
+    mismos términos que Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">POE, POE::Wheel, POE::Component::Server::TCP.</p>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+>Los siguientes parámetros describen el punto final remoto de un socket. Determinan cómo POE::Wheel::SocketFactory llamará a la función incorporada de Perl **connect()**.
+
+RemoteAddress
+
+"RemoteAddress" especifica la dirección remota a la que debe conectarse un socket. Si está presente, POE::Wheel::SocketFactory creará un socket cliente que intentará conectarse a la "RemoteAddress". De lo contrario, si el protocolo lo justifica, la rueda creará un socket de escucha e intentará aceptar conexiones.
+
+Al igual que con la dirección de enlace, "RemoteAddress" puede ser una cadena que contenga una dirección de puntos cuádruples o un nombre de host resoluble. También puede ser una dirección de Internet empaquetada o una ruta de socket UNIX. Se empaquetará, con o sin un "RemotePort" acompañante, según sea necesario para el dominio del socket.
+
+RemotePort
+
+"RemotePort" es el puerto al que debe conectarse el socket. Es necesario para los sockets cliente "INET", ya que el punto final remoto debe contener tanto una dirección como un puerto.
+
+El puerto remoto puede ser numérico o puede ser un nombre simbólico que se encuentra en /etc/services o su equivalente para su sistema operativo.
+
+*Escuchando Conexiones*
+
+Los sockets de transmisión que no tienen un punto final remoto se consideran sockets de servidor. POE::Wheel::SocketFactory llamará a **listen()** para obtener conexiones a estos sockets, **accept()** a los nuevos clientes y enviará eventos a la aplicación con los nuevos sockets de cliente.
+
+Los parámetros del constructor de POE::Wheel::SocketFactory que comienzan con "Listen" controlan cómo se llama a la función **listen()**.
+
+ListenQueue
+
+"ListenQueue" especifica la longitud de la cola de **listen()** del socket. Por defecto es "SOMAXCONN" si se omite. Los valores de "ListenQueue" mayores que "SOMAXCONN" se recortarán a "SOMAXCONN". Las colas "ListenQueue" excesivamente grandes no son necesariamente portátiles y pueden causar errores en casos raros.
+
+*Emitiendo Eventos*
+
+POE::Wheel::SocketFactory emite un número reducido de eventos dependiendo de lo que suceda durante la configuración del socket o mientras se escuchan nuevas conexiones.
+
+Consulte "EVENTOS PÚBLICOS" para obtener más detalles.
+
+SuccessEvent
+
+"SuccessEvent" nombra el evento que se emitirá cada vez que POE::Wheel::SocketFactory cree con éxito un nuevo socket.
+
+Para sockets sin conexión, "SuccessEvent" ocurre justo después de que se crea el socket.
+
+Para conexiones de clientes, "SuccessEvent" se activa cuando la conexión se ha establecido correctamente con el punto final remoto.
+
+Los sockets de servidor emiten un "SuccessEvent" por cada cliente aceptado con éxito.
+
+FailureEvent
+
+"FailureEvent" nombra el evento que POE::Wheel::SocketFactory emitirá cuando ocurra algo malo. Generalmente representa algún tipo de error de función incorporada. Consulte "EVENTOS PÚBLICOS" para obtener detalles, ya que algunos errores son manejados internamente por esta rueda.
+
+event
+
+**event()** permite a una sesión cambiar los eventos emitidos por una rueda sin destruir y recrear la rueda. Acepta uno o más de los eventos enumerados en "EVENTOS PÚBLICOS". Los nombres de eventos indefinidos deshabilitan esos eventos.
+
+**event()** se describe con más detalle en POE::Wheel.
+
+getsockname
+
+**getsockname()** se comporta como la función incorporada del mismo nombre. Devuelve la información del punto final local para el socket de escucha encapsulado de POE::Wheel::SocketFactory.
+
+**getsockname()** permite a las aplicaciones determinar la dirección y el puerto a los que POE::Wheel::SocketFactory ha enlazado su socket de escucha.
+
+Las aplicaciones de prueba pueden usar **getsockname()** para encontrar el socket del servidor después de que POE::Wheel::SocketFactory se haya enlazado a INADDR_ANY puerto 0.
+
+Dado que no hay un evento que se dispare inmediatamente después de la creación exitosa de un socket de escucha, las aplicaciones pueden usar **getsockname()** para verificar esto.
+
+```perl
+use Socket 'unpack_sockaddr_in';
+my $listener = POE::Wheel::SocketFactory->new(
+    BindPort     => 123,
+    SuccessEvent => 'got_client',
+    FailureEvent => 'listener_failed',
+    Reuse        => 'on',
+);
+my ($port, $addr) = unpack_sockaddr_in($listener->getsockname);
+print "Socket successfully bound\n" if $port;
+```
+
+ID
+
+**ID()** devuelve el ID único de la rueda. El ID también se incluirá en cada evento que genere la rueda. Las aplicaciones pueden relacionar eventos con los objetos que los generaron.
+
+pause_accept
+
+Las aplicaciones pueden necesitar bloquear conexiones entrantes ocasionalmente. **pause_accept()** pausa el observador de eventos que activa **accept()**. Las nuevas conexiones entrantes se acumularán en la cola de **listen()** del socket hasta que la cola se desborde o la aplicación llame a **resume_accept()**.
+
+Pausar **accept()** puede limitar la carga que genera un servidor. También es útil en servidores pre-forking cuando el proceso maestro no debe aceptar conexiones en absoluto.
+
+**pause_accept()** y **resume_accept()** son más rápidos y confiables que destruir y recrear dinámicamente un objeto POE::Wheel::SocketFactory.
+
+resume_accept
+
+**resume_accept()** reanuda el observador que activa **accept()**. Consulte "pause_accept" para una discusión más detallada.
+
+EVENTOS PÚBLICOS
+
+POE::Wheel::SocketFactory emite dos eventos públicos.
+
+SuccessEvent
+
+"SuccessEvent" nombra un evento que se enviará a la sesión creadora cada vez que POE::Wheel::SocketFactory haya creado un nuevo socket. Para sockets sin conexión, es cuando se crea el socket. Para clientes que se conectan, es después de que se ha establecido la conexión. Y para servidores de escucha, "SuccessEvent" se activa después de que se acepta cada nuevo cliente.
+
+*Parámetros Comunes de SuccessEvent*
+
+En todos los casos, $_[ARG0] contiene el manejador de archivo del nuevo socket, y $_[ARG3] contiene el ID de POE::Wheel::SocketFactory. Otros parámetros varían según el dominio del socket y si está escuchando o conectándose. Consulte a continuación las diferencias.
+
+*Parámetros de SuccessEvent de INET*
+
+Para sockets INET, $_[ARG1] y $_[ARG2] contienen la dirección y el puerto remotos del socket, respectivamente. La dirección está empaquetada; consulte "inet_ntop" en Socket si se necesita una dirección legible por humanos.
+
+```perl
+sub handle_new_client {
+  my $accepted_socket = $_[ARG0];
+  my $peer_host = inet_ntop(
+    ((length($_[ARG1]) == 4) ? AF_INET : AF_INET6),
+    $_[ARG1]
+  );
+  print(
+    "Wheel $_[ARG3] accepted a connection from ",
+    "$peer_host port $peer_port\n"
+  );
+  spawn_connection_session($accepted_handle);
+}
+```
+
+*Parámetros de SuccessEvent de Cliente UNIX*
+
+Para sockets de cliente UNIX, $_[ARG1] a menudo (pero no siempre) contiene la dirección del servidor. Algunos sistemas no pueden recuperar la dirección remota de un socket UNIX. $_[ARG2] es siempre indefinido para los sockets de cliente UNIX.
+
+*Parámetros de SuccessEvent de Servidor UNIX*
+
+Según el *Perl Cookbook*, la dirección remota devuelta por **accept()** en sockets UNIX no está definida, por lo que $_[ARG1] y $_[ARG2] también están indefinidos en este caso.
+
+FailureEvent
+
+"FailureEvent" nombra el evento que se emitirá cuando ocurra un error de socket. POE::Wheel::SocketFactory maneja internamente "EAGAIN", por lo que no cuenta como un error.
+
+Los eventos "FailureEvent" incluyen los parámetros estándar de eventos de error:
+
+$_[ARG0] describe en qué parte de la creación del socket falló. A menudo contiene el nombre de una función incorporada de Perl.
+
+$_[ARG1] y $_[ARG2] describen cómo falló la operación. Contienen las versiones numéricas y de cadena de $!, respectivamente. Una aplicación no puede simplemente verificar la variable global $! ya que puede cambiar durante el despacho de eventos.
+
+Finalmente, $_[ARG3] contiene el ID de la instancia de POE::Wheel::SocketFactory que generó el evento. Consulte "ID" y "ID" en POE::Wheel para ver los usos de los IDs de rueda.
+
+Un manejador de ejemplo de FailureEvent:
+
+```perl
+sub handle_failure {
+  my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
+  warn "Wheel $wheel_id generated $operation error $errnum: $errstr\n";
+  delete $_[HEAP]{wheels}{$wheel_id}; # shut down that wheel
+}
+```
+
+VER TAMBIÉN
+
+POE::Wheel describe las operaciones básicas de todas las ruedas con más detalle. Necesitas saber esto.
+
+Socket::GetAddrInfo es necesario para el trabajo con IPv6. POE::Wheel::SocketFactory lo cargará automáticamente si está instalado. SocketDomain => AF_INET6 es necesario para activar los comportamientos de IPv6. AF_INET6 es exportado por el módulo Socket en todas las versiones de Perl 5 excepto las más antiguas. Si tu Socket no proporciona AF_INET6, intenta instalar Socket6 en su lugar.
+
+La sección SEE ALSO en POE contiene una tabla de contenido que cubre toda la distribución de POE.
+
+BUGS
+
+Muchas (si no todas) de las declaraciones croak/carp/warn/die deberían disparar "FailureEvent" en su lugar.
+
+SocketFactory solo se prueba con flujos UNIX y sockets INET que utilizan los protocolos UDP y TCP. Otros<html>
+    <head>
+        <title>POE::Wheel::SocketFactory(3pm)</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" type="text/css" href="/style.css" />
+    </head>
+    <body>
+        <main>
+            <article>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">This module should work after the module's internal configuration
+    tables are updated. Please send patches.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTHORS   &amp; COPYRIGHTS</a></h1>
+<p class="Pp">Please see POE for more information about authors and
+    contributors.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Version:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licenses:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#PUBLIC_METHODS">PUBLIC METHODS</a></li>
+        
+            <li><a href="#PUBLIC_EVENTS">PUBLIC EVENTS</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+            <li><a href="#BUGS">BUGS</a></li>
+        
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTHORS &amp; COPYRIGHTS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/POE::Wheel::SocketFactory.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/POE::Wheel::SocketFactory.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

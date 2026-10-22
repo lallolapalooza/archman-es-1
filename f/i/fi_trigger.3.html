@@ -1,0 +1,309 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>fi_trigger(3) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">fi_trigger(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/libfabric/">libfabric</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">fi_trigger(3)</td>
+    <td class="head-vol">Libfabric v2.3.1</td>
+    <td class="head-rtitle">fi_trigger(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">fi_trigger - Operaciones activadas</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>#include &lt;rdma/fi_trigger.h&gt;
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Las operaciones activadas permiten que una aplicación encole una
+    solicitud de transferencia de datos que se difiere hasta que se cumpla una
+    condición especificada. Un uso típico es enviar un mensaje solo después
+    de haber recibido todos los datos de entrada. Las operaciones activadas
+    pueden ayudar a reducir la latencia necesaria para iniciar una
+    transferencia al eliminar la necesidad de devolver el control a la
+    aplicación antes de que comience la transferencia de datos.</p>
+<p class="Pp">Un punto final debe crearse con la capacidad FI_TRIGGER para que
+    se puedan especificar operaciones activadas. Una operación activada se
+    solicita especificando el indicador FI_TRIGGER como parte de la
+    operación. Tal punto final se denomina punto final activable.</p>
+<p class="Pp">Cualquier operación de transferencia de datos es potencialmente
+    activable, sujeta a las restricciones del proveedor. Los puntos finales
+    activables se inicializan de modo que solo estén disponibles esas
+    interfaces soportadas por el proveedor que son activables.</p>
+<p class="Pp">Las operaciones activadas requieren que las aplicaciones usen
+    struct fi_triggered_context como su parámetro de contexto por operación,
+    o, si el proveedor requiere el modo FI_CONTEXT2, struct
+    fi_trigger_context2. El uso de struct fi_triggered_context[2] reemplaza a
+    struct fi_context[2], si lo requiere el proveedor. Aunque struct
+    fi_triggered_context[2] no es opaca para la aplicación, el proveedor
+    puede modificar el contenido de la estructura una vez que ha sido
+    enviada como una operación. Esta estructura tiene requisitos similares a
+    los de struct fi_context[2]. Debe ser asignada por la aplicación y
+    permanecer válida hasta que la operación correspondiente se complete o se
+    cancele con éxito.</p>
+<p class="Pp">Struct fi_triggered_context[2] se usa para especificar la condición
+    que debe cumplirse antes de que se inicie la transferencia de datos
+    activada. Si la condición se cumple cuando se realiza la solicitud, la
+    transferencia de datos puede iniciarse de inmediato. El formato de struct
+    fi_triggered_context[2] se describe a continuación.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>struct fi_triggered_context {
+    enum fi_trigger_event event_type;   /* tipo de activación */
+    union {
+        struct fi_trigger_threshold threshold;
+        struct fi_trigger_xpu xpu;
+        void *internal[3]; /* reservado */
+    } trigger;
+};
+struct fi_triggered_context2 {
+    enum fi_trigger_event event_type;   /* tipo de activación */
+    union {
+        struct fi_trigger_threshold threshold;
+        struct fi_trigger_xpu xpu;
+        void *internal[7]; /* reservado */
+    } trigger;
+};
+</pre>
+  </dd>
+</dl>
+<p class="Pp">El contexto activado indica el tipo de evento asignado a la
+    activación, junto con una unión de detalles de activación basada en el
+    tipo de evento.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COMPLETION_BASED_TRIGGERS'><a class='permalink' href='#COMPLETION_BASED_TRIGGERS'>ACTIVACIONES BASADAS EN LA FINALIZACIÓN</a></h1>
+<p class="Pp">Las activaciones basadas en la finalización difieren una
+    transferencia de datos hasta que una o más transferencias de datos
+    relacionadas se completen. Por ejemplo, una operación de envío puede
+    diferirse hasta que se complete una operación de recepción, lo que
+    indica que los datos a transferir ya están disponibles.</p>
+<p class="Pp">Se define el siguiente evento de activación relacionado con las
+    transferencias basadas en la finalización.</p>
+<dl class="Bl-tag">
+  <dt id="FI_TRIGGER_THRESHOLD"><a class="permalink" href="#FI_TRIGGER_THRESHOLD"><i>FI_TRIGGER_THRESHOLD</i></a></dt>
+  <dd>Esto indica que la operación de transferencia de datos se diferirá
+      hasta que un contador de eventos cruce un valor de umbral especificado
+      por la aplicación. El umbral se especifica usando struct
+      fi_trigger_threshold:</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>struct fi_trigger_threshold {
+    struct fid_cntr *cntr; /* contador de eventos a comprobar */
+    size_t threshold;      /* valor de umbral */
+};
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Las operaciones de umbral se activan en el orden de los valores
+    de umbral. Esto es cierto incluso si el contador se incrementa en un
+    valor mayor que 1. Si dos operaciones activadas tienen el mismo umbral,
+    se activarán en el orden en que fueron enviadas al punto final.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEFERRED_WORK_QUEUES'><a class='permalink' href='#DEFERRED_WORK_QUEUES'>COLAS DE TRABAJO DIFERIDAS</a></h1>
+<p class="Pp">La siguiente característica y descripción son mejoras al soporte
+    de operaciones activadas.</p>
+<p class="Pp">La interfaz de cola de trabajo diferida está diseñada como
+    constructos primitivos que pueden usarse para implementar operaciones
+    colectivas a nivel de aplicación. Son una forma más avanzada de operación
+    activada. Permiten que una aplicación encole operaciones en una cola de
+    trabajo diferida que está asociada con el dominio. Nótese que la cola de
+    trabajo diferida es un constructo conceptual, más que un requisito de
+    implementación. Las solicitudes de trabajo diferidas consisten en tres
+    componentes principales: un evento o condición que debe cumplirse
+    primero, una operación a realizar y una notificación de finalización.</p>
+<p class="Pp">Debido a que las solicitudes de trabajo diferidas se envían
+    directamente al dominio, pueden soportar un conjunto más amplio de
+    condiciones y operaciones. Las solicitudes de trabajo diferidas se
+    envían usando struct fi_deferred_work. Esa estructura, junto con las
+    estructuras de operación correspondientes (referenciadas a través de la
+    unión op) usadas para describir el trabajo, deben permanecer válidas
+    hasta que la operación se complete o se cancele. El formato de la
+    solicitud de trabajo diferida es el siguiente:</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>struct fi_deferred_work {
+    struct fi_context2    context;
+    uint64_t              threshold;
+    struct fid_cntr       *triggering_cntr;
+    struct fid_cntr       *completion_cntr;
+    enum fi_trigger_op    op_type;
+    union {
+        struct fi_op_msg            *msg;
+        struct fi_op_tagged         *tagged;
+        struct fi_op_rma            *rma;
+        struct fi_op_atomic         *atomic;
+        struct fi_op_fetch_atomic   *fetch_atomic;
+        struct fi_op_compare_atomic *compare_atomic;
+        struct fi_op_cntr           *cntr;
+    } op;
+};
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Una vez que una solicitud de trabajo ha sido enviada a la cola de
+    trabajo diferida, permanecerá en la cola hasta que el contador de
+    activación (valores de contador de éxito más error) haya alcanzado el
+    umbral indicado. Si la condición de activación ya se ha cumplido en el
+    momento en que la solicitud de trabajo se encola, la operación se
+    iniciará de inmediato.</p>
+<p class="Pp">Al finalizarse una transferencia de datos diferida, el contador de
+    finalización especificado se incrementará en uno. Nótese que las
+    operaciones de contador diferidas no actualizan el contador de
+    finalización; solo se modifica el contador especificado a través de
+    fi_op_cntr. El campo completion_cntr debe ser NULL para las operaciones
+    de contador.</p>
+<p class="Pp">Debido a que el trabajo diferido está dirigido al soporte de
+    operaciones de comunicación colectiva, las solicitudes de trabajo
+    enviadas no generan ninguna finalización en el punto final de forma
+    predeterminada. Por ejemplo, las operaciones completadas no se escriben
+    en la cola de finalización del PE ni actualizan el contador del PE (a
+    menos que el contador del PE se referencie explícitamente como
+    completion_cntr). Una aplicación puede solicitar finalizaciones del PE
+    especificando el indicador FI_COMPLETION como parte de la operación.</p>
+<p class="Pp">Es responsabilidad de la aplicación detectar y manejar las
+    situaciones que ocurran y que podrían resultar en que la condición de una
+    solicitud de trabajo diferida no se cumpla. Por ejemplo, si una solicitud
+    de trabajo depende de la finalización exitosa de una operación de
+    transferencia de datos, la cual falla, entonces la aplicación debe
+    cancelar la solicitud de trabajo.</p>
+<p class="Pp">Para enviar una solicitud de trabajo diferida, las aplicaciones
+    deben usar la función fi_control del dominio con el comando FI_QUEUE_WORK
+    y struct fi_deferred_work como el parámetro arg de fi_control. Para
+    cancelar una solicitud de trabajo diferida, use fi_control con el comando
+    FI_CANCEL_WORK y la struct fi_deferred_work correspondiente a cancelar.
+    El comando de fi_control FI_FLUSH_WORK cancelará todas las solicitudes de
+    trabajo encoladas. FI_FLUSH_WORK puede usarse para vaciar todo el trabajo
+    encolado en el dominio, o puede usarse para cancelar todas las
+    solicitudes que esperan en un triggering_cntr específico.</p>
+<p class="Pp">El proveedor no actúa sobre las solicitudes de trabajo diferidas
+    hasta que el evento asociado haya ocurrido; aunque, ciertas comprobaciones
+    de validación pueden producirse aún cuando se envía una solicitud. Los
+    búferes de datos referenciados no se leen ni se accede a ellos de otra
+    manera. Pero el proveedor puede validar objetos de la red, como puntos
+    finales y contadores, y que los parámetros de entrada estén dentro de los
+    rangos soportados. Si el proveedor no soporta una solicitud específica,
+    fallará la operación con -FI_ENOSYS.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<p class="Pp">fi_getinfo(3), fi_endpoint(3), fi_mr(3), fi_alias(3),
+  fi_cntr(3)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORES</a></h1>
+<p class="Pp">OpenFabrics.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-12-10</td>
+    <td class="foot-os">Manual del Programador de Libfabric</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/libfabric/">extra/lib</a></dd>fabric
+        <dt>Vers</dt>ión:
+        <dd>2.</dd>3.1-1
+        <dt>Orig</dt>en:
+        <dd><a href="https://ofiwg.github.io/libfabric/">https://ofiwg.github.</a></dd>io/libfabric/
+        <dt>Licen</dt>cias:
+        <dd>BSD-2-Clause OR GPL-2.</dd>0-or-later
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/libfabric/">/listi</a></dd>ng/ext</dl>ra/libf</section>abric/
+
+<details>
+    <summary>Índic</summary>e
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#COMPLETION_BASED_TRIGGERS">DISPARADORES BASADOS </a></li>EN COMPLETADO
+        
+            <li><a href="#DEFERRED_WORK_QUEUES">COLAS DE </a></li>TRABAJO DIFERIDAS
+        
+            <li><a href="#SEE_ALSO">VÉASE </a></li>TAMBIÉN
+        
+            <li><a href="#AUTHORS">A</a></li>UTO</ul>R</nav>E</details>S
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/fi_trigger.3.en.txt">t</a>xt, 
+        
+            <a href="/man/fi_trigger.3.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia
+               GPL-3.0</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> de Arch Linux correspondiente.

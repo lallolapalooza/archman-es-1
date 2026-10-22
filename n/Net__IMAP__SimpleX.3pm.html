@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::IMAP::SimpleX(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__IMAP__SimpleX(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-net-imap-simple/">perl-net-imap-simple</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Net::IMAP::SimpleX(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Net::IMAP::SimpleX(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Net::IMAP::SimpleX - Complementos para Net::IMAP::Simple</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SINOPSIS"><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>use strict;
+use warnings;
+use Net::IMAP::SimpleX;</pre>
+<p class="Pp">Net::IMAP::SimpleX utiliza Net::IMAP::Simple como base, por lo que la creación del objeto es la misma que para el antecesor:</p>
+<pre>my $imap = Net::IMAP::SimpleX-&gt;new('imap.example.com') ||
+   die &quot;No se pudo conectar a IMAP: $Net::IMAP::Simple::errstr\n&quot;;
+$imap-&gt;select(&quot;INBOX&quot;);</pre>
+<p class="Pp">Net::IMAP::SimpleX es una colección de métodos útiles que no son simples, requieren Parse::RecDescent o son experimentales.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCIÓN"><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo añade algunas extensiones útiles, aunque no tan simples, sobre Net::IMAP::Simple.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MÉTODOS"><a class='permalink' href='#MÉTODOS'>MÉTODOS</a></h1>
+<dl class="Bl-tag">
+  <dt id="new"><a class="permalink" href="#new">new</a></dt>
+  <dd>Para obtener detalles sobre la invocación, lee Net::IMAP::Simple.</dd>
+  <dt id="body_summary"><a class="permalink" href="#body_summary">body_summary</a></dt>
+  <dd>Las invocaciones típicas tendrán esta forma general.
+        <pre># obtener una representación de objeto del cuerpo del mensaje
+my $summary = $imap-&gt;body_summary($message_number);
+# mensaje multipart
+if ($summary-&gt;has_parts) {
+    for my $subpart ($summary-&gt;parts) {
+        if ($subpart-&gt;has_parts) { ... }
+        # examinar la parte del mensaje
+        my @attr = map { $subpart-&gt;$_ } qw/content_type encoding encoded_size/;
+        # obtener el cuerpo sin procesar de la parte
+        my $subpart_body = $imap-&gt;get($message_number, $subpart-&gt;part_number);
+    }
+} else {
+    my $body = $summary-&gt;body;
+    my @attr = map { $body-&gt;$_ } qw/content_type encoding encoded_size/
+}
+</pre>
+    <p class="Pp">Este método devuelve un objeto simple que contiene una representación del cuerpo de un mensaje. El objeto se construye mediante un analizador Parse::RecDescent utilizando la salida de un comando IMAP <i>fetch body</i>. El analizador utiliza la sintaxis formal definida por RFC3501
+        <a href='http://tools.ietf.org/html/rfc3501#section-9'>http://tools.ietf.org/html/rfc3501#section-9</a>.</p>
+        <pre>my $body = $summary-&gt;body;
+my @attr = map { $body-&gt;$_ } qw/
+    content_description
+    encoded_size
+    charset
+    content_type
+    part_number
+    format
+    id
+    encoding
+/;
+</pre>
+    <p class="Pp">Para mensajes multipart, el objeto contiene subobjetos para cada parte del mensaje, accesibles a través del método <b>parts()</b> e inspeccionados a través del método <b>has_parts()</b>. El método type describe el tipo de multipart (como mixed o alternative). El método parts devuelve una lista de subpartes, que a su vez pueden tener subpartes, y así sucesivamente.</p>
+    <p class="Pp">Un ejemplo de mensaje alternativo multipart con un cuerpo de texto y una versión HTML del cuerpo sería algo como:</p>
+        <pre>if ($summary-&gt;has_parts) {
+    if ($summary-&gt;type eq 'alternative') {
+        my ($html) = grep { $_-&gt;content_type eq 'text/html' } $summary-&gt;parts;
+    }
+}
+</pre>
+    <p class="Pp">Un mensaje multipart muy complejo podría verse así:</p>
+        <pre>if ($summary-&gt;has_parts &amp;&amp; $summary-&gt;type eq 'mixed') {
+    for my $part ($summary-&gt;parts) {
+        if ($part-&gt;has_parts &amp;&amp; $part-&gt;type eq 'mixed') { ... }
+        ...
+    }
+}
+</pre>
+  </dd>
+  <dt id="fetch"><a class="permalink" href="#fetch">fetch</a></dt>
+  <dd>El comando fetch devuelve las diversas partes de los mensajes que los usuarios solicitan. Es bastante complicado (siguiendo RFC3501 usando una gramática/analizador), pero hay algunos patrones básicos que sigue.
+        <pre>my $res  =$imap-&gt;fetch('30:32' =&gt; 'UID BODY.PEEK[HEADER.FIELDS (DATE)] FLAGS')
+# $res = {
+#   30 =&gt; {
+#           &quot;BODY[HEADER.FIELDS (DATE)]&quot; =&gt; &quot;Date: Sun, 18 Jul 2010 20:54:48 -0400\r\n\r\n&quot;,
+#           &quot;FLAGS&quot; =&gt; [&quot;\\Flagged&quot;, &quot;\\Seen&quot;],
+#           &quot;UID&quot; =&gt; 58890,
+#         },
+#   31 =&gt; {
+#           &quot;BODY[HEADER.FIELDS (DATE)]&quot; =&gt; &quot;Date: Wed, 21 Jul 2010 09:09:04 -0400\r\n\r\n&quot;,
+#           &quot;FLAGS&quot; =&gt; [&quot;\\Seen&quot;],
+#           &quot;UID&quot; =&gt; 58891,
+#         },
+#   32 =&gt; {
+#           &quot;BODY[HEADER.FIELDS (DATE)]&quot; =&gt; &quot;Date: Sat, 24 Jul 2010 05:12:06 -0700\r\n\r\n&quot;,
+#           &quot;FLAGS&quot; =&gt; [&quot;\\Seen&quot;],
+#           &quot;UID&quot; =&gt; 58892,
+#         },
+# }
+</pre>
+    <p class="Pp">Las llamadas listas &quot;entre paréntesis&quot; se devolverán como una matriz (ver <span class="Li">&quot;FLAGS&quot;</span>), pero casi todo lo demás se devolverá como cadenas. Esto incluye las consultas entre paréntesis. Toma <span class="Li">&quot;BODY.PEAK[HEADER.FIELDS (DATE FROM
+        SUBJECT)]&quot;</span>), por ejemplo. El resultado se devolvería como las líneas de encabezado RFC822 (como ha hecho la anterior <span class="Li">&quot;Date:
+        Sun,</span> <span class="Li">...&quot;</span>).</p>
+    <p class="Pp">Para obtener más información sobre los diferentes tipos de consultas, consulta RFC3501. Hay un número sorprendente de cosas que se pueden consultar.</p>
+  </dd>
+  <dt id="uidfetch"><a class="permalink" href="#uidfetch">uidfetch</a></dt>
+  <dd>Esto es más o menos lo mismo que el método <span class="Li">fetch()</span> anterior, pero la consulta se ejecuta sobre UIDs en lugar de números de secuencia. Sin embargo, las claves de <span class="Li">$res</span> son los números de secuencia.
+        <pre>my $res  =$imap-&gt;fetch('58890' =&gt; 'UID BODY.PEEK[HEADER.FIELDS (DATE)] FLAGS')
+# $res = {
+#   30 =&gt; {
+#           &quot;BODY[HEADER.FIELDS (DATE)]&quot; =&gt; &quot;Date: Sun, 18 Jul 2010 20:54:48 -0400\r\n\r\n&quot;,
+#           &quot;FLAGS&quot; =&gt; [&quot;\\Flagged&quot;, &quot;\\Seen&quot;],
+#           &quot;UID&quot; =&gt; 58890,
+#         },
+#   ...
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTOR"><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<dl class="Bl-tag">
+  <dt id="INITIAL"><a class="permalink" href="#INITIAL">AUTOR INICIAL</a></dt>
+  <dd>Jason Woodward
+      <span class="Li">&quot;&lt;woodwardj@jaos.org&gt;&quot;</span></dd>
+  <dt id="ADDITIONAL"><a class="permalink" href="#ADDITIONAL">CONTRIBUCIONES ADICIONALES</a></dt>
+  <dd>Paul Miller <span class="Li">&quot;&lt;jettero@cpan.org&gt;&quot;</span>
+      [<b><i>fetch()</i></b><i></i>]</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="COPYRIGHT"><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright (c) 2010 Jason Woodward</p>
+<p class="Pp">Todos los derechos reservados. Este programa es software libre; puede redistribuirlo y/o modificarlo bajo los mismos términos que Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="LICENCIA"><a class='permalink' href='#LICENCIA'>LICENCIA</a></h1>
+<p class="Pp">Este módulo es software libre. Puede redistribuirlo y/o modificarlo bajo los términos de la Licencia Artística 2.0.</p>
+<p class="Pp">Este programa se distribuye con la esperanza de que sea útil, pero sin ninguna garantía; sin siquiera la garantía implícita de comerciabilidad o idoneidad para un propósito particular.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="ERRORES"><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<p class="Pp"><a href='https://rt.cpan.org/Dist/Display.html?Queue=Net-IMAP-Simple'>https://rt.cpan.org/Dist/Display.html?Queue=Net-IMAP-Simple</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="VER_TAMBIÉN"><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp">perl, Net::IMAP::Simple, Parse::RecDescent</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-net-imap-simple/">extra/perl-net-imap-simple</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.2212-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Net-IMAP-Simple/">https://search.cpan.org/dist/Net-IMAP-Simple/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-net-imap-simple/">/listing/extra/perl-net-imap-simple/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#MÉTODOS">MÉTODOS</a></li>
+        
+            <li><a href="#AUTOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+        
+            <li><a href="#LICENCIA">LICENCIA</a></li>
+        
+            <li><a href="#ERRORES">ERRORES</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+            </aside>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::IMAP::SimpleX(3pm)</title>
+        <link rel="stylesheet" href="/css/style.css">
+        <link rel="stylesheet" href="/css/man.css">
+    </head>
+    <body>
+        
+        <main>
+            <aside>
+                <details>
+    <summary>Tabla de contenidos</summary>
+    <nav>
+        <ul>
+            <li><a href="#NAME">NOMBRE</a></li>
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+            <li><a href="#METHODS">MÉTODOS</a></li>
+            <li><a href="#BUGS">BUGS</a></li>
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        </ul>
+    </nav>
+</details>
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Net::IMAP::SimpleX.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Net::IMAP::SimpleX.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+            <article>
+                <section id="NAME">
+                    <h2>NOMBRE</h2>
+                    <p>Net::IMAP::SimpleX - Interfaz Perl para IMAP</p>
+                </section>
+
+                <section id="SYNOPSIS">
+                    <h2>SINOPSIS</h2>
+                    <pre><code>use Net::IMAP::SimpleX;
+
+my $imap = Net::IMAP::SimpleX->new(
+    host =&gt; 'imap.example.com',
+    port =&gt; 993,
+    ssl  =&gt; 1,
+);
+
+$imap-&gt;login('username', 'password');
+
+my @folders = $imap-&gt;folders;
+
+foreach my $folder (@folders) {
+    $imap-&gt;select($folder);
+    my @messages = $imap-&gt;search();
+    foreach my $message_id (@messages) {
+        my $headers = $imap-&gt;fetch_headers($message_id);
+        print "Subject: ", $headers-&gt;{subject}, "\n";
+    }
+}
+
+$imap-&gt;logout;</code></pre>
+                </section>
+
+                <section id="DESCRIPTION">
+                    <h2>DESCRIPCIÓN</h2>
+                    <p>Net::IMAP::SimpleX proporciona una interfaz sencilla para interactuar con servidores IMAP. Permite conectarse, iniciar sesión, listar carpetas, seleccionar carpetas, buscar mensajes, recuperar cabeceras y cerrar la conexión.</p>
+                </section>
+
+                <section id="METHODS">
+                    <h2>MÉTODOS</h2>
+                    <p>Los métodos disponibles incluyen:</p>
+                    <ul>
+                        <li><code>new()</code>: Crea una nueva instancia de Net::IMAP::SimpleX. Acepta argumentos como <code>host</code>, <code>port</code> y <code>ssl</code>.</li>
+                        <li><code>login()</code>: Inicia sesión en el servidor IMAP con el nombre de usuario y la contraseña proporcionados.</li>
+                        <li><code>folders()</code>: Devuelve una lista de las carpetas disponibles en el servidor.</li>
+                        <li><code>select()</code>: Selecciona una carpeta específica para su posterior manipulación.</li>
+                        <li><code>search()</code>: Busca mensajes en la carpeta seleccionada. Puede aceptar criterios de búsqueda.</li>
+                        <li><code>fetch_headers()</code>: Recupera las cabeceras de un mensaje específico.</li>
+                        <li><code>logout()</code>: Cierra la sesión y la conexión con el servidor IMAP.</li>
+                    </ul>
+                </section>
+
+                <section id="BUGS">
+                    <h2>BUGS</h2>
+                    <p>Por favor, informe de cualquier error a través del sistema de seguimiento de errores de Arch Linux.</p>
+                </section>
+
+                <section id="SEE_ALSO">
+                    <h2>VER TAMBIÉN</h2>
+                    <p><code>Net::IMAP::Simple(3pm)</code>, <code>Net::IMAP::Client(3pm)</code></p>
+                </section>
+            </article>
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto los contenidos de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

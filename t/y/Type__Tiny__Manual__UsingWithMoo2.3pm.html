@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Type::Tiny::Manual::UsingWithMoo2(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Type__Tiny__Manual__UsingWithMoo2(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Type::Tiny::Manual::UsingWithMoo2(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Type::Tiny::Manual::UsingWithMoo2(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Type::Tiny::Manual::UsingWithMoo2 - uso avanzado de Type::Tiny con Moo</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MANUAL"><a class='permalink' href='#MANUAL'>MANUAL</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="¿Qué_es_un_Tipo?"><a class='permalink' href='#¿Qué_es_un_Tipo?'>¿Qué es un Tipo?</a></h2>
+<p class="Pp">Hasta ahora, todos los ejemplos te han mostrado cómo trabajar con tipos,
+    pero no hemos visto qué es realmente un tipo.</p>
+<pre>use Types::Standard qw( Int );
+my $type = Int;</pre>
+<p class="Pp"><span class="Li">&quot;Int&quot;</span> en el código anterior es
+    simplemente una función llamada con cero argumentos que devuelve un objeto Perl
+    bendecido. Es este objeto el que define qué es el tipo <b>Int</b> y es
+    responsable de verificar que los valores cumplan su definición.</p>
+<pre>use Types::Standard qw( HashRef Int );
+my $type = HashRef[Int];</pre>
+<p class="Pp">La función <span class="Li">&quot;HashRef&quot;</span>, si se llama
+    sin parámetros, devuelve el objeto que define el tipo <b>HashRef</b>, al igual
+    que la función <span class="Li">&quot;Int&quot;</span> lo hizo antes. Pero la
+    diferencia aquí es que se llama con un parámetro, un arrayref que contiene el
+    objeto de tipo <b>Int</b>. Lo utiliza para crear el tipo
+    <b>HashRef[Int]</b> y lo devuelve.</p>
+<p class="Pp">Como cualquier objeto, puedes llamar a métodos sobre él. Los métodos
+    más importantes que debes conocer son:</p>
+<pre># comprueba el valor y devuelve un booleano
+#
+$type-&gt;check($value);
+
+# devuelve un mensaje de error sobre que $value falla la comprobación del tipo
+# pero en realidad no comprueba el valor
+#
+$type-&gt;get_message($value);
+
+# transforma el valor
+#
+my $coerced = $type-&gt;coerce($value);</pre>
+<p class="Pp">Ya hemos visto algunos otros métodos antes en el tutorial.</p>
+<pre># crea un nuevo tipo, igual que el tipo antiguo, pero que tiene transformaciones
+#
+my $new_type = $type-&gt;plus_coercions( ... );
+
+# sintaxis diferente para tipos parametrizados
+#
+my $href = HashRef;
+my $int = Int;
+my $href_of_int = $href-&gt;of($int);</pre>
+<p class="Pp">Así que ahora deberías entender esto:</p>
+<pre>use Types::Standard qw( ArrayRef Dict Optional );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+my $RaceInfo = Dict[
+  year    =&gt; PositiveInt,
+  race    =&gt; NonEmptyStr,
+  jockey  =&gt; Optional[NonEmptyStr],
+];
+
+has latest_event  =&gt; ( is =&gt; 'rw', isa =&gt; $RaceInfo );
+has wins          =&gt; ( is =&gt; 'rw', isa =&gt; ArrayRef[$RaceInfo] );
+has losses        =&gt; ( is =&gt; 'rw', isa =&gt; ArrayRef[$RaceInfo] );</pre>
+<p class="Pp">Esto puede ayudarte a evitar la repetición si tienes un tipo
+    parametrizado complejo que necesitas reutilizar varias veces.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="&quot;where&quot;"><a class='permalink' href='#&quot;where&quot;'>&quot;where&quot;</a></h2>
+<p class="Pp">Uno de los métodos más útiles que puedes llamar en un objeto de tipo
+    es <span class="Li">&quot;where&quot;</span>.</p>
+<pre>use Types::Standard qw( Int );
+
+has lucky_number =&gt; (
+  is   =&gt; 'ro',
+  isa  =&gt; Int-&gt;where(sub { $_ != 13 }),
+);</pre>
+<p class="Pp">Creo que ya entiendes lo que hace. Crea una nueva restricción de tipo
+    sobre la marcha, limitando el tipo original.</p>
+<p class="Pp">Al igual que con las transformaciones, estas restricciones se pueden
+    expresar como un coderef o como una cadena de código Perl, operando sobre la
+    variable <span class="Li">$_</span>. Y al igual que con las
+    transformaciones, usar una cadena de código dará como resultado un mejor
+    rendimiento.</p>
+<pre>use Types::Standard qw( Int );
+
+has lucky_number =&gt; (
+  is   =&gt; 'ro',
+  isa  =&gt; Int-&gt;where(q{ $_ != 13 }),
+);</pre>
+<p class="Pp">Vamos a transformar un hashref de cadenas a partir de un arrayref
+    de cadenas de tamaño par:</p>
+<pre>use Types::Standard qw( HashRef ArrayRef Str );
+
+has stringhash =&gt; (
+  is   =&gt; 'ro',
+  isa  =&gt; HashRef-&gt;of(Str)-&gt;plus_coercions(
+    ArrayRef-&gt;of(Str)-&gt;where(q{ @$_ % 2 == 0 }), q{
+      my %h = @$_;
+      \%h;
+    },
+  ),
+  coerce =&gt; 1,  # ¡nunca lo olvides!
+);</pre>
+<p class="Pp">Si entiendes eso, realmente estás en la clase avanzada. ¡Felicitaciones!</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Uniones"><a class='permalink' href='#Uniones'>Uniones</a></h2>
+<p class="Pp">A veces quieres aceptar una cosa u otra. Esto es bastante fácil con
+    Type::Tiny.</p>
+<pre>use Types::Standard qw( HashRef ArrayRef Str );
+
+has strings =&gt; (
+  is    =&gt; 'ro',
+  isa   =&gt; ArrayRef[Str] | HashRef[Str],
+);</pre>
+<p class="Pp">Type::Tiny sobrecarga el operador OR bit a bit, por lo que cosas como
+    esta deberían funcionar &quot;simplemente&quot;.</p>
+<p class="Pp">Dicho esto, ahora cualquier código que llame a
+    <span class="Li">&quot;$self-&gt;strings&quot;</span> probablemente necesitará
+    verificar si el valor es un arrayref o un hashref antes de hacer nada con él.
+    Así que puede ser más simple en general si simplemente eliges una de las
+    opciones y transformas la otra en ella.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Intersecciones"><a class='permalink' href='#Intersecciones'>Intersecciones</a></h2>
+<p class="Pp">Similar a una unión es una intersección.</p>
+<pre>package MyAPI::Client {
+  use Moo;
+  use Types::Standard qw( HasMethods InstanceOf );
+
+  has ua =&gt; (
+    is    =&gt; 'ro',
+    isa   =&gt; (InstanceOf[&quot;MyUA&quot;]) &amp; (HasMethods[&quot;store_cookie&quot;]),
+  );
+}</pre>
+<p class="Pp">Aquí estamos comprobando que la UA es una instancia de la clase MyUA
+    y también ofrece el método <span class="Li">&quot;store_cookie&quot;</span>.
+    Quizás <span class="Li">&quot;store_cookie&quot;</span> no es proporcionado por
+    la propia clase MyUA, sino por varias subclases de MyUA.</p>
+<p class="Pp">Las intersecciones no son tan útiles como las uniones. Esto se debe a
+    que a menudo no tienen sentido. <span class="Li">&quot;(ArrayRef) &amp;
+    (HashRef)&quot;</span> sería una referencia que apuntaría simultáneamente a
+    un array y a un hash, lo cual es imposible.</p>
+<p class="Pp">Ten en cuenta que al usar intersecciones, es una buena práctica
+    poner paréntesis alrededor de cada tipo. Esto es para desambiguar el significado
+    de <span class="Li">&quot;&amp;&quot;</span> para Perl, porque Perl lo usa
+    como operador AND bit a bit, pero también como sigilo para las subrutinas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Complementos"><a class='permalink' href='#Complementos'>Complementos</a></h2>
+<p class="Pp">Para cualquier tipo <b>Foo</b> existe un tipo complementario
+    <b>~Foo</b> (pronunciado &quot;no Foo&quot;).</p>
+<pre>package My::Class {
+  use Moo;
+  use Types::Standard qw( ArrayRef CodeRef );
+
+  has things =&gt; ( is =&gt; 'ro', isa =&gt; ArrayRef[~CodeRef] );
+}</pre>
+<p class="Pp"><span class="Li">&quot;things&quot;</span> es ahora un arrayref de
+    cualquier cosa excepto coderefs.</p>
+<p class="Pp">Si necesitas un número que <i>no</i> sea un entero:</p>
+<pre>Num &amp; ~Int</pre>
+<p class="Pp">Types::Standard incluye dos tipos que son complementarios entre
+    sí: <b>Undef</b> y <b>Defined</b>.</p>
+<p class="Pp"><b>NegativeInt</b> podría parecer el complemento de
+    <b>PositiveOrZeroInt</b>, pero cuando lo piensas, no lo es. Hay valores que caen
+    en ninguna de las categorías, como no enteros, cadenas no numéricas,
+    referencias, undef, etc.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="&quot;stringifies_to&quot;_y_&quot;numifies_to&quot;"><a class='permalink' href='#&quot;stringifies_to&quot;_y_&quot;numifies_to&quot;'>&quot;stringifies_to&quot;   y &quot;numifies_to&quot;</a></h2>
+<p class="Pp">La restricción de tipo <b>Object</b> proporciona los métodos
+    <span class="Li">&quot;stringifies_to&quot;</span> y
+    <span class="Li">&quot;numifies_to&quot;</span> que probablemente se explican
+    mejor con ejemplos.</p>
+<p class="Pp"><span class="Li">&quot;Object-&gt;numifies_to(Int)&quot;</span>
+    significa cualquier objeto donde <span class="Li">&quot;0 + $object&quot;</span>
+    es un entero.</p>
+<p class="Pp"><span class="Li">&quot;Object-&gt;stringifies_to(StrMatch[$re])&quot;</span>
+    significa cualquier objeto donde <span class="Li">&quot;$object&quot;</span>
+    coincide con la expresión regular.</p>
+<p class="Pp"><span class="Li">&quot;Object-&gt;stringifies_to($re)&quot;</span>
+    también funciona como un atajo.</p>
+<p class="Pp"><span class="Li">&quot;Object-&gt;numifies_to($coderef)&quot;</span>
+    y <span class="Li">&quot;Object-&gt;stringifies_to($coderef)&quot;</span>
+    también funcionan, donde el coderef comprueba <span class="Li">$_</span> y
+    devuelve un booleano.</p>
+<p class="Pp">Otros tipos que también son lógicamente objetos, como
+    <b>HasMethods</b> parametrizado, <b>InstanceOf</b> y <b>ConsumerOf</b>,
+    también deberían proporcionar métodos
+    <span class="Li">&quot;stringifies_to&quot;</span> y
+    <span class="Li">&quot;numifies_to&quot;</span>.</p>
+<p class="Pp"><span class="Li">&quot;stringifies_to&quot;</span> y
+    <span class="Li">&quot;numifies_to&quot;</span> funcionan en uniones si *todos*
+    los tipos de la unión ofrecen el método.</p>
+<p class="Pp"><span class="Li">&quot;stringifies_to&quot;</span> y
+    <span class="Li">&quot;numifies_to&quot;</span> funcionan en intersecciones si
+    *al menos uno de* los tipos de la intersección ofrece el método.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="&quot;with_attribute_values&quot;"><a class='permalink' href='#&quot;with_attribute_values&quot;'>&quot;with_attribute_values&quot;</a></h2>
+<p class="Pp">Otro que probablemente se explica mejor con un ejemplo:</p>
+<pre>package Horse {
+  use Types::Standard</pre>
+</div>
+</section>
+
+            </article>
+        </main>
+    </body>
+</html>
+[
+  {
+    "header": "qw( Enum Object );",
+    "content": [
+      {
+        "type": "code",
+        "text": "has gender  => (\n    is  => 'ro',\n    isa => Enum['m', 'f'],\n  );\n  has father  => (\n    is  => 'ro',\n    isa => Object->with_attribute_values(gender => Enum['m']),\n  );\n  has mother  => (\n    is  => 'ro',\n    isa => Object->with_attribute_values(gender => Enum['f']),\n  );\n}"
+      }
+    ]
+  },
+  {
+    "header": "En este ejemplo cuando configuras el padre de un caballo, llamará a \"$father->gender\" y verificará que coincide con Enum['m'].",
+    "content": [
+      {
+        "type": "paragraph",
+        "text": "En este ejemplo cuando configuras el padre de un caballo, llamará a \"$father->gender\" y verificará que coincide con <b>Enum['m']</b>."
+      }
+    ]
+  },
+  {
+    "header": "Este método pertenece a la misma familia que \"stringifies_as\" y \"numifies_as\", por lo que, al igual que ellos, solo se aplica a <b>Object</b> y restricciones de tipo similares, puede funcionar en uniones/intersecciones bajo las mismas circunstancias y también aceptará coderefs y regexps.",
+    "content": [
+      {
+        "type": "paragraph",
+        "text": "Este método pertenece a la misma familia que \"stringifies_as\" y \"numifies_as\", por lo que, al igual que ellos, solo se aplica a <b>Object</b> y restricciones de tipo similares, puede funcionar en uniones/intersecciones bajo las mismas circunstancias y también aceptará coderefs y regexps."
+      },
+      {
+        "type": "code",
+        "text": "has father  => (\n  is  => 'ro',\n  isa => Object->with_attribute_values(gender => sub { $_ eq 'm' }),\n);\nhas mother  => (\n  is  => 'ro',\n  isa => Object->with_attribute_values(gender => qr/^f/i),\n);"
+      }
+    ]
+  },
+  {
+    "header": "Todos los \"stringifies_as\", \"numifies_as\" y \"with_attributes_as\" son en realidad envoltorios alrededor de \"where\". Los dos siguientes son aproximadamente equivalentes:",
+    "content": [
+      {
+        "type": "paragraph",
+        "text": "Todos los \"stringifies_as\", \"numifies_as\" y \"with_attributes_as\" son en realidad envoltorios alrededor de \"where\". Los dos siguientes son aproximadamente equivalentes:"
+      },
+      {
+        "type": "code",
+        "text": "my $type1 = Object->with_attribute_values(foo => Int, bar => Num);\n\nmy $type2 = Object->where(sub {\n  Int->check( $_->foo ) and Num->check( $_->bar )\n});"
+      },
+      {
+        "type": "paragraph",
+        "text": "El primero generará un código de mejor rendimiento, sin embargo."
+      }
+    ]
+  },
+  {
+    "header": "Variables Atadas",
+    "content": [
+      {
+        "type": "heading",
+        "level": 2,
+        "text": "Variables Atadas"
+      },
+      {
+        "type": "paragraph",
+        "text": "Es posible atar variables a una restricción de tipo."
+      },
+      {
+        "type": "code",
+        "text": "use Types::Standard qw( Int );\n\ntie my $n, Int, 4;\n\nprint \"$n\\n\";   # dice \"4\"\n$n = 5;         # ok\n$n = \"foo\";     # muere"
+      },
+      {
+        "type": "paragraph",
+        "text": "También puedes atar arrays:"
+      },
+      {
+        "type": "code",
+        "text": "tie my @numbers, Int;\npush @numbers, 1 .. 10;"
+      },
+      {
+        "type": "paragraph",
+        "text": "Y hashes:"
+      },
+      {
+        "type": "code",
+        "text": "tie my %numbers, Int;\n$numbers{lucky}   = 7;\n$numbers{unlucky} = 13;"
+      },
+      {
+        "type": "paragraph",
+        "text": "Anteriormente en el manual, se mencionó que existe un problema con código como este:"
+      },
+      {
+        "type": "code",
+        "text": "push $horse->children->@*, $non_horse;"
+      },
+      {
+        "type": "paragraph",
+        "text": "Esto se puede resolver usando variables atadas."
+      },
+      {
+        "type": "code",
+        "text": "tie $horse->children->@*, InstanceOf[\"Horse\"];"
+      },
+      {
+        "type": "paragraph",
+        "text": "Aquí hay un ejemplo más largo usando constructores y activadores."
+      },
+      {
+        "type": "code",
+        "text": "package Horse {\n  use Moo;\n  use Types::Standard qw( Str Num ArrayRef InstanceOf );\n  use Type::Params qw( signature_for );\n  use namespace::autoclean;\n\n  my $ThisClass = InstanceOf[ __PACKAGE__ ];\n\n  has name       => ( is => 'ro',    isa => Str );\n  has gender     => ( is => 'ro',    isa => Str );\n  has age        => ( is => 'rw',    isa => Num );\n  has children   => (\n    is        => 'rw', \n    isa       => ArrayRef[$ThisClass],\n    builder   => \"_build_children\",\n    trigger   => sub { shift->[_trigger_children(@_)] },\n  );\n\n  # ata un arrayref predeterminado \n  sub _build_children ( $self ) {\n    tie my @kids, $ThisClass;\n    \@kids;\n  }\n\n  # este método atará un arrayref proporcionado por el llamador\n  sub _trigger_children ( $self, $new ) {\n    tie $new->@*, $ThisClass;\n  }\n\n  signature_for add_child => (\n    method     => $ThisClass,\n    positional => [ $ThisClass ],\n  );\n\n  sub add_child ( $self, $kid ) {\n    push $self->children->@*, $kid;\n    return $self;\n  }\n}"
+      },
+      {
+        "type": "paragraph",
+        "text": "Ahora es prácticamente imposible que el llamador cometa un error al agregar un no-caballo como hijo."
+      },
+      {
+        "type": "paragraph",
+        "text": "(¡Nota que existe un módulo Types::Self en CPAN que definirá un tipo <b>Self</b> que significa <b>InstanceOf[ __PACKAGE__ ]</b> por ti!)"
+      }
+    ]
+  },
+  {
+    "header": "PRÓXIMOS PASOS",
+    "content": [
+      {
+        "type": "heading",
+        "level": 1,
+        "text": "PRÓXIMOS PASOS"
+      },
+      {
+        "type": "list",
+        "items": [
+          {
+            "type": "list_item",
+            "text": "Type::Tiny::Manual::UsingWithMoo3",
+            "subitems": [
+              {
+                "type": "paragraph",
+                "text": "Hay más de una forma de hacerlo. Formas alternativas de usar Type::Tiny, incluyendo registros de tipos, funciones exportadas y \"dwim_type\"."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "header": "AUTOR",
+    "content": [
+      {
+        "type": "heading",
+        "level": 1,
+        "text": "AUTOR"
+      },
+      {
+        "type": "paragraph",
+        "text": "Toby Inkster &lt;tobyink@cpan.org&gt;."
+      }
+    ]
+  },
+  {
+    "header": "COPYRIGHT Y LICENCIA",
+    "content": [
+      {
+        "type": "heading",
+        "level": 1,
+        "text": "COPYRIGHT Y LICENCIA"
+      },
+      {
+        "type": "paragraph",
+        "text": "Este software es copyright (c) 2013-2014, 2017-2025 por Toby Inkster."
+      },
+      {
+        "type": "paragraph",
+        "text": "Este es software libre; puedes redistribuirlo y/o modificarlo bajo los mismos términos que el propio sistema de programación Perl 5."
+      }
+    ]
+  },
+  {
+    "header": "DESCARGO DE RESPONSABILIDAD DE GARANTÍAS",
+    "content": [
+      {
+        "type": "heading",
+        "level": 1,
+        "text": "DESCARGO DE RESPONSABILIDAD DE GARANTÍAS"
+      },
+      {
+        "type": "paragraph",
+        "text": "ESTE PAQUETE SE PROPORCIONA \"TAL CUAL\" Y SIN NINGUNA GARANTÍA EXPRESA O IMPLÍCITA, INCLUYENDO, SIN LIMITACIÓN, LAS GARANTÍAS IMPLÍCITAS DE COMERCIABILIDAD Y ADECUACIÓN PARA UN PROPÓSITO PARTICULAR."
+      }
+    ]
+  }
+]

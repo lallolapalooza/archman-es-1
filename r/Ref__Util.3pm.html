@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ref::Util(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Ref__Util(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Ref::Util(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Ref::Util(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Ref::Util - Funciones de utilidad para comprobar referencias</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">versión 0.204</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Ref::Util qw( is_plain_arrayref is_plain_hashref );
+if ( is_plain_arrayref( $something ) ) {
+    print for @{ $something };
+} elsif ( is_plain_hashref( $something ) ) {
+    print for sort values %{ $something };
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Ref::Util introduce varias funciones para ayudar a identificar
+    referencias de una manera más <b>inteligente</b> (y generalmente más
+    rápida). En resumen:</p>
+<pre># enfoque convencional             # con Ref::Util
+ref( $foo ) eq 'ARRAY'              is_plain_arrayref( $foo )
+use Scalar::Util qw( reftype );
+reftype( $foo ) eq 'ARRAY'          is_arrayref( $foo )</pre>
+<p class="Pp">La diferencia:</p>
+<ul class="Bl-bullet">
+  <li>No hay comparación con una constante de cadena
+    <p class="Pp">Cuando llamas a <span class="Li">&quot;ref&quot;</span>,
+        convierte la referencia a cadena y luego la compara con alguna
+        constante de cadena (como <span class="Li">&quot;ARRAY&quot;</span> o
+        <span class="Li">&quot;HASH&quot;</span>). No solo es incómodo, sino
+        frágil, ya que puedes escribir mal la cadena.</p>
+    <p class="Pp">Si usas
+        <span class="Li">&quot;reftype&quot;</span> de Scalar::Util, todavía la
+        comparas como una cadena:</p>
+        <pre>if ( reftype($foo) eq 'ARRAY' ) { ... }
+</pre>
+  </li>
+  <li>Soporta variables bendecidas (blessed)
+    <p class="Pp"><b>Nota:</b> En versiones futuras, la idea es que las
+        funciones predeterminadas utilicen la variación
+        <span class="Li">&quot;plain&quot;</span>, lo que significa referencias
+        explícitamente no bendecidas.</p>
+    <p class="Pp">Si deseas comprobar explícitamente referencias
+        <b>bendecidas</b>, deberías usar las funciones
+        <span class="Li">&quot;is_blessed_*&quot;</span>. Habrá una variación
+        <span class="Li">&quot;is_any_*&quot;</span> que actuará como las
+        funciones principales actuales: sin importar si está bendecida o no.</p>
+    <p class="Pp">Al llamar a <span class="Li">&quot;ref&quot;</span>, recibes
+        el tipo de referencia (<b>SCALAR</b>, <b>ARRAY</b>, <b>HASH</b>, etc.)
+        o el paquete en el que está bendecida.</p>
+    <p class="Pp">Al llamar a <span class="Li">&quot;is_arrayref&quot;</span>
+        (y similares), compruebas las banderas de la variable, por lo que, incluso
+        si está bendecida, sabes qué tipo de variable está bendecida.</p>
+        <pre>my $foo = bless {}, 'PKG';
+ref($foo) eq 'HASH'; # falla
+use Ref::Util 'is_hashref';
+my $foo = bless {}, 'PKG';
+is_hashref($foo); # funciona
+</pre>
+    <p class="Pp">Por otro lado, en algunas situaciones podría ser mejor
+        excluir explícitamente las referencias bendecidas. El motivo podría ser
+        que el mero hecho de que un objeto esté implementado usando un hash no
+        significa que sea necesariamente correcto tratarlo como un hash. Para
+        estas situaciones, puedes usar
+        <span class="Li">&quot;is_plain_hashref&quot;</span> y similares, que
+        tienen los mismos beneficios de rendimiento que
+        <span class="Li">&quot;is_hashref&quot;</span>.</p>
+    <p class="Pp">También hay una familia de funciones con nombres como
+        <span class="Li">&quot;is_blessed_hashref&quot;</span>; estas devuelven
+        verdadero para instancias de objetos bendecidos que están implementados
+        utilizando el tipo subyacente relevante.</p>
+  </li>
+  <li>Soporta variables enlazadas (tied) y magia
+    <p class="Pp">Las variables enlazadas (usadas en Readonly, por ejemplo)
+        son compatibles.</p>
+        <pre>use Ref::Util qw&lt;is_plain_hashref&gt;;
+use Readonly;
+Readonly::Scalar my $rh2 =&gt; { a =&gt; { b =&gt; 2 } };
+is_plain_hashref($rh2); # éxito
+</pre>
+    <p class="Pp">Ref::Util añadió soporte para esto en 0.100. Antes de esta
+        versión, la prueba fallaría.</p>
+  </li>
+  <li>Ignora la sobrecarga (overloading)
+    <p class="Pp">Estas funciones ignoran los operadores sobrecargados y
+        simplemente comprueban el tipo de variable. Es probable que la
+        sobrecarga nunca sea compatible, ya que la considero problemática y
+        confusa.</p>
+    <p class="Pp">La sobrecarga hace que tus variables sean contenedores
+        opacos y oculta <b>lo que</b> son en lugar de requerir que descubras
+        <b>cómo</b> usarlas. Esto lleva a código que tiene que probar diferentes
+        habilidades (en <span class="Li">&quot;eval&quot;</span>, para que no
+        crashee) y a interfaces que evitan lo que una persona pensó que harías
+        con una variable. Esto habría estado bien, excepto que no hay una forma
+        clara de introspeccionarlo.</p>
+  </li>
+  <li>Ignora tipos sutiles:
+    <p class="Pp">Los siguientes tipos, proporcionados por
+        <span class="Li">&quot;reftype&quot;</span> de Scalar::Util, no son
+        compatibles:</p>
+  </li>
+</ul>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><span class="Li">&quot;VSTRING&quot;</span>
+    <p class="Pp">Este es un <span class="Li">&quot;PVMG&quot;</span>
+        (variable &quot;normal&quot;) con una bandera establecida para VSTRINGs.
+        Dado que no es una referencia, no es compatible.</p>
+  </li>
+  <li><span class="Li">&quot;LVALUE&quot;</span>
+    <p class="Pp">Una variable que delega a otro escalar. Dado que no es una
+        referencia, no es compatible.</p>
+  </li>
+  <li><span class="Li">&quot;INVLIST&quot;</span>
+    <p class="Pp">No pude encontrar documentación para este tipo.</p>
+  </li>
+</ul>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Se podría añadir soporte si surge una buena razón.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>Generalmente rápido
+    <p class="Pp">Cuando es posible, Ref::Util usa Ref::Util::XS como su
+        implementación. (Si no tienes un compilador C disponible, usa una
+        implementación pura de Perl que tiene todas las otras ventajas de
+        Ref::Util, pero no es tan rápida).</p>
+    <p class="Pp">De hecho, Ref::Util::XS tiene dos implementaciones alternativas
+        disponibles internamente, dependiendo de las características compatibles
+        con la versión de Perl que estés usando. Para Perls que soportan OPs
+        personalizados, realmente añadimos un OP (que es más rápido); para
+        otros Perls, la implementación simplemente llama a una función XS (que
+        sigue siendo más rápida que su equivalente en Perl puro).</p>
+    <p class="Pp">Consulta a continuación los resultados de la evaluación
+        comparativa (benchmark).</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXPORT'><a class='permalink' href='#EXPORT'>EXPORTAR</a></h1>
+<p class="Pp">Nada se exporta por defecto. Puedes solicitar subrutinas
+    específicas (descritas a continuación) o solicitar todas las subrutinas a la
+    vez:</p>
+<pre>use Ref::Util qw&lt;is_scalarref is_arrayref is_hashref ...&gt;;
+# o
+use Ref::Util ':all';</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SUBROUTINES'><a class='permalink' href='#SUBROUTINES'>SUBRUTINAS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='is_ref($ref)'><a class='permalink' href='#is_ref($ref)'>is_ref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia a cualquier cosa.</p>
+<pre>is_ref([]);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_scalarref($ref)'><a class='permalink' href='#is_scalarref($ref)'>is_scalarref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia escalar.</p>
+<pre>is_scalarref(\&quot;hello&quot;);
+is_scalarref(\30);
+is_scalarref(\$value);</pre>
+<p class="Pp">Ten en cuenta que, aunque una referencia es en sí misma un tipo
+    de valor escalar, una referencia a otra referencia no se trata como una
+    referencia escalar:</p>
+<pre>!is_scalarref(\\1);</pre>
+<p class="Pp">La justificación para esto es doble. Primero, las llamadas que
+    quieren decidir cómo manejar las entradas basándose en su tipo de
+    referencia, generalmente querrán tratar una ref-ref y una ref-escalar de
+    manera diferente. Segundo, esto se acerca más al comportamiento de la
+    función incorporada <span class="Li">&quot;ref&quot;</span> y de
+    &quot;reftype&quot; en Scalar::Util, que reportan una ref-ref como
+    <span class="Li">&quot;REF&quot;</span> en lugar de
+    <span class="Li">&quot;SCALAR&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_arrayref($ref)'><a class='permalink' href='#is_arrayref($ref)'>is_arrayref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia de array.</p>
+<pre>is_arrayref([]);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_hashref($ref)'><a class='permalink' href='#is_hashref($ref)'>is_hashref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia de hash.</p>
+<pre>is_hashref({});</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_coderef($ref)'><a class='permalink' href='#is_coderef($ref)'>is_coderef($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia de código.</p>
+<pre>is_coderef( sub {} );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_regexpref($ref)'><a class='permalink' href='#is_regexpref($ref)'>is_regexpref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia de expresión regular (regex, regexp).</p>
+<pre>is_regexpref( qr// );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_globref($ref)'><a class='permalink' href='#is_globref($ref)'>is_globref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia glob.</p>
+<pre>is_globref( \*STDIN );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_formatref($ref)'><a class='permalink' href='#is_formatref($ref)'>is_formatref($ref)</a></h2>
+<p class="Pp">Comprueba si es una referencia de formato.</p>
+<pre># configurar formato en STDOUT
+format STDOUT =
+.
+# ahora podemos probarlo
+is_formatref( *main::STDOUT{'FORMAT'} );</pre>
+<p class="Pp">Esta función no está disponible en Perl 5.6 y provocará un
+    <span class="Li"></code>
+</section>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+        <footer>
+            <script>
+            var sc_project=11573639;
+            var sc_invisible=1;
+            var sc_security="a17e7869";
+            </script>
+            <script src="https://www.statcounter.com/counter/counter.js" async></script>
+            <div class="footer">
+                <p>
+                    This page is licensed under the <a href="https://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.
+                </p>
+                <p>
+                    Arch Linux is a registered trademark of the Arch Linux community.<br />
+                    Copyright © 2002–2024 The Arch Linux community.
+                </p>
+            </div>
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Ref::Util - Utilities for checking Perl references.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSION</a></h1>
+<p class="Pp">This documentation refers to version 0.204 of Ref::Util.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>use Ref::Util qw(
+    is_io_ref
+    is_refref
+    is_plain_scalarref
+    is_plain_ref
+    is_plain_arrayref
+    is_plain_hashref
+    is_plain_coderef
+    is_plain_globref
+    is_plain_formatref
+    is_plain_refref
+    is_blessed_scalarref
+    is_blessed_ref
+    is_blessed_arrayref
+    is_blessed_hashref
+    is_blessed_coderef
+    is_blessed_globref
+    is_blessed_formatref
+    is_blessed_refref
+);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">This module provides a set of convenient subroutines for checking
+    the type and blessing status of Perl references.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXPORT'><a class='permalink' href='#EXPORT'>EXPORT</a></h1>
+<p class="Pp">All subroutines are exported by default.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SUBROUTINES'><a class='permalink' href='#SUBROUTINES'>SUBROUTINES</a></h1>
+<p class="Pp">The following subroutines are available:</p>
+<dl class="Bl-tag">
+  <dt id="is_io_ref"><a class='permalink' href='#is_io_ref'>is_io_ref($ref)</a></dt>
+  <dd>Checks if the argument is an IO reference.</dd>
+  <dt id="is_refref"><a class='permalink' href='#is_refref'>is_refref($ref)</a></dt>
+  <dd>Checks if the argument is a reference to another reference.</dd>
+  <dt id="is_plain_scalarref"><a class='permalink' href='#is_plain_scalarref'>is_plain_scalarref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed scalar reference.</dd>
+  <dt id="is_plain_ref"><a class='permalink' href='#is_plain_ref'>is_plain_ref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed reference of any type.</dd>
+  <dt id="is_plain_arrayref"><a class='permalink' href='#is_plain_arrayref'>is_plain_arrayref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed array reference.</dd>
+  <dt id="is_plain_hashref"><a class='permalink' href='#is_plain_hashref'>is_plain_hashref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed hash reference.</dd>
+  <dt id="is_plain_coderef"><a class='permalink' href='#is_plain_coderef'>is_plain_coderef($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed code reference.</dd>
+  <dt id="is_plain_globref"><a class='permalink' href='#is_plain_globref'>is_plain_globref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed glob reference.</dd>
+  <dt id="is_plain_formatref"><a class='permalink' href='#is_plain_formatref'>is_plain_formatref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed format reference.</dd>
+  <dt id="is_plain_refref"><a class='permalink' href='#is_plain_refref'>is_plain_refref($ref)</a></dt>
+  <dd>Checks if the argument is an unblessed reference to another reference.</dd>
+  <dt id="is_blessed_scalarref"><a class='permalink' href='#is_blessed_scalarref'>is_blessed_scalarref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed scalar reference.</dd>
+  <dt id="is_blessed_ref"><a class='permalink' href='#is_blessed_ref'>is_blessed_ref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed reference of any type.</dd>
+  <dt id="is_blessed_arrayref"><a class='permalink' href='#is_blessed_arrayref'>is_blessed_arrayref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed array reference.</dd>
+  <dt id="is_blessed_hashref"><a class='permalink' href='#is_blessed_hashref'>is_blessed_hashref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed hash reference.</dd>
+  <dt id="is_blessed_coderef"><a class='permalink' href='#is_blessed_coderef'>is_blessed_coderef($ref)</a></dt>
+  <dd>Checks if the argument is a blessed code reference.</dd>
+  <dt id="is_blessed_globref"><a class='permalink' href='#is_blessed_globref'>is_blessed_globref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed glob reference.</dd>
+  <dt id="is_blessed_formatref"><a class='permalink' href='#is_blessed_formatref'>is_blessed_formatref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed format reference.</dd>
+  <dt id="is_blessed_refref"><a class='permalink' href='#is_blessed_refref'>is_blessed_refref($ref)</a></dt>
+  <dd>Checks if the argument is a blessed reference to another reference.</dd>
+</dl>
+<section class="Ss">
+<h2 class="Ss" id='is_io_ref($ref)'><a class='permalink' href='#is_io_ref($ref)'>is_io_ref($ref)</a></h2>
+<p class="Pp">Check for an IO reference.</p>
+<pre>is_io_ref( *STDOUT{IO} );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_refref($ref)'><a class='permalink' href='#is_refref($ref)'>is_refref($ref)</a></h2>
+<p class="Pp">Check for a reference to a reference.</p>
+<pre>is_refref( \[] ); # reference to array reference</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_scalarref($ref)'><a class='permalink' href='#is_plain_scalarref($ref)'>is_plain_scalarref($ref)</a></h2>
+<p class="Pp">Check for an unblessed scalar reference.</p>
+<pre>is_plain_scalarref(\"hello\");
+is_plain_scalarref(\30);
+is_plain_scalarref(\$value);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_ref($ref)'><a class='permalink' href='#is_plain_ref($ref)'>is_plain_ref($ref)</a></h2>
+<p class="Pp">Check for an unblessed reference to anything.</p>
+<pre>is_plain_ref([]);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_arrayref($ref)'><a class='permalink' href='#is_plain_arrayref($ref)'>is_plain_arrayref($ref)</a></h2>
+<p class="Pp">Check for an unblessed array reference.</p>
+<pre>is_plain_arrayref([]);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_hashref($ref)'><a class='permalink' href='#is_plain_hashref($ref)'>is_plain_hashref($ref)</a></h2>
+<p class="Pp">Check for an unblessed hash reference.</p>
+<pre>is_plain_hashref({});</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_coderef($ref)'><a class='permalink' href='#is_plain_coderef($ref)'>is_plain_coderef($ref)</a></h2>
+<p class="Pp">Check for an unblessed code reference.</p>
+<pre>is_plain_coderef( sub {} );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_globref($ref)'><a class='permalink' href='#is_plain_globref($ref)'>is_plain_globref($ref)</a></h2>
+<p class="Pp">Check for an unblessed glob reference.</p>
+<pre>is_plain_globref( \*STDIN );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_formatref($ref)'><a class='permalink' href='#is_plain_formatref($ref)'>is_plain_formatref($ref)</a></h2>
+<p class="Pp">Check for an unblessed format reference.</p>
+<pre># set up format in STDOUT
+format STDOUT =
+.
+# now we can test it
+is_plain_formatref(bless *main::STDOUT{'FORMAT'} );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_plain_refref($ref)'><a class='permalink' href='#is_plain_refref($ref)'>is_plain_refref($ref)</a></h2>
+<p class="Pp">Check for an unblessed reference to a reference.</p>
+<pre>is_plain_refref( \[] ); # reference to array reference</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_scalarref($ref)'><a class='permalink' href='#is_blessed_scalarref($ref)'>is_blessed_scalarref($ref)</a></h2>
+<p class="Pp">Check for a blessed scalar reference.</p>
+<pre>is_blessed_scalarref(bless \$value);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_ref($ref)'><a class='permalink' href='#is_blessed_ref($ref)'>is_blessed_ref($ref)</a></h2>
+<p class="Pp">Check for a blessed reference to anything.</p>
+<pre>is_blessed_ref(bless [], $class);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_arrayref($ref)'><a class='permalink' href='#is_blessed_arrayref($ref)'>is_blessed_arrayref($ref)</a></h2>
+<p class="Pp">Check for a blessed array reference.</p>
+<pre>is_blessed_arrayref(bless [], $class);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_hashref($ref)'><a class='permalink' href='#is_blessed_hashref($ref)'>is_blessed_hashref($ref)</a></h2>
+<p class="Pp">Check for a blessed hash reference.</p>
+<pre>is_blessed_hashref(bless {}, $class);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_coderef($ref)'><a class='permalink' href='#is_blessed_coderef($ref)'>is_blessed_coderef($ref)</a></h2>
+<p class="Pp">Check for a blessed code reference.</p>
+<pre>is_blessed_coderef( bless sub {}, $class );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_globref($ref)'><a class='permalink' href='#is_blessed_globref($ref)'>is_blessed_globref($ref)</a></h2>
+<p class="Pp">Check for a blessed glob reference.</p>
+<pre>is_blessed_globref( bless \*STDIN, $class );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_formatref($ref)'><a class='permalink' href='#is_blessed_formatref($ref)'>is_blessed_formatref($ref)</a></h2>
+<p class="Pp">Check for a blessed format reference.</p>
+<pre># set up format for FH
+format FH =
+.
+# now we can test it
+is_blessed_formatref(bless *FH{'FORMAT'}, $class );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_blessed_refref($ref)'><a class='permalink' href='#is_blessed_refref($ref)'>is_blessed_refref($ref)</a></h2>
+<p class="Pp">Check for a blessed reference to a reference.</p>
+<pre>is_blessed_refref( bless \[], $class ); # reference to array reference</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BENCHMARKS'><a class='permalink' href='#BENCHMARKS'>BENCHMARKS</a></h1>
+<p class="Pp">Here is a benchmark comparing similar checks.</p>
+<pre>my $bench = Dumbbench-&gt;new(
+    target_rel_precision =&gt; 0.005,
+    initial_runs         =&gt; 20,
+);
+my $amount = 1e7;
+my $ref    = [];
+$bench-&gt;add_instances(
+    Dumbbench::Instance::PerlSub-&gt;new(
+        name =&gt; 'Ref::Util::is_plain_arrayref (CustomOP)',
+        code =&gt; sub {
+            Ref::Util::is_plain_arrayref($ref) for ( 1 .. $amount )
+        },
+    ),
+    Dumbbench::Instance::PerlSub-&gt;new(
+        name =&gt; 'ref(), reftype(), !blessed()',
+        code =&gt; sub {
+            ref $ref
+                &amp;&amp; Scalar::Util::reftype($ref) eq 'ARRAY'
+                &amp;&amp; !Scalar::Util::blessed($ref)
+                for ( 1 .. $amount );
+        },
+    ),
+    Dumbbench::Instance::PerlSub-&gt;new(
+        name =&gt; 'ref()',
+        code =&gt; sub { ref($ref) eq 'ARRAY' for ( 1 .. $amount ) },
+    ),
+    Dumbbench::Instance::PerlSub-&gt;new(
+        name =&gt; 'Data::Util::is_array_ref',
+        code =&gt; sub { is_array_ref($ref) for ( 1 .. $amount ) },
+    ),
+);</pre>
+<p class="Pp">The results:</p>
+<pre>ref():                                   5.335e+00 +/- 1.8e-02 (0.3%)
+ref(), reftype(), !blessed():            1.5545e+01 +/- 3.1e-02 (0.2%)
+Ref::Util::is_plain_arrayref (CustomOP): 2.7951e+00 +/- 6.2e-03 (0.2%)
+Data::Util::is_array_ref:                5.9074e+00 +/- 7.5e-03 (0.1%)</pre>
+<p class="Pp">(Rounded run time per iteration)</p>
+<p class="Pp">A benchmark against Data::Util:</p>
+<pre>Ref::Util::is_plain_arrayref: 3.47157e-01 +/- 6.8e-05 (0.0%)
+Data::Util::is_array_ref:     6.7562e-01 +/- 7.5e-04 (0.1%)</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+<ul class="Bl-bullet">
+  <li>Params::Classify</li>
+  <li>Scalar::Util</li>
+  <li>Data::Util</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THANKS'><a class='permalink' href='#THANKS'>THANKS</a></h1>
+<p class="Pp">The following people have been invaluable in their feedback and
+    support.</p>
+<ul class="Bl-bullet">
+  <li>Yves Orton</li>
+  <li>Steffen M&#x00FC;ller</li>
+  <li>Jarkko Hietaniemi</li>
+  <li>Mattia Barbon</li>
+  <li>Zefram</li>
+  <li>Tony Cook</li>
+  <li>Sergey Aleynikov</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTHORS</a></h1>
+<ul class="Bl-bullet">
+  <li>Aaron Crane</li>
+  <li>Vikentiy Fesunov</li>
+  <li>Sawyer X</li>
+  <li>Gonzalo Diethelm</li>
+  <li>p5pclub</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENSE</a></h1>
+<p class="Pp">This software is made available under the MIT Licence as stated in
+    the accompanying LICENSE file.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_2'><a class='permalink' href='#AUTHORS_2'>AUTHORS</a></h1>
+<ul class="Bl-bullet">
+  <li>Sawyer X &lt;xsawyerx@cpan.org&gt;</li>
+  <li>Aaron Crane &lt;arc@cpan.org&gt;</li>
+  <li>Vikenty Fesunov &lt;vyf@cpan.org&gt;</li>
+  <li>Gonzalo Diethelm &lt;gonzus@cpan.org&gt;</li>
+  <li>Karen Etheridge &lt;ether@cpan.org&gt;</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>COPYRIGHT   AND LICENSE</a></h1>
+<p class="Pp">This software is Copyright (c) 2017 by Sawyer X.</p>
+<p class="Pp">This is free software, licensed under:</p>
+<pre>The MIT (X11) License</pre>
+</section>

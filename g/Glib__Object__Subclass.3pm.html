@@ -1,0 +1,405 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Glib::Object::Subclass(3pm) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Glib__Object__Subclass(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/glib-perl/">glib-perl</a></p>
+<p class="lic">Licencias: LGPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Glib::Object::Subclass(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Glib::Object::Subclass(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Glib::Object::Subclass - registrar una clase perl como una clase GObject</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Glib::Object::Subclass
+   Some::Base::Class::,   # clase base, derivada de Glib::Object
+   signals =&gt; {
+          something_changed =&gt; {
+             class_closure =&gt; sub { do_something_fun () },
+             flags         =&gt; [qw(run-first)],
+             return_type   =&gt; undef,
+             param_types   =&gt; [],
+          },
+          some_existing_signal =&gt; \&amp;class_closure_override,
+   },
+   properties =&gt; [
+      Glib::ParamSpec-&gt;string (
+         'some_string',
+         'Some String Property',
+         'This property is a string that is used as an example',
+         'default value',
+         [qw/readable writable/]
+      ),
+   ];</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo le permite crear sus propias clases GObject, lo cual es útil para, por ejemplo, implementar sus propios widgets Gtk2.</p>
+<p class="Pp">No "exporta" nada a su espacio de nombres, sino que actúa más bien como un módulo pragmático que modifica su clase para hacer que funcione como una clase GObject.</p>
+<p class="Pp">Quizás se pregunte por qué no puede simplemente hacer bless de un Glib::Object en un paquete diferente y añadir algunas subs. Bueno, si no le interesan los parámetros del objeto, las señales, o que su nueva clase interopere transparentemente con otros módulos basados en GObject (por ejemplo, Gtk2 y compañía), entonces puede simplemente re-hacer bless.</p>
+<p class="Pp">Sin embargo, las señales, propiedades, funciones virtuales y las implementaciones de GInterface de un GObject son específicas de su GObjectClass. Si quiere crear un nuevo GObject que sea un derivado de GtkDrawingArea, pero que añada una nueva señal, debe crear un nuevo GObjectClass al cual añadir la nueva señal. Si no lo hace, entonces <i>todos</i> los GtkDrawingAreas en su aplicación obtendrán esa nueva señal.</p>
+<p class="Pp">Por lo tanto, la única manera de crear una nueva señal u propiedad de objeto en los enlaces de Perl para Glib es registrar una nueva subclase con el sistema de tipos de GLib a través de <b>Glib::Type::register_object()</b>. El módulo Glib::Object::Subclass es una interfaz amigable para el desarrollador de Perl a este poco de incompatibilidad de paradigmas.</p>
+<section class="Ss">
+<h2 class="Ss" id='USAGE'><a class='permalink' href='#USAGE'>USO</a></h2>
+<p class="Pp">Este módulo funciona de manera similar al <span class="Li">"use
+    base"</span> pragmático en el que registra el paquete actual como una subclase de alguna otra clase (que debe ser una GObjectClass implementada ya sea en C o en algún otro lenguaje).</p>
+<p class="Pp">El pragmático requiere al menos un argumento, el nombre de la clase padre. Los argumentos restantes son pares clave/valor, en cualquier orden, todos opcionales:</p>
+<dl class="Bl-tag">
+  <dt id="properties"><a class="permalink" href="#properties">- properties =&gt;
+    []</a></dt>
+  <dd>Añade propiedades de objeto; vea "PROPIEDADES".</dd>
+  <dt id="signals"><a class="permalink" href="#signals">- signals =&gt;
+    {}</a></dt>
+  <dd>Añade o sobreescribe señales; vea "SEÑALES" y "SOBRESCRIBIENDO MÉTODOS BASE".</dd>
+  <dt id="interfaces"><a class="permalink" href="#interfaces">- interfaces =&gt;
+    []</a></dt>
+  <dd>Añade GInterfaces a su clase; vea "INTERFACES".</dd>
+</dl>
+<p class="Pp">(En realidad, todos estos parámetros se pasan directamente a
+    <b>Glib::Type::register_object()</b>, añadiendo __PACKAGE__ (el nombre del paquete actual) como el nombre de la nueva clase hija.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='OBJECT_METHODS_AND_FUNCTIONS'><a class='permalink' href='#OBJECT_METHODS_AND_FUNCTIONS'>MÉTODOS Y FUNCIONES DE OBJETO</a></h2>
+<p class="Pp">Los siguientes métodos se añaden a su clase bajo petición (aún no implementado), o de forma predeterminada a menos que su propia clase los implemente usted mismo. Esto significa que todos estos métodos y funciones obtendrán implementaciones predeterminadas razonables a menos que sean sobrescritos explícitamente por usted (definiendo su propia versión).</p>
+<p class="Pp">Excepto por <span class="Li">"new"</span>, todos los siguientes son <i>funciones</i> y no <i>métodos</i>. Eso significa que usted <i>no</i> debe llamar al método de la superclase. En su lugar, el sistema GObject llamará a estas funciones por clase según sea necesario, emulando la herencia normal.</p>
+<dl class="Bl-tag">
+  <dt>$class-&gt;new (attr =&gt; value, ...)</dt>
+  <dd>El constructor predeterminado simplemente llama a
+      <span class="Li">"Glib::Object::new"</span>, lo que le permite establecer propiedades en el objeto recién creado. Esto se hace porque muchos
+      <span class="Li">"new"</span> métodos heredados por Gtk2 u otras bibliotecas no tienen <span class="Li">"new"</span> métodos adecuados para la subclase.</dd>
+  <dt id="INIT_INSTANCE"><a class="permalink" href="#INIT_INSTANCE">INIT_INSTANCE
+    $self [no es un método]</a></dt>
+  <dd><span class="Li">"INIT_INSTANCE"</span> se llama en cada clase en la jerarquía a medida que se crea el objeto (es decir, desde
+      <span class="Li">"Glib::Object::new"</span> o nuestro predeterminado
+      <span class="Li">"new"</span>). Use esta función para inicializar cualquier dato de miembro. La implementación predeterminada dejará el objeto intacto.</dd>
+  <dt id="GET_PROPERTY"><a class="permalink" href="#GET_PROPERTY">GET_PROPERTY
+    $self, $pspec [no es un método]</a></dt>
+  <dd></dd>
+  <dt id="SET_PROPERTY"><a class="permalink" href="#SET_PROPERTY">SET_PROPERTY
+    $self, $pspec, $newval [no es un método]</a></dt>
+  <dd><span class="Li">"GET_PROPERTY"</span> y
+      <span class="Li">"SET_PROPERTY"</span> se llaman cada vez que alguien hace <span class="Li">"$object-&gt;get
+      ($propname)"</span> o <span class="Li">"$object-&gt;set
+      ($propname =&gt; $newval)"</span> (también desde otros lenguajes). Las implementaciones predeterminadas mantienen los valores de las propiedades en el hash del objeto, equivalente a
+        <pre>sub GET_PROPERTY {
+  my ($self, $pspec) = @_;
+  my $pname = $pspec-&gt;get_name;
+  return (exists $self-&gt;{$pname} ? $self-&gt;{$pname}
+          : $pspec-&gt;get_default_value);  # hasta que se establezca
+}
+sub SET_PROPERTY {
+  my ($self, $pspec, $newval) = @_;
+  $self-&gt;{$pspec-&gt;get_name} = $newval;
+}
+</pre>
+    <p class="Pp">Debido a que
+        <span class="Li">"$pspec-&gt;get_name"</span> convierte guiones
+        en guiones bajos, una propiedad
+        <span class="Li">"line-style"</span> está en el hash como
+        <span class="Li">"line_style"</span>.</p>
+    <p class="Pp">Estos métodos le permiten almacenar/obtener propiedades de la manera que necesite. No tienen que estar en el hash, puede calcular algo, leer un archivo, lo que sea.</p>
+    <p class="Pp">La mayoría de las veces escribirá su propio
+        <span class="Li">"SET_PROPERTY"</span> para que pueda actuar cuando una propiedad cambia, como redibujar o redimensionar un widget. Por ejemplo.</p>
+        <pre>sub SET_PROPERTY {
+  my ($self, $pspec, $newval) = @_;
+  my $pname = $pspec-&gt;get_name
+  $self-&gt;{$pname} = $newval; # listo para el GET_PROPERTY predeterminado
+  if ($pname eq 'line_style') {
+    $self-&gt;queue_draw;  # redibujar con las nuevas líneas
+  }
+}
+</pre>
+    <p class="Pp">Se debe tener cuidado con los tipos boxed no referenciados por conteo como <span class="Li">"Gtk2::Gdk::Color"</span>. En
+        <span class="Li">"SET_PROPERTY"</span> el
+        <span class="Li">$newval</span> generalmente es bueno solo durante la duración de la llamada. Use <span class="Li">"copy"</span> o similar si lo mantiene más tiempo (vea Glib::Boxed). En
+        <span class="Li">"GET_PROPERTY"</span> la memoria devuelta debe durar lo suficiente para llegar al llamador, lo que generalmente significa devolver un campo, no un objeto recién creado (que se destruye con el escalar que lo contiene).</p>
+    <p class="Pp"><span class="Li">"GET_PROPERTY"</span> es diferente
+        de un método get_property en C en que el método perl devuelve el
+        valor recuperado. Para simetría, los argumentos <span class="Li">$newval</span> y
+        <span class="Li">$pspec</span> en
+        <span class="Li">"SET_PROPERTY"</span> están intercambiados respecto al uso en C.</p>
+  </dd>
+  <dt id="FINALIZE_INSTANCE"><a class="permalink" href="#FINALIZE_INSTANCE">FINALIZE_INSTANCE
+    $self [no es un método]</a></dt>
+  <dd><span class="Li">"FINALIZE_INSTANCE"</span> se llama a medida que el GObject se está finalizando, es decir, a medida que se está destruyendo realmente. Esto es independiente del DESTROY más común en el objeto perl; de hecho, usted <i>NO</i> debe sobreescribir <span class="Li">"DESTROY"</span> (no es útil para usted, en cualquier caso, ¡ya que se llama múltiples veces!).
+    <p class="Pp">Use este gancho para liberar cualquier cosa que tenga que limpiar manualmente. FINALIZE_INSTANCE se llamará para cada instancia perl, en orden inverso de construcción.</p>
+    <p class="Pp">El finalizador predeterminado no hace nada.</p>
+  </dd>
+  <dt>$object-&gt;DESTROY [NO SOBRESCRIBIR]</dt>
+  <dd>Nunca <i>sobreescriba</i> "DESTROY" <span class="Li">,</span>use <span class="Li">"FINALIZE_INSTANCE"</span> en su lugar.
+    <p class="Pp">El método DESTROY de todas las clases perl derivadas de GTypes está implementado en el módulo Glib y (ab)usado para sus propósitos internos. Sobrescriting it is not useful as it will be called
+        <i>múltiples</i> veces, y a menudo mucho antes de que el objeto sea realmente
+        destruido. Sobrescribirlo podría ser muy perjudicial para tu programa, así que
+        <i>nunca</i> hagas eso. Ten especial cuidado con otras clases en tu árbol
+        ISA.</p>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROPERTIES'><a class='permalink' href='#PROPERTIES'>PROPIEDADES</a></h1>
+<p class="Pp">Para crear propiedades de gobject, proporciona una lista de objetos Glib::ParamSpec
+    como el valor para la clave 'properties'. Hay muchos constructores de paramspec
+    diferentes, documentados en la página de Parámetros y Valores de la referencia de la API de C, así como en Glib::ParamSpec.</p>
+<p class="Pp">A partir de Glib 1.060, también puedes especificar getters y setters
+    explícitos para tus propiedades en el momento de la creación. Los valores predeterminados en tus
+    propiedades también se respetan si no estableces nada más. Consulta
+    Glib::Type::register_object en Glib::Type para ver un ejemplo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SIGNALS'><a class='permalink' href='#SIGNALS'>SEÑALES</a></h1>
+<p class="Pp">Crear nuevas señales para tu nuevo objeto es fácil. Solo proporciona un
+    hash de nombres de señal y descripciones de señal bajo la clave 'signals'. Cada
+    descripción de señal también es un hash, con algunas claves esperadas. Todas las claves
+    pueden omitirse.</p>
+<dl class="Bl-tag">
+  <dt id="flags"><a class="permalink" href="#flags">flags =&gt;
+    GSignalFlags</a></dt>
+  <dd>Si no está presente, se asume que es 'run-first'.</dd>
+  <dt id="param_types"><a class="permalink" href="#param_types">param_types
+    =&gt; referencia a una lista de nombres de paquetes</a></dt>
+  <dd>Si no está presente, se asume que está vacía (sin parámetros).</dd>
+  <dt id="class_closure"><a class="permalink" href="#class_closure">class_closure
+    =&gt; referencia a una subrutina a llamar como el closure de clase.</a></dt>
+  <dd>también puede ser una cadena interpretada como el nombre de una subrutina a llamar, pero
+      deberías tener muchísimo cuidado con eso.
+    <p class="Pp">Si no está presente, la biblioteca intentará llamar al método
+        llamado "do_signal_name" para la señal "signal_name"
+        (usa guiones bajos).</p>
+    <p class="Pp">Querrás tener cuidado de que este método manejador no sea un
+        método públicamente invocable, ni uno que tenga el mismo nombre que algo
+        que emite la señal. Debido a las formas peculiares en que Glib es diferente
+        de Perl, los closures de clase <i>no deberían</i> heredarse a través de la herencia normal
+        de perl.</p>
+  </dd>
+  <dt id="return_type"><a class="permalink" href="#return_type">return_type
+    =&gt; nombre del paquete para el valor de retorno.</a></dt>
+  <dd>Si es indefinido o no está presente, la señal no espera ningún valor de retorno. Si
+      está definido, se espera que la señal devuelva un valor; los flags deben estar configurados de modo
+      que la señal no se ejecute solo primero (al menos usa 'run-last').</dd>
+  <dt id="accumulator"><a class="permalink" href="#accumulator">accumulator
+    =&gt; acumulador del valor de retorno de la señal</a></dt>
+  <dd>citando el manual de Glib: "El acumulador de la señal es una función de retorno especial
+      que se puede usar para recopilar los valores de retorno de los diversos
+      callbacks que se llaman durante una emisión de señal."
+    <p class="Pp">Si no se especifica, se usa el acumulador predeterminado, y simplemente
+        obtienes el valor de retorno del último manejador en ejecutarse.</p>
+    <p class="Pp">Los acumuladores no están realmente documentados en gran medida en la referencia
+        de C, y la interfaz de perl aquí es ligeramente diferente, así que aquí hay
+        una cantidad inusual de detalles para esta característica arcanica:</p>
+    <p class="Pp">La función acumuladora se llama para cada manejador como</p>
+        <pre>($cont, $acc) = &amp;$func ($invocation_hint, $acc, $ret)
+</pre>
+    <p class="Pp"><span class="Li">$invocation_hint</span> es un hash anónimo
+        (incluyendo el nombre de la señal); <span class="Li">$acc</span> es el valor de retorno
+        acumulado actual; <span class="Li">$ret</span> es el valor del
+        manejador más reciente.</p>
+    <p class="Pp">Los dos valores de retorno son un booleano
+        <span class="Li">$cont</span> para indicar si la emisión de la señal debe
+        continuar (falso para detener); y un nuevo <span class="Li">$acc</span>
+        valor de retorno acumulado. (Esto es diferente de la versión de C, que
+        escribe a través de un return_accu.)</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OVERRIDING_BASE_METHODS'><a class='permalink' href='#OVERRIDING_BASE_METHODS'>ANULANDO   MÉTODOS BASE</a></h1>
+<p class="Pp">GLib usa algunos trucos ingeniosos con punteros de función para implementar
+    métodos en C. Esto no es muy amigable para los enlaces de lenguaje, como
+    podrías imaginar.</p>
+<p class="Pp">Sin embargo, como se describió arriba, cada señal permite un "closure de
+    clase"; puedes anular el closure de clase con tu propia función,
+    y puedes encadenar desde el método anulado al original. Esto sirve para
+    implementar anulaciones virtuales para enlaces de lenguaje.</p>
+<p class="Pp">Entonces, para anular un método, proporcionas una referencia a una subrutina
+    en lugar de un hash de descripción de señal como el valor para el nombre de la
+    señal existente en el hash "signals" descrito en
+    "SEÑALES".</p>
+<pre># anular algunos métodos importantes del widget:
+use Glib::Object::Subclass
+      Gtk2::Widget::,
+      signals =&gt; {
+              expose_event =&gt; \&amp;expose_event,
+              configure_event =&gt; \&amp;configure_event,
+              button_press_event =&gt; \&amp;button_press_event,
+              button_release_event =&gt; \&amp;button_release_event,
+              motion_notify_event =&gt; \&amp;motion_notify_event,
+              # nota la elección de nombres aquí... ver la discusión.
+              size_request =&gt; \&amp;do_size_request,
+      }</pre>
+<p class="Pp">Es importante notar que los manejadores que proporcionas para estos son
+    específicos de la clase, y que las reglas normales de herencia de métodos de perl no se
+    siguen para invocarlos desde dentro de la biblioteca. Sin embargo, ¡el código de perl
+    todavía puede encontrarlos! Por lo tanto, es bastante importante que elijas los nombres de tus
+    manejadores cuidadosamente, evitando cualquier interfaz pública que puedas
+    llamar desde perl. Como ejemplo, dado que size_request es un método de widget, elegí
+    do_size_request como manejador de anulación.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACES'><a class='permalink' href='#INTERFACES'>INTERFACES</a></h1>
+<p class="Pp">GObject soporta solo herencia única; en lugar de herencia
+    múltiple, GObject usa GInterfaces. En los enlaces de Perl hemos disfrazado
+    esto en su mayoría con herencia múltiple (es decir, simplemente agregando la clase GInterface al <span class="Li">@ISA</span> de la clase
+    implementadora), pero al derivar nuevos objetos la fachada se rompe y la magia se filtra
+    afuera.</p>
+<p class="Pp">Para derivar un objeto que implementa un GInterface, tienes
+    que decirle al sistema de tipos de GLib que quieres que tu clase incluya un
+    GInterface. Para hacer esto, simplemente pasa una lista de nombres de paquetes a través de la
+    clave "interfaces"; esto agregará estos paquetes a tu
+    <span class="Li">@ISA</span>, y hará que perl invoque métodos que debes
+    proporcionar.</p>
+<pre>package Mup::MultilineEntry;
+use Glib::Object::Subclass
+    'Gtk2::TextView',
+    interfaces =&gt; [ 'Gtk2::CellEditable' ],
+    ;
+# perl ahora invocará estos métodos, que son parte del
+# GInterface GtkCellEditable, cuando alguien invoque los
+# métodos correspondientes en minúscula en tus objetos.
+sub START_EDITING { warn "start editing\n"; }
+sub EDITING_DONE { warn "editing done\n"; }
+sub REMOVE_WIDGET { warn "remove widget\n"; }</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<pre>GObject - http://developer.gnome.org/doc/API/2.0/gobject/</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORES</a></h1>
+<p class="Pp">Marc Lehmann &lt;schmorp@schmorp.de&gt;, muppet &lt;scott at
+    asofyet dot org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>DERECHOS   DE AUTOR Y LICENCIA</a></h1>
+<p class="Pp">Copyright 2003-2004, 2010 by muppet and the gtk2-perl team</p>
+<p class="Pp">Esta biblioteca es software libre; puedes redistribuirla y/o
+    modificarla bajo los términos de la Licencia Pública General Menor (LGPL). Para
+    más información, consulta <a href='http://www.fsf.org/licenses/lgpl.txt'>http://www.fsf.org/licenses/lgpl.txt</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/glib-perl/">extra/glib-perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.329.4-3</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://gtk2-perl.sourceforge.net/">http://gtk2-perl.sourceforge.net/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>LGPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/glib-perl/">/listing/extra/glib-perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PROPERTIES">PROPIEDADES</a></li>
+        
+            <li><a href="#SIGNALS">SEÑALES</a></li>
+        
+            <li><a href="#OVERRIDING_BASE_METHODS">ANULANDO MÉTODOS BASE</a></li>
+        
+            <li><a href="#INTERFACES">INTERFACES</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AUTHORS">AUTORES</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">DERECHOS DE AUTOR Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Glib::Object::Subclass.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Glib::Object::Subclass.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

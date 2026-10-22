@@ -1,0 +1,620 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBD::Gofer(3pm) — Páginas man del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBD__Gofer(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBD::Gofer(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">DBD::Gofer(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">DBD::Gofer - Un controlador proxy sin estado para comunicarse con un
+    DBI remoto</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use DBI;
+$original_dsn = "dbi:..."; # su Nombre de Fuente de Datos DBI original
+$dbh = DBI-&gt;connect("dbi:Gofer:transport=$transport;...;dsn=$original_dsn",
+                    $user, $passwd, \%attributes);
+... use $dbh como si estuviera conectado a $original_dsn ...</pre>
+<p class="Pp">La <span class="Li">"transport=$transport"</span> parte
+    especifica el nombre del módulo a usar para transportar las solicitudes al
+    DBI remoto. Si <span class="Li">$transport</span> no contiene ningún doble
+    punto, se le antepone
+    <span class="Li">"DBD::Gofer::Transport::"</span>.</p>
+<p class="Pp">La <span class="Li">"dsn=$original_dsn"</span> parte
+    <i>debe ser el último elemento</i> del DSN porque todo lo que sigue a
+    <span class="Li">"dsn="</span> se asume que es el DSN que el
+    DBI remoto debe usar.</p>
+<p class="Pp">El <span class="Li">"..."</span> representa atributos
+    que influyen en el funcionamiento del controlador Gofer o del transporte. Estos se
+    describen más abajo o en la documentación del módulo de transporte que se
+  esté utilizando.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">DBD::Gofer es un controlador de base de datos de DBI que reenvía solicitudes a
+    otro controlador de DBI, generalmente en un proceso separado, a menudo en una máquina
+    separada. Intenta ser lo más transparente posible para que parezca que usted
+    está usando el controlador remoto directamente.</p>
+<p class="Pp">DBD::Gofer es muy similar a DBD::Proxy. La diferencia principal es
+    que con DBD::Gofer no se mantiene estado en el extremo remoto. Eso significa
+    que cada solicitud contiene toda la información necesaria para crear el
+    estado requerido. (Así que, por ejemplo, cada solicitud incluye el DSN al que conectarse.) Cada
+    solicitud puede enviarse a cualquier servidor disponible. El servidor ejecuta la solicitud
+    y devuelve una única respuesta que incluye todos los datos.</p>
+<p class="Pp">Esto es muy similar a la forma en que http funciona como un protocolo
+    sin estado para la web. Cada solicitud de su navegador web puede ser manejada por
+    un proceso de servidor web diferente.</p>
+<section class="Ss">
+<h2 class="Ss" id='Use_Cases'><a class='permalink' href='#Use_Cases'>Casos de   Uso</a></h2>
+<p class="Pp">Esto puede parecer una sobrecarga inútil, pero hay situaciones
+    en las que esto es muy bueno. Consideremos un caso específico.</p>
+<p class="Pp">Imagine usar DBD::Gofer con un transporte http. Su aplicación
+    llama a <b>connect()</b>, prepare("select * from table where
+    foo=?"), <b>bind_param()</b>, y <b>execute()</b>. En este punto
+    DBD::Gofer construye una solicitud que contiene toda la información sobre las
+    llamadas a métodos. Luego usa el transporte httpd para enviar esa solicitud a un servidor web
+    apache.</p>
+<p class="Pp">Este servidor web 'dbi execute' ejecuta la solicitud (usando
+    DBI::Gofer::Execute y los módulos relacionados) y construye una respuesta que contiene
+    todas las filas de datos, si la sentencia devolvió alguna, junto con todos los
+    atributos que describen los resultados, como
+    <span class="Li">$sth</span>-&gt;{NAME}. Esta respuesta se envía de vuelta a
+    DBD::Gofer, que la desempaqueta y la presenta a la aplicación como si hubiera
+    ejecutado la sentencia ella misma.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Advantages'><a class='permalink' href='#Advantages'>Ventajas</a></h2>
+<p class="Pp">De acuerdo, pero aún no ve el punto. Bueno, consideremos lo
+    que hemos ganado:</p>
+<p class="Pp"><i>Agrupación y Limitación de Conexiones</i></p>
+<p class="Pp">El servidor web 'dbi execute' aprovecha toda la funcionalidad de
+    la infraestructura web en términos de balanceo de carga, alta disponibilidad, firewalls,
+    gestión de acceso, proxy, y caché.</p>
+<p class="Pp">En su nivel más básico, usted obtiene un grupo configurable de conexiones de base de datos
+    persistentes.</p>
+<p class="Pp"><i>Escalado Sencillo</i></p>
+<p class="Pp">¿Tiene miles de procesos intentando todos conectarse a la base de datos?
+    Puede usar DBD::Gofer para conectarlos a su grupo más pequeño de servidores web
+    'dbi execute' en su lugar.</p>
+<p class="Pp"><i>Caché</i></p>
+<p class="Pp">El caché del lado del cliente es tan simple como agregar
+    "<span class="Li">"cache=1"</span>" al DSN. Esta
+    característica por sí sola puede valer la pena usar DBD::Gofer.</p>
+<p class="Pp"><i>Menos Viajes de Red (Round-trips)</i></p>
+<p class="Pp">DBD::Gofer envía tantas solicitudes como sea posible (dependiendo de la
+    política que se esté usando).</p>
+<p class="Pp"><i>Clientes Delgados / Plataformas No Soportadas</i></p>
+<p class="Pp">Ya no necesita controladores para su base de datos en cada sistema.
+    DBD::Gofer es perl puro.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONSTRAINTS'><a class='permalink' href='#CONSTRAINTS'>RESTRICCIONES</a></h1>
+<p class="Pp">Hay algunas restricciones naturales impuestas por el enfoque 'sin estado'
+    de DBD::Gofer. Pero no muchas:</p>
+<section class="Ss">
+<h2 class="Ss">No puede cambiar atributos del manejador de base de datos después de
+  <b>connect()</b></h2>
+<p class="Pp">No puede cambiar atributos del manejador de base de datos después de haberse
+    conectado. Use la <b>llamada a</b> connect()
+    para especificar todos los ajustes de atributos que desee.</p>
+<p class="Pp">Esto se debe a que es crítico que cuando una solicitud esté completa, el
+    manejador de base de datos se deje en el mismo estado en el que estaba cuando se conectó por primera vez.</p>
+<p class="Pp">Se hace una excepción para los atributos con nombres que comienzan con
+    "<span class="Li">"private_"</span>": Pueden establecerse
+    después de <b>connect()</b> pero el cambio solo se aplica localmente.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">No puede cambiar atributos del manejador de sentencia después de
+  <b>prepare()</b></h2>
+<p class="Pp">No puede cambiar atributos del manejador de sentencia después de prepare.</p>
+<p class="Pp">Se hace una excepción para los atributos con nombres que comienzan con
+    "<span class="Li">"private_"</span>": Pueden establecerse
+    después de <b>prepare()</b> pero el cambio solo se aplica localmente.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">No puede usar transacciones</h2>
+<p class="Pp">Solo AutoCommit. Las transacciones no están soportadas.</p>
+<p class="Pp">(En teoría, las transacciones podrían soportarse cuando se usa un transporte
+    que mantiene una conexión, como <span class="Li">"stream"</span>
+    lo hace. Si le interesa esto, por favor póngase en contacto a través de
+  dbi-dev@perl.org)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">No puede llamar a métodos sth privados del controlador</h2>
+<p class="Pp">Pero eso rara vez es necesario de todos modos.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='GENERAL_CAVEATS'><a class='permalink' href='#GENERAL_CAVEATS'>ADVERTENCIAS   GENERALES</a></h1>
+<p class="Pp">Algunas cosas importantes a tener en cuenta al usar DBD::Gofer:</p>
+<section class="Ss">
+<h2 class="Ss" id='Temporary_tables,_locks,_and_other_per-connection_persistent_state'><a class='permalink' href='#Temporary_tables,_locks,_and_other_per-connection_persistent_state'>Tablas   temporales, bloqueos y otro estado persistente por conexión</a></h2>
+<p class="Pp">No debería esperar que ningún estado por sesión persista entre
+    solicitudes. Esto incluye bloqueos y tablas temporales.</p>
+<p class="Pp">Debido a que el lado del servidor puede ejecutar sus solicitudes a través de una conexión
+    de base de datos diferente, no puede depender de ningún estado persistente por conexión,
+    como tablas temporales, estando disponible de una solicitud a la siguiente.</p>
+<p class="Pp">Esta es una trampa fácil de caer. Una buena manera de comprobar esto es
+    probar su código con un paquete de política de Gofer que establezca la
+    <span class="Li">política</span> "connect_method"
+    a 'connect' para forzar una nueva conexión para cada solicitud. La
+    política
+    <span class="Li">"pedantic"</span> hace esto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Atributos del Manejador de Base de Datos Privados del Controlador</h2>
+<p class="Pp">Algunos atributos dbh privados del controlador pueden no estar disponibles si el
+    controlador no ha implementado el <b>método</b> private_attribute_info()
+    (añadido
+    en DBI 1.54).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Atributos del Manejador de Sentencia Privados del Controlador</h2>
+<p class="Pp">Los atributos sth privados del controlador pueden establecerse en la <b>llamada a</b>
+    prepare()
+    TODO</p>
+<p class="Pp">Algunos atributos sth privados del controlador pueden no estar disponibles si el
+    controlador no ha implementado el <b>método</b> private_attribute_info()
+    (añadido
+    en DBI 1.54).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Multiple_Resultsets'><a class='permalink' href='#Multiple_Resultsets'>Múltiples   Conjuntos de Resultados</a></h2>
+<p class="Pp">Múltiples conjuntos de resultados solo se soportan si el controlador soporta el
+    <b>método</b> more_results()
+    (se hace una excepción para DBD::Sybase).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Statement_activity_that_also_updates_dbh_attributes'><a class='permalink' href='#Statement_activity_that_also_updates_dbh_attributes'>Actividad de   Sentencia que también actualiza atributos dbh</a></h2>
+<p class="Pp">Algunos controladores pueden actualizar uno o más atributos dbh después de
+    realizar actividad en un sth hijo. Por ejemplo, DBD::mysql proporciona
+    <span class="Li">$dbh</span>-&gt;{mysql_insertid} además de
+    <span class="Li">$sth</span>-&gt;{mysql_insertid}. Actualmente mysql_insertid
+    se soporta a través de un truco, pero se necesita un mecanismo más general para que otros
+    controladores lo usen.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Methods_that_report_an_error_always_return_undef'><a class='permalink' href='#Methods_that_report_an_error_always_return_undef'&gt;Los métodos que reportan un error siempre devuelven undef</a></h2>
+<p class="Pp">Con DBD::Gofer, un método que establece un error siempre devuelve un
+    undef o una lista vacía. Eso no debería ser un problema en la práctica porque el DBI
+    no define ningún método que devuelva valores significativos mientras también
+    reporta un error.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Subclassing_only_applies_to_client-side'><a class='permalink' href='#Subclassing_only_applies_to_client-side'>La subclaseación
+    solo se aplica al lado del cliente</a></h2>
+<p class="Pp">Los atributos RootClass y DbTypeSubclass no se pasan al
+    servidor Gofer.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEATS_FOR_SPECIFIC_METHODS'><a class='permalink' href='#CAVEATS_FOR_SPECIFIC_METHODS'>ADVERTENCIAS
+    PARA MÉTODOS ESPECÍFICOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='last_insert_id'><a class='permalink' href='#last_insert_id'>last_insert_id</a></h2>
+<p class="Pp">Para habilitar el uso de last_insert_id necesitas indicarle a DBD::Gofer
+    que te gustaría usarlo. Lo haces añadiendo un
+    <span class="Li">"go_last_insert_id_args"</span> atributo a las
+    <b>do()</b> o <b>prepare()</b> llamadas a métodos. Por ejemplo:</p>
+<pre>$dbh-&gt;do($sql, { go_last_insert_id_args =&gt; [...] });</pre>
+<p class="Pp">o</p>
+<pre>$sth = $dbh-&gt;prepare($sql, { go_last_insert_id_args =&gt; [...] });</pre>
+<p class="Pp">La referencia al array debe contener los argumentos que deseas pasar
+    al <b>last_insert_id()</b> método.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='execute_for_fetch'><a class='permalink' href='#execute_for_fetch'>execute_for_fetch</a></h2>
+<p class="Pp">Los métodos de array <b>bind_param_array()</b> y
+    <b>execute_array()</b> están soportados. Cuando <b>execute_array()</b> es llamado
+    los datos se serializan y ejecutan en un único viaje de ida y vuelta al servidor
+    Gofer. Esto lo hace muy rápido, pero requiere suficiente memoria para almacenar todos los
+    datos serializados.</p>
+<p class="Pp">El <b>execute_for_fetch()</b> método actualmente no está optimizado,
+    usa el comportamiento de respaldo del DBI de ejecutar cada tupla individualmente. (Podría
+    implementarse como un envoltorio para <b>execute_array()</b> - parches
+    bienvenidos.)</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TRANSPORTS'><a class='permalink' href='#TRANSPORTS'>TRANSPORTES</a></h1>
+<p class="Pp">DBD::Gofer no se preocupa por transportar solicitudes y
+    respuestas de un lado a otro. Para eso usa módulos de transporte Gofer especiales.</p>
+<p class="Pp">Los módulos de transporte Gofer usualmente vienen en pares: uno para
+    el controlador 'cliente' DBD::Gofer y uno para el extremo 'servidor' remoto. Tienen
+    nombres muy similares:</p>
+<pre>DBD::Gofer::Transport::&lt;foo&gt;
+DBI::Gofer::Transport::&lt;foo&gt;</pre>
+<p class="Pp">A veces los transportes en los lados DBD y DBI pueden tener
+    nombres diferentes. Por ejemplo DBD::Gofer::Transport::http se usa típicamente
+    con DBI::Gofer::Transport::mod_perl (los módulos DBD::Gofer::Transport::http y
+    DBI::Gofer::Transport::mod_perl son parte de la distribución GoferTransport-http).</p>
+<section class="Ss">
+<h2 class="Ss" id='Bundled_Transports'><a class='permalink' href='#Bundled_Transports'>Transportes
+    incluidos</a></h2>
+<p class="Pp">Varios módulos de transporte son provistos con DBD::Gofer:</p>
+<p class="Pp"><i>null</i></p>
+<p class="Pp">El transporte null es el más simple de todos. No transporta
+    realmente la solicitud a ningún lado. Solo serializa (congela) la solicitud
+    en una cadena, luego la descongela de vuelta en una estructura de datos antes
+    de pasarla a DBI::Gofer::Execute para ejecutarla. El mismo congelar y descongelar se
+    aplica a los resultados.</p>
+<p class="Pp">El transporte null es la mejor manera de probar si tu aplicación
+    funcionará con Gofer. Solo establece la variable de entorno DBI_AUTOPROXY a
+    "<span class="Li">"dbi:Gofer:transport=null;policy=pedantic"</span>"
+    (ver "Usando DBI_AUTOPROXY" más abajo) y ejecuta tu aplicación, o
+    idealmente su suite de pruebas, como de costumbre.</p>
+<p class="Pp">No toma ningún parámetro.</p>
+<p class="Pp"><i>pipeone</i></p>
+<p class="Pp">El transporte pipeone lanza un subproceso para cada solicitud. Pasa
+    la solicitud y lee la respuesta.</p>
+<p class="Pp">El hecho de que se inicie un nuevo subproceso para cada solicitud asegura
+    que el lado del servidor sea verdaderamente sin estado. Aunque esto hace que el transporte
+    <i>sea</i> muy lento, es útil como una manera de probar que tu aplicación
+    no depende del estado por conexión, como tablas temporales, persistiendo
+    entre solicitudes.</p>
+<p class="Pp">También es útil tanto como prueba de concepto como como clase base
+    para el controlador de flujo.</p>
+<p class="Pp"><i>stream</i></p>
+<p class="Pp">El controlador stream también lanza un subproceso y escribe solicitudes
+    y lee respuestas, como el transporte pipeone. En este caso, sin embargo, el
+    subproceso se espera que maneje más de una solicitud. (Aunque será
+    reiniciado automáticamente si termina.)</p>
+<p class="Pp">Este es el primer transporte que es verdaderamente útil porque puede
+    lanzar el subproceso en una máquina remota usando
+    <span class="Li">"ssh"</span>. Esto significa que ahora puedes usar
+    DBD::Gofer para acceder fácilmente a cualquier base de datos que sea accesible desde cualquier sistema
+    al que puedas iniciar sesión. También obtienes todos los beneficios de ssh, incluyendo
+    encriptación y compresión opcional.</p>
+<p class="Pp">Ver "Usando DBI_AUTOPROXY" más abajo para un ejemplo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Other_Transports'><a class='permalink' href='#Other_Transports'>Otros
+    transportes</a></h2>
+<p class="Pp">Implementar un transporte Gofer es <i>muy</i> simple, y más
+    transportes son muy bienvenidos. Solo echa un vistazo a cualquier transporte
+    existente que sea similar a tus necesidades.</p>
+<p class="Pp"><i>http</i></p>
+<p class="Pp">Ver la distribución GoferTransport-http en CPAN:
+    <a href='http://search.cpan.org/dist/GoferTransport-http/'>http://search.cpan.org/dist/GoferTransport-http/</a></p>
+<p class="Pp"><i>Gearman</i></p>
+<p class="Pp">Sé que Ask Bjørn Hansen ha implementado un transporte para el
+    <span class="Li">"gearman"</span> sistema de trabajos distribuido, aunque
+    no está en CPAN al momento de escribir esto.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONNECTING'><a class='permalink' href='#CONNECTING'>CONECTANDO</a></h1>
+<p class="Pp">Simplemente antepone a tu DSN existente
+    "<span class="Li">"dbi:Gofer:transport=$transport;dsn="</span>"
+    donde <span class="Li">$transport</span> es el nombre del transporte Gofer
+    que quieres usar (ver "TRANSPORTES"). Los atributos
+    <span class="Li">"transport"</span> y
+    <span class="Li">"dsn"</span> deben ser especificados y el
+    <span class="Li">"dsn"</span> atributo debe ser el último.</p>
+<p class="Pp">Otros atributos pueden ser especificados en el DSN para configurar
+    DBD::Gofer y/o el módulo de transporte Gofer que se está usando. Los atributos principales
+    después de <span class="Li">"transport"</span>son
+    <span class="Li">"url"</span> y
+    <span class="Li">"policy"</span>. Estos y otros atributos son
+    descritos más abajo.</p>
+<section class="Ss">
+<h2 class="Ss" id='Using_DBI_AUTOPROXY'><a class='permalink' href='#Using_DBI_AUTOPROXY'>Usando
+    DBI_AUTOPROXY</a></h2>
+<p class="Pp">La forma más simple de probar DBD::Gofer es establecer la variable de entorno
+    DBI_AUTOPROXY. En este caso no incluyes la parte
+    <span class="Li">"dsn="</span> . Por ejemplo:</p>
+<pre>export DBI_AUTOPROXY="dbi:Gofer:transport=null"</pre>
+<p class="Pp">o, para un ejemplo más útil, prueba:</p>
+<pre>export DBI_AUTOPROXY="dbi:Gofer:transport=stream;url=ssh:user@example.com"</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Connection_Attributes'><a class='permalink' href='#Connection_Attributes'>Atributos de
+    Conexión</a></h2>
+<p class="Pp">Estos atributos pueden ser especificados en el DSN. También pueden ser
+    pasados en el parámetro \%attr del método connect del DBI añadiendo un
+    "<span class="Li">"go_"</span>" prefijo al nombre.</p>
+<p class="Pp"><i>transport</i></p>
+<p class="Pp">Especifica la clase de transporte Gofer a usar. Requerido. Ver
+    "TRANSPORTES" más arriba.</p>
+<p class="Pp">Si el valor no incluye
+    <span class="Li">"::"</span> entonces
+    "<span class="Li">"DBD::Gofer::Transport::"</span>" es
+    prefijado.</p>
+<p class="Pp">El objeto de transporte puede ser accedido vía
+    <span class="Li">$h</span>-&gt;{go_transport}.</p>
+<p class="Pp"><i>dsn</i></p>
+<p class="Pp">Especifica el DSN para que el lado remoto se conecte. Requerido, y
+    debe ser el último.</p>
+<p class="Pp"><i>url</i></p>
+<p class="Pp">Usado para decirle al transporte a dónde conectarse. La forma exacta del
+    valor depende del transporte usado.</p>
+<p class="Pp"><i>policy</i></p>
+<p class="Pp">Especifica la política a usar. Ver "CONFIGURANDO LA POLÍTICA
+    DE COMPORTAMIENTO".</p>
+<p class="Pp">Si el valor no incluye
+    <span class="Li">"::"</span> entonces
+    "<span class="Li">"DBD::Gofer::Policy"</span>" es
+    prefijado.</p>
+<p class="Pp">El objeto de política puede ser accedido vía
+    <span class="Li">$h</span>-&gt;{go_policy}.</p>
+<p class="Pp"><i>timeout</i></p>
+<p class="Pp">Especifica un tiempo de espera, en segundos, a usar cuando se esperan respuestas
+    del lado del servidor.</p>
+<p class="Pp"><i>retry_limit</i></p>
+<p class="Pp">Especifica el número de veces que se reintentará una solicitud fallida.
+    El valor por defecto es 0.</p>
+<p class="Pp"><i>retry_hook</i></p>
+<p class="Pp">Especifica una referencia a código a ser llamada para decidir si una solicitud
+    fallida debe ser reintentada. La referencia a código es llamada así:</p>
+<pre>$transport = $h-&gt;{go_transport};
+$retry = $transport-&gt;go_retry_hook-&gt;($request, $response, $transport);</pre>
+<p class="Pp">Si devuelve verdadero entonces la solicitud será reintentada, hasta el
+    <span class="Li">"retry_limit"</span>. Si devuelve un valor falso pero
+    definido entonces la solicitud no será reintentada. Si devuelve undef entonces
+    se usará el comportamiento por defecto, como si
+    <span class="Li">"retry_hook"</span> no hubiera sido especificado.</p>
+<p class="Pp">El comportamiento por defecto es reintentar solicitudes donde
+    <span class="Li">$request</span>-&gt;is_idempotent es verdadero, o el mensaje de
+    error coincide con <span class="Li">"/induced by
+    DBI_GOFER_RANDOM/"</span>.</p>
+<p class="Pp"><i>cache</i></p>
+<p class="Pp">Especifica que se debe realizar un almacenamiento en caché del lado del cliente. El valor
+    es el nombre de una clase de caché a usar.</p>
+<p class="Pp">Cualquier clase que implemente los métodos get($key) y set($key,
+    <span class="Li">$value</span>) puede ser usada. Eso incluye muchas
+    clases de caché potentes en CPAN, incluyendo las distribuciones Cache y Cache::Cache.</p>
+<p class="Pp">Puedes usar
+    "<span class="Li">"cache=1"</span>" como un atajo para
+    "<span class="Li">"cache=DBI::Util::CacheMemory"</span>".
+    Ver DBI::Util::CacheMemory para una descripción de esta simple y rápida caché
+    por defecto.</p>
+<p class="Pp">El objeto de caché puede ser accedido vía
+    <span class="Li">$h</span>-&gt;go_cache. Por ejemplo:</p>
+<pre>$dbh-&gt;go_cache-&gt;clear; # libera la memoria usada por la caché</pre>
+<p class="Pp">Las claves de la caché son las solicitudes congeladas (serializadas), y los
+    valores son las respuestas congeladas.</p>
+<p class="Pp">El comportamiento por defecto es usar la caché solo para solicitudes donde
+    <span class="Li">$request</span>-&gt;is_idempotent es verdadero (es decir, el
+    dbh tiene el atributo ReadOnly establecido o la sentencia SQL es obviamente un SELECT
+    sin una cláusula FOR UPDATE.)</p>
+<p class="Pp">Para un control aún mayor puedes usar el
+    <span class="Li">"go_cache"</span> atributo para pasar un
+    objeto de caché instanciado. Métodos individuales, incluyendo &gt;prepare()</b>,
+    también puede especificar cachés alternativas mediante el
+    <span class="Li">"go_cache"</span> atributo. Por ejemplo, para
+    especificar que no se realice caché para una consulta particular, podría usar</p>
+<pre>$sth = $dbh-&gt;prepare( $sql, { go_cache =&gt; 0 } );</pre>
+<p class="Pp">Esto se puede usar para implementar diferentes políticas de caché para
+    diferentes sentencias.</p>
+<p class="Pp">Es interesante notar que DBD::Gofer se puede usar para añadir
+    caché del lado del cliente a cualquier aplicación (compatible con gofer), sin
+    cambios en el código y sin necesidad de un servidor gofer. Solo establezca la variable de entorno DBI_AUTOPROXY
+    así:</p>
+<pre>DBI_AUTOPROXY='dbi:Gofer:transport=null;cache=1'</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONFIGURING_BEHAVIOUR_POLICY'><a class='permalink' href='#CONFIGURING_BEHAVIOUR_POLICY'>CONFIGURANDO   LA POLÍTICA DE COMPORTAMIENTO</a></h1>
+<p class="Pp">DBD::Gofer soporta un mecanismo de 'política' que le permite
+    ajustar finamente el número de idas y vueltas al servidor Gofer. Las políticas se
+    agrupan en clases (que pueden ser subclaseadas) y se referencian por el nombre de
+    la clase.</p>
+<p class="Pp">La clase DBD::Gofer::Policy::Base es la clase base para todos los
+    paquetes de política y describe todas las políticas disponibles.</p>
+<p class="Pp">Se proporcionan tres paquetes de política con DBD::Gofer:</p>
+<p class="Pp">DBD::Gofer::Policy::pedantic es el más 'transparente' pero el más lento
+    porque hace más idas y vueltas al servidor Gofer.</p>
+<p class="Pp">DBD::Gofer::Policy::classic es un compromiso razonable - es la
+    política por defecto.</p>
+<p class="Pp">DBD::Gofer::Policy::rush es el más rápido, pero puede requerir cambios en el código
+    en sus aplicaciones.</p>
+<p class="Pp">Generalmente la política por defecto <span class="Li">"classic"</span>
+    es suficiente. Cuando se prueba por primera vez una aplicación existente con Gofer, es
+    una buena idea empezar con la política <span class="Li">"pedantic"</span>
+    primero y luego cambiar a <span class="Li">"classic"</span>
+    o a una política personalizada, para las pruebas finales.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Tim Bunce, <a href='http://www.tim.bunce.name'>http://www.tim.bunce.name</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENCE_AND_COPYRIGHT'><a class='permalink' href='#LICENCE_AND_COPYRIGHT'>LICENCIA   Y DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Copyright (c) 2007, Tim Bunce, Ireland. Todos los derechos reservados.</p>
+<p class="Pp">Este módulo es software libre; puede redistribuirlo y/o
+    modificarlo bajo los mismos términos que Perl en sí. Vea perlartistic.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ACKNOWLEDGEMENTS'><a class='permalink' href='#ACKNOWLEDGEMENTS'>AGRADECIMIENTOS</a></h1>
+<p class="Pp">El desarrollo de DBD::Gofer y los módulos relacionados fue patrocinado por
+    Shopzilla.com (<a href='http://Shopzilla.com'>http://Shopzilla.com</a>), donde actualmente trabajo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VEA   TAMBIÉN</a></h1>
+<p class="Pp">DBI::Gofer::Request, DBI::Gofer::Response,
+  DBI::Gofer::Execute.</p>
+<p class="Pp">DBI::Gofer::Transport::Base, DBD::Gofer::Policy::Base.</p>
+<p class="Pp">DBI</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Caveats_for_specific_drivers'><a class='permalink' href='#Caveats_for_specific_drivers'>Advertencias   para controladores específicos</a></h1>
+<p class="Pp">Esta sección tiene como objetivo registrar problemas a tener en cuenta al usar Gofer
+    con controladores específicos. Generalmente solo documenta problemas que no son consecuencias
+    naturales de las limitaciones del enfoque de Gofer - como se documenta
+  arriba.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TODO'><a class='permalink' href='#TODO'>POR HACER</a></h1>
+<p class="Pp">Esto es solo un volcado aleatorio de ideas... (Hay más en el código fuente del
+    archivo Changes, no en el pod)</p>
+<p class="Pp">Documentar el mecanismo de política</p>
+<p class="Pp">Añadir mecanismo para que los transportes enumeren los parámetros de configuración y para que Gofer
+    aplique los que coincidan (¿y advertir si queda alguno?)</p>
+<p class="Pp">Atributos sth privados del controlador - establecidos mediante <b>prepare()</b> - cambiar
+    la especificación de DBI</p>
+<p class="Pp">añadir ganchos en la clase base del transporte para verificar y actualizar una
+    caché de conjunto de resultados
+  <br/>
+   es decir, a través de una interfaz de caché estándar como:
+  <br/>
+   <a href='http://search.cpan.org/~robm/Cache-FastMmap/FastMmap.pm'>http://search.cpan.org/~robm/Cache-FastMmap/FastMmap.pm</a>
+  <br/>
+   <a href='http://search.cpan.org/~bradfitz/Cache-Memcached/lib/Cache/Memcached.pm'>http://search.cpan.org/~bradfitz/Cache-Memcached/lib/Cache/Memcached.pm</a>
+  <br/>
+   <a href='http://search.cpan.org/~dclinton/Cache-Cache/'>http://search.cpan.org/~dclinton/Cache-Cache/</a>
+  <br/>
+   <a href='http://search.cpan.org/~cleishman/Cache/'>http://search.cpan.org/~cleishman/Cache/</a> Además, las instrucciones de caché podrían
+    pasarse a través de la capa de transporte httpd de tal manera que se añadan cabeceras http
+    de caché apropiadas a los resultados para que las cachés web (squid etc) puedan
+    usarse para implementar la caché. (DEBE requerir el uso de GET en lugar de
+    solicitudes POST.)</p>
+<p class="Pp">Rehacer el manejo de installed_methods para que no se aproveche de
+    dbh_attributes?</p>
+<p class="Pp">Quizás soportar transacciones para transportes donde sea posible
+    (es decir, null y stream)? Haría que el transporte stream (es decir, ssh) fuera más útil
+    para más gente.</p>
+<p class="Pp">Hacer que sth_result_attr sea más parecido a dbh_attributes (usando '*' etc)</p>
+<p class="Pp">Añadir <span class="Li">@val</span> = FETCH_many(@names) a DBI en C
+    y usar en Gofer/Execute?</p>
+<p class="Pp">Implementar _new_sth en C.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/perl-dbi</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.647-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.org/dist/DBI/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-dbi/">/listing/extra/perl-dbi/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#CONSTRAINTS">RESTRICCIONES</a></li>
+        
+            <li><a href="#GENERAL_CAVEATS">ADVERTENCIAS GENERALES</a></li>
+        
+            <li><a href="#CAVEATS_FOR_SPECIFIC_METHODS">ADVERTENCIAS PARA MÉTODOS ESPECÍFICOS</a></li>
+        
+            <li><a href="#TRANSPORTS">TRANSPORTES</a></li>
+        
+            <li><a href="#CONNECTING">CONEXIÓN</a></li>
+        
+            <li><a href="#CONFIGURING_BEHAVIOUR_POLICY">CONFIGURACIÓN DE LA POLÍTICA DE COMPORTAMIENTO</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#LICENCE_AND_COPYRIGHT">LICENCIA Y DERECHOS DE AUTOR</a></li>
+        
+            <li><a href="#ACKNOWLEDGEMENTS">AGRADECIMIENTOS</a></li>
+        
+            <li><a href="#SEE_ALSO">VEA TAMBIÉN</a></li>
+        
+            <li><a href="#Caveats_for_specific_drivers">Advertencias para controladores específicos</a></li>
+        
+            <li><a href="#TODO">POR HACER</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBD::Gofer.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/DBD::Gofer.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

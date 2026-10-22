@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tk::Internals(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Tk__Internals(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-tk/">perl-tk</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL, custom</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Internals(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Internals(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Tk::Internals - qué está haciendo la interfaz Perl Tk cuando llamas a las funciones de Tk.</p>
+<p class="Pp">Esta información es peor que inútil para los usuarios de "perlTk", pero puede ser de alguna ayuda para las personas interesadas en usar una versión modificada de Tk con "perlTk".</p>
+<p class="Pp">Este documento está en construcción. Se cree que la información es pertinente para la versión de "portableTk" disponible cuando fue creada. Todos los detalles están sujetos a cambios.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<dl class="Bl-tag">
+  <dt id="PreCompilación"><a class="permalink" href="#PreCompilación">PreCompilación</a></dt>
+  <dd>Antes de la etapa de compilación real, un script escanea el código fuente y extrae los subcomandos de diferentes comandos. Esta información reside en el archivo <span class="Li">&quot;pTk/Methods.def&quot;</span>.</dd>
+  <dt id="Compilación"><a class="permalink" href="#Compilación">Compilación</a></dt>
+  <dd>Durante la compilación, el archivo anterior se incluye en el código fuente de la rutina de arranque de la biblioteca dinámica (o estática). Más precisamente, el código de arranque del módulo <span class="Li">&quot;Tk&quot;</span> llama a la subrutina <b>Boot_Glue()</b> del módulo <span class="Li">&quot;tkGlue.c&quot;</span>, y esta subrutina incluye el archivo (con las definiciones de macro apropiadas).</dd>
+  <dt id="Dentro"><a class="permalink" href="#Dentro">Dentro de &quot;use Tk;&quot;</a></dt>
+  <dd>El módulo arranca el código C, luego carga las bibliotecas Perl. El corazón del código Perl está contenido en la biblioteca <span class="Li">&quot;Tk::Widget&quot;</span>, todos los widgets heredan de este módulo. El código para los toplevels se carga desde <span class="Li">&quot;Tk::MainWindow&quot;</span>.
+    <p class="Pp">Durante el arranque del código de pegamento C, se definen los códigos de <span class="Li">&quot;Xevent::?&quot;</span> y un puñado de rutinas de <span class="Li">&quot;Tk::Widget&quot;</span> y <span class="Li">&quot;Tk::Image&quot;</span>. (Se crean muchas más XSUBs a partir del código <span class="Li">&quot;Tk.xs&quot;</span>). Los subcomandos del widget se conectan a Perl basándose en la lista incluida de <span class="Li">&quot;pTk/Methods.def&quot;</span>. De hecho, todos los subcomandos se conectan a XSUBs que están relacionadas con la misma subrutina C <b>XStoWidget()</b>, pero tienen diferentes partes de datos.</p>
+    <p class="Pp">Durante el arranque del código Perl, se llama al método <span class="Li">&quot;Tk::Widget::import&quot;</span>. Esta llamada requiere todo el código de los paquetes de widgets particulares.</p>
+    <p class="Pp">El código de los paquetes de widgets llama a un comando oscuro como</p>
+        <pre>(bless \&quot;Text&quot;)-&gt;WidgetClass;
+</pre>
+    <p class="Pp">Este comando (en realidad <b>Tk::Widget::WidgetClass()</b>) crea tres rutinas: <b>Tk::Widget::Text()</b>, <b>Tk::Widget::isText()</b>, y <b>Tk::Text::isText()</b>. La primera es básicamente el <span class="Li">&quot;new&quot;</span> de <span class="Li">&quot;Tk::Text&quot;</span>, las otras dos devuelven constantes. También coloca la clase en el depósito.</p>
+  </dd>
+  <dt id="Dentro~2"><a class="permalink" href="#Dentro~2">Dentro de &quot;$top = MainWindow-&gt;new;&quot;</a></dt>
+  <dd>Esto es bastante intuitivo. Esta llamada va directamente a <span class="Li">&quot;Tk::MainWindow::new&quot;</span>, que llama a la XSUB <span class="Li">&quot;Tk::MainWindow::CreateMainWindow&quot;</span>, que llama a la subrutina C <b>Tk_CreateMainWindow()</b>. Es una subrutina de <span class="Li">&quot;Tk&quot;</span>, así que aquí termina la magia negra (casi).
+    <p class="Pp">La única magia negra que queda es que la rutina de inicialización de <span class="Li">&quot;Tk&quot;</span> crea muchos comandos, pero la subrutina para la creación es usurpada por <b>portableTk</b> y los comandos se crean en el paquete <span class="Li">&quot;Tk&quot;</span>. Están asociados a XSUBs que están relacionadas con una de las tres subrutinas C <b>XStoSubCmd()</b>, <b>XStoBind()</b>, o <b>XStoTk()</b>, pero tienen diferentes partes de datos.</p>
+    <p class="Pp">El resultado de la llamada se bendice en <span class="Li">&quot;Tk::MainWindow&quot;</span>, como debe ser.</p>
+  </dd>
+  <dt id="Dentro~3"><a class="permalink" href="#Dentro~3">Dentro de &quot;$top-&gt;title('Text demo');&quot;</a></dt>
+  <dd>El paquete <span class="Li">&quot;Tk::Toplevel&quot;</span> define muchos subcomandos sobre la marcha a partir de una lista. Todos los comandos de la lista se convierten a los subcomandos correspondientes del método <span class="Li">&quot;wm&quot;</span> del widget. Aquí, el subcomando es un comando con un segundo argumento particular (en este caso <span class="Li">&quot;title&quot;</span>). Recuerda que el primer argumento es <span class="Li">$self</span>.
+    <p class="Pp">Ahora <span class="Li">&quot;Tk::Toplevel&quot;</span> <span class="Li">@ISA</span> <span class="Li">&quot;Tk::Widget&quot;</span>, que a su vez <span class="Li">@ISA</span> <span class="Li">&quot;Tk&quot;</span>. Por lo tanto, una llamada a <span class="Li">&quot;$top-&gt;wm('title','Text demo')&quot;</span> llama a <span class="Li">&quot;Tk::wm&quot;</span>, que se define durante la llamada a <b>Tk_CreateMainWindow()</b>. Como se describe anteriormente, se llama a la XSUB asociada a <b>XStoSubCmd()</b>.</p>
+    <p class="Pp">Esta rutina C está definida en <span class="Li">&quot;tkGlue.c&quot;</span>. Obtiene la parte de datos de la XSUB, crea un <span class="Li">&quot;SV&quot;</span> con el nombre del comando y llama a <b>Call_Tk()</b> con los datos de la XSUB como primer argumento, y con el nombre de la XSUB introducido en la pila de Perl en el lugar donde <span class="Li">&quot;tk&quot;</span> lo espera. (De hecho, también puede reordenar los argumentos si cree que es lo que quieres).</p>
+    <p class="Pp">El último procedimiento extrae el nombre del procedimiento de <span class="Li">&quot;tk&quot;</span> y <span class="Li">&quot;clientData&quot;</span> del primer argumento y realiza una llamada, utilizando la pila de Perl como <span class="Li">&quot;argv&quot;</span> para el procedimiento. Después se realiza mucha magia negra para convertir el resultado del procedimiento en un valor de retorno de array de Perl.</p>
+  </dd>
+  <dt id="Dentro~4"><a class="permalink" href="#Dentro~4">Dentro de &quot;$text = $top-&gt;Text(background =&gt; $txtBg);&quot;</a></dt>
+  <dd>Anteriormente discutimos cómo se crea el comando <span class="Li">&quot;Tk::Widget::Text&quot;</span>. El comando anterior lo llama a través de la herencia. Se traduce a
+        <pre>Tk::Text::new($top, background =&gt; $txtBg);
+</pre>
+    <p class="Pp">El paquete <span class="Li">&quot;Tk::Text&quot;</span> no tiene un método <span class="Li">&quot;new&quot;</span>, por lo que se llama a <span class="Li">&quot;Tk::Widget::new&quot;</span>. A su vez, llama a <span class="Li">&quot;Tk::Text-&gt;DoInit($top)&quot;</span>, que es <span class="Li">&quot;Tk::Widget::DoInit(Tk::Text,$top)&quot;</span>, que inicializa las vinculaciones si es necesario. Luego crea el nombre del widget con el formato <span class="Li">&quot;.text0&quot;</span> y llama a <span class="Li">&quot;Tk::text('.text0', background =&gt; $txtBg)&quot;</span> (nota la minúscula). El resultado de la llamada se bendice en <span class="Li">&quot;Tk::Text&quot;</span> y se llama al método <span class="Li">&quot;bindtags&quot;</span> para este objeto.</p>
+    <p class="Pp">Ahora, lo único que queda por discutir es quién define los métodos <span class="Li">&quot;text&quot;</span> y <span class="Li">&quot;bindtags&quot;</span>. La respuesta es que se definen en <span class="Li">&quot;tkWindow.c&quot;</span>, y estos comandos se crean en el paquete <span class="Li">&quot;Tk&quot;</span> en el mismo barrido que creó el comando <span class="Li">&quot;Tk::wm&quot;</span> discutido anteriormente.</p>
+    <p class="Pp">Por lo tanto, se llama al mismo código C que corresponde al procesamiento de los comandos TCL correspondientes aquí también (esta vez a través de la interfaz <span class="Li">&quot;XStoTk&quot;</span>).</p>
+  </dd>
+  <dt id="Dentro~5"><a class="permalink" href="#Dentro~5">Dentro de &quot;$text-&gt;insert('insert','Hola, mundo!');&quot;</a></dt>
+  <dd>Como discutimos anteriormente, los subcomandos de los procedimientos de widget corresponden a la XSUB <span class="Li">&quot;XStoWidget&quot;</span>. Esta XSUB sustituye el primer argumento <span class="Li">$text</span> (que es una referencia a un hash) a un valor apropiado de este hash, añade el argumento adicional después del primero que contiene el nombre del subcomando extraído de la parte de datos de la XSUB, y llama a la subrutina C de Tk correspondiente a través de <span class="Li">&quot;Call_Tk&quot;</span>.</dd>
+</dl>
+<p class="Pp">Ilya Zakharevich &lt;ilya@math.ohio-state.edu&gt;</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" v
+<section class="package-search">
+    <p>Search for packages:</p>
+    <form method="get" action="/packages/search/">
+        <input type="text" name="q" value="" />
+        <input type="submit" name="go" value="Go" />
+    </form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-tk/">extra/perl-tk</a></dd>
+        <dt>Versión:</dt>
+        <dd>804.036-8</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Tk">https://search.cpan.org/dist/Tk</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL, custom</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-tk/">/listing/extra/perl-tk/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Tk::Internals.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Tk::Internals.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

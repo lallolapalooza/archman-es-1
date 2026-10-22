@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>XcursorFilenameLoadCursor(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">XcursorFilenameLoadCursor(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/libxcursor/">libxcursor</a></p>
+<p class="lic">Licencias: HPND-sell-variant</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">XCURSOR(3)</td>
+    <td class="head-vol">X Versión 11</td>
+    <td class="head-rtitle">XCURSOR(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp"><b>Xcursor</b> - Biblioteca de gestión de cursores</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre><b>#include &lt;X11/Xcursor/Xcursor.h&gt;</b></pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>Xcursor</b> es una biblioteca sencilla diseñada para ayudar a
+    localizar y cargar cursores. Los cursores se pueden cargar desde archivos o
+    memoria. Existe una biblioteca de cursores comunes que se mapean a los nombres
+    de cursores estándar de X. Los cursores pueden existir en varios tamaños y la
+    biblioteca elige automáticamente el mejor
+    tamaño.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONAL_OVERVIEW'><a class='permalink' href='#FUNCTIONAL_OVERVIEW'>RESUMEN FUNCIONAL</a></h1>
+<p class="Pp">Xcursor está construido en un par de capas; en la capa inferior
+    hay código que puede cargar imágenes de cursor desde archivos. Por encima de
+    eso hay una capa que localiza archivos de cursor basándose en la ruta de la
+    biblioteca y el tema. En la parte superior hay una capa que construye
+    cursores ya sea a partir de una imagen cargada desde un archivo o de uno de
+    los cursores estándar de X. Al usar imágenes cargadas desde archivos, Xcursor
+    prefiere usar la solicitud CreateCursor de la extensión Render si es
+    compatible con el servidor X. Donde no es compatible, Xcursor mapea la
+    imagen del cursor a un cursor estándar de X y utiliza la solicitud
+    CreateCursor principal.</p>
+<section class="Ss">
+<h2 class="Ss" id='CURSOR_FILES'><a class='permalink' href='#CURSOR_FILES'>ARCHIVOS DE CURSOR</a></h2>
+<p class="Pp">Xcursor define un nuevo formato para cursores en disco. Cada archivo
+    contiene una o más imágenes de cursor. Cada imagen de cursor está etiquetada
+    con un tamaño nominal para que se pueda seleccionar automáticamente el mejor
+    tamaño. Se pueden cargar varios cursores del mismo tamaño nominal juntos; se
+    espera que las aplicaciones los utilicen como una secuencia animada.</p>
+<p class="Pp">Los archivos de cursor se almacenan como una cabecera que contiene
+    una tabla de contenidos seguida de una secuencia de fragmentos (chunks). La
+    tabla de contenidos indica el tipo, subtipo y posición en el archivo de cada
+    fragmento. La cabecera del archivo se ve así:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre><i>magic</i>:	CARD32 "Xcur" (0x58, 0x63, 0x75, 0x72)
+<i>header</i>:	CARD32 bytes en esta cabecera
+<i>version</i>:	CARD32 número de versión del archivo
+<i>ntoc</i>:	CARD32 número de entradas de la tabla de contenidos
+<i>toc</i>:	LISTofTOC tabla de contenidos
+<br/></pre>
+<p class="Pp">Cada entrada de la tabla de contenidos se ve así:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre><i>type</i>:	CARD32 tipo de entrada
+<i>subtype</i>:	CARD32 etiqueta específica del tipo - tamaño para imágenes
+<i>position</i>:	CARD32 posición absoluta en bytes del archivo
+<br/></pre>
+<p class="Pp">Cada fragmento en el archivo tiene un conjunto de campos de
+    cabecera comunes seguidos de campos adicionales específicos del tipo:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre><i>header</i>:	CARD32 bytes en la cabecera del fragmento (incluyendo campos específicos del tipo)
+<i>type</i>:	CARD32 debe coincidir con el tipo en la TOC para este fragmento
+<i>subtype</i>:	CARD32 debe coincidir con el subtipo en la TOC para este fragmento
+<i>version</i>:	CARD32 número de versión para este tipo de fragmento
+<br/></pre>
+<p class="Pp">Actualmente hay dos tipos de fragmentos definidos para archivos de
+    cursor; comentarios e imágenes. Los comentarios se ven así:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre><i>header</i>:	20 Las cabeceras de comentario tienen 20 bytes
+<i>type</i>:	0xfffe0001 El tipo de comentario es 0xfffe0001
+<i>subtype</i>:	{ 1 (COPYRIGHT), 2 (LICENSE), 3 (OTHER) }
+<i>version</i>:	1
+<i>length</i>:	CARD32 longitud en bytes de la cadena UTF-8
+<i>string</i>:	LISTofCARD8 cadena UTF-8
+<br/></pre>
+<p class="Pp">Las imágenes se ven así:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre><i>header</i>:	36 Las cabeceras de imagen tienen 36 bytes
+<i>type</i>:	0xfffd0002 El tipo de imagen es 0xfffd0002
+<i>subtype</i>:	CARD32 El subtipo de imagen es el tamaño nominal
+<i>version</i>:	1
+<i>width</i>:	CARD32 Debe ser menor o igual a 0x7fff
+<i>height</i>:	CARD32 Debe ser menor o igual a 0x7fff
+<i>xhot</i>:	CARD32 Debe ser menor o igual a width
+<i>yhot</i>:	CARD32 Debe ser menor o igual a height
+<i>delay</i>:	CARD32 Retraso entre fotogramas de animación en milisegundos
+<i>pixels</i>:	LISTofCARD32 píxeles empaquetados en formato ARGB
+<br/></pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='THEMES'><a class='permalink' href='#THEMES'>TEMAS</a></h2>
+<p class="Pp">Xcursor (principalmente) sigue la especificación freedesktop.org para
+    temas de iconos. La ruta de búsqueda predeterminada que utiliza es</p>
+<div class="Bd-indent">~/.local/share/icons, ~/.icons, /usr/share/icons,
+  /usr/share/pixmaps</div>
+<p class="Pp">Dentro de cada uno de estos directorios, busca un directorio
+    utilizando el nombre del tema:</p>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>Dentro del directorio del tema, busca archivos de cursor en el
+      subdirectorio &#x201C;cursors&#x201D;.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Xcursor busca un archivo específico, que debe ser uno de los nombres de
+      forma del cursor, p. ej., como se usa en XcursorLibraryLoadImage o
+      XcursorLibraryShape.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>Si no encuentra un archivo de cursor coincidente en el subdirectorio
+      &#x201C;cursors&#x201D;, Xcursor busca a continuación un archivo
+      &#x201C;index.theme&#x201D; en cada directorio de tema para buscar
+      temas heredados. Estas son líneas en este formato:
+    </dd>
+</dl>
+<div class="Bd-indent">Herencias = <i>nombre-del-tema</i>
+<p class="Pp">Xcursor utiliza el primer <i>nombre-del-tema</i> heredado,
+    ignorando otros que puedan existir en un archivo &#x201C;index.theme&#x201D;
+    dado. Si encuentra un tema heredado, Xcursor busca en la ruta para usarlo
+    también. Xcursor ignora otras <i>claves</i> en el archivo
+    &#x201C;index.theme&#x201D;, incluido &#x201C;Name&#x201D; (es decir, el
+    nombre que una aplicación gráfica puede usar como <i>nombre de
+    presentación</i>).</p>
+<p class="Pp">Se puede enumerar más de un <i>nombre-del-tema</i> en la línea
+    <b>Herencias=</b>. La especificación freedesktop.org indica que los
+    elementos de la lista están separados por comas. Xcursor también acepta
+    punto y coma, pero traduce ambos a dos puntos al buscar en la ruta. Xcursor
+    espera solo una línea <b>Herencias=</b>; la especificación freedesktop.org
+    no aclara si se permiten claves múltiples.</p>
+</div>
+<p class="Pp">Si no se establece ningún tema, o si no se encuentra ningún cursor
+    para el tema especificado en ningún lugar de la ruta, Xcursor comprueba el
+    tema &#x201C;predeterminado&#x201D;.</p>
+<p class="Pp">Cuando Xcursor encuentra un archivo de cursor, deja de buscar.
+    Siempre utiliza el primer archivo de cursor encontrado mientras busca en la
+    ruta.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DATATYPES'><a class='permalink' href='#DATATYPES'>TIPOS DE DATOS</a></h1>
+<dl class="Bl-tag">
+  <dt id="XcursorImage"><a class="permalink" href="#XcursorImage"><b>XcursorImage</b></a></dt>
+  <dd>contiene una sola imagen de cursor en memoria. Cada píxel del cursor es un
+      valor de 32 bits que contiene ARGB con A en el byte más alto.
+    <p class="Pp">
+      <br/>
+    </p>
+    <pre><span class="Li">typedef struct _XcursorImage {</span>
+<span class="Li">    XcursorDim 	 size; 	/* tamaño nominal para la coincidencia */</span>
+<span class="Li">    XcursorDim 	 width; 	/* ancho real */</span>
+<span class="Li">    XcursorDim 	 height; 	/* altura real */</span>
+<span class="Li">    XcursorDim 	 xhot; 	/* punto activo x (debe estar dentro de la imagen) */</span>
+<span class="Li">    XcursorDim 	 yhot; 	/* punto activo y (debe estar dentro de la imagen) */</span>
+<span class="Li">    XcursorPixel 	*pixels; 	/* puntero a los píxeles */</span>
+<span class="Li">} XcursorImage;</span>
+</pre>
+  </dd>
+  <dt id="XcursorImages"><a class="permalink" href="#XcursorImages"><b>XcursorImages</b></a></dt>
+  <dd>contiene múltiples estructuras XcursorImage. Todas se liberan cuando se
+      libera XcursorImages en XcursorImagesDestroy.
+    <p class="Pp">
+      <br/>
+    </p>
+    <pre><span class="Li">typedef struct _XcursorImages {</span>
+<span class="Li">    int 	 nimage; 	/* número de imágenes */</span>
+<span class="Li">    XcursorImage 	**images; 	/* matriz de punteros XcursorImage */</span>
+<span class="Li">} XcursorImages;</span>
+</pre>
+  </dd>
+  <dt id="XcursorCursors"><a class="permalink" href="#XcursorCursors"><b>XcursorCursors</b></a></dt>
+  <dd>Contiene múltiples objetos Cursor. Todos se liberan cuando se libera
+      XcursorCursors. Estos tienen un contador de referencias para que
+      múltiples estructuras XcursorAnimate puedan usar el mismo
+      XcursorCursors.
+    <p class="Pp">
+      <br/>
+    </p>
+    <pre><span class="Li">typedef struct _XcursorCursors {</span>
+<span class="Li">    Display 	*dpy; 	/* Pantalla que contiene los cursores */</span>
+<span class="Li">    int 	 ref; 	/* contador de referencias */</span>
+<span class="Li">    int 	 ncursor; 	/* número de cursores */</span>
+<span class="Li">    Cursor 	*cursors; 	/* matriz de cursores */</span>
+<span class="Li">} XcursorCursors;</span>
+</pre>
+  </dd>
+  <dt id="XcursorAnimate"><a class="permalink" href="#XcursorAnimate"><b>XcursorAnimate</b></a></dt>
+  <dd>Hace referencia a un conjunto de cursores y una secuencia dentro de ese
+      conjunto. Múltiples estructuras XcursorAnimate pueden hacer referencia al
+      mismo XcursorCursors; cada una mantiene una referencia que se elimina
+      cuando se libera XcursorAnimate.
+    <p class="Pp">
+      <br/>
+    </p>
+    <pre><span class="Li">typedef struct _XcursorAnimate {</span>
+<span class="Li">    XcursorCursors 	*cursors; 	/* lista de cursores a usar */</span>
+<span class="Li">    int 	 sequence; 	/* qué cursor es el siguiente */</span>
+<span class="Li">} XcursorAnimate;</span>
+</pre>
+  </dd>
+  <dt id="XcursorFile"><a class="permalink" href="#XcursorFile"><b>XcursorFile</b></a></dt>
+  <dd>Xcursor proporciona una API abstracta para acceder a los datos del archivo.
+      Xcursor proporciona una implementación stdio de esta API abstracta; las
+      aplicaciones son libres de crear implementaciones adicionales. Estas
+      funciones son paralelas a las std</dd>
+</dl>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+io, las funciones `read` y `write` invierten los argumentos para que coincidan con las versiones POSIX.
+    <p class="Pp">
+      <br/>
+    </p>
+    <pre><span class="Li">typedef struct _XcursorFile {</span>
+<span class="Li">    void *closure;</span>
+<span class="Li">    int (*read)  (XcursorFile *file, unsigned char *buf, int len);</span>
+<span class="Li">    int (*write) (XcursorFile *file, unsigned char *buf, int len);</span>
+<span class="Li">    int (*seek)  (XcursorFile *file, long offset, int whence);</span>
+<span class="Li">};</span>
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCIONES'><a class='permalink' href='#FUNCIONES'>FUNCIONES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Gestión_de_objetos'><a class='permalink' href='#Gestión_de_objetos'>Gestión de objetos</a></h2>
+<dl class="Bl-tag">
+  <dt>XcursorImage *XcursorImageCreate (</dt>
+  <dd>
+    <pre>int 	 <i>width</i>,
+int 	 <i>height</i>)
+
+</pre>
+  </dd>
+  <dt>void XcursorImageDestroy (</dt>
+  <dd>
+    <pre>	XcursorImage 	*<i>image</i>)
+</pre>
+    <p class="Pp">Asigna y libera imágenes. En la asignación, el punto de activación y
+        los píxeles quedan sin inicializar. El tamaño se establece en el máximo de
+        <i>width</i> y <i>height</i>.</p>
+  </dd>
+  <dt>XcursorImages *XcursorImagesCreate (</dt>
+  <dd>
+    <pre>int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>void XcursorImagesDestroy (</dt>
+  <dd>
+    <pre>	XcursorImages 	*<i>images</i>)
+</pre>
+    <p class="Pp">Asigna y libera arreglos para contener múltiples imágenes de cursor. En
+        la asignación, <i>nimage</i> se establece en cero.</p>
+  </dd>
+  <dt>XcursorCursors *XcursorCursorsCreate (</dt>
+  <dd>
+    <pre>Display 	*<i>dpy</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>void XcursorCursorsDestroy (</dt>
+  <dd>
+    <pre>	XcursorCursors 	*<i>cursors</i>)
+</pre>
+    <p class="Pp">Asigna y libera arreglos para contener múltiples cursores. En
+        la asignación, <i>ncursor</i> se establece en cero, <i>ref</i> se establece en uno.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Lectura_y_escritura_de_imágenes'><a class='permalink' href='#Lectura_y_escritura_de_imágenes'>Lectura y escritura de imágenes</a></h2>
+<dl class="Bl-tag">
+  <dt>XcursorImage *XcursorXcFileLoadImage (</dt>
+  <dd>
+    <pre>XcursorFile 	*<i>file</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorXcFileLoadImages (</dt>
+  <dd>
+    <pre>XcursorFile 	*<i>file</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorXcFileLoadAllImages (</dt>
+  <dd>
+    <pre>XcursorFile 	*<i>file</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorXcFileLoad (</dt>
+  <dd>
+    <pre>XcursorFile 	*<i>file</i>,
+XcursorComments 	**<i>commentsp</i>,
+XcursorImages 	**<i>imagesp</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorXcFileSave (</dt>
+  <dd>
+    <pre>	XcursorFile 	*<i>file</i>,
+	const XcursorComments 	*<i>comments</i>,
+	const XcursorImages 	*<i>images</i>)
+</pre>
+    <p class="Pp">Estas funciones leen y escriben cursores desde un manejador
+        XcursorFile. Después de leer, el puntero del archivo quedará en una posición
+        aleatoria dentro del archivo.</p>
+  </dd>
+  <dt>XcursorImage *XcursorFileLoadImage (</dt>
+  <dd>
+    <pre>FILE 	*<i>file</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorFileLoadImages (</dt>
+  <dd>
+    <pre>FILE 	*<i>file</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorFileLoadAllImages (</dt>
+  <dd>
+    <pre>FILE 	*<i>file</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorFileLoad (</dt>
+  <dd>
+    <pre>FILE 	*<i>file</i>,
+XcursorComments 	**<i>commentsp</i>,
+XcursorImages 	**<i>imagesp</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorFileSaveImages (</dt>
+  <dd>
+    <pre>FILE 	*<i>file</i>,
+const XcursorImages 	*<i>images</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorFileSave (</dt>
+  <dd>
+    <pre>	FILE 	*<i>file</i>,
+	const XcursorComments 	*<i>comments</i>,
+	const XcursorImages 	*<i>images</i>)
+</pre>
+    <p class="Pp">Estas funciones leen y escriben cursores desde un manejador
+        stdio FILE. La escritura realiza un flush antes de retornar para que se
+        detecten posibles errores.</p>
+  </dd>
+  <dt>XcursorImage *XcursorFilenameLoadImage (</dt>
+  <dd>
+    <pre>const char 	*<i>filename</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorFilenameLoadImages (</dt>
+  <dd>
+    <pre>const char 	*<i>filename</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorFilenameLoadAllImages (</dt>
+  <dd>
+    <pre>const char 	*<i>file</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorFilenameLoad (</dt>
+  <dd>
+    <pre>const char 	*<i>file</i>,
+XcursorComments 	**<i>commentsp</i>,
+XcursorImages 	**<i>imagesp</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorFilenameSaveImages (</dt>
+  <dd>
+    <pre>const char 	*<i>filename</i>,
+const XcursorImages 	*<i>images</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorBool XcursorFilenameSave (</dt>
+  <dd>
+    <pre>	const char 	*<i>file</i>,
+	const XcursorComments 	*<i>comments</i>,
+	const XcursorImages 	*<i>images</i>)
+</pre>
+    <p class="Pp">Estas funciones son paralelas a las interfaces stdio FILE
+        anteriores, pero toman nombres de archivo.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Lectura_de_imágenes_de_biblioteca'><a class='permalink' href='#Lectura_de_imágenes_de_biblioteca'>Lectura de imágenes de biblioteca</a></h2>
+<dl class="Bl-tag">
+  <dt>XcursorImage *XcursorLibraryLoadImage (</dt>
+  <dd>
+    <pre>const char 	*<i>name</i>,
+const char 	*<i>theme</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorLibraryLoadImages (</dt>
+  <dd>
+    <pre>	const char 	*<i>name</i>,
+	const char 	*<i>theme</i>,
+	int 	 <i>size</i>)
+</pre>
+    <p class="Pp">Estas funciones buscan en la ruta de la biblioteca, cargando el primer
+        archivo encontrado del <i>size</i> deseado, utilizando una función privada
+        (XcursorScanTheme) para encontrar el tema apropiado:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Si <i>theme</i> no es NULL, se utiliza ese.</li>
+  <li>Si <i>theme</i> es NULL, o si no hubo coincidencia para el tema deseado,
+      se utiliza "default" como nombre del tema.</li>
+  <li>Si ninguna búsqueda tiene éxito, estas funciones devuelven NULL.</li>
+</ul>
+</div>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Las dos funciones difieren en algo más que el número de imágenes cargadas:</dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>XcursorLibraryLoadImage llama a XcursorFileLoadImage pero</li>
+  <li>XcursorLibraryLoadImages llama a XcursorFileLoadImages y (en caso de éxito)
+      llama a XcursorImagesSetName para asociar <i>name</i> con el resultado.</li>
+</ul>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Atributos_de_biblioteca'><a class='permalink' href='#Atributos_de_biblioteca'>Atributos de biblioteca</a></h2>
+<dl class="Bl-tag">
+  <dt>const char * XcursorLibraryPath (void)</dt>
+  <dd>
+    <pre></pre>
+    <p class="Pp">Devuelve la ruta de búsqueda de la biblioteca:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Si la variable de entorno <b>XCURSOR_PATH</b> está establecida, devuelve
+      ese valor.</li>
+  <li>De lo contrario, devuelve la ruta de búsqueda compilada en el código.</li>
+</ul>
+</div>
+<dl class="Bl-tag">
+  <dt>int XcursorLibraryShape (</dt>
+  <dd>
+    <pre>	const char 	*<i>library</i>)
+</pre>
+    <p class="Pp">Busca en la tabla de nombres de fuentes de cursor de Xcursor el
+        nombre de "forma" dado (<i>library</i>):</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Si se encuentra, devuelve el índice en esa tabla, multiplicado por dos
+      (para tener en cuenta los valores de origen y máscara utilizados en una
+      fuente de cursor X).</li>
+  <li>Si no se encuentra, devuelve -1.</li>
+</ul>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='APIs_de_cursor'><a class='permalink' href='#APIs_de_cursor'>APIs de cursor</a></h2>
+<dl class="Bl-tag">
+  <dt>Cursor XcursorFilenameLoadCursor (</dt>
+  <dd>
+    <pre>Display 	*<i>dpy</i>,
+const char 	*<i>file</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorCursors *XcursorFilenameLoadCursors (</dt>
+  <dd>
+    <pre>	Display 	*<i>dpy</i>,
+	const char 	*<i>file</i>)
+</pre>
+    <p class="Pp">Estas funciones cargan cursores desde el archivo especificado.</p>
+  </dd>
+  <dt>Cursor XcursorLibraryLoadCursor (</dt>
+  <dd>
+    <pre>Display 	*<i>dpy</i>,
+const char 	*<i>name</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorCursors *XcursorLibraryLoadCursors (</dt>
+  <dd>
+    <pre>	Display 	*<i>dpy</i>,
+	const char 	*<i>name</i>)
+</pre>
+    <p class="Pp">Estas funciones cargan cursores utilizando el <i>name</i> de
+        biblioteca especificado. El tema proviene de la pantalla.</p>
+  </dd>
+  <dt>Cursor XcursorImageLoadCursor(</dt>
+  <dd>
+    <pre>	Display 	*<i>dpy</i>,
+	const XcursorImage 	*<i>image</i>)
+</pre>
+    <p class="Pp">Esto crea un cursor, dada la imagen a mostrar. Llama a
+        XcursorSupportsARGB para decidir qué tipo de cursor crear:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Se utiliza XRenderCreateCursor si ARGB es compatible en la pantalla, y</li>
+  <li>Se utiliza XCreatePixmapCursor en caso contrario.</li>
+</ul>
+</div>
+<dl class="Bl-tag">
+  <dt>Cursor XcursorImagesLoadCursor(</dt>
+  <dd>
+    <pre>	Display 	*<i>dpy</i>,
+	const XcursorImages 	*<i>images</i>)
+</pre>
+    <p class="Pp">Esto proporciona una interfaz para crear cursores animados, si el
+        arreglo <i>images</i> contiene múltiples imágenes, y si
+        XcursorSupportsAnim devuelve verdadero. De lo contrario, llama a
+        XcursorImageLoadCursor.</p>
+  </dd>
+  <dt>XcursorCursors *XcursorImagesLoadCursors(</dt>
+  <dd>
+    <pre>	Display 	*<i>dpy</i>,
+	const XcursorImages 	*<i>images</i>)
+</pre>
+    <p class="Pp">Esto llama a XcursorCursorsCreate para crear un arreglo de
+        XcursorCursors, para corresponder con el arreglo XcursorImages <i>images</i>,
+        y utiliza XcursorImageLoadCursor para cargar los datos del cursor
+        correspondientes.</p>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Normalmente devuelve el puntero del arreglo resultante. Ante cualquier fallo,
+      descarta el resultado con XcursorCursorsDestroy y devuelve NULL.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='APIs_de_nombres_de_cursor_X'><a class='permalink' href='#APIs_de_nombres_de_cursor_X'>APIs de nombres de cursor X</a></h2>
+<dl class="Bl-tag">
+  <dt>XcursorImage *XcursorShapeLoadImage (</dt>
+  <dd>
+    <pre>unsigned int 	 <i>shape</i>,
+const char 	*<i>theme</i>,
+int 	 <i>size</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorImages *XcursorShapeLoadImages (</dt>
+  <dd>
+    <pre>	unsigned int 	 <i>shape</i>,
+	const char 	*<i>theme</i>,
+	int 	 <i>size</i>)
+</pre>
+    <p class="Pp">Estas funciones mapean <i>shape</i> a un nombre de biblioteca
+        utilizando los nombres de cursor estándar de X y luego cargan las
+        imágenes.</p>
+  </dd>
+  <dt>Cursor XcursorShapeLoadCursor (</dt>
+  <dd>
+    <pre>Display 	*<i>dpy</i>,
+unsigned int 	 <i>shape</i>)
+
+</pre>
+  </dd>
+  <dt>XcursorCursors *XcursorShapeLoadCursors (</dt>
+  <dd>
+    <pre>	Display 	*<i>dpy</i>,
+	unsigned int 	 <i>shape</i>)
+</pre>
+    <p class="Pp">Estas funciones mapean <i>shape</i> a un nombre de biblioteca y luego
+        cargan los cursores.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='APIs_de_comentarios_de_cursor_X'><a class='permalink' href='#APIs_de_comentarios_de_cursor_X'>APIs de comentarios de cursor X</a></h2>
+<dl class="Bl-tag">
+  <dt>XcursorComment *XcursorCommentCreate (</dt>
+  <dd>
+    <pre>	XcursorUInt 	 <i>comment_type</i>,
+	int 	 <i>length</i>)
+</pre>
+    <p class="Pp">XcursorXcFileLoad utiliza esta función para asignar una estructura
+        XcursorComment para un solo cursor. El parámetro <i>comment_type</i> se
+        utiliza como campo <i>subtype</i>, por ejemplo, COPYRIGHT. <i>length</i>
+        es el número de bytes a asignar para el texto del comentario.</p>
+  </dd>
+  <dt>void XcursorCommentDestroy(</dt>
+  <dd>
+    <pre>	XcursorComment 	*<i>comment</i>)
+</pre>
+    <p class="Pp">Desasigna la estructura XcursorComment dada.</p>
+  </dd>
+  <dt>XcursorComments * XcursorCommentsCreate (</dt>
+  <dd>
+    <pre>	int 	 <i>size</i>)
+</pre>
+    <p class="Pp">XcursorXcFileLoad utiliza esta función para asignar un índice de
+        punteros a estructuras XcursorComment. El parámetro <i>size</i> le indica</p>
+  </dd>
+</dl>{
+  "title": "Xcursor - Xcursor Library",
+  "sections": [
+    {
+      "title": "Description",
+      "content": [
+        "The Xcursor library provides APIs to load and manage X cursor images, including support for animated cursors, themed cursors, and ARGB cursors."
+      ]
+    },
+    {
+      "title": "Core APIs",
+      "subsections": [
+        {
+          "title": "Cursor Loading APIs",
+          "content": [
+            {
+              "type": "dl",
+              "items": [
+                {
+                  "dt": "XcursorBool XcursorFilenameToXcursor (",
+                  "dd": {
+                    "code": "const char \t*<i>filename</i>,",
+                    "text": "Xcursor **<i>ret_cursor</i>)"
+                  },
+                  "description": "Loads a cursor from the specified filename. This function can be used for static cursors."
+                },
+                {
+                  "dt": "XcursorBool XcursorFileToXcursor (",
+                  "dd": {
+                    "code": "FILE \t\t*<i>file</i>,",
+                    "text": "Xcursor **<i>ret_cursor</i>)"
+                  },
+                  "description": "Loads a cursor from a given file stream. Useful for reading compressed cursor data."
+                },
+                {
+                  "dt": "XcursorBool XcursorParse (",
+                  "dd": {
+                    "code": "const char \t*<i>buffer</i>,",
+                    "text": "Xcursor **<i>ret_cursor</i>)"
+                  },
+                  "description": "Parses cursor data from a memory buffer."
+                },
+                {
+                  "dt": "void XcursorDestroy (",
+                  "dd": {
+                    "code": "Xcursor \t\t*<i>cursor</i>)"
+                  },
+                  "description": "Frees the memory allocated for an Xcursor structure."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetDefaultSize (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets the default cursor size for the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetDefaultTheme (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets the default theme name for the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetTheme (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets the current theme name for the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetColor (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nXcursor \t\t*<i>xc</i>)"
+                  },
+                  "description": "Gets the color information for a cursor."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetImage (",
+                  "dd": {
+                    "code": "Xcursor \t\t*<i>xc</i>, \nint \t\t<i>idx</i>)"
+                  },
+                  "description": "Retrieves a specific image from an Xcursor structure based on its index."
+                },
+                {
+                  "dt": "int XcursorGetImageCount (",
+                  "dd": {
+                    "code": "Xcursor \t\t*<i>xc</i>)"
+                  },
+                  "description": "Returns the number of images within an Xcursor structure."
+                },
+                {
+                  "dt": "XcursorSize XcursorGetSize (",
+                  "dd": {
+                    "code": "Xcursor \t\t*<i>xc</i>)"
+                  },
+                  "description": "Gets the size of the cursor."
+                },
+                {
+                  "dt": "XcursorBool XcursorSetDefaultSize (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nint \t\t<i>size</i>)"
+                  },
+                  "description": "Sets the default size for cursors on the specified display. Cursors with nominal sizes closest to this will be preferred."
+                },
+                {
+                  "dt": "XcursorBool XcursorSetTheme (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nconst char \t*<i>theme</i>)"
+                  },
+                  "description": "Sets the current theme name for cursors on the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorSetThemeCore (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nXcursorBool \t<i>theme_core</i>)"
+                  },
+                  "description": "Enables or disables themes for core X cursors."
+                },
+                {
+                  "dt": "Cursor XcursorLoadCursor (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nXcursor \t\t*<i>xc</i>)"
+                  },
+                  "description": "Loads a cursor into the X server. This function should be used after loading the cursor data with XcursorFilenameToXcursor, XcursorFileToXcursor, or XcursorParse."
+                },
+                {
+                  "dt": "Cursor XcursorLoadNamedCursor (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nconst char \t*<i>name</i>)"
+                  },
+                  "description": "Loads a cursor from the cursor theme by its name."
+                },
+                {
+                  "dt": "Cursor XcursorLoadHotKeyCursor (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nconst char \t*<i>name</i>, \nint \t\t<i>hot_x</i>, \nint \t\t<i>hot_y</i>)"
+                  },
+                  "description": "Loads a cursor from the cursor theme by its name and sets the hotspot coordinates."
+                },
+                {
+                  "dt": "void XcursorImageHash (",
+                  "dd": {
+                    "code": "XImage \t\t*<i>image</i>, \nunsigned char \t<i>hash</i>[XCURSOR_BITMAP_HASH_SIZE])"
+                  },
+                  "description": "Computes a hash for an image, used for identifying cursors."
+                },
+                {
+                  "dt": "void XcursorImagesSetName (",
+                  "dd": {
+                    "code": "XcursorImages \t*<i>images</i>, \nconst char \t*<i>name</i>)"
+                  },
+                  "description": "Associates a name with a set of cursor images."
+                },
+                {
+                  "dt": "void XcursorNoticeCreateBitmap (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nPixmap \t\t<i>pid</i>, \nunsigned int \t<i>width</i>, \nunsigned int \t<i>height</i>)"
+                  },
+                  "description": "Notifies the X server about a new bitmap for a cursor. This is used internally by the library."
+                },
+                {
+                  "dt": "void XcursorNoticePutBitmap (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nDrawable \t<i>draw</i>, \nXImage \t\t*<i>image</i>)"
+                  },
+                  "description": "Updates the bitmap contents for a cursor. This is used internally by the library."
+                },
+                {
+                  "dt": "Cursor XcursorTryShapeBitmapCursor (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nPixmap \t\t<i>source</i>, \nPixmap \t\t<i>mask</i>, \nXColor \t\t*<i>foreground</i>, \nXColor \t\t*<i>background</i>, \nunsigned int \t<i>x</i>, \nunsigned int \t<i>y</i>)"
+                  },
+                  "description": "Attempts to load a cursor from a Pixmap, considering ARGB or theme support."
+                },
+                {
+                  "dt": "Cursor XcursorTryShapeCursor (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nFont \t\t<i>source_font</i>, \nFont \t\t<i>mask_font</i>, \nunsigned int \t<i>source_char</i>, \nunsigned int \t<i>mask_char</i>, \nXColor _Xconst \t*<i>foreground</i>, \nXColor _Xconst \t*<i>background</i>)"
+                  },
+                  "description": "Attempts to load a cursor from a font glyph, considering ARGB or theme support."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Commentary APIs",
+          "content": [
+            {
+              "type": "dl",
+              "items": [
+                {
+                  "dt": "XcursorComments * XcursorCommentsCreate (",
+                  "dd": {
+                    "code": "const char \t*<i>comment_str</i>)"
+                  },
+                  "description": "Creates an XcursorComments structure from a string. The string is split into individual comments."
+                },
+                {
+                  "dt": "void XcursorCommentsDestroy (",
+                  "dd": {
+                    "code": "XcursorComments \t*<i>comments</i>)"
+                  },
+                  "description": "Deallocates the given XcursorComments structure and its contained XcursorComment structures."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Animated Cursors",
+          "content": [
+            {
+              "type": "dl",
+              "items": [
+                {
+                  "dt": "XcursorAnimate * XcursorAnimateCreate (",
+                  "dd": {
+                    "code": "XcursorCursors \t*<i>cursors</i>)"
+                  },
+                  "description": "Wraps an array of cursors in an XcursorAnimate structure to enable animation sequencing."
+                },
+                {
+                  "dt": "void XcursorAnimateDestroy (",
+                  "dd": {
+                    "code": "XcursorAnimate \t*<i>animate</i>)"
+                  },
+                  "description": "Frees the memory associated with an XcursorAnimate structure and its contained cursors."
+                },
+                {
+                  "dt": "Cursor XcursorAnimateNext (",
+                  "dd": {
+                    "code": "XcursorAnimate \t*<i>animate</i>)"
+                  },
+                  "description": "Returns the next cursor in the animation sequence cyclically. The caller is responsible for displaying the sequence."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Glyph Cursor APIs",
+          "content": [
+            "The X11 XCreateFontCursor and XCreateGlyphCursor functions use this part of the API to extend X core cursors to use themes."
+          ]
+        },
+        {
+          "title": "Display Information APIs",
+          "content": [
+            {
+              "type": "dl",
+              "items": [
+                {
+                  "dt": "XcursorBool XcursorSupportsARGB (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Returns true if the display supports ARGB cursors; otherwise, cursors are mapped to core X cursors."
+                },
+                {
+                  "dt": "XcursorBool XcursorSupportsAnim (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Returns true if the display supports animated cursors; otherwise, cursors are mapped to core X cursors."
+                },
+                {
+                  "dt": "int XcursorGetDefaultSize (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets the default cursor size for the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorSetResizable (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nXcursorBool \t<i>resizable</i>)"
+                  },
+                  "description": "Sets the state for resizable cursors on the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetResizable (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets the current state of resizable cursors for the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorSetTheme (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nconst char \t*<i>theme</i>)"
+                  },
+                  "description": "Sets the current cursor theme for the display."
+                },
+                {
+                  "dt": "char *XcursorGetTheme (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets the current cursor theme name for the display."
+                },
+                {
+                  "dt": "XcursorBool XcursorGetThemeCore (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>)"
+                  },
+                  "description": "Gets whether themes are enabled for core cursors."
+                },
+                {
+                  "dt": "XcursorBool XcursorSetThemeCore (",
+                  "dd": {
+                    "code": "Display \t\t*<i>dpy</i>, \nXcursorBool \t<i>theme_core</i>)"
+                  },
+                  "description": "Sets whether themes should be enabled for core X cursors."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "ENVIRONMENT",
+      "content": [
+        "Environment variables can override resource settings and compiled-in defaults.",
+        "Boolean values for environment variables can be specified as 't', '1', 'y', 'on' for true, and 'f', '0', 'n', 'off' for false. Other values are ignored.",
+        {
+          "type": "dl",
+          "items": [
+            {
+              "dt": "HOME",
+              "dd": "Xcursor uses this variable instead of the password database to interpret '~' as the home directory."
+            },
+            {
+              "dt": "XCURSOR_ANIM",
+              "dd": "If the display supports Render CreateCursor and Render is enabled, this disables animated cursors if set to 'false'."
+            },
+            {
+              "dt": "XCURSOR_CORE",
+              "dd": "If the display supports Render CreateCursor, this disables the Render feature if set to 'false'."
+            },
+            {
+              "dt": "XCURSOR_DISCOVER",
+              "dd": "If set, enables a logging feature that displays the hash and image to identify cursor names."
+            },
+            {
+              "dt": "XCURSOR_DITHER",
+              "dd": "Sets the desired dithering method. Recognized values are 'diffuse', 'median', 'ordered', 'threshold'. Defaults to 'threshold' if not specified."
+            },
+            {
+              "dt": "XCURSOR_PATH",
+              "dd": "Specifies a colon-separated list of directories to search for cursors, overriding the default compiled-in list."
+            },
+            {
+              "dt": "XCURSOR_RESIZED",
+              "dd": "Enables automatic resizing of cursors to improve their displayed size if set to 'true'."
+            },
+            {
+              "dt": "XCURSOR_SIZE",
+              "dd": "Sets the desired cursor size in pixels. If not set, it attempts to use Xft.dpi to guess the size, or falls back to display height divided by 48."
+            },
+            {
+              "dt": "XCURSOR_THEME",
+              "dd": "Selects the desired cursor theme. Defaults to the 'default' theme if not specified."
+            },
+            {
+              "dt": "XCURSOR_THEME_CORE",
+              "dd": "Enables or disables themes for core X cursors. Equivalent to XcursorSetThemeCore."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>libXcursor — Xcursor</title>
+        <link rel="stylesheet" type="text/css" href="/man.css"/>
+    </head>
+    <body>
+        
+        <main>
+            <article>
+                
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Xcursor — cursor loading and management library</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<p class="Pp"><span class="Ic">#include &lt;Xcursor/Xcursor.h&gt;</span></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">The <span class="Ic">libXcursor</span> library provides functions
+    for loading, displaying, and managing cursors. It allows applications to
+    specify cursors by name, size, and optionally use a theme to find the
+    appropriate cursor image.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONAL_OVERVIEW'><a class='permalink' href='#FUNCTIONAL_OVERVIEW'>FUNCTIONAL OVERVIEW</a></h1>
+<p class="Pp">The library supports loading cursors from image files, using
+    predefined cursor shapes, and applying cursor themes. It provides a mechanism
+    to set the core cursor that the X server uses for various pointer shapes.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DATATYPES'><a class='permalink' href='#DATATYPES'>DATATYPES</a></h1>
+<dl class="Bl-tag">
+  <dt><span class="Tf">XcursorCursor</span></dt>
+  <dd>Represents a cursor resource. It contains information about the cursor's
+      image, hotspot, and dimensions.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><span class="Tf">XcursorImage</span></dt>
+  <dd>Represents a cursor image, typically loaded from a file. It includes
+      pixel data, width, height, hotspot coordinates, and an optional name.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS'><a class='permalink' href='#FUNCTIONS'>FUNCTIONS</a></h1>
+<p class="Pp">The library provides numerous functions for cursor manipulation,
+    including:</p>
+<dl class="Bl-tag">
+  <dt><span class="Ic">XcursorFilenameLoadCursor</span></dt>
+  <dd>Loads a cursor from a file.</dd>
+  <dt><span class="Ic">XcursorLibraryLoadCursor</span></dt>
+  <dd>Loads a cursor from the Xcursor library (using a name).</dd>
+  <dt><span class="Ic">XcursorLibraryLoadIconCursor</span></dt>
+  <dd>Loads a cursor from the Xcursor library using an icon name.</dd>
+  <dt><span class="Ic">XcursorSetCursor</span></dt>
+  <dd>Sets the cursor for a specific window.</dd>
+  <dt><span class="Ic">XcursorFreeCursor</span></dt>
+  <dd>Frees the memory associated with a cursor.</dd>
+  <dt><span class="Ic">XcursorSetTheme</span></dt>
+  <dd>Sets the cursor theme to be used.</dd>
+  <dt><span class="Ic">XcursorGetTheme</span></dt>
+  <dd>Retrieves the current cursor theme.</dd>
+  <dt><span class="Ic">XcursorSetThemeCore</span></dt>
+  <dd>Enables or disables the use of themes for core cursor types.</dd>
+  <dt><span class="Ic">XcursorGetThemeCore</span></dt>
+  <dd>Gets the status of theme usage for core cursors.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENVIRONMENT'><a class='permalink' href='#ENVIRONMENT'>ENVIRONMENT</a></h1>
+<dl class="Bl-tag">
+  <dt><a name="Xcursor.theme"><span class="no-name">Xcursor.theme</span></a></dt>
+  <dd>Specifies the default cursor theme to use. If this variable is not set,
+      the system-wide default theme is used.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><a name="Xcursor.theme_core"><span class="no-name">Xcursor.theme_core</span></a></dt>
+  <dd>If set to <span class="Ib">true</span>, enables themes for core cursors.
+      If not provided, the <span class="Ic">Xcursor.theme_core</span> resource is
+      checked. Applications can also control this setting using
+      <span class="Ic">XcursorSetThemeCore</span>.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEATS'><a class='permalink' href='#CAVEATS'>CAVEATS</a></h1>
+<p class="Pp">The <span class="Ic">Xcursor</span> library's API is subject to change in
+    future versions. Efforts will be made to maintain a reasonable level of
+    source-file compatibility.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTHORS</a></h1>
+<p class="Pp">Keith Packard Thomas E. Dickey</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp">XCreateRenderCursor(3), XCreatePixmapCursor(3), and
+    XCreateFontCursor(3)</p>
+<p class="Pp">as well as</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd><i>Icon Theme Specification</i>
+    <br/>
+    <a href='https://specifications.freedesktop.org/icon-theme-spec/'>https://specifications.freedesktop.org/icon-theme-spec/</a></dd>
+</dl>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">libXcursor 1.2.3</td>
+    <td class="foot-os">X Version 11</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/libxcursor/">extra/libxcursor</a></dd>
+        <dt>Version:</dt>
+        <dd>1.2.3-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://gitlab.freedesktop.org/xorg/lib/libxcursor">https://gitlab.freedesktop.org/xorg/lib/libxcursor</a></dd>
+        <dt>Licenses:</dt>
+        <dd>HPND-sell-variant</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/libxcursor/">/listing/extra/libxcursor/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#FUNCTIONAL_OVERVIEW">FUNCTIONAL OVERVIEW</a></li>
+        
+            <li><a href="#DATATYPES">DATATYPES</a></li>
+        
+            <li><a href="#FUNCTIONS">FUNCTIONS</a></li>
+        
+            <li><a href="#ENVIRONMENT">ENVIRONMENT</a></li>
+        
+            <li><a href="#CAVEATS">CAVEATS</a></li>
+        
+            <li><a href="#AUTHORS">AUTHORS</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/XcursorFilenameLoadCursor.3.en.txt">txt</a>, 
+        
+            <a href="/man/XcursorFilenameLoadCursor.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SD_JOURNAL_APPEND(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">SD_JOURNAL_APPEND(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/systemd-libs/">systemd-libs</a></p>
+<p class="lic">Licencias: LGPL-2.1-or-later, CC0-1.0, GPL-2.0-or-later WITH Linux-syscall-note</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">SD_JOURNAL_GET_FD(3)</td>
+    <td class="head-vol">sd_journal_get_fd</td>
+    <td class="head-rtitle">SD_JOURNAL_GET_FD(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">sd_journal_get_fd, sd_journal_get_events, sd_journal_get_timeout,
+    sd_journal_process, sd_journal_wait, sd_journal_reliable_fd, SD_JOURNAL_NOP,
+    SD_JOURNAL_APPEND, SD_JOURNAL_INVALIDATE - Interfaz de notificación de cambios en el journal</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;systemd/sd-journal.h&gt;</pre>
+<p class="Pp HP"><b>int
+    sd_journal_get_fd(sd_journal&#x00A0;*</b><i>j</i><b>);</b></p>
+<p class="Pp HP"><b>int
+    sd_journal_get_events(sd_journal&#x00A0;*</b><i>j</i><b>);</b></p>
+<p class="Pp HP"><b>int
+    sd_journal_get_timeout(sd_journal&#x00A0;*</b><i>j</i><b>,
+    uint64_t&#x00A0;*</b><i>timeout_usec</i><b>);</b></p>
+<p class="Pp HP"><b>int
+    sd_journal_process(sd_journal&#x00A0;*</b><i>j</i><b>);</b></p>
+<p class="Pp HP"><b>int sd_journal_wait(sd_journal&#x00A0;*</b><i>j</i><b>,
+    uint64_t&#x00A0;</b><i>timeout_usec</i><b>);</b></p>
+<p class="Pp HP"><b>int
+    sd_journal_reliable_fd(sd_journal&#x00A0;*</b><i>j</i><b>);</b></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>sd_journal_get_fd()</b> devuelve un descriptor de archivo que
+    puede ser consultado de forma asíncrona en un bucle de eventos externo y que
+    se activa tan pronto como el journal cambia, porque se añadieron nuevas
+    entradas o archivos, se produjo una rotación, o se eliminaron archivos, etc.
+    El descriptor de archivo es adecuado para su uso en <a href='/man/poll.2.en'>poll(2)</a>. Utilice
+    <b>sd_journal_get_events()</b> para obtener una máscara de eventos a la que
+    prestar atención. La llamada toma un argumento: el objeto de contexto del
+    journal. Tenga en cuenta que no todos los sistemas de archivos son capaces de
+    generar los eventos necesarios para que las activaciones de este descriptor
+    de archivo se noten de inmediato. En particular, los sistemas de archivos de
+    red no generan eventos de cambio de archivo adecuados en todos los casos.
+    Casos como estos se pueden detectar con <b>sd_journal_reliable_fd()</b>,
+    más abajo. <b>sd_journal_get_timeout()</b> se asegurará en estos casos de
+    que las activaciones ocurran con suficiente frecuencia para que los cambios
+    sean notados, aunque con cierta latencia.</p>
+<p class="Pp"><b>sd_journal_get_events()</b> devolverá la máscara de
+    <b>poll()</b> a esperar. Esta función devolverá una combinación de
+    <b>POLLIN</b> y <b>POLLOUT</b> y similares para rellenar el campo
+    &quot;.events&quot; de <i>struct pollfd</i>.</p>
+<p class="Pp"><b>sd_journal_get_timeout()</b> devolverá un valor de tiempo de
+    espera para su uso en <b>poll()</b>. Esto devuelve un valor en microsegundos
+    desde la época de <b>CLOCK_MONOTONIC</b> para agotar el tiempo de espera
+    de <b>poll()</b> en <i>timeout_usec</i>. Consulte <a href='/man/clock_gettime.2.en'>clock_gettime(2)</a> para obtener
+    detalles sobre <b>CLOCK_MONOTONIC</b>. Si no hay tiempo de espera, se
+    rellenará con <b>(uint64_t) -1</b>. Tenga en cuenta que <b>poll()</b> toma
+    un tiempo de espera relativo en milisegundos en lugar de un tiempo de espera
+    absoluto en microsegundos. Para convertir el tiempo de espera absoluto 'us'
+    en 'ms' relativos, utilice código como el siguiente:</p>
+<div class="Bd-indent">
+<pre>uint64_t t;
+int msec;
+sd_journal_get_timeout(m, &amp;t);
+if (t == (uint64_t) -1)
+  msec = -1;
+else {
+  struct timespec ts;
+  uint64_t n;
+  clock_gettime(CLOCK_MONOTONIC, &amp;ts);
+  n = (uint64_t) ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+  msec = t &gt; n ? (int) ((t - n + 999) / 1000) : 0;
+}</pre>
+</div>
+<p class="Pp">El código anterior no realiza ninguna comprobación de errores por
+    brevedad. El entero <i>msec</i> calculado se puede pasar directamente como
+    parámetro de tiempo de espera de <b>poll()</b>.</p>
+<p class="Pp">Después de cada activación de <b>poll()</b>, es necesario llamar
+    a <b>sd_journal_process()</b> para procesar los eventos. Esta llamada
+    también indicará qué tipo de cambio se ha detectado (ver más abajo; tenga en
+    cuenta que son posibles activaciones espurias).</p>
+<p class="Pp">Una alternativa síncrona para usar
+    <b>sd_journal_get_fd()</b>, <b>sd_journal_get_events()</b>,
+    <b>sd_journal_get_timeout()</b> y <b>sd_journal_process()</b> es
+    <b>sd_journal_wait()</b>. Esperará síncronamente hasta que el journal
+    cambie. El tiempo máximo que esta llamada duerme puede controlarse con el
+    parámetro <i>timeout_usec</i>. Pase <b>(uint64_t) -1</b> para esperar
+    indefinidamente. Internamente, esta llamada simplemente combina
+    <b>sd_journal_get_fd()</b>, <b>sd_journal_get_events()</b>,
+    <b>sd_journal_get_timeout()</b>, <b>poll()</b> y
+    <b>sd_journal_process()</b> en una sola.</p>
+<p class="Pp"><b>sd_journal_reliable_fd()</b> puede utilizarse para comprobar
+    si los eventos de activación del descriptor de archivo devuelto por
+    <b>sd_journal_get_fd()</b> se sabe que se activan rápidamente. En ciertos
+    sistemas de archivos donde los eventos de cambio de archivo del sistema
+    operativo no están disponibles (como NFS), los cambios deben ser consultados
+    repetidamente y, por lo tanto, solo se detectan con una latencia considerable.
+    Esta llamada devolverá un valor positivo si los cambios del journal se
+    detectan rápidamente y cero si es necesario consultarlos. Tenga en cuenta que
+    generalmente no es necesario invocar esta función directamente, ya que
+    <b>sd_journal_get_timeout()</b> solicitará tiempos de espera apropiados
+    de todos modos.</p>
+<p class="Pp">Tenga en cuenta que ninguna de las interfaces de notificación de
+    cambios anteriores informa los cambios al instante. Se introducen latencias por
+    múltiples razones: como se mencionó, ciertos backends de almacenamiento requieren
+    sondeos basados en tiempo, en otros casos, las activaciones se optimizan
+    agrupando eventos, y el sistema operativo introduce latencias adicionales de
+    planificación de E/S/CPU.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VALOR_DE_RETORNO'><a class='permalink' href='#VALOR_DE_RETORNO'>VALOR DE RETORNO</a></h1>
+<p class="Pp"><b>sd_journal_get_fd()</b> devuelve un descriptor de archivo
+    válido en caso de éxito o un código de error negativo estilo <b>errno</b>.</p>
+<p class="Pp"><b>sd_journal_get_events()</b> devuelve una combinación de
+    <b>POLLIN</b>, <b>POLLOUT</b> y similares en caso de éxito o un código de
+    error negativo estilo <b>errno</b>.</p>
+<p class="Pp"><b>sd_journal_reliable_fd()</b> devuelve un entero positivo si
+    el descriptor de archivo devuelto por <b>sd_journal_get_fd()</b> activará
+    las activaciones inmediatamente para todos los cambios del journal. Devuelve 0
+    si puede haber una latencia involucrada.</p>
+<p class="Pp"><b>sd_journal_process()</b> y <b>sd_journal_wait()</b> devuelven
+    un código de error negativo estilo <b>errno</b>, o uno de
+    <b>SD_JOURNAL_NOP</b>, <b>SD_JOURNAL_APPEND</b> o
+    <b>SD_JOURNAL_INVALIDATE</b> en caso de éxito:</p>
+<div class="Bd-indent">&#x2022;Si se devuelve <b>SD_JOURNAL_NOP</b>, el journal
+  no ha cambiado desde la última invocación.</div>
+<div class="Bd-indent">&#x2022;Si se devuelve <b>SD_JOURNAL_APPEND</b>, se han
+  añadido nuevas entradas al final del journal. En este caso, es suficiente
+  seguir leyendo en la ubicación final anterior del journal para leer las
+  entradas recién añadidas.</div>
+<div class="Bd-indent">&#x2022;Si se devuelve <b>SD_JOURNAL_INVALIDATE</b>,
+  se han añadido o eliminado archivos del journal del conjunto de archivos del
+  journal observados (por ejemplo, debido a rotación o limpieza), y por lo tanto,
+  las entradas pueden haber aparecido o desaparecido en lugares arbitrarios del
+  flujo de registro, posiblemente antes o después del final anterior del flujo de
+  registro. Si se devuelve <b>SD_JOURNAL_INVALIDATE</b>, las UI de vista en
+  vivo que quieran reflejar en pantalla el estado preciso de los datos del
+  registro en disco probablemente deberían actualizar toda su pantalla (en
+  relación con el cursor de la entrada de registro en la parte superior de la
+  pantalla). Los programas que solo estén interesados en un flujo de datos de
+  registro estrictamente secuencial pueden tratar <b>SD_JOURNAL_INVALIDATE</b>
+  de la misma manera que <b>SD_JOURNAL_APPEND</b>, ignorando así cualquier
+  cambio en la vista del registro anterior al antiguo final del flujo de
+  registro.</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEGURIDAD_DE_SEÑALES'><a class='permalink' href='#SEGURIDAD_DE_SEÑALES'>SEGURIDAD DE SEÑALES</a></h1>
+<p class="Pp">En general, <b>sd_journal_get_fd()</b>,
+    <b>sd_journal_get_events()</b> y <b>sd_journal_get_timeout()</b> <i>no</i>
+    son &quot;seguras para señales asíncronas&quot; en el sentido de
+    <a href='/man/signal-safety.7.en'>signal-safety(7)</a>. Sin embargo, solo la primera llamada a cualquiera de
+    estas tres funciones realiza operaciones inseguras, por lo que las llamadas
+    subsiguientes <i>son</i> seguras.</p>
+<p class="Pp"><b>sd_journal_process()</b> y <b>sd_journal_wait()</b> no son
+    seguras. <b>sd_journal_reliable_fd()</b> es segura.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS'><a class='permalink' href='#NOTAS'>NOTAS</a></h1>
+<p class="Pp">Todas las funciones aquí descritas son independientes de hilos y
+    solo un único hilo puede operar en un objeto dado en cualquier momento.
+    Diferentes hilos pueden acceder al mismo objeto en diferentes momentos. Se
+    pueden utilizar múltiples objetos independientes desde diferentes hilos en
+    paralelo.</p>
+<p class="Pp">Las funciones descritas aquí están disponibles como una biblioteca
+    compartida, que puede ser compilada y enlazada con el archivo
+    <b>libsystemd</b> de <a href='/man/pkg-config.1.en'>pkg-config(1)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLOS'><a class='permalink' href='#EJEMPLOS'>EJEMPLOS</a></h1>
+<p class="Pp">Iterando a través del journal, en una vista en vivo rastreando todos
+    los cambios:</p>
+<div class="Bd-indent">
+<pre>/* SPDX-License-Identifier: MIT-0 */
+#include &lt;errno.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;systemd/sd-journal.h&gt;
+int main(int argc, char *argv[]) {
+  int r;
+  sd_journal *j;
+  r = sd_journal_open(&amp;j, SD_JOURNAL_LOCAL_ONLY);
+  if (r &lt; 0) {
+    fprintf(stderr, &quot;Failed to open journal: %s\n&quot;, strerror(-r));
+    return 1;
+  }
+  for (;;)  {
+    const void *d;
+    size_t l;
+    r = sd_journal_next(j);
+    if (r &lt; 0) {
+      fprintf(stderr, &quot;Failed to iterate to nex</pre>
+</div>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>sd_journal_wait(3) - systemd manual pages</title>
+        <link rel="stylesheet" href="/style.css" type="text/css" />
+        <link rel="stylesheet" href="/fonts/font-awesome.css" type="text/css" />
+        <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+        <style type="text/css">
+            .title { font-family: "DejaVu Sans", sans-serif; }
+        </style>
+    </head>
+    <body>
+        
+        <main>
+            <article>
+                
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Nm">sd_journal_wait, sd_journal_process, sd_journal_get_fd, sd_journal_get_events, sd_journal_get_timeout, sd_journal_reliable_fd - Esperar y procesar entradas del journal</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>
+<span class="Nd">#include &lt;systemd/sd-journal.h&gt;</span>
+
+int sd_journal_wait(sd_journal *j, uint64_t timeout);
+int sd_journal_process(sd_journal *j);
+int sd_journal_get_fd(sd_journal *j);
+int sd_journal_get_events(sd_journal *j);
+int sd_journal_get_timeout(sd_journal *j, uint64_t *timeout);
+int sd_journal_reliable_fd(sd_journal *j);
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">Estas funciones se utilizan para esperar y procesar nuevas entradas en el journal de systemd. El journal de systemd es un sistema de registro de eventos que recopila mensajes de todas las partes del sistema y del kernel. Con estas funciones, una aplicación puede ser notificada cuando hay nuevas entradas disponibles y luego leerlas.</p>
+<p class="Pp"><code>sd_journal_wait()</code> espera hasta que haya nuevas entradas disponibles en el journal especificado por <code class="Pc">j</code> o hasta que expire el tiempo de espera. Si <code class="Pc">timeout</code> es 0, la función retorna inmediatamente. Si <code class="Pc">timeout</code> es <code>(uint64_t)-1</code>, la función esperará indefinidamente. Si <code class="Pc">timeout</code> es un valor positivo, se interpretará como un número de microsegundos.</p>
+<p class="Pp"><code>sd_journal_process()</code> procesa cualquier entrada nueva que haya llegado desde la última llamada a esta función o desde que se abrió el journal. Retorna el número de entradas nuevas procesadas. Este número puede ser 0 si no hay nuevas entradas.</p>
+<p class="Pp"><code>sd_journal_get_fd()</code> retorna un descriptor de archivo que se puede utilizar para esperar nuevas entradas utilizando mecanismos como <code>poll(2)</code> o <code>select(2)</code>. El descriptor de archivo se activará cuando haya nuevas entradas disponibles o cuando se necesite procesar el journal (por ejemplo, para vaciar buffers o manejar eventos de rotación de archivos).</p>
+<p class="Pp"><code>sd_journal_get_events()</code> retorna los eventos de <code>poll(2)</code> que se deben registrar para el descriptor de archivo devuelto por <code>sd_journal_get_fd()</code>. Normalmente, esto será <code>POLLIN</code>, indicando que hay datos de entrada disponibles. Puede devolver 0 si no hay eventos que esperar.</p>
+<p class="Pp"><code>sd_journal_get_timeout()</code> obtiene el tiempo de espera predeterminado para la espera de nuevas entradas. El valor se devuelve en microsegundos en el argumento <code class="Pc">timeout</code>. Si el valor es <code>(uint64_t)-1</code>, significa que la espera debe ser indefinida.</p>
+<p class="Pp"><code>sd_journal_reliable_fd()</code> retorna un descriptor de archivo que es fiable para esperar eventos. A diferencia de <code>sd_journal_get_fd()</code>, este descriptor de archivo se activará de forma más predecible y es menos propenso a falsos positivos. Se debe usar preferentemente si la fiabilidad es crítica.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUE'><a class='permalink' href='#RETURN_VALUE'>RETURN VALUE</a></h1>
+<p class="Pp"><code>sd_journal_wait()</code> retorna un valor no negativo en caso de éxito, indicando el número de entradas nuevas disponibles. En caso de error, retorna un valor negativo que indica un código de error.</p>
+<p class="Pp"><code>sd_journal_process()</code> retorna el número de entradas nuevas procesadas o un valor negativo en caso de error.</p>
+<p class="Pp"><code>sd_journal_get_fd()</code>, <code>sd_journal_get_events()</code> y <code>sd_journal_reliable_fd()</code> retornan un descriptor de archivo válido en caso de éxito, o -1 en caso de error.</p>
+<p class="Pp"><code>sd_journal_get_timeout()</code> retorna 0 en caso de éxito, o un valor negativo en caso de error.</p>
+<p class="Pp">Los códigos de error pueden ser:</p>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+<dt><code>-ENOMEM</code></dt>
+<dd>No hay suficiente memoria disponible.</dd>
+<dt><code>-EBADFD</code></dt>
+<dd>El descriptor de journal no es válido.</dd>
+<dt><code>-ECHILD</code></dt>
+<dd>El proceso ha sido bifurcado (forked) y el descriptor de journal ya no es utilizable.</dd>
+<dt><code>-EPIPE</code></dt>
+<dd>La tubería de comunicación con el servicio de journal se ha roto.</dd>
+<dt><code>-EACCES</code></dt>
+<dd>Permisos insuficientes para acceder al journal.</dd>
+<dt><code>-EAGAIN</code></dt>
+<dd>La operación no está disponible temporalmente (por ejemplo, si el journal está siendo rotado).</dd>
+</dl>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SIGNAL_SAFETY'><a class='permalink' href='#SIGNAL_SAFETY'>SIGNAL SAFETY</a></h1>
+<p class="Pp"><code>sd_journal_process()</code>, <code>sd_journal_get_fd()</code>, <code>sd_journal_get_events()</code>, <code>sd_journal_get_timeout()</code> y <code>sd_journal_reliable_fd()</code> son seguros para usar en manejadores de señales. Sin embargo, <code>sd_journal_wait()</code> no lo es.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTES</a></h1>
+<p class="Pp">Las funciones <code>sd_journal_wait()</code>, <code>sd_journal_process()</code>, <code>sd_journal_get_fd()</code> y <code>sd_journal_reliable_fd()</code> permiten implementar un bucle de E/S asíncrono para leer el journal. Normalmente, se utiliza un descriptor de archivo obtenido con <code>sd_journal_get_fd()</code> o <code>sd_journal_reliable_fd()</code> junto con <code>poll(2)</code> o un mecanismo similar para esperar nuevas entradas. Una vez que se notifica al descriptor de archivo, se llama a <code>sd_journal_process()</code> para leer las nuevas entradas.</p>
+<p class="Pp"><code>sd_journal_wait()</code> puede ser una alternativa más simple a la combinación de <code>sd_journal_get_fd()</code> y <code>poll(2)</code> si no se necesita un control fino sobre el tiempo de espera o los eventos.</p>
+<p class="Pp">El descriptor de archivo devuelto por <code>sd_journal_get_fd()</code> y <code>sd_journal_reliable_fd()</code> no debe cerrarse explícitamente por el usuario. La gestión de este descriptor de archivo es responsabilidad de la biblioteca de systemd.</p>
+<p class="Pp">El tiempo de espera devuelto por <code>sd_journal_get_timeout()</code> se puede utilizar para configurar un temporizador en <code>poll(2)</code>. Si el tiempo de espera es <code>(uint64_t)-1</code>, el tiempo de espera en <code>poll(2)</code> debe ser -1 (espera indefinida).</p>
+<p class="Pp">Después de una llamada a <code>fork(2)</code>, el descriptor de journal ya no es válido en el proceso hijo. Se debe abrir un nuevo descriptor de journal en el proceso hijo si se desea acceder al journal.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EXAMPLES</a></h1>
+<p class="Pp"><b>Ejemplo básico para leer entradas del journal de forma continua:</b></p>
+<div class="Bd-indent">
+<pre>
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;systemd/sd-journal.h&gt;
+
+int main(int argc, char *argv[]) {
+    sd_journal *j = NULL;
+    sd_journal_open(&amp;j, SD_JOURNAL_LOCAL_ONLY);
+    sd_journal_seek_tail(j);
+    while (sd_journal_next(j) == 1) {
+        // Saltarse entradas antiguas hasta llegar a la más reciente
+    }
+    while (1) {
+        sd_journal_wait(j, (uint64_t) -1);
+        sd_journal_process(j);
+        const char *data;
+        size_t length;
+        while (sd_journal_get_data(j, "MESSAGE", (const void **)&amp;data, &amp;length) > 0) {
+            printf("%.*s\n", (int) length, data);
+        }
+    }
+    sd_journal_close(j);
+    return 0;
+}
+</pre>
+</div>
+<p class="Pp"><b>Ejemplo usando poll() para esperar cambios:</b></p>
+<div class="Bd-indent">
+<pre>/* SPDX-License-Identifier: MIT-0 */
+#define _GNU_SOURCE 1
+#include &lt;poll.h&gt;
+#include &lt;time.h&gt;
+#include &lt;systemd/sd-journal.h&gt;
+
+int wait_for_changes(sd_journal *j) {
+  uint64_t t;
+  int msec;
+  struct pollfd pollfd;
+
+  sd_journal_get_timeout(j, &amp;t);
+  if (t == (uint64_t) -1)
+    msec = -1;
+  else {
+    struct timespec ts;
+    uint64_t n;
+    clock_gettime(CLOCK_MONOTONIC, &amp;ts);
+    n = (uint64_t) ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+    msec = t &gt; n ? (int) ((t - n + 999) / 1000) : 0;
+  }
+
+  pollfd.fd = sd_journal_get_fd(j);
+  pollfd.events = sd_journal_get_events(j);
+  poll(&amp;pollfd, 1, msec);
+
+  return sd_journal_process(j);
+}</pre>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HISTORY'><a class='permalink' href='#HISTORY'>HISTORY</a></h1>
+<p class="Pp"><code>sd_journal_get_fd()</code>, <code>sd_journal_process()</code>, y <code>sd_journal_wait()</code> se añadieron en la versión 187.</p>
+<p class="Pp"><code>sd_journal_reliable_fd()</code> se añadió en la versión 196.</p>
+<p class="Pp"><code>sd_journal_get_events()</code> y <code>sd_journal_get_timeout()</code> se añadieron en la versión 201.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+<p class="Pp"><a href='/man/systemd.1.en'>systemd(1)</a>, <a href='/man/sd-journal.3.en'>sd-journal(3)</a>, <a href='/man/sd_journal_open.3.en'>sd_journal_open(3)</a>, <a href='/man/sd_journal_next.3.en'>sd_journal_next(3)</a>, <a href='/man/poll.2.en'>poll(2)</a>, <a href='/man/clock_gettime.2.en'>clock_gettime(2)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os">systemd 258.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/systemd-libs/">core/systemd-libs</a></dd>
+        <dt>Version:</dt>
+        <dd>258.2-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.github.com/systemd/systemd">https://www.github.com/systemd/systemd</a></dd>
+        <dt>Licenses:</dt>
+        <dd>LGPL-2.1-or-later, CC0-1.0, GPL-2.0-or-later WITH Linux-syscall-note</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/core/systemd-libs/">/listing/core/systemd-libs/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#RETURN_VALUE">RETURN VALUE</a></li>
+        
+            <li><a href="#SIGNAL_SAFETY">SIGNAL SAFETY</a></li>
+        
+            <li><a href="#NOTES">NOTES</a></li>
+        
+            <li><a href="#EXAMPLES">EXAMPLES</a></li>
+        
+            <li><a href="#HISTORY">HISTORY</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/SD_JOURNAL_APPEND.3.en.txt">txt</a>, 
+        
+            <a href="/man/SD_JOURNAL_APPEND.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

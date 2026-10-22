@@ -1,0 +1,249 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Encode::PerlIO(3perl) — Páginas de manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Encode__PerlIO.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Encode::PerlIO(3perl)</td>
+    <td class="head-vol">Guía de referencia para programadores de Perl</td>
+    <td class="head-rtitle">Encode::PerlIO(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Encode::PerlIO -- un documento detallado sobre Encode y PerlIO</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Overview'><a class='permalink' href='#Overview'>Descripción general</a></h1>
+<p class="Pp">Es muy común querer realizar transformaciones de codificación al leer o escribir archivos, conexiones de red, tuberías, etc. Si Perl está configurado para usar el nuevo sistema de E/S 'perlio', entonces
+    <span class="Li">"Encode"</span> proporciona una "capa" (ver
+    PerlIO) que puede transformar los datos a medida que se leen o se escriben.</p>
+<p class="Pp">Así es como el poeta ciego modernizaría la codificación:</p>
+<pre>use Encode;
+open(my $iliad,'&lt;:encoding(iso-8859-7)','iliad.greek');
+open(my $utf8,'&gt;:utf8','iliad.utf8');
+my @epic = &lt;$iliad&gt;;
+print $utf8 @epic;
+close($utf8);
+close($illiad);</pre>
+<p class="Pp">Además, el nuevo sistema de E/S también se puede configurar para leer/escribir caracteres codificados en UTF-8 (como se mencionó anteriormente, esto es eficiente):</p>
+<pre>open(my $fh,'&gt;:utf8','anything');
+print $fh "Any \x{0021} string \N{SMILEY FACE}\n";</pre>
+<p class="Pp">Cualquiera de las formas de especificación de "capa" anteriores puede
+    convertirse en el valor predeterminado para un ámbito léxico con la <span class="Li">"use
+    open ..."</span> directiva. Ver open.</p>
+<p class="Pp">Una vez que un manejador está abierto, sus capas se pueden alterar usando
+    <span class="Li">"binmode"</span>.</p>
+<p class="Pp">Sin ninguna configuración de este tipo, o si el propio Perl está compilado usando
+    el E/S propio del sistema, entonces las operaciones de escritura asumen que el manejador de archivo acepta solo <i>bytes</i> y hará un <span class="Li">"die"</span>
+    si se escribe en el manejador un carácter mayor que 255. Al leer, cada
+    octeto del manejador se convierte en un byte-en-un-carácter. Tenga en cuenta que este comportamiento predeterminado
+    es el mismo que el que tendrían los lenguajes de solo bytes (incluido Perl antes de la v5.6)
+    y es suficiente para manejar codificaciones nativas de 8 bits, p. ej.
+    iso-8859-1, EBCDIC, etc., y cualquier mecanismo heredado para manejar otras
+    codificaciones y datos binarios.</p>
+<p class="Pp">En otros casos, es responsabilidad del programa transformar
+    caracteres en bytes usando la API anterior antes de realizar escrituras, y transformar
+    los bytes leídos de un manejador en caracteres antes de realizar
+    "operaciones sobre caracteres" (p. ej.
+    <span class="Li">"lc"</span>,
+    <span class="Li">"/\W+/"</span>, ...).</p>
+<p class="Pp">También puede usar PerlIO para convertir grandes cantidades de datos que no
+    desea cargar en la memoria. Por ejemplo, para convertir entre ISO-8859-1
+    (Latin 1) y UTF-8 (o UTF-EBCDIC en máquinas EBCDIC):</p>
+<pre>open(F, "&lt;:encoding(iso-8859-1)", "data.txt") or die $!;
+open(G, "&gt;:utf8",                 "data.utf") or die $!;
+while (&lt;F&gt;) { print G }
+# También se podría hacer "print G &lt;F&gt;", pero eso cargaría
+# el archivo completo en la memoria solo para escribirlo de nuevo.</pre>
+<p class="Pp">Más ejemplos:</p>
+<pre>open(my $f, "&lt;:encoding(cp1252)")
+open(my $g, "&gt;:encoding(iso-8859-2)")
+open(my $h, "&gt;:encoding(latin9)")       # iso-8859-15</pre>
+<p class="Pp">Ver también encoding para saber cómo cambiar la codificación predeterminada de los
+    datos en su script.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='How_does_it_work?'><a class='permalink' href='#How_does_it_work?'>¿Cómo   funciona?</a></h1>
+<p class="Pp">Aquí hay un diagrama crudo de cómo interactúan el manejador de archivo, PerlIO y Encode.</p>
+<pre>filehandle &lt;-&gt; PerlIO        PerlIO &lt;-&gt; scalar (read/printed)
+                     \      /
+                      Encode</pre>
+<p class="Pp">Cuando PerlIO recibe datos de cualquiera de las direcciones, llena un búfer
+    (actualmente con 1024 bytes) y pasa el búfer a Encode. Encode intenta
+    convertir la parte válida y la devuelve a PerlIO, dejando las partes inválidas
+    (generalmente un carácter parcial) en el búfer. PerlIO luego agrega más datos
+    al búfer, llama a Encode de nuevo, y así sucesivamente hasta que el flujo de datos termina.</p>
+<p class="Pp">Para hacer esto, PerlIO siempre llama a los métodos (de|en)code con CHECK establecido
+    en 1. Esto asegura que el método se detenga en el lugar correcto cuando
+    encuentre un carácter parcial. Lo siguiente es lo que sucede cuando PerlIO y
+    Encode intentan codificar (desde utf8) más de 1024 bytes y el límite del búfer
+    ocurre en medio de un carácter.</p>
+<pre> A   B   C   ....   ~     \x{3000}    ....
+41  42  43   ....  7E   e3   80   80  ....
+&lt;- buffer ---------------&gt;
+&lt;&lt; encoded &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+                     &lt;- next buffer ------</pre>
+<p class="Pp">Encode convierte desde el principio hasta \x7E, dejando \xe3 en el
+    búfer porque es inválido (carácter parcial).</p>
+<p class="Pp">Desafortunadamente, este esquema no funciona bien con codificaciones basadas en secuencias de escape
+    como ISO-2022-JP.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Line_Buffering'><a class='permalink' href='#Line_Buffering'>Búfer   por   líneas</a></h1>
+<p class="Pp">Ahora veamos qué sucede cuando intenta decodificar desde ISO-2022-JP
+    y el búfer termina en medio de un carácter.</p>
+<pre>            JIS208-ESC   \x{5f3e}
+ A   B   C   ....   ~   \e   $   B  |DAN | ....
+41  42  43   ....  7E   1b  24  41  43  46 ....
+&lt;- buffer ---------------------------&gt;
+&lt;&lt; encoded &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;</pre>
+<p class="Pp">Como puede ver, el siguiente búfer comienza con \x43. Pero \x43 es 'C' en
+    ASCII, lo cual es incorrecto en este caso porque ahora estamos en el área JISX 0208, así que
+    tiene que convertir \x43\x46, no \x43. A diferencia de utf8 y EUC, en codificaciones basadas en secuencias de escape
+    no se puede saber si un octeto dado es un carácter completo o solo una parte
+    de él.</p>
+<p class="Pp">Afortunadamente, PerlIO también admite búfer por línea si le indica a PerlIO que
+    use uno en lugar de un búfer de tamaño fijo. Dado que se garantiza que ISO-2022-JP vuelve
+    a ASCII al final de la línea, un carácter parcial nunca ocurrirá cuando
+    se use el búfer por línea.</p>
+<p class="Pp">Para indicarle a PerlIO que use búfer por línea, implemente el método -&gt;needs_lines
+    para su objeto de codificación. Ver Encode::Encoding para más detalles.</p>
+<p class="Pp">Gracias a estos esfuerzos, la mayoría de las codificaciones que vienen con Encode
+    admiten PerlIO, pero aún quedan las siguientes codificaciones.</p>
+<pre>iso-2022-kr
+MIME-B
+MIME-Header
+MIME-Q</pre>
+<p class="Pp">Afortunadamente, iso-2022-kr rara vez se usa (según Jungshik) y
+    es muy poco probable que MIME-* se pasen a PerlIO porque son para encabezados
+    de correo electrónico. Ver Encode::MIME::Header para más detalles.</p>
+<section class="Ss">
+<h2 class="Ss" id='How_can_I_tell_whether_my_encoding_fully_supports_PerlIO_?'><a class='permalink' href='#How_can_I_tell_whether_my_encoding_fully_supports_PerlIO_?'>¿Cómo   puedo saber si mi codificación admite completamente PerlIO?</a></h2>
+<p class="Pp">Al momento de escribir esto, cualquier codificación cuya clase pertenezca a Encode::XS
+    y Encode::Unicode funciona. El módulo Encode tiene un
+    <span class="Li">"perlio_ok"</span> método que puede usar
+    antes de aplicar la codificación PerlIO al manejador de archivo. Aquí hay un ejemplo:</p>
+<pre>my $use_perlio = perlio_ok($enc);
+my $layer = $use_perlio ? "&lt;:raw" : "&lt;:encoding($enc)";
+open my $fh, $layer, $file or die "$file : $!";
+while(&lt;$fh&gt;){
+  $_ = decode($enc, $_) unless $use_perlio;
+  # .... 
+}</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<p class="Pp">Encode::Encoding, Encode::Supported, Encode::PerlIO, encoding,
+    perlebcdic, "open" in perlfunc, perlunicode, utf8, la lista de correo de Unicode de Perl
+    &lt;perl-unicode@perl.org&gt;</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#Overview">Descripción general</a></li>
+        
+            <li><a href="#How_does_it_work?">¿Cómo funciona?</a></li>
+        
+            <li><a href="#Line_Buffering">Búfer por líneas</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Encode::PerlIO.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Encode::PerlIO.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia GPL-3.0
+[[5]], exc</a>epto por el contenido de la</p>s páginas de manual, que ti</footer>enen su propia licencia esp</body>ecificada en el paquete cor</html>respondiente de Arch Linux.

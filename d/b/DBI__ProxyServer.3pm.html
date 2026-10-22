@@ -1,0 +1,540 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBI::ProxyServer(3pm) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBI__ProxyServer(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBI::ProxyServer(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">DBI::ProxyServer(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">DBI::ProxyServer - un servidor para el controlador DBD::Proxy</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use DBI::ProxyServer;
+DBI::ProxyServer::main(@ARGV);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">DBI::Proxy Server es un módulo para implementar un proxy para el controlador proxy de DBI, DBD::Proxy. Permite el acceso a bases de datos a través de la red si el DBMS no ofrece operaciones en red. Pero el servidor proxy podría serle útil, incluso si tiene un DBMS con funcionalidad de red integrada: puede usarse como un proxy DBI en un entorno con cortafuegos.</p>
+<p class="Pp">DBI::ProxyServer se ejecuta como un demonio en la máquina con el DBMS o en el cortafuegos. El cliente se conecta al agente usando el controlador DBI DBD::Proxy, es decir, de la misma manera exacta que usando DBD::mysql, DBD::mSQL o cualquier otro controlador DBI.</p>
+<p class="Pp">El agente está implementado como una aplicación RPC::PlServer. Por lo tanto, tiene acceso a todas las posibilidades de este módulo, en particular, cifrado y un archivo de configuración similar. DBI::ProxyServer añade la posibilidad de restricciones de consultas: puede definir un conjunto de consultas que un cliente puede ejecutar y restringir el acceso a ellas. (Requiere un controlador DBI que soporte enlace de parámetros.) Vea "ARCHIVO DE CONFIGURACIÓN".</p>
+<p class="Pp">El script de controlador proporcionado, dbiproxy, puede usarse tal cual o usarse como base para una versión local modificada para satisfacer sus necesidades.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OPTIONS'><a class='permalink' href='#OPTIONS'>OPCIONES</a></h1>
+<p class="Pp">Al llamar a la <b>función DBI::ProxyServer::main()</b> , usted
+    proporciona una lista de opciones. Estas opciones son analizadas por el módulo Getopt::Long. El ProxyServer hereda todas las opciones y el manejo de opciones de RPC::PlServer y por lo tanto de Net::Daemon, en particular la capacidad de leer opciones desde la línea de comandos o un archivo de configuración. Vea RPC::PlServer.
+    Vea Net::Daemon. Las opciones disponibles incluyen</p>
+<dl class="Bl-tag">
+  <dt id="chroot"><a class="permalink" href="#chroot"><i>chroot</i>
+    (<b>--chroot=dir</b>)</a></dt>
+  <dd>(Solo UNIX) Después de hacer un <b>bind()</b>, cambia el directorio raíz al
+      directorio dado haciendo un <b>chroot()</b>. Esto es útil para la seguridad,
+      pero restringe mucho el entorno. Por ejemplo, necesita cargar los controladores DBI en el archivo de configuración o tiene que crear enlaces duros a los sockets de Unix, si sus controladores los usan. Por ejemplo, con MySQL, un archivo de
+      configuración podría contener las siguientes líneas:
+        <pre>my $rootdir = '/var/dbiproxy';
+my $unixsockdir = '/tmp';
+my $unixsockfile = 'mysql.sock';
+foreach $dir ($rootdir, "$rootdir$unixsockdir") {
+    mkdir 0755, $dir;
+}
+link("$unixsockdir/$unixsockfile",
+     "$rootdir$unixsockdir/$unixsockfile");
+require DBD::mysql;
+{
+    'chroot' =&gt; $rootdir,
+    ...
+}
+</pre>
+    <p class="Pp">Si no sabe qué es <b>chroot()</b>, piense en un servidor FTP
+        donde puede ver un árbol de directorios determinado solo después de iniciar sesión. Vea también las opciones --group y --user.</p>
+  </dd>
+  <dt id="clients"><a class="permalink" href="#clients"><i>clients</i></a></dt>
+  <dd>Una referencia a un array con una lista de clientes. Los clientes son referencias a hashes, los atributos
+      <i>accept</i> (0 para denegar el acceso y 1 para permitirlo) y <i>mask</i>,
+      una expresión regular de Perl para el número IP del cliente o su nombre de host.</dd>
+  <dt id="configfile"><a class="permalink" href="#configfile"><i>configfile</i>
+    (<b>--configfile=file</b>)</a></dt>
+  <dd>Se asume que los archivos de configuración devuelven una única referencia a un hash que sobreescribe los
+      argumentos del método new. Sin embargo, los argumentos de la línea de comandos a su vez tienen
+      prioridad sobre el archivo de configuración. Vea la sección "ARCHIVO DE CONFIGURACIÓN"
+      más abajo para detalles sobre el archivo de configuración.</dd>
+  <dt id="debug"><a class="permalink" href="#debug"><i>debug</i>
+    (<b>--debug</b>)</a></dt>
+  <dd>Activa el modo de depuración. Principalmente, esto asegura que se creen mensajes de registro de nivel
+      "debug".</dd>
+  <dt id="facility"><a class="permalink" href="#facility"><i>facility</i>
+    (<b>--facility=mode</b>)</a></dt>
+  <dd>(Solo UNIX) Facilidad a usar para Sys::Syslog. El valor por defecto es
+    <b>daemon</b>.</dd>
+  <dt id="group"><a class="permalink" href="#group"><i>group</i>
+    (<b>--group=gid</b>)</a></dt>
+  <dd>Después de hacer un <b>bind()</b>, cambia el GID real y efectivo al
+      dado. Esto es útil si quiere que su servidor se enlace a un puerto privilegiado (&lt;1024), pero no quiere que el servidor se ejecute como root. Vea también
+      la opción --user.
+    <p class="Pp">Los GID pueden pasarse como nombres de grupo o valores numéricos.</p>
+  </dd>
+  <dt id="localaddr"><a class="permalink" href="#localaddr"><i>localaddr</i>
+    (<b>--localaddr=ip</b>)</a></dt>
+  <dd>Por defecto, un demonio escucha en cualquier número IP que tenga la máquina. Este
+      atributo permite restringir el servidor al número IP dado.</dd>
+  <dt id="localport"><a class="permalink" href="#localport"><i>localport</i>
+    (<b>--localport=port</b>)</a></dt>
+  <dd>Este atributo establece el puerto en el que el demonio está escuchando. Debe
+      darse de alguna manera, ya que no hay un valor por defecto.</dd>
+  <dt id="logfile"><a class="permalink" href="#logfile"><i>logfile</i>
+    (<b>--logfile=file</b>)</a></dt>
+  <dd>Por defecto, los mensajes de registro se escribirán en el syslog (Unix) o en el
+      registro de eventos (Windows NT). En otros sistemas operativos necesita especificar un
+      archivo de registro. El valor especial "STDERR" fuerza el registro a stderr.
+      Vea Net::Daemon::Log para detalles.</dd>
+  <dt id="mode"><a class="permalink" href="#mode"><i>mode</i>
+    (<b>--mode=modename</b>)</a></dt>
+  <dd>El servidor puede ejecutarse en tres modos diferentes, dependiendo del entorno.
+    <p class="Pp">Si está ejecutando Perl 5.005 y lo compiló para hilos,
+        el servidor creará un nuevo hilo para cada conexión. El hilo
+        ejecutará el método <b>Run()</b> del servidor y luego terminará. Este
+        modo es el valor por defecto, puede forzarlo con
+      "--mode=threads".</p>
+    <p class="Pp">Si los hilos no están disponibles, pero tiene un
+        <b>fork()</b>funcional, entonces el servidor se comportará de manera similar creando un nuevo
+        proceso para cada conexión. Este modo se usará automáticamente en la
+        ausencia de hilos o si usa la opción "--mode=fork".</p>
+    <p class="Pp">Finalmente, hay un modo de conexión única: si el servidor ha
+        aceptado una conexión, entrará en el método <b>Run()</b> . No se aceptarán otras
+        conexiones hasta que el método <b>Run()</b> retorne (si el
+        cliente se desconecta). Este modo de operación es útil si no tiene ni
+        hilos ni <b>fork()</b>, por ejemplo en Macintosh. Para propósitos de
+        depuración, puede forzar este modo con "--mode=single".</p>
+  </dd>
+  <dt id="pidfile"><a class="permalink" href="#pidfile"><i>pidfile</i>
+    (<b>--pidfile=file</b>)</a></dt>
+  <dd>(Solo UNIX) Si esta opción está presente, se creará un archivo PID en la
+      ubicación dada. Por defecto, no se crea un archivo pidfile.</dd>
+  <dt id="user"><a class="permalink" href="#user"><i>user</i>
+    (<b>--user=uid</b>)</a></dt>
+  <dd>Después de hacer un <b>bind()</b>, cambia el UID real y efectivo al
+      dado. Esto es útil si quiere que su servidor se enlace a un puerto privilegiado (&lt;1024), pero no quiere que el servidor se ejecute como root. Vea también
+      las opciones --group y --chroot.
+    <p class="Pp">Los UID pueden pasarse como nombres de grupo o valores numéricos.</p>
+  </dd>
+  <dt id="version"><a class="permalink" href="#version"><i>version</i>
+    (<b>--version</b>)</a></dt>
+  <dd>Suprime el inicio del servidor; en su lugar, se imprimirá la cadena de versión
+      y el programa saldrá inmediatamente.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SHUTDOWN'><a class='permalink' href='#SHUTDOWN'>APAGADO</a></h1>
+<p class="Pp">DBI::ProxyServer está construido sobre RPC::PlServer, que a su vez,
+    está construido sobre Net::Daemon.</p>
+<p class="Pp">Debería referirse a Net::Daemon para saber cómo apagar el servidor,
+    excepto que no puede porque actualmente no está documentado allí (a partir de
+    v0.43). La conclusión es que parece que no hay soporte para
+    un apagado ordenado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONFIGURATION_FILE'><a class='permalink' href='#CONFIGURATION_FILE'>ARCHIVO DE CONFIGURACIÓN</a></h1>
+<p class="Pp">El archivo de configuración es simplemente el de <i>RPC::PlServer</i> o
+    <i>Net::Daemon</i> con algunos atributos adicionales en la lista de clientes.</p>
+<p class="Pp">El archivo de configuración es un script de Perl. En la parte superior del archivo puede
+    incluir código fuente de Perl arbitrario, por ejemplo, cargar controladores al inicio (útil
+    para mejorar el rendimiento), preparar un entorno chroot, etc.</p>
+<p class="Pp">Lo importante es que finalmente devuelva una referencia a un hash de
+    pares de nombre/valor de opciones. Las opciones posibles están listadas arriba.</p>
+<p class="Pp">Se aplican todas las posibilidades de Net::Daemon y RPC::PlServer, en
+    particular</p>
+<dl class="Bl-tag">
+  <dt id="Host"><a class="permalink" href="#Host">Control de acceso dependiente del host y/o del usuario</a></dt>
+  <dd></dd>
+  <dt id="Host~2"><a class="permalink" href="#Host~2">Cifrado dependiente del host y/o del usuario</a></dt>
+  <dd></dd>
+  <dt id="Changing"><a class="permalink" href="#Changing">Cambio de UID y/o GID después de enlazar al puerto</a></dt>
+  <dd></dd>
+  <dt id="Running"><a class="permalink" href="#Running"&gt;Ejecutando en un
+    <b>entorno</b> chroot()</a></dt>
+  <dd></dd>
+</dl>
+<p class="Pp">Además, el servidor ofrece restricciones de consulta. Sugiero la
+    siguiente lista de clientes:</p>
+<pre>'clients' =&gt; [
+    { 'mask' =&gt; '^admin\.company\.com$',
+      'accept' =&gt; 1,
+      'users' =&gt; [ 'root', 'wwwrun' ],
+    },
+    {
+      'mask' =&gt; '^admin\.company\.com$',
+      'accept' =&gt; 1,
+      'users' =&gt; [ 'root', 'wwwrun' ],
+      'sql' =&gt; {
+           'select' =&gt; 'SELECT * FROM foo',
+           'insert' =&gt; 'INSERT INTO foo VALUES (?, ?, ?)'
+           }
+    }</pre>
+<p class="Pp">entonces solo los usuarios root y wwwrun pueden conectarse desde
+    admin.company.com, ejecutando consultas arbitrarias, pero solo wwwrun puede conectarse
+    desde otros hosts y está restringido a</p>
+<pre>$sth-&gt;prepare("select");</pre>
+<p class="Pp">o</p>
+<pre>$sth-&gt;prepare("insert");</pre>
+<p class="Pp">que en realidad son "SELECT * FROM foo" o "INSERT
+    INTO foo VALUES (?, ?, ?)".</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Proxyserver_Configuration_file_(bigger_example)'><a class='permalink' href='#Proxyserver_Configuration_file_(bigger_example)'>Servidor proxy   Archivo de configuración (ejemplo más grande)</a></h1>
+<p class="Pp">Esta sección le indica cómo restringir un DBI-Proxy: No todos los usuarios
+    de todas las estaciones de trabajo deben poder ejecutar todas las consultas.</p>
+<p class="Pp">Existe un programa en perl "dbiproxy" que se ejecuta en una
+    máquina que puede conectarse a todas las bases de datos a las que deseamos llegar. Todos
+    los drivers de Perl-DBD deben estar instalados en esta máquina. También puede alcanzar
+    bases de datos para las que no hay drivers disponibles en la máquina donde ejecuta
+    el programa que consulta la base de datos, por ejemplo, preguntar a una base de datos MS-Access desde
+  Linux.</p>
+<p class="Pp">Cree un archivo de configuración "proxy_oracle.cfg" en el
+    servidor dbproxy:</p>
+<pre>{
+    # Esto debe ejecutarse en un shell o en una ventana DOS
+    # facility =&gt; 'daemon',
+    pidfile =&gt; 'your_dbiproxy.pid',
+    logfile =&gt; 1,
+    debug =&gt; 0,
+    mode =&gt; 'single',
+    localport =&gt; '12400',
+    # Control de acceso, ¡la primera coincidencia en esta lista gana!
+    # Por lo tanto, el orden es importante
+    clients =&gt; [
+            # pista para organizar:
+            # las reglas más especializadas para máquinas/usuarios individuales van primero
+            # luego las reglas de denegación
+            # luego las reglas sobre redes completas
+            # regla: internal_webserver
+            # desc: para obtener información estadística
+            {
+                    # esta dirección IP es la única que se pretende
+                    mask =&gt; '^10\.95\.81\.243$',
+                    # aceptar (no diferir) conexiones como esta
+                    accept =&gt; 1,
+                    # solo los usuarios de esta lista
+                    # pueden iniciar sesión
+                    users =&gt; [ 'informationdesk' ],
+                    # solo se permite esta consulta estadística
+                    # para obtener resultados para una consulta web
+                    sql =&gt; {
+                            alive =&gt; 'select count(*) from dual',
+                            statistic_area =&gt; 'select count(*) from e01admin.e01e203 where geb_bezei like ?',
+                    }
+            },
+            # regla: internal_bad_guy_1
+            {
+                    mask =&gt; '^10\.95\.81\.1$',
+                    accept =&gt; 0,
+            },
+            # regla: employee_workplace
+            # desc: obtener información detallada
+            {
+                    # aquí se pretende cualquier dirección IP
+                    mask =&gt; '^10\.95\.81\.(\d+)$',
+                    # aceptar (no diferir) conexiones como esta
+                    accept =&gt; 1,
+                    # solo los usuarios de esta lista
+                    # pueden iniciar sesión
+                    users =&gt; [ 'informationdesk', 'lippmann' ],
+                    # se permiten todas estas consultas:
+                    sql =&gt; {
+                            search_city =&gt; 'select ort_nr, plz, ort from e01admin.e01e200 where plz like ?',
+                            search_area =&gt; 'select gebiettyp, geb_bezei from e01admin.e01e203 where geb_bezei like ? or geb_bezei like ?',
+                    }
+            },
+            # regla: internal_bad_guy_2
+            # Esto NO funciona, porque la regla "employee_workplace" coincide
+            # con su máscara de dirección IP de toda la red
+            {
+                    # no aceptar conexión desde esta dirección IP
+                    mask =&gt; '^10\.95\.81\.5$',
+                    accept =&gt; 0,
+            }
+    ]
+}</pre>
+<p class="Pp">Inicie el servidor proxy así:</p>
+<pre>rem se necesita un Oracle_home bien configurado para Oracle
+set ORACLE_HOME=d:\oracle\ora81
+dbiproxy --configfile proxy_oracle.cfg</pre>
+<section class="Ss">
+<h2 class="Ss" id='Testing_the_connection_from_a_remote_machine'><a class='permalink' href='#Testing_the_connection_from_a_remote_machine'>Prueba   de la conexión desde una máquina remota</a></h2>
+<p class="Pp">Llame a un programa "dbish" desde su línea de comandos. Tomo la
+    máquina de la regla "internal_webserver"</p>
+<pre>dbish "dbi:Proxy:hostname=oracle.zdf;port=12400;dsn=dbi:Oracle:e01" informationdesk xxx</pre>
+<p class="Pp">Habrá un prompt de shell:</p>
+<pre>informationdesk@dbi...&gt; alive
+Buffer de sentencia actual (introduzca '/'...):
+alive
+informationdesk@dbi...&gt; /
+COUNT(*)
+'1'
+[1 fila de 1 campo devuelta]</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Testing_the_connection_with_a_perl-script'><a class='permalink' href='#Testing_the_connection_with_a_perl-script'>Prueba   de la conexión con un script perl</a></h2>
+<p class="Pp">Cree un script perl como este:</p>
+<pre># file: oratest.pl
+# llámeme así: perl oratest.pl user password
+use strict;
+use DBI;
+my $user = shift || die "Usage: $0 user password";
+my $pass = shift || die "Usage: $0 user password";
+my $config = {
+        dsn_at_proxy =&gt; "dbi:Oracle:e01",
+        proxy =&gt; "hostname=oechsle.zdf;port=12400",
+};
+my $dsn = sprintf "dbi:Proxy:%s;dsn=%s",
+        $config-&gt;{proxy},
+        $config-&gt;{dsn_at_proxy};
+my $dbh = DBI-&gt;connect( $dsn, $user, $pass )
+        || die "connect did not work: $DBI::errstr";
+my $sql = "search_city";
+printf "%s\n%s\n%s\n", "="x40, $sql, "="x40;
+my $cur = $dbh-&gt;prepare($sql);
+$cur-&gt;bind_param(1,'905%');
+&amp;show_result ($cur);
+my $sql = "search_area";
+printf "%s\n%s\n%s\n", "="x40, $sql, "="x40;
+my $cur = $dbh-&gt;prepare($sql);
+$cur-&gt;bind_param(1,'Pfarr%');
+$cur-&gt;bind_param(2,'Bronnamberg%');
+&amp;show_result ($cur);
+my $sql = "statistic_area";
+printf "%s\n%s\n%s\n", "="x40, $sql, "="x40;
+my $cur = $dbh-&gt;prepare($sql);
+$cur-&gt;bind_param(1,'Pfarr%');
+&amp;show_result ($cur);
+$dbh-&gt;disconnect;
+exit;
+sub show_result {
+        my $cur = shift;
+        unless ($cur-&gt;execute()) {
+                print "Could not execute\n";
+                return;
+        }
+        my $rownum = 0;
+        while (my @row = $cur-&gt;fetchrow_array()) {
+                printf "Row is: %s\n", join(", ",@row);
+                if ($rownum++ &gt; 5) {
+                        print "... and so on\n";
+                        last;
+                }
+        }
+        $cur-&gt;finish;
+}</pre>
+<p class="Pp">El resultado</p>
+<pre>C:\&gt;perl oratest.pl informationdesk xxx
+========================================
+search_city
+========================================
+Row is: 3322, 9050, Chemnitz
+Row is: 3678, 9051, Chemnitz
+Row is: 10447, 9051, Chemnitz
+Row is: 12128, 9051, Chemnitz
+Row is: 10954, 90513, Zirndorf
+Row is: 5808, 90513, Zirndorf
+Row is: 5715, 90513, Zirndorf
+... and so on
+========================================
+search_area
+========================================
+Row is: 101, Bronnamberg
+Row is: 400, Pfarramt Zirndorf
+Row is: 400, Pfarramt Rosstal
+Row is: 400, Pfarramt Oberasbach
+Row is: 401, Pfarramt Zirndorf
+Row is: 401, Pfarramt Rosstal
+========================================
+statistic_area
+========================================
+DBD::Proxy::st execute failed: Server returned error: Failed to execute method CallMethod: Unknown SQL query: statistic_area at E:/Perl/site/lib/DBI/ProxyServer.pm line 258.
+Could not execute</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='How_the_configuration_works'><a class='permalink' href='#How_the_configuration_works'>Cómo   funciona la configuración</a></h2>
+<p class="Pp">La sección más importante para controlar el acceso a su dbi-proxy es
+    "client=&gt;" en el archivo "proxy_oracle.cfg":</p>
+<p class="Pp">Controlando qué persona en qué máquina tiene permitido el acceso</p>
+<ul class="Bl-bullet">
+  <li>"mask" es una expresión regular de perl contra la dirección ip
+      de la máquina que desea conectarse _o_ la búsqueda inversa de un
+      servidor de nombres.</li>
+  <li>"accept" le indica al servidor dbiproxy si las direcciones ip como en
+      "mask" tienen permitido conectarse o no (0/1)</li>
+  <li>"users" es una referencia a una lista de nombres de usuario que deben
+      coincidir, esto NO es una expresión regular.</li>
+</ul>
+<p class="Pp">Controlando qué sentencias SQL están permitidas</p>
+<p class="Pp">Puede poner cualquier sentencia SQL que desee simplemente omitiendo
+    "sql =&gt; ...", pero lo más importante es restringir la
+    conexión para que solo sean posibles las consultas permitidas.</p>
+<p class="Pp">Si incluye una sección sql en su archivo de configuración así:</p>
+<pre>sql =&gt; {
+        alive =&gt; 'select count(*) from dual',
+        statistic_area =&gt; 'select count(*) from e01admin.e01e203 where geb_bezei like ?',
+}</pre>
+<p class="Pp">Se permite al usuario hacer dos consultas contra el dbi-proxy. Las
+    consultas _no_ son "select count(*)...", las consultas son
+    "alive" y "statistic_area"! Estas palabras clave son
+    reemplazadas por la consulta real. Así que puede ejecutar una consulta para
+  "alive":</p>
+<pre>my $sql = "alive";
+my $cur = $dbh-&gt;prepare($sql);
+...</pre>
+<p class="Pp">La flexibilidad es que puede poner parámetros en la parte where
+    de la consulta para que las consultas no sean estáticas. Simplemente reemplace un valor en la
+    parte where de la consulta por un signo de interrogación y vincúlelo como un parámetro
+    a la consulta.</p>
+<pre>my $sql = "statistic_area";
+my $cur = $dbh-&gt;prepare($sql);
+$cur-&gt;bind_param(1,'905%');
+# Un segundo parámetro se llamaría así:
+# $cur-&gt;bind_param(2,'98%');</pre>
+<p class="Pp">El resultado es esta consulta:</p>
+<pre>select count(*) from e01admin.e01e203
+where geb_bezei like '905%'</pre>
+<p class="Pp">No intente poner parámetros en la consulta sql así:</p>
+<pre># No funciona como usted piensa.
+# Solo se analiza la primera palabra de la consulta,
+# por lo que se cambia a "statistic_area", el resto se omite.
+# Usted _tiene_ que trabajar con $cur-&gt;bind_param.
+my $sql = "statistic_area 905%";
+my $cur = $dbh-&gt;prepare($sql);
+...</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Problems'><a class='permalink' href='#Problems'>Problemas</a></h2>
+<ul class="Bl-bullet">
+  <li>No sé cómo restringir a los usuarios a bases de datos especiales.</li>
+  <li>No sé cómo pasar parámetros de consulta a través de dbish</li>
+</ul>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SECURITY_WARNING'><a class='permalink' href='#SECURITY_WARNING'>ADVERTENCIA   DE SEGURIDAD</a></h1>
+<p class="Pp">RPC::PlServer que se usa debajo no es seguro debido a la serialización y
+    deserialización de datos con el módulo Storable. Use el driver proxy solo en un
+    entorno de confianza.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<pre>Copyright (c) 1997    Jochen Wiedmann
+                      Am Eisteich 9
+                      72555 Metzingen
+                      Alemania
+                      Correo electrónico: joe@ispsoft.de
+                      Teléfono: +49 7123 </pre>14881
+<p class="Pp">El módulo DBI::ProxyServer es software libre; puede redistribuirlo
+    y/o</p> modificarlo bajo los mismos términos que el propio Perl. En particular,
+ </section>   se concede permiso a Tim Bunce para distribuirlo como parte de
+    DBI.
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VÉASE   </a></h1>TAMBIÉN
+<p class="Pp">dbiproxy, DBD::Proxy, DBI, RPC::</p>PlServer, RPC::PlClient,
+    Net</section>::Daemon, Net::Daemon::Log, Sys:</div>:Syslog, Win32::EventLog, syslog
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07</td>-13
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/per</a></dd>l-dbi
+        <dt>Vers</dt>ión:
+        <dd>1.</dd>647-2
+        <dt>Orig</dt>en:
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.</a></dd>org/dist/DBI/
+        <dt>Licen</dt>cias:
+        <dd>GPL, </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-dbi/">/listi</a></dd>ng/ext</dl>ra/per</section>l-dbi/
+
+<details>
+    <summary>Índic</summary>e
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#OPTIONS">OP</a></li>CIONES
+        
+            <li><a href="#SHUTDOWN">AP</a></li>AGADO
+        
+            <li><a href="#CONFIGURATION_FILE">ARCHIVO DE </a></li>CONFIGURACIÓN
+        
+            <li><a href="#Proxyserver_Configuration_file_(bigger_example)">Archivo de configuración del servidor proxy </a></li>(ejemplo más extenso)
+        
+            <li><a href="#SECURITY_WARNING">ADVERTENCIA </a></li>DE SEGURIDAD
+        
+            <li><a href="#AUTHOR">A</a></li>UTOR
+        
+            <li><a href="#SEE_ALSO">VÉASE </a></li>TAMBIÉ</ul>N Otr</nav>os for</details>matos:
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>txt
+        
+            <a href="/man/DBI::ProxyServer.3pm.en.txt"></a>, 
+        
+            <a href="/man/DBI::ProxyServer.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia GPL-3.0
+[[39]], excep</a>to para el contenido de las pá</p>ginas de manual, que tienen su</footer> propia licencia
+            </body>   especificada en el paquete </html>correspondiente de Arch Linux.

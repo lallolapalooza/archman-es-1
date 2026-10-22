@@ -1,0 +1,1940 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>IO::Socket::SSL(3pm) — Páginas manuales </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">IO__Socket__SSL(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-io-socket-ssl/">perl-io-socket-ssl</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">IO::Socket::</td>SSL(3)
+    <td class="head-vol">Documentación de Perl contribuida por el </td>usuario
+    <td class="head-rtitle">IO::</td>Socke</tr>t::SS</table>L(3)
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">IO::Socket::SSL - S</p>ockets SSL con la </section>interfaz IO::Socket
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<pre>use strict;
+use IO::Socket::SSL;
+# simple client
+my $cl = IO::Socket::SSL-&gt;new('www.google.com:443');
+print $cl "GE</pre>T / HTTP/1.0\r\n\r\n";
+print &lt;$cl&gt;;
+# simple server
+my $srv = IO::Socket::SSL-&gt;new(
+    LocalAddr =&gt; '0.0.0.0:1234</section>',
+    Listen =&gt; 10,
+    SSL_cert_file =&gt; 'server-cert.pem',
+    SSL_key_file =&gt; 'server-key.pem',
+);
+$srv-&gt;accept;
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp">IO::Socket::SSL hace que el uso de SSL/TLS sea mucho más fácil al envolver la funcionalidad necesaria en la familiar interfaz IO::Socket y proporcionando valores predeterminados seguros siempre que sea posible. De esta manera, las aplicaciones existentes pueden hacerse conscientes de SSL sin mucho esfuerzo, al menos si realizan E/S bloqueante y no usan select o </p>poll.
+<p class="Pp">Pero, bajo el capó, SSL es una bestia compleja. Por lo tanto, hay muchos métodos para hacer que haga lo que necesitas si el comportamiento predeterminado no es adecuado. Debido a que es fácil introducir inadvertidamente errores de seguridad críticos o problemas difíciles de depurar, recomendaría estudiar la siguiente documentación </p>cuidadosamente.
+<p class="Pp">La documentación consta de las siguientes </p>partes:
+<ul class="Bl-bullet">
+  <li>"Información esencial sobre </li>SSL/TLS"
+  <li>"Cliente SSL </li>básico"
+  <li>"Servidor SSL </li>básico"
+  <li>"Errores de uso </li>comunes"
+  <li>"Problemas comunes con </li>SSL"
+  <li>"Uso de sockets no </li>bloqueantes"
+  <li>"Uso </li>avanzado"
+  <li>"Integración en módulos </li>propios"
+  <li>"Descrip</li>ción de </ul>métodos"
+<p class="Pp">Se puede encontrar documentación adicional </p>en
+<ul class="Bl-bullet">
+  <li>IO::Socket::SSL::Intercept - Hacer Man-In-The-Middle con </li>SSL
+  <li>IO::Socket::SSL:</li>:Utils - Funcion</ul>es útiles para ce</section>rtificados, etc.
+<section class="Sh">
+<h1 class="Sh" id='Essential_Information_About_SSL/TLS'><a class='permalink' href='#Essential_Information_About_SSL/TLS'>Información esencial sobre </a></h1>SSL/TLS
+<p class="Pp">SSL (Secure Socket Layer) o su sucesor TLS (Transport Layer Security) son protocolos para facilitar la seguridad de extremo a extremo. Estos protocolos se utilizan al acceder a sitios web (https), entregar o recuperar correo electrónico, y en muchos otros casos de uso. En la siguiente documentación nos referiremos tanto a SSL como a TLS simplemente como </p>'SSL'.
+<p class="Pp">SSL permite la seguridad de extremo a extremo al proporcionar dos funciones </p>esenciales:
+<dl class="Bl-tag">
+  <dt id="Encryption"><a class="permalink" href="#Encryption">Cifra</a></dt>do
+  <dd>Esta parte cifra los datos para el tránsito entre las partes comunicantes, de modo que nadie en el medio pueda leerlos. También proporciona resistencia a la manipulación para que nadie en el medio pueda manipular los </dd>datos.
+  <dt id="Identification"><a class="permalink" href="#Identification">Identificaci</a></dt>ón
+  <dd>Esta parte se asegura de que hablas con el par correcto. Si la identificación se hace incorrectamente, es fácil montar ataques man-in-the-middle, por ejemplo, si Alice qui</dd>ere hablar con Bob, sería posible para Mallory ponerse en el medio, de modo que Alice hable con Mallory y Mallory con Bob. Todos los datos seguirían cifrados, pero no de e</dl>xtremo a extremo entre Alice y Bob, sino solo entre Alice y Mallory y luego entre Mallory y Bob. Así que Mallory podría leer y modificar todo el tráfico entre Alice y Bob.
+<p class="Pp">La identificación es la parte más difícil de entender y la más fácil de </p>equivocarse.
+<p class="Pp">Con SSL, la identificación se realiza normalmente con
+    <b>certificados </b>dentro de una <b>PKI </b>(Infraestructura de clave pública). Estos certificados son comparables a una tarjeta de identidad, que contiene información sobre el propietario de la tarjeta. La tarjeta es de alguna manera <b>firmada </b>por el
+    <b>emisor </b>de la tarjeta, la <b>CA </b>(Autoridad de Certificación)</p>.
+<p class="Pp">Para verificar la identidad del par, lo siguiente debe hacerse dentro de </p>SSL:
+<ul class="Bl-bullet">
+  <li>Obtener el certificado del par. Si el par no presenta un certificado, no podemos </li>verificarlo.
+  <li>Comprobar si confiamos en el certificado, por ejemplo, asegurarnos de que no es una falsificación.
+    <p class="Pp">Creemos que un certificado no es falso si ya conocemos el certificado o si <b>confiamos </b>en el emisor (la CA) y podemos verificar la firma del emisor en el certificado. En realidad, a menudo hay una jerarquía de autoridades de certificación y solo confiamos directamente en la raíz de esta jerarquía. En este caso, el par no solo envía su propio certificado, sino también todos los <b>certificados intermedios.</b> La verificación se hará construyendo una <b>ruta de </b>confianza desde la raíz de confianza hasta el certificado del par y comprobando en cada paso si podemos verificar la firma del </p>emisor.
+    <p class="Pp">Este paso a menudo causa problemas porque el cliente no conoce los certificados raíz de confianza necesarios. Estos suelen almacenarse en un almacén de CA dependiente del sistema, pero a menudo los navegadores tienen su propio almacén </p>de </li>CA.
+  <li>Comprobar si el certificado sigue siendo válido. Cada certificado tiene un tiempo de vida y no debería usarse después de ese tiempo porque podría haberse comprometido o la criptografía subyacente podría haberse roto en el </li>ínterin.
+  <li>Comprobar si el sujeto del certificado coincide con el par. Esto es como comparar la foto en la tarjeta de identidad con la persona que representa la tarjeta de identidad.
+    <p class="Pp">Al conectarse a un servidor, esto se hace normalmente comparando el nombre de host utilizado para conectarse con los nombres representados en el certificado. Un certificado puede contener múltiples nombres o comodines, de modo que pueda usarse para múltiples hosts (por ejemplo, *.example.com y *.example.</p>org).
+    <p class="Pp">Aunque nadie cuerdo aceptaría una tarjeta de identidad donde la fo</p>to no coincide con la persona que vemos, es un error de implementa</li>ción común con SSL omitir esta verificación o equivocarse en ella.
+  <li>Comprobar si el certificado fue revocado por el emisor. Esto podría ser el caso si el certificado se comprometió de alguna manera y ahora alguien más podría usarlo para reclamar la identidad incorrecta. Tales revocaciones ocurrieron mucho después del ataque heartbleed.
+    <p class="Pp">Para SSL hay dos formas de verificar una revocación, CRL y OCSP. Con las CRL (Certificate Revocation List, lista de revocación de certificados) la CA proporciona una lista de números de serie para certificados revocados. El cliente de alguna manera tiene que descargar la lista (que puede ser enorme) y mantenerla actualizada. Con OCSP (Online Certificate Status Protocol, protocolo de estado de certificado en línea) el cliente puede verificar un certificado individual directamente preguntando al </p>emisor.
+    <p class="Pp">La revocación es la parte más difícil de la verificación y ninguno de l</p>os navegadores actuales la hace completamente bien. Pero, aún son mejor</li>es que la mayoría de las otras implementaciones que no implementan comp</ul>robaciones de revocación o dejan las partes difíciles al desarrollador.
+<p class="Pp">Al acceder a un sitio web con SSL o entregar correo de manera segura, la identidad normalmente solo se verifica en una dirección, por ejemplo, </p>el cliente quiere asegurarse de que habla con el servidor correcto, pero el servidor normalmente no le importa con qué cliente habla. Pero, a ve</section>ces el servidor también quiere identificar al cliente y solicitará un certificado del cliente que el servidor debe verificar de manera similar.
+<section class="Sh">
+<h1 class="Sh" id='Basic_SSL_Client'><a class='permalink' href='#Basic_SSL_Client'>Cliente SSL </a></h1>básico
+<p class="Pp">Un cliente SSL básico es </p>simple:
+<pre>my $client = IO::Socket::SSL-&gt;new('www.example.com:443')
+    or die "error=$!, ssl_error=$SSL_ERROR"</pre>;
+<p class="Pp">Esto tomará el almacén de CA predeterminado de OpenSSL como el almacén para las CA de confianza. Esto generalmente funciona en sistemas UNIX. Si no hay certificados en el almacén, intentará usar Mozilla::CA que proporciona las CA predeterminadas de </p>Firefox.
+<p class="Pp">En la configuración predeterminada, IO::Socket::SSL usará un conjunto de cifrado y versión SSL más seguros, hará una comprobación adecuada del nombre de host contra el certificado, y usará SNI (server name indication, indicación de nombre de servidor) para enviar el nombre de host dentro del apretón de manos SSL. Esto es necesario para trabajar con servidores que tienen diferentes certificados detrás de la misma dirección IP. También comprobará la revocación del certificado con OCSP, pero actualmente solo si el servidor proporciona empaquetado OCSP (para verificaciones más profundas ver
+    <span class="Li">método </span>"ocsp_resolver")</p>.
+<p class="Pp">Se pueden usar muchas opciones para cambiar cifrados, versión SSL, ubicación de la CA y mucho más. Ver documentación de métodos para </p>detalles.
+<p class="Pp">Con protocolos como SMTP es necesario actualizar un socket existente a SSL. Esto se puede hacer </p>así:
+<pre>my $client = IO::Socket::INET-&gt;new('mx.example.com:25') or die $!;
+# .. leer saludo del servidor
+# .. enviar EHLO y leer respuesta
+# .. enviar comando STARTTLS y leer respuesta
+# .. si la respuesta fue exitosa, podemos actualizar el socket a SSL ahora:
+IO::Socket::SSL-&gt;start_SSL($client,
+    # establecer explícitamente el nombre de host que debemos usar para SNI
+    SSL_hostname =&gt; 'mx.example.com'
+) o muere $SSL_ERROR;</pre>
+<p class="Pp">Un ejemplo más completo para un cliente HTTP simple:</p>
+<pre>mi $cliente = IO::Socket::SSL-&gt;new(
+    # dónde conectarse
+    PeerHost =&gt; &quot;www.example.com&quot;,
+    PeerPort =&gt; &quot;https&quot;,
+    # verificación de certificado - VERIFY_PEER es el valor predeterminado
+    SSL_verify_mode =&gt; SSL_VERIFY_PEER,
+    # ubicación del almacén de CA
+    # solo es necesario proporcionarlo si no se debe usar el almacén predeterminado
+    SSL_ca_path =&gt; '/etc/ssl/certs', # ruta típica de CA en Linux
+    SSL_ca_file =&gt; '/etc/ssl/cert.pem', # archivo típico de CA en BSD
+    # o simplemente usa la ruta predeterminada en el sistema:
+    IO::Socket::SSL::default_ca(), # explícitamente
+    # o implícitamente al no proporcionar SSL_ca_*
+    # verificación de nombre de host fácil
+    # Usará PeerHost como nombre predeterminado y un esquema de verificación
+    # como predeterminado, lo cual es lo suficientemente seguro para la mayoría de los propósitos.
+    SSL_verifycn_name =&gt; 'foo.bar',
+    SSL_verifycn_scheme =&gt; 'http',
+    # soporte SNI - predeterminado a PeerHost
+    SSL_hostname =&gt; 'foo.bar',
+) o muere &quot;falló la conexión o el handshake ssl: $!,$SSL_ERROR&quot;;
+# enviar y recibir a través de la conexión SSL
+print $cliente &quot;GET / HTTP/1.0\r\n\r\n&quot;;
+print &lt;$cliente&gt;;</pre>
+<p class="Pp">Y para realizar comprobaciones de revocación con OCSP (solo disponible con OpenSSL
+    1.0.0 o superior y Net::SSLeay 1.59 o superior):</p>
+<pre># el valor predeterminado intentará el "stapling" OCSP y verificará solo el certificado hoja
+mi $cliente = IO::Socket::SSL-&gt;new($dst);
+# aún mejor: requerir la verificación de la cadena completa
+mi $cliente = IO::Socket::SSL-&gt;new(
+    PeerAddr =&gt; $dst,
+    SSL_ocsp_mode =&gt; SSL_OCSP_FULL_CHAIN,
+);
+# aún mejor: hacer que los errores de OCSP sean fatales
+# (esto probablemente fallará con muchos sitios debido a configuraciones de OCSP deficientes)
+# también usa caché de respuestas OCSP común
+mi $ocsp_cache = IO::Socket::SSL::OCSP_Cache-&gt;new;
+mi $cliente = IO::Socket::SSL-&gt;new(
+    PeerAddr =&gt; $dst,
+    SSL_ocsp_mode =&gt; SSL_OCSP_FULL_CHAIN|SSL_OCSP_FAIL_HARD,
+    SSL_ocsp_cache =&gt; $ocsp_cache,
+);
+# deshabilitar el "stapling" OCSP en caso de que el servidor tenga problemas con él
+mi $cliente = IO::Socket::SSL-&gt;new(
+    PeerAddr =&gt; $dst,
+    SSL_ocsp_mode =&gt; SSL_OCSP_NO_STAPLE,
+);
+# verifica cualquier certificado que aún no haya sido verificado por "stapling" OCSP o
+# donde ya tengamos resultados almacenados en caché. Para tu propia resolución combina
+# $ocsp-&gt;requests con $ocsp-&gt;add_response(uri,respuesta).
+mi $ocsp = $client-&gt;ocsp_resolver();
+my $errors = $ocsp-&gt;resolve_blocking();
+if ($errors) {
+    warn &quot;La verificación OCSP falló: $errors&quot;;
+    close($client);
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Servidor_SSL_Básico'><a class='permalink' href='#Servidor_SSL_Básico'>Servidor   SSL Básico</a></h1>
+<p class="Pp">Un servidor SSL básico se parece a otros servidores IO::Socket, solo
+    que también contiene configuraciones para el certificado y la clave:</p>
+<pre># servidor simple
+mi $servidor = IO::Socket::SSL-&gt;new(
+    # dónde escuchar
+    LocalAddr =&gt; '127.0.0.1',
+    LocalPort =&gt; 8080,
+    Listen =&gt; 10,
+    # qué certificado ofrecer
+    # con soporte SNI puede haber diferentes certificados por nombre de host
+    SSL_cert_file =&gt; 'cert.pem',
+    SSL_key_file =&gt; 'key.pem',
+) o muere &quot;falló al escuchar: $!&quot;;
+# aceptar cliente
+mi $cliente = $server-&gt;accept or die
+    &quot;falló al aceptar o al handshake ssl: $!,$SSL_ERROR&quot;;</pre>
+<p class="Pp">Esto utilizará automáticamente un conjunto seguro de cifrados y
+    versión SSL, y también admite la confidencialidad directa (Forward Secrecy)
+    con el intercambio de claves Diffie-Hellmann (con curva elíptica).</p>
+<p class="Pp">Si estás utilizando un servidor de bifurcación (forking) o de hilos
+    (threading), recomendamos realizar el handshake SSL dentro del nuevo proceso/hilo
+    para que el maestro quede libre para nuevas conexiones. Recomendamos esto porque
+    un cliente con un handshake SSL incorrecto o lento podría hacer que el servidor
+    se bloquee en el handshake, lo cual sería malo de hacer en el socket de escucha:</p>
+<pre># servidor inet
+mi $servidor = IO::Socket::INET-&gt;new(
+    # dónde escuchar
+    LocalAddr =&gt; '127.0.0.1',
+    LocalPort =&gt; 8080,
+    Listen =&gt; 10,
+);
+# aceptar cliente
+mi $cliente = $server-&gt;accept or die;
+# actualizar cliente SSL (en nuevo proceso/hilo)
+IO::Socket::SSL-&gt;start_SSL($client,
+    SSL_server =&gt; 1,
+    SSL_cert_file =&gt; 'cert.pem',
+    SSL_key_file =&gt; 'key.pem',
+) o muere &quot;falló el handshake ssl: $SSL_ERROR&quot;;</pre>
+<p class="Pp">Al igual que con los sockets normales, ni los servidores de bifurcación
+    ni los de hilos escalan bien. Se recomienda utilizar sockets no bloqueantes en su
+    lugar, consulta &quot;Uso de sockets no bloqueantes&quot;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Errores_Comunes_de_Uso'><a class='permalink' href='#Errores_Comunes_de_Uso'>Errores   Comunes de Uso</a></h1>
+<p class="Pp">Esta es una lista de errores típicos observados con el uso de
+    IO::Socket::SSL:</p>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>Desactivación de la verificación con
+      <span class="Li">&quot;SSL_verify_mode&quot;</span>.
+    <p class="Pp">Como se describe en &quot;Información Esencial sobre
+        SSL/TLS&quot;, la identificación adecuada del par es esencial y la
+        falta de verificación hace posibles los ataques Man-In-The-Middle.</p>
+    <p class="Pp">Sin embargo, muchos scripts e incluso módulos o aplicaciones
+        públicas deshabilitan la verificación, porque probablemente sea la forma
+        más fácil de hacer que funcione y, por lo general, nadie nota problemas
+        de seguridad de todos modos.</p>
+    <p class="Pp">Si la verificación no tiene éxito con la configuración
+        predeterminada, se puede hacer lo siguiente:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Asegúrate de que las CA necesarias estén en el almacén; quizás utiliza
+      <span class="Li">&quot;SSL_ca_file&quot;</span> o
+      <span class="Li">&quot;SSL_ca_path&quot;</span> para especificar un almacén
+      de CA diferente.</li>
+  <li>Si la validación falla porque el certificado es autofirmado y eso es lo que esperas,
+      puedes usar la opción
+      <span class="Li">&quot;SSL_fingerprint&quot;</span> para aceptar certificados
+      hoja específicos por su huella digital de certificado o clave pública.</li>
+  <li>Si la validación falló porque el nombre del host no coincide y no puedes acceder
+      al host con el nombre dado en el certificado, puedes usar
+      <span class="Li">&quot;SSL_verifycn_name&quot;</span> para especificar el
+      nombre del host que esperas en el certificado.</li>
+</ul>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Un patrón de error común también es deshabilitar la verificación si
+    no encontraron ningún almacén de CA (diferentes módulos miran diferentes lugares
+    "predeterminados"). Dado que IO::Socket::SSL ahora puede proporcionar un almacén
+    de CA utilizable en la mayoría de las plataformas (UNIX, Mac OSX y Windows), es
+    mejor usar los valores predeterminados proporcionados por IO::Socket::SSL. Si es
+    necesario, estos se pueden verificar con el método
+    <span class="Li">&quot;default_ca&quot;</span>.</p>
+</div>
+<ul class="Bl-bullet">
+  <li>Sondeo de sockets SSL (por ejemplo, select, poll y otros bucles de eventos).
+    <p class="Pp">Si haces `sysread` de un byte en un socket normal, resultará en
+        una llamada al sistema para leer un byte. Por lo tanto, si hay más de un
+        byte disponible en el socket, se mantendrá en la pila de red de tu sistema
+        operativo y la próxima llamada a `select` o `poll` devolverá el socket
+        como legible. Pero, con SSL, no entregas bytes individuales. Varios bytes de
+        datos se empaquetan y cifran juntos en un marco SSL. El descifrado solo se
+        puede hacer en el marco completo, por lo que un `sysread` de un byte en
+        realidad lee el marco SSL completo del socket, lo descifra y devuelve el
+        primer byte descifrado. Lecturas `sysread` adicionales devolverán más bytes
+        del mismo marco hasta que se devuelvan todos los bytes y se lea el próximo
+        marco SSL del socket.</p>
+    <p class="Pp">Por lo tanto, para decidir si puedes leer más datos (por ejemplo,
+        si `sysread` se bloqueará), debes verificar si todavía hay datos en el
+        marco SSL actual llamando a <span class="Li">&quot;pending&quot;</span> y,
+        si no hay datos pendientes, puedes verificar el socket subyacente con
+        `select` o `poll`. Otra forma podría ser si intentas hacer `sysread`
+        de al menos 16 kBytes todo el tiempo. 16 kBytes es el tamaño máximo de un
+        marco SSL y, dado que `sysread` devuelve datos de un solo marco SSL, puedes
+        garantizar que no haya datos pendientes.</p>
+    <p class="Pp">Además, a diferencia de los sockets sin cifrar, los datos entregados
+        en el socket no son necesariamente carga útil de la aplicación. Podría ser
+        un handshake TLS, podría ser solo el comienzo de un registro TLS o podrían
+        ser tickets de sesión TLS que se envían después del handshake TLS en TLS
+        1.3. En tales situaciones, `select` informará que hay datos disponibles para
+        leer ya que solo mira el socket sin cifrar. Sin embargo, un `sysread` en
+        el socket IO::Socket::SSL no devolverá ningún dato, ya que es una abstracción
+        que solo devuelve datos de la aplicación. Esto hace que `sysread` se
+        bloquee en caso de que el socket estuviera bloqueando o devuelva un error
+        con EAGAIN en sockets no bloqueantes. Por lo tanto, las aplicaciones que
+        usan `select` o similar deberían configurar el socket como no bloqueante y
+        también esperar que `sysread` pueda fallar temporalmente con EAGAIN.</p>
+    <p class="Pp">Ver también &quot;Uso de sockets no bloqueantes&quot;.</p>
+  </li>
+  <li>Esperar exactamente el mismo comportamiento que los sockets sin cifrar.
+    <p class="Pp">IO::Socket::SSL intenta emular el comportamiento habitual del socket
+        lo mejor posible, pero no se puede lograr una emulación completa.
+        Específicamente, una lectura en el socket SSL también podría resultar en
+        una escritura en el socket TCP, o una escritura en el socket SSL podría
+        resultar en una lectura en el socket TCP. Además,
+        <span class="Li">&quot;accept&quot;</span> y <b>close</b> en el socket SSL
+        también resultarán en escribir y leer datos en el socket TCP.</p>
+    <p class="Pp">Especialmente las escrituras ocultas podrían resultar en un reinicio
+        de la conexión si el socket subyacente ya está cerrado por el par. A menos
+        que la señal PIPE sea manejada explícitamente por la aplicación, esto
+        generalmente resultará en que la aplicación falle. Por lo tanto, se
+        recomienda IGNORAR explícitamente la señal PIPE para que los errores se
+        propaguen como EPIPE en lugar de causar un bloqueo de la aplicación.</p>
+  </li>
+  <li>Configurar 'SSL_version' o 'SSL_cipher_list' a un valor "mejor".
+    <p class="Pp">IO::Socket::SSL intenta establecer estos valores en valores razonables
+        y seguros que son compatibles con el resto del mundo. Sin embargo, hay
+        algunos scripts o módulos que intentaron ser inteligentes y obtener
+        configuraciones más seguras o compatibles. Desafortunadamente, lo hicieron
+        hace años y nunca actualizaron estos valores, por lo que todavía están
+        forzados a usar solo 'TLSv1' (en lugar de usar también TLSv12 o TLSv11). O
+        establecieron 'HIGH' como la lista de cifrados y pensaron que eran seguros,
+        pero no se dieron cuenta de que 'HIGH' incluye cifrados anónimos, por ejemplo,
+        sin identificación del par.</p>
+    <p class="Pp">Por lo tanto, se recomienda dejar la configuración en los valores
+        predeterminados seguros que establece IO::Socket::SSL y que se actualizan
+        de vez en cuando para adaptarse mejor al mundo real.</p>
+  </li>
+  <li>Hacer que la configuración SSL sea inaccesible para el usuario, junto con
+      configuraciones integradas deficientes.
+    <p class="Pp">Algunos módulos usan IO::Socket::SSL, pero no ponen la configuración
+        SSL a disposición del usuario. Esto a menudo se combina con configuraciones
+        o valores predeterminados deficientes (como desactivar la verificación).</p>
+    <p class="Pp">Por lo tanto, el usuario necesita realizar ajustes para estas
+        restricciones utilizando
+        <span class="Li">&quot;set_args_filter_hack&quot;</span> o similar.</p>
+  </li>
+  <li>Uso de constantes como cadenas.
+    <p class="Pp">Las constantes como
+        <span class="Li">&quot;SSL_VERIFY_PEER&quot;</span> o
+        <span class="Li">&quot;SSL_WANT_READ&quot;</span> deben usarse como
+        constantes y no colocarse entre comillas, ya que representan valores numéricos.</p>
+       valore</p>s</li>.
+  <li>Bifurcación y manejo del socket en el padre y el hijo.
+    <p class="Pp">Un <b>fork </b>del proceso duplicará el estado SSL interno del espacio de usuario del socket. Si tanto el maestro como el hijo interactúan con el socket utilizando su propio estado SSL, ocurrirán mensajes de error extraños. Dicha interacción incluye el cierre explícito o implícito de <b>el </b>socket SSL. Para evitar esto, el socket debe cerrarse explícitamente con <b>SSL_no_shut</b>d</p>ow</li>n.
+  <li>Bifurcación y ejecución de un nuevo proceso.
+    <p class="Pp">Dado que el estado SSL se almacena en el espacio de usuario, será
+        duplicado por un <b>fork </b>pero se perderá al hacer <b>exec.
+        Esto significa que no es posible simp</b>lemente redirigir stdin y stdout para
+        el nu</p>evo proceso al socket SSL duplicando los manejadore</li>s de archivo
+        relevantes. En su lugar, se ne</ul>cesita un intercambio explícito de datos
+        en</section> texto plano entre el proceso hijo y el socket SSL.
+<section class="Sh">
+<h1 class="Sh" id='Common_Problems_with_SSL'><a class='permalink' href='#Common_Problems_with_SSL'>Problemas comunes con </a></h1>SSL
+<p class="Pp">SSL es un protocolo complejo con múltiples implementaciones y cada
+    una de estas tiene sus propias peculiaridades. Aunque la mayoría de estas
+    implementaciones funcionan juntas, a menudo se vuelve problemático con
+    versiones antiguas, versiones mínimas en balanceadores de carga o
+    configuraciones simplemente </p>incorrectas.
+<p class="Pp">Desafortunadamente, estos problemas son difíciles de depurar. Es útil
+    para depurar un conocimiento de los internos de SSL, wireshark y el uso de
+    los ajustes de depuración de IO::Socket::SSL y Net::SSLeay, que ambos se
+    pueden establecer con <span class="Li">$IO::Socket::SSL::DEBUG. </span>Los siguientes niveles de
+    depuración están definidos, pero no se usan de manera </p>consistente:
+<ul class="Bl-bullet">
+  <li>0 - Sin depuración (predeterminado)</li>.
+  <li>1 - Imprimir errores de IO::Socket::SSL y cifrados de
+    Net::</li>SSLeay.
+  <li>2 - Imprimir también información sobre el flujo de llamadas de IO::Socket::SSL, información de progreso de Net::SSLeay e información de estado de </li>OpenSSL.
+  <li>3 - Imprimir también algunos </li>volcados de datos de IO::Sock</ul>et::SSL y de
+    Net::SSLeay.
+<p class="Pp">También, <span class="Li">"analyze-ssl.</span>pl" del repositorio ssl-tools en <a href='https://github.com/noxxi/p5-ssl-tools'>https://github.com/noxxi/p5-ssl-tools </a>podría
+    ser una herramienta útil al depurar problemas de SSL, al igual que la
+    <span class="Li">herramienta </span>de línea de comandos "openssl" y una verificación
+    con una implementación SSL diferente (p. ej., un navegador web)</p>.
+<p class="Pp">Los siguientes problemas no son poco </p>comunes:
+<ul class="Bl-bullet">
+  <li>Mala configuración del servidor: certificados intermedios ausentes.
+    <p class="Pp">Es un problema habitual que los administradores no incluyan
+        todos los certificados necesarios en su configuración de servidor, p.
+        ej., todo lo necesario para construir la cadena de confianza desde la
+        raíz de confianza. Si verifican la configuración con el navegador,
+        todo parece estar bien, porque los navegadores sortean estos problemas
+        almacenando en caché cualquier certificado intermedio y aplicándolos a
+        nuevas conexiones si faltan </p>certificados.
+    <p class="Pp">Pero, perfiles de navegador nuevos que nunca han visto estos
+        intermedios no pueden rellenar los certificados que faltan y fallan al
+        verificar; lo mismo ocurre con IO::Socket:</p>:</li>SSL.
+  <li>Versiones antiguas de servidores o balanceadores de carga que no entienden versiones TLS específicas o fallan con datos específicos.
+    <p class="Pp">De vez en cuando se encuentra un par SSL que simplemente
+        cierra la conexión dentro del apretón de manos SSL. Esto generalmente se
+        puede sortear degradando la versión SSL, p. ej., estableciendo
+        <span class="Li">"SSL_version".</span> Los navegadores modernos generalmente
+        lidiarán con tales servidores degradando automáticamente la versión SSL
+        y repitiendo el intento de conexión hasta que tengan </p>éxito.
+    <p class="Pp">Los servidores peores no cierran la conexión TCP subyacente sino
+        que simplemente descartan el paquete relevante. Esto es más difícil de
+        detectar porque parece una conexión estancada. Pero degradar la versión
+        SSL a menudo funciona aquí </p>también.
+    <p class="Pp">Una causa de tales problemas son a menudo balanceadores de carga o
+        dispositivos de segurida</p>d, que tienen aceleración por hardware y solo
+        un conjunto SSL mínimo (y menos robusto). A </li>menudo se pueden detectar
+        porque soportan muchas menos cifrados que otras implementaciones.
+  <li>Versiones de OpenSSL malas o antiguas.
+    <p class="Pp">IO::Socket::SSL usa OpenSSL con la ayuda de la biblioteca
+        Net::SSLea</p>y. Se recomienda tener una versión reciente de esta
+        biblioteca, porq</li>ue tiene más características y generalmente menos
+        errores conocidos.
+  <li>La validación de certificados de cliente falla.
+    <p class="Pp">Asegúrese de que el propósito del certificado permite su uso como
+        cliente ssl (verifique con <span class="Li">"openssl x509
+        -purpose",</span> que el certificado raíz necesario está en la
+        ruta especificada por <span class="Li">"SSL_ca*" (o la
+        ruta predeterminad</span>a) y que cualquier certificado intermedio</p> necesario
+        para construir la cade</li>na de confianza es enviado por el cliente.
+  <li>La validación de un certificado autofirmado falla incluso si se da con el
+      <span class="Li">argumento </span>"SSL_ca*".
+    <p class="Pp">Los <span class="Li">argumentos </span>"SSL_ca*" no
+        proporcionan un almacén de confianza general para certificados
+        arbitrarios, sino que solo especifican un almacén para certificados de
+        CA que luego pueden usarse para verificar otros certificados. Esto
+        significa especialmente que los certificados que no son una CA se
+        ignoran simplemente, notablemente los certificados autofirmados que
+        tampoco tienen establecido el indicador </p>CA.
+    <p class="Pp">Este comportamiento de OpenSSL difiere del concep</p>to más general de
+        almacén de confianza q</li>ue se puede encontrar en los navegadores y donde
+</ul>        es posible simplemente añadir certificad</section>os arbitrarios (CA o no) como
+      de confianza.
+<section class="Sh">
+<h1 class="Sh" id='Using_Non-Blocking_Sockets'><a class='permalink' href='#Using_Non-Blocking_Sockets'>Uso de sockets no </a></h1>bloqueantes
+<p class="Pp">Si tiene un socket no bloqueante, el comportamiento esperado al leer,
+    escribir, aceptar o conectar es establecer <span class="Li">$!</span> a EWOULDBLOCK
+    si la operación no se puede completar inmediatamente. Tenga en cuenta que
+    EWOULDBLOCK es lo mismo que EAGAIN en sistemas UNIX, pero es diferente en
+    </p>Windows.
+<p class="Pp">Con SSL, los apretones de manos pueden ocurrir en cualquier momento,
+    incluso dentro de una conexión establecida. En estos casos es necesario
+    terminar el apretón de manos antes de poder leer o escribir datos. Esto
+    podría resultar en situaciones donde desea leer pero primero debe terminar
+    la escritura de un apretón de manos o donde desea escribir pero primero
+    debe terminar una lectura. En estos casos
+    <span class="Li">$!</span> se establece a EAGAIN como se esperaba, y adicionalmente
+    <span class="Li">$SSL_ERROR </span>se establece a SSL_WANT_READ o
+    SSL_WANT_WRITE. Así que si obtiene EWOULDBLOCK en un socket SSL debe
+    verificar
+    <span class="Li">$SSL_ERROR </span>para SSL_WANT_* y adaptar su máscara de
+    eventos en </p>consecuencia.
+<p class="Pp">Usar readline en sockets no bloqueantes no tiene mucho sentido y
+    aconsejaría no usarlo. Y, aunque el comportamiento no está documentado para
+    otras clases IO::Socket, intentará emular el comportamiento visto allí, p.
+    ej., devolver los datos recibidos en lugar de bloquear, incluso si la línea
+    no está completa. Si ocurre un error no recuperable, no devolverá nada,
+    incluso si ya ha recibido algunos </p>datos.
+<p class="Pp">También, aconsejaría no usar
+    <span class="Li">"accept" </span>con un objeto SSL no bloqueante
+    porque podría bloquear y esto no es lo que la mayoría esperaría. La razón
+    de esto es que <span class="Li">"accept" </span>en un
+    socket TCP no bloqueante (p. ej., IO::Socket::IP, IO::Socket::INET..)
+    resulta en un nuevo socket TCP que no hereda el comportamiento no
+    bloqueante del socket maestro. Y por lo tanto, el apretón de manos SSL
+    inicial en el nuevo socket dentro de
+    <span class="Li">"IO::Socket::SSL::accept" </span>se hará de
+    una manera bloqueante. Para sortear esto es más seguro hacer un accept TCP
+    y luego actualizar el socket TCP de una manera no bloqueante con
+    <span class="Li">"start_SSL" </span>y
+    <span class="Li">"accept_SSL</span>"</p>.
+<pre>my $cl = IO::Socket::SSL-&gt;new($dst);
+$cl-&gt;blocking(0);
+my $sel = IO::Select-&gt;new($cl);
+while (1) {
+    # con SSL una llamada para leer n bytes no resulta en la lectura de n
+    # bytes del socket, sino que debe leer al menos un cuadro SSL completo.
+    # Si el socket no tiene nuevos bytes, pero hay datos sin procesar
+    # del cuadro SSL, ¡can_read se bloqueará!
+    # esperar datos en el socket
+    $sel-&gt;can_read();
+    # nuevos datos en el socket o fin de archivo
+    READ:
+    # esto no lee solo 1 byte del socket, sino que lee el cuadro SSL
+    # completo y luego solo devuelve un byte. En llamadas posteriores
+    # devuelve más bytes del mismo cuadro SSL hasta que necesita leer el
+    # siguiente cuadro.
+    my $n = sysread( $cl,my $buf,1);
+    if ( ! defined $n ) {
+        die $! if not $!{EWOULDBLOCK};
+        next if $SSL_ERROR == SSL_WANT_READ;
+        if ( $SSL_ERROR == SSL_WANT_WRITE ) {
+            # necesita escribir datos en la renegociación
+            $sel-&gt;can_write;
+            next;
+        }
+        die "algo salió mal: $SSL_ERROR";
+    } elsif ( ! $n ) {
+        last; # fin de archivo
+    } else {
+        # leer los siguientes bytes
+        # podríamos tener aún datos dentro del cuadro SSL actual
+        # así que primero procesar estos datos en lugar de esperar en el
+        # objeto socket subyacente
+        goto READ if $cl-&gt;pending;    # goto sysread
+        next;                         # goto $sel-&gt;can_read
+    }
+</pre>}
+<p class="Pp">Adicionalmente hay diferencias con los sockets en texto plano al usar
+    select, poll, kqueue o tecnologías similares para ser notificado si los
+    datos están disponibles. Confiar solo en estas llamadas no es suficiente en
+    todos los casos ya que los datos sin leer podrían estar almacenados en
+    búfer internamente en el conjunto SSL. Para detectar tal almacenamiento en
+    búfer <b>pending() </b>necesita ser usado. Alternativamente el almacenamiento en
+    búfer se puede evitar usando <b>sysread con el tamaño má</b>ximo de un cuadro SSL.
+  </p>  Vea "Errores de uso com</section>unes" para más detalles.
+<section class="Sh">
+<h1 class="Sh" id='Advanced_Usage'><a class='permalink' href='#Advanced_Usage'>Uso </a></h1>avanzado
+<section class="Ss">
+<h2 class="Ss" id='SNI_Support'><a class='permalink' href='#SNI_Support'>Soporte </a></h2>SNI
+<p class="Pp">Las extensiones más nuevas a SSL pueden distinguir entre múltiples
+    nombres de host en la misma dirección IP usando Server Name Indication
+    (SNI)</p>.
+<p class="Pp">El soporte para SNI en el lado del cliente se añadió en algún lugar de la
+    serie OpenSSL 0.9.8, pero con 1.0 se corrigió un error cuando el servidor
+    no podía decidir sobre su nombre de host. Por lo tanto, el SNI del lado del
+    cliente solo se soporta con OpenSSL 1.0 o superior en IO::Socket::SSL. Con
+    una versión soportada, SNI se usa automáticamente en el lado del cliente,
+    si puede determinar el nombre de host desde
+    <span class="Li">"PeerAddr" </span>o
+    <span class="Li">"PeerHost" </span>(que son sinónimos en las
+    clases IO::Socket:: subyacentes y por lo tanto nunca deberían establecerse
+    ambos o al menos no a diferentes valores). En versiones de OpenSSL no
+    soportadas, no usará SNI silenciosamente. El nombre de host también se
+    puede dar explícitamente con
+    <span class="Li">"SSL_hostname",</span> pero en este caso
+    lanzará un error, si SNI no está soportado. Para verificar el soporte
+    podría llamar a
+    <span class="Li">"IO::Socket:</span>:SSL-&gt;can_cl</p>ient_sni()".
+<p class="Pp">En el lado del servidor, versiones anteriores de OpenSSL están soportados, pero
+    solo junto con la versión de Net::SSLeay &gt;= 1.50. Para comprobar el soporte
+    podrías llamar a
+    <span class="Li">"IO::Socket::SSL-&gt;can_server_sni()". Si
+</span>    el SNI del lado del servidor está soportado, podrías especificar diferentes certificados por
+    host con <span class="Li">"SSL_cert*" </span>y
+    <span class="Li">"SSL_key*",</span> y comprobar el nombre solicitado
+    usando <span class="Li">"get_servernam</span>e</p>"</section>.
+<section class="Ss">
+<h2 class="Ss" id='Talk_Plain_and_SSL_With_The_Same_Socket'><a class='permalink' href='#Talk_Plain_and_SSL_With_The_Same_Socket'>Hablar   en Claro y SSL Con El Mismo </a></h2>Socket
+<p class="Pp">A menudo es necesario intercambiar primero algunos datos en claro y luego
+    actualizar el socket a SSL después de algún tipo de comando STARTTLS. Protocolos
+    como FTPS incluso necesitan una forma de degradar el socket de nuevo a </p>claro.
+<p class="Pp">La forma común de hacer esto sería crear un socket normal y
+    usar <span class="Li">"start_SSL" </span>para actualizar y stop_SSL para
+    </p>degradar:
+<pre>my $sock = IO::Socket::INET-&gt;new(...) or die $!;
+... exchange plain data on $sock until starttls command ...
+IO::Socket::SSL-&gt;start_SSL($sock,%sslargs) or die $SSL_ERROR;
+... now $sock is an IO::Socket::SSL object ...
+... exchange data with SSL on $sock until stoptls command ...
+$sock-&gt;stop_SSL or die $SSL_ERROR;
+... now $sock is again an IO::Socket::INET object ..</pre>.
+<p class="Pp">Pero, muchos módulos simplemente derivan directamente de IO::Socket::INET.
+    Aunque esta clase base puede ser reemplazada con IO::Socket::SSL, estos módulos
+    no pueden soportar fácilmente diferentes clases base para SSL y datos en claro
+    y cambiar entre estas clases en un comando </p>starttls.
+<p class="Pp">Para ayudar en este caso, IO::Socket::SSL puede ser reducido a un socket
+    claro al inicio, y connect_SSL/accept_SSL/start_SSL pueden ser usados para
+    habilitar SSL y <span class="Li">"stop_SSL" </span>para hablar en claro
+    de </p>nuevo:
+<pre>my $sock = IO::Socket::SSL-&gt;new(
+    PeerAddr =&gt; ...
+    SSL_startHandshake =&gt; 0,
+    %sslargs
+) or die $!;
+... exchange plain data on $sock until starttls command ...
+$sock-&gt;connect_SSL or die $SSL_ERROR;
+... now $sock is an IO::Socket::SSL object ...
+... exchange data with SSL on $sock until stoptls command ...
+$sock-&gt;stop_SSL or die $SSL_ERROR;
+... $sock is still an IO::Socket::SSL object ...
+... but data exchanged again in plain </pre>.</section>.</section>.
+<section class="Sh">
+<h1 class="Sh" id='Integration_Into_Own_Modules'><a class='permalink' href='#Integration_Into_Own_Modules'>Integración   En Módulos </a></h1>Propios
+<p class="Pp">IO::Socket::SSL se comporta de manera similar a otros módulos IO::Socket y
+    por lo tanto podría ser integrado de la misma manera, pero tienes que tener especial cuidado
+    al usar E/S no bloqueante (como para manejar tiempos de espera) o usar select o
+    poll. Por favor, estudia la documentación sobre cómo lidiar con estas
+  </p>diferencias.
+<p class="Pp">También, se recomienda no establecer ni tocar la mayoría de las
+    <span class="Li">opciones </span>"SSL_*", para que mantengan sus
+    valores predeterminados seguros. También se recomienda dejar que el usuario sobrescriba estos ajustes
+    específicos de SSL sin necesidad de ajustes globales o trucos como
+    <span class="Li">"set_args_filter_hack</span>"</p>.
+<p class="Pp">La excepción notable es
+    <span class="Li">"SSL_verifycn_scheme". Este deber</span>ía ser establecido
+    al esquema</p> de verificación de hostname req</section>uerido por el módulo o protocolo.
+<section class="Sh">
+<h1 class="Sh" id='Description_Of_Methods'><a class='permalink' href='#Description_Of_Methods'>Descripción   De </a></h1>Métodos
+<p class="Pp">IO::Socket::SSL hereda de otro módulo IO::Socket. La
+    elección de la superclase depende de los módulos </p>instalados:
+<ul class="Bl-bullet">
+  <li>Si IO::Socket::IP con al menos la versión 0.20 está instalado, usará este
+      módulo como superclase, proporcionando transparentemente soporte IPv6 e </li>IPv4.
+  <li>Si IO::Socket::INET6 está instalado, usará este módulo como superclase,
+      proporcionando transparentemente soporte IPv6 e </li>IPv4.
+  <li>De lo contrario, recurrirá a IO::Socket::INET,</li> que es un módulo
+      del núcleo de perl. Co</ul>n IO::Socket::INET solo obtienes soporte IPv4.
+<p class="Pp">Por favor, ten en cuenta que con las superclases capaces de IPv6, se
+    buscará primero la dirección IPv6 de un hostname dado. Si el
+    resolutor proporciona una dirección IPv6, pero el host no se puede alcanzar por IPv6, no habrá
+    un retroceso automático a IPv4. Para evitar estos problemas puedes forzar
+    IPv4 para un socket específico usando la opción
+    <span class="Li">"Domain" </span>o
+    <span class="Li">"Family" </span>con el valor AF_INET como
+    se describe en IO::Socket::IP. Alternativamente, puedes forzar IPv4 globalmente
+    cargando IO::Socket::SSL con la opción 'inet4', en cuyo caso usará
+    la clase solo IPv4 IO::Socket::INET como </p>superclase.
+<p class="Pp">IO::Socket::SSL proporcionará todos los métodos de su superclase,
+    pero a veces los sobrescribirá para igualar el comportamiento esperado
+    de SSL o para proporcionar argumentos </p>adicionales.
+<p class="Pp">Los métodos nuevos o modificados se describen a continuación, pero por favor lee
+    también la sección sobre manejo de errores específico de </p>SSL.
+<dl class="Bl-tag">
+  <dt id="Error"><a class="permalink" href="#Error">Manejo de </a></dt>Errores
+  <dd>Si ocurre un error específico de SSL, la variable global
+      <span class="Li">$SSL_ERROR </span>será establecida. Si el error ocurrió en
+      un socket SSL existente, el método
+      <span class="Li">"errstr" </span>dará acceso al último
+      error específico del socket. Tanto <span class="Li">$SSL_ERROR </span>como el
+      <span class="Li">método </span>"errstr" proporcionan un dualvar similar
+      a <span class="Li">$!</span>, p. ej. proporcionando un número de error en contexto
+      numérico o una descripción de error en contexto de </dd>cadena.
+  <dt id="new(...)"><a class="permalink" href="#new(...)"><b>new(..</b></a></dt>.)
+  <dd>Crea un nuevo objeto IO::Socket::SSL. Puedes usar todas las opciones amigables
+      que vinieron empaquetadas con la superclase (p. ej. IO::Socke</dd>t::IP,
+      IO::Socket::INET, ...) más (opcionalmente) las descritas a continuación. Si no
+      especificas ninguna opción relacionada con SSL, </dl>hará lo mejor posible usando valores predeterminados
+      seguros, p. ej. eligiendo buenas cifras, habilitando la verificación adecuada,
+    etc.
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="SSL_server"><a class="permalink" href="#SSL_server">SSL_serv</a></dt>er
+  <dd>Establece esta opción a un valor verdadero si el socket debe ser usado como servidor.
+      Si no se establece explícitamente, se asume si el
+      <span class="Li">parámetro </span>"Listen" es dado al
+      crear el </dd>socket.
+  <dt id="SSL_hostname"><a class="permalink" href="#SSL_hostname">SSL_hostna</a></dt>me
+  <dd>Esto puede ser dado para especificar el hostname usado para SNI, que es necesario si
+      tienes múltiples hostnames SSL en la misma dirección IP. Si no se da, intentará
+      determinar el hostname desde
+      <span class="Li">"PeerAddr",</span> lo que fallará si solo se
+      dio una IP o si este argumento es usado dentro de
+      <span class="Li">"start_S</span>SL".
+    <p class="Pp">Si quieres deshabilitar SNI, establece este argumento </p>a ''.
+    <p class="Pp">Actualmente solo soportado para el lado del cliente y será
+        ignorado para el lado del </p>servidor.
+    <p class="Pp">Ver la sección "SNI S</p>upport" para detalle</dd>s del soporte de SNI.
+  <dt id="SSL_startHandshake"><a class="permalink" href="#SSL_startHandshake">SSL_startHandsh</a></dt>ake
+  <dd>Si esta opción se establece a falso (por defecto es verdadero), no iniciará el
+      apretón de manos SSL todavía. Esto tiene que hacerse más tarde con
+      <span class="Li">"accept_SSL" </span>o
+      <span class="Li">"connect_SSL". </span>Antes de que se inicie el apretón de manos, se puede usar read/write/etc. para intercambiar datos en </dd>claro.
+  <dt id="SSL_keepSocketOnError"><a class="permalink" href="#SSL_keepSocketOnError">SSL_keepSocketOnEr</a></dt>ror
+  <dd>Si esta opción se establece a verdadero (por defecto es falso), no cerrará el
+      socket TCP subyacente en errores. En la mayoría de los casos no hay un uso real para
+      este comportamiento, ya que ambos lados de la conexión TCP probablemente tendrán una
+      idea diferente del estado actual de la </dd>conexión.
+  <dt id="SSL_ca"><a class="permalink" href="#SSL_ca">SSL_ca | SSL_ca_file |
+    </a></dt>SSL_ca_path
+  <dd>Usualmente quieres verificar que el certificado del par haya sido firmado por una
+      autoridad de certificación de confianza. En este caso deberías usar esta opción para
+      especificar el archivo (<span class="Li">"SSL_ca_file")</span> o
+      directorio (<span class="Li">"SSL_ca_path")</span> que contiene el/los
+      certificado(s) de las autoridades de certificación de confianza.
+    <p class="Pp"><span class="Li">"SSL_ca_path" </span>también puede ser un
+        array o una cadena que contiene múltiples rutas, donde las rutas están separadas
+        por el separador específico de la plataforma. Este separador es
+        <span class="Li">";</span>" en DOS, Windows, Netware,
+        <span class="Li">",</span>" en VMS y
+        <span class="Li">":</span>" para todos los demás sistemas. Si
+        se dan múltiples rutas, al menos una de estas debe ser </p>accesible.
+    <p class="Pp">También puedes dar una lista de manejadores de certificados X509* (como
+        los que obtienes de Net::SSLeay o IO::Socket::SSL::Utils::PEM_xxx2cert) con
+        <span class="Li">"SSL_ca".</span> Estos serán añadidos al
+        almacén de CA antes que la ruta y el archivo y por lo tanto tendrán precedencia. Si ni SSL_ca,
+        ni SSL_ca_file o SSL_ca_path están establecidos, usará
+        <span class="Li">default_ca() </span>para determinar los valores predeterminados establecidos por el usuario o del sistema.
+        Si realmente no quieres establecer una CA, establece SSL_ca_file o SSL_ca_path a <span class="Li">"\undef" </span>o SSL_ca a
+        una lista vacía. (Desafortunadamente <span class="Li">'' es usado por algunos
+  </span>      módulos que usan IO:</p>:Socket::SSL cuando la CA n</dd>o es dada explícitamente).
+  <dt id="SSL_client_ca"><a class="permalink" href="#SSL_client_ca">SSL_client_ca
+    | SSL_client_ca_f</a></dt>ile
+  <dd>Si verify_mode es VERIFY_PEER en el lado del servidor, estas opciones pueden ser usadas
+      para establecer la lista de CAs aceptables para el cliente. De esta manera el cliente puede
+      seleccionar el certificado requerido de una lista de certificados. El valor
+      para estas opciones es similar a <span class="Li">"SSL_ca"
+</span>      y <span class="Li">"SSL_ca_fil</span>e</dd>".
+  <dt id="SSL_fingerprint"><a class="permalink" href="#SSL_fingerprint">SSL_fingerpr</a></dt>int
+  <dd>A veces tienes un certificado autofirmado o un certificado emitido por una
+      CA desconocida y realmente quieres aceptarlo, pero no quieres deshabilitar la
+      verificación por completo. En este caso puedes especificar la huella digital del certificado como <span class="Li">'algo$hex_fingerp</span>rint'.
+      <span class="Li">"algo" </span>es un algoritmo de huella digital
+      soportado por OpenSSL, p. ej. 'sha1','sha256'... y
+      <span class="Li">"hex_fingerprint" </span>es la representación hexadecimal
+      de la huella digital binaria. Cualquier dos puntos dentro de la cadena hexadecimal
+      serán ignorados.
+    <p class="Pp">Si quieres usar la huella digital de la clave pública dentro del
+        certificado en lugar del certificado, usa la sintaxis
+        <span class="Li">'algo$pub$hex_fingerprint' </span>en su lugar. Para obtener la
+        huella digital de una conexión establecida puedes usar
+        <span class="Li">"get_fingerpr</span>i</p>nt".
+    <p class="Pp">También es posible omitir
+        <span class="Li">"algo$",</span> es decir, solo especificar la
+        huella digital. En este caso, los algoritmos probables serán detectados automáticamentebasado en la longitud de la cadena del </p>resumen.
+    <p class="Pp">Ejem</p>plos:
+        <pre>sha1$pub$f0f0c49b8a04a2dd2110e10f7806c97d87d0b26f  # pubkey SHA-1
+sha1$f0f0c49b8a04a2dd2110e10f7806c97d87d0b26f      # certificate SHA-1
+f0f0c49b8a04a2dd2110e10f7806c97d87d0b26f           # certificate </pre>SHA-1
+    <p class="Pp">Puede especificar una lista de huellas digitales en caso de que tenga
+        varios certificados aceptables. Si una huella digital coincide con el
+        certificado más alto (es decir, la hoja), ninguna validación
+        adicional puede hacer que la verificación </p>falle.
+    <p class="Pp">Tenga en cuenta que el comportamiento predeterminado de SSL_fingerprint es ser una
+        alternativa a la validación normal. Una huella digital que no coincida no
+        anula una validación exitosa del certificado, pero una huella digital que coincida
+        puede anular una validación que de otro modo fallaría. Para forzar una
+        huella digital, vea
+        <span class="Li">"SSL_force_fingerp</span>r</p>int</dd>".
+  <dt id="SSL_force_fingerprint"><a class="permalink" href="#SSL_force_fingerprint">SSL_force_fingerpr</a></dt>int
+  <dd>Esta opción debe establecerse en true si una validación de huella digital fallida
+      debe anular una validación de certificado que de otro modo sería </dd>exitosa.
+  <dt id="SSL_cert_file"><a class="permalink" href="#SSL_cert_file">SSL_cert_file
+    | SSL_cert | SSL_key_file | </a></dt>SSL_key
+  <dd>Si crea un servidor, generalmente necesita especificar un certificado de servidor
+      que debe ser verificado por el cliente. Lo mismo es cierto para los certificados
+      de cliente, que deben ser verificados por el servidor. El certificado puede
+      darse como un archivo con SSL_cert_file o como una representación interna de
+      un objeto X509* (como el que obtiene de Net::SSLeay o
+      IO::Socket::SSL::Utils::PEM_xxx2cert) con SSL_cert. Si se da como un archivo,
+      detectará automáticamente el formato. Los formatos de archivo admitidos son PEM, DER
+      y PKCS#12, donde PEM y PKCS#12 pueden contener el certificado y la
+      cadena a usar, mientras que DER solo puede contener un único certificado.
+    <p class="Pp">Si se da como una lista de X509*, tenga en cuenta que todos los
+        certificados de la cadena (es decir, todos excepto el primero) serán
+        "consumidos" por openssl y se liberarán si el contexto SSL
+        se destruye, por lo que nunca debe liberarlos usted mismo. Pero el certificado
+        del servidor (es decir, el primero) no será consumido por openssl y por lo tanto
+        debe ser liberado por la </p>aplicación.
+    <p class="Pp">Para cada certificado se necesita una clave, que puede darse
+        como un archivo con SSL_key_file o como una representación interna de un
+        objeto EVP_PKEY* con SSL_key (como el que obtiene de Net::SSLeay o
+        IO::Socket::SSL::Utils::PEM_xxx2key). Si ya se dio una clave dentro
+        del archivo PKCS#12 especificado por SSL_cert_file, ignorará cualquier SSL_key
+        o SSL_key_file. Si no se dio ningún SSL_key o SSL_key_file, intentará
+        usar el archivo PEM dado con SSL_cert_file de nuevo, tal vez contenga
+        la clave </p>también.
+    <p class="Pp">Si su servidor SSL debe poder usar diferentes
+        certificados en la misma dirección IP, dependiendo del nombre dado por SNI,
+        puede usar una referencia a un hash en lugar de un archivo con
+        <span class="Li">"&lt;hostname </span>="
+      cert_file&gt;</p>&gt;.
+    <p class="Pp">Si su servidor SSL debe poder usar tanto certificados RSA como ECDSA
+        para el mismo dominio/IP, se da una referencia a un hash similar a la de
+        SNI. Los nombres de dominio usados para especificar los certificados
+        adicionales deben ser
+        <span class="Li">"hostname%whatever",</span> es decir,
+        <span class="Li">"hostname%ecc" </span>o similar. Esto necesita
+        al menos OpenSSL 1.0.2. Para que el servidor elija el certificado basándose en
+        la preferencia de cifrado del cliente
+        <span class="Li">"SSL_honor_cipher_order" </span>debe establecerse
+        en </p>false.
+    <p class="Pp">En caso de que se necesiten certificados y claves pero no se den, podría recurrir
+        a los valores predeterminados integrados, vea "Defaults for Cert, Key and
+    </p>  CA".
+    <p class="Pp">Ejem</p>plos:
+        <pre>SSL_cert_file =&gt; 'mycert.pem',
+SSL_key_file =&gt; 'mykey.pem',
+SSL_cert_file =&gt; {
+   "foo.example.org" =&gt; 'foo-cert.pem',
+   "foo.example.org%ecc" =&gt; 'foo-ecc-cert.pem',
+   "bar.example.org" =&gt; 'bar-cert.pem',
+   # used when nothing matches or client does not support SNI
+   '' =&gt; 'default-cert.pem',
+   '%ecc' =&gt; 'default-ecc-cert.pem',
+},
+SSL_key_file =&gt; {
+   "foo.example.org" =&gt; 'foo-key.pem',
+   "foo.example.org%ecc" =&gt; 'foo-ecc-key.pem',
+   "bar.example.org" =&gt; 'bar-key.pem',
+   # used when nothing matches or client does not support SNI
+   '' =&gt; 'default-key.pem',
+   '%ecc' =&gt; 'default-ecc-key.</pre>pem',</dd>
+}
+  <dt id="SSL_passwd_cb"><a class="permalink" href="#SSL_passwd_cb">SSL_passwd_</a></dt>cb
+  <dd>Si su clave privada está cifrada, es posible que no desee la solicitud de contraseña
+      predeterminada de Net::SSLeay. Esta opción toma una referencia a una subrutina
+      que debe devolver la contraseña necesaria para descifrar su clave </dd>privada.
+  <dt id="SSL_use_cert"><a class="permalink" href="#SSL_use_cert">SSL_use_ce</a></dt>rt
+  <dd>Si esto es true, obliga a IO::Socket::SSL a usar un certificado y una clave,
+      incluso si está configurando un cliente SSL. Si esto se establece en 0 (el
+      predeterminado), entonces solo necesitará un certificado y una clave si está configurando
+      un servidor.
+    <p class="Pp">SSL_use_cert se establecerá implícitamente si SSL_server está establecido. Por
+        conveniencia, también se establece si no se dio pero se dio un certificado para
+        usar (SSL_cert_file o </p>similar)</dd>.
+  <dt id="SSL_version"><a class="permalink" href="#SSL_version">SSL_versi</a></dt>on
+  <dd>Establece la versión del protocolo SSL utilizada para transmitir datos. 'SSLv23' usa
+      un handshake compatible con SSL2.0, SSL3.0 y TLS1.x, mientras que 'SSLv2',
+      'SSLv3', 'TLSv1', 'TLSv1_1', 'TLSv1_2', o 'TLSv1_3' restringen el handshake
+      y el protocolo a la versión especificada. Todos los valores no distinguen
+      mayúsculas de minúsculas. En lugar de 'TLSv1_1', 'TLSv1_2', y 'TLSv1_3' se pueden usar
+      también 'TLSv11', 'TLSv12', y 'TLSv13'. Qué versiones de protocolo se admiten
+      realmente depende de las versiones de OpenSSL y Net::SSLeay instaladas, pero los protocolos
+      modernos como TLS 1.3 son admitidos por estos desde hace muchos años.
+    <p class="Pp">Independientemente del formato del handshake, puede limitar el conjunto de
+        versiones de SSL aceptadas añadiendo !version separado por </p>':'.
+    <p class="Pp">La SSL_version predeterminada es
+        'SSLv23:!TLSv1:!TLSv1_1:!SSLv3:!SSLv2'. Esto significa que el formato del
+        handshake es compatible con SSL2.0 y superior, pero que el handshake
+        exitoso está limitado a TLS1.2 y superior, es decir, no SSL2.0, SSL3.0,
+        TLS 1.0 o TLS 1.1 porque estas versiones tienen problemas de seguridad graves
+        y ya no deben </p>usarse.
+    <p class="Pp">También puede usar !TLSv1_1 y !TLSv1_2 para deshabilitar las versiones TLS
+        1.1 y 1.2 mientras aún permite la versión TLS 1.0. Establecer la versión
+        en 'TLSv1' en su luga</p>r podría romper la interacción con clientes muy antiguos o defectuosos,
+        que esperan un handshake compatible con SSL2.0. Por otro lado,
+        algunos clientes defectuosos simple</dd>mente cierran la conexión cuando reciben una solicitud
+        de versión TLS 1.1. En este caso, establecer la versión en
+        'SSLv23:!SSLv2:!SSLv3:!TLSv1_1:!TLSv1_2' podría ayudar.
+  <dt id="SSL_cipher_list"><a class="permalink" href="#SSL_cipher_list">SSL_cipher_l</a></dt>ist
+  <dd>Si se establece esta opción, la lista de cifrado para la conexión se establecerá en
+      el valor dado, por ejemplo, algo como 'ALL:!LOW:!EXP:!aNULL'. Esto solo
+      afectará a los cifrados para TLS 1.2 y versiones inferiores. Consulte la documentación de OpenSSL
+      (<a href='https://www.openssl.org/docs/manmaster/man1/openssl-ciphers.html#CIPHER-STRINGS'>https://www.openssl.org/docs/manmaster/man1/openssl-ciphers.html#CIPHER-STRINGS)</a>
+      para más detalles.
+    <p class="Pp">A menos que falle al contactar a su par debido a la falta de cifrados
+        compartidos, se recomienda dejar esta opción en la configuración predeterminada,
+        que usa el predeterminado del sistema pero deshabilita algunos cifrados inseguros que
+        podrían seguir habilitados en sistemas más </p>antiguos.
+    <p class="Pp">En caso de que se necesiten diferentes listas de cifrado para diferentes hosts SNI
+        se puede dar un hash con el host como clave y la suite de cifrado como
+        valor, similar a <b>SS</b>L_c</p>ert</dd>*.
+  <dt id="SSL_ciphersuites"><a class="permalink" href="#SSL_ciphersuites">SSL_ciphersui</a></dt>tes
+  <dd>Si se establece esta opción, las suites de cifrado TLS 1.3 para la conexión se
+      establecerán en el valor dado. Esto es similar a SSL_cipher_list, pero solo para
+      cifrados TLS 1.3. Consulte el argumento
+      <span class="Li">"-ciphersuites" </span>en la documentación de OpenSSL
+      (<a href='https://www.openssl.org/docs/manmaster/man1/openssl-ciphers.html'>https://www.openssl.org/docs/manmaster/man1/openssl-ciphers.html)</a>
+      para más detalles.
+    <p class="Pp">A menos que falle al contactar a su par debido a la falta de cifrados
+        compartidos, se recomienda dejar esta opción en la configuración predeterminada,
+        que usa el predeterminado del </p>sistema.
+    <p class="Pp">En caso de que se necesiten diferentes listas de cifrado para diferentes hosts SNI
+        se puede dar un hash con el host como clave y la suite de cifrado como
+        valor, similar a <b>SS</b>L_c</p>ert</dd>*.
+  <dt id="SSL_honor_cipher_order"><a class="permalink" href="#SSL_honor_cipher_order">SSL_honor_cipher_or</a></dt>der
+  <dd>Si esta opción es true, se usa el orden de cifrado especificado por el servidor
+      en lugar del orden propuesto por el cliente. Esta opción es true por defecto
+      para hacer uso de nuestra configuración de lista de cifrado </dd>segura.
+  <dt id="SSL_dh_file"><a class="permalink" href="#SSL_dh_file">SSL_dh_fi</a></dt>le
+  <dd>Para crear un servidor que proporcione secreto hacia adelante, necesita dar
+      los parámetros DH o (mejor, porque es más rápido) la curva ECDH. Esta configuración
+      se ocupa de los parámetros DH.
+    <p class="Pp">Para soportar el intercambio de claves Diffie-Hellman no elíptico, se necesita dar
+        aquí un archivo adecuado o se debe usar SSL_dh con un
+        valor apropiado. Consulte el comando dhparam en openssl para más
+      </p>información.
+    <p class="Pp">Si ni <span class="Li">"SSL_dh_file" </span>ni
+        <span class="Li">"SSL_dh" </span>están establecidos, se usa un parámetro DH
+        integrado con una longitud de 2048 bits para ofrecer el intercambio de claves DH
+        por defecto. Si no desea esto (por ejemplo, deshabilitar el intercambio de claves DH),
+        establezca explícitamente esto o el <span class="Li">"SSL_dh"
+</span>        p</p>arámetro</dd> a undef.
+  <dt id="SSL_dh"><a class="permalink" href="#SSL_dh">SSL_</a></dt>dh
+  <dd>Como SSL_dh_file, pero en lugar de dar un archivo, usa un DH* precargado o
+      </dd>generado.
+  <dt id="SSL_ecdh_curve"><a class="permalink" href="#SSL_ecdh_curve">SSL_ecdh_cur</a></dt>ve
+  <dd>Para crear un servidor que proporcione secreto hacia adelante, necesita dar
+      los parámetros DH o (mejor, porque es más rápido) la curva ECDH. Esta configuración
+      se ocupa de la(s) curva(s) ECDH.
+    <p class="Pp">Para soportar el intercambio de claves Elliptic Curve Diffie-Hellmann, se necesita proporcionar aquí
+        el OID o NID de al menos una curva </p>adecuada.
+    <p class="Pp">Con OpenSSL 1.1.0+ este parámetro es
+        <span class="Li">"auto" </span>por defecto, lo que significa que deja que
+        OpenSSL elija la mejor configuración. Si Net::SSLeay implementa el soporte para CTX_set_ecdh_auto
+        (necesita al menos la versión 1.86), lo usará
+        para implementar el mismo valor predeterminado. De lo contrario, el valor predeterminado será
+        <span class="Li">"prime256v1" </span>(integrado en OpenSSL) para
+        ofrecer el intercambio de claves ECDH por </p>defecto.
+    <p class="Pp">Si Net::SSLeay soporta el establecimiento de grupos o curvas (necesita
+        al menos la versión 1.86), entonces se pueden usar múltiples curcurvas se pueden dar aquí en el orden de preferencia, es decir,
+        [[1]]
+        <span class="Li">"P-521:P-384:P-256".</span> Cuando se usa en el lado del cliente, esto incluirá las curvas soportadas como extensión en el
+        apretón de manos TLS.
+</p>Si no
+    <p class="Pp">desea tener intercambio de claves ECDH, esto se puede establecer
+        a undef o establecer <span class="Li">"SSL_ciphers" </span>para
+        excluir todos estos cifrados.
+</p>Puede
+    <p class="Pp">verificar si el soporte ECDH está disponible llamando a
+"IO::
+        <span class="Li">Socket::SS</span>L-&gt;can_ecd</p>h".
+SSL_v</dd>erify_mode
+  <dt id="SSL_verify_mode"><a class="permalink" href="#SSL_verify_mode">Esta opción </a></dt>establece
+  <dd>el modo de verificación para el certificado del par. Puede
+      combinar SSL_VERIFY_PEER (verify_peer), SSL_VERIFY_FAIL_IF_NO_PEER_CERT
+      (fallar la verificación si no existe un certificado de par; ignorado para clientes),
+      SSL_VERIFY_CLIENT_ONCE (verificar al cliente una vez; ignorado para clientes). Tenga en cuenta
+      que SSL_VERIFY_FAIL_IF_NO_PEER_CERT y SSL_VERIFY_CLIENT_ONCE deben
+      usarse junto con SSL_VERIFY_PEER. Vea la página man de OpenSSL para
+      SSL_CTX_set_verify para más información.
+El
+    <p class="Pp">valor predeterminado es SSL_VERIFY_NONE para el servidor</p> (p. ej., sin comprobación del
+        certificado del </dd>cliente) y SSL_VERIFY_PEER para el cliente (comprobar el
+  <dt id="SSL_verify_callback"><a class="permalink" href="#SSL_verify_callback">certificado </a></dt>del
+  <dd>servidor).
+SSL_verify_callback
+Si desea verificar los certifi</dd>cados usted mismo, puede pasar una referencia a subrutina
+  </dl>    junto con este parámetro para hacerlo. Cuando se llama al
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt>callback, se le pasará:
+1. un valor verdadero/falso que indica lo que OpenSSL piensa </dt>del
+  <dd></dd>
+  <dt>certificado,
+2. una dirección de memoria al estilo </dt>C
+  <dd></dd>
+  <dt>del almacén de certificados,
+3. una cadena que contiene los atributos del emisor y los </dt>atributos
+  <dd></dd>
+  <dt>del propietario
+    del certificado, y
+4. una cadena que </dt>contiene
+  <dd></dd>
+  <dt>cualquier error encontrado (0 si no hay errores).
+5. una dirección de memoria al estilo C del propio <b>certificado del par (convertible a
+   </b> </dt>forma
+  <dd></dd>
+  <dt>PEM con
+Net::SSLeay::PEM_get_string_X509()).
+6. La profundidad del certificado en </dt>la
+  <dd></dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">cadena. La profundidad 0 es el certificado
+    hoja.
+La función debe devolver 1 o 0, dependiendo de si piensa
+    que el certificado es válido o inválido. El valor </p>predeterminado
+<p class="Pp">es dejar que OpenSSL haga todo el
+    trabajo pesado.
+El callback se </p>llamará
+<p class="Pp">para cada elemento en la cad</p>ena de
+    certificados.
+Vea</div> la documentación de OpenSSL
+<dl class="Bl-tag">
+  <dt id="SSL_verifycn_scheme"><a class="permalink" href="#SSL_verifycn_scheme">para SSL_CTX_set_ver</a></dt>ify
+  <dd>para más
+    información.
+SSL_verifycn_scheme
+El esquema se usa para verificar correctamente la identidad dentro del certificado
+      utilizando el nombre de host del par. Vea la información <b>sobre </b>los
+    <p class="Pp">esquemas de verificación en
+verify_hostname.
+Si no especifica un esquema, usará 'default', pero solo
+        se quejará ruidosamente si la verificación del nombre falla en lugar de dejar
+        que toda la verificación del certificado falle. ESTO CAMBIARÁ, p. ej., hará
+        que la verificación del certificado falle en el futuro si el nombre de host no
+        coincide con el certificado !!!! Para anular el
+        <b>nombre</b> usado</p> en la
+    <p class="Pp">verificación, use
+SSL_verifycn_name.
+El esquema 'default' es un superconjunto de los esquemas habituales, que
+        aceptarán el nombre de host en el nombre común y subjectAltName y permitirán
+        comodines en todas partes. Aunque usar este esquema es mucho más seguro que no
+        tener verificación de nombre alguna, es mejor usar el esquema específico de
+        su </p>protocolo
+    <p class="Pp">de aplicación, p. ej., 'http', 'ftp'...
+Si está realmente seguro de que no desea verificar la
+        identidad usando el nombre de host, puede usar 'none' como esquema. En este caso,
+        es mejor tener formas alternativas de verificación, como una huella digital
+        del certificado o hacer una
+        <b>verificaci</b>ón manual</p> más tard</dd>e llamando
+  <dt id="SSL_verifycn_publicsuffix"><a class="permalink" href="#SSL_verifycn_publicsuffix">a
+verify_hostname usted </a></dt>mismo.
+  <dd>SSL_verifycn_publicsuffix
+Esta opción se usa para especificar el comportamiento al comprobar certificados
+      con comodines para sufijos públicos, p. ej., no se deben aceptar certificados con comodín para *.com
+      o *.co.uk, mientras que *.example.
+    <p class="Pp">com o *.example.co.uk está
+      bien.
+Si no se especifica, simplemente usará el valor predeterminado incorporado de
+        IO::Socket::SSL::PublicSuffix, puede crear otro objeto </p>con
+    <p class="Pp">from_string o from_file de este módulo.
+Para deshabilitar la verificación del
+        <span class="Li">s</span>u</p>fi</dd>jo
+  <dt id="SSL_verifycn_name"><a class="permalink" href="#SSL_verifycn_name">público, establezca </a></dt>esta
+  <dd>opción en
+''.
+SSL_verifycn_name
+Establezca el nombre que se usa en la verificación del nombre de host. Si
+      SSL_verifycn_scheme está establecido y no se proporciona SSL_verifycn_name, intentará
+      usar SSL_hostname o las configuraciones PeerHost y PeerAddr y fallará si no se puede determinar
+      ningún nombre. Si SSL_verifycn_scheme no está establecido, usará un esquema
+      predeterminado
+    <p class="Pp">y advertirá si no puede determinar un nombre de host, pero no
+      fallará.
+Usar PeerHost o PeerAddr
+        <span class="Li">solo funciona si crea </span>la
+        conexión directamente con
+"IO::Socket::SSL-&gt;new", <b>si un
+    </b>    objeto IO::Socket::INET se actualiza <b>con
+start_SSL,</b> el <b>nom</b>bre</p> ti</dd>ene
+  <dt id="SSL_check_crl"><a class="permalink" href="#SSL_check_crl">que darse </a></dt>en
+  <dd>SSL_verifycn_name o
+SSL_hostname.
+SSL_check_crl
+Si desea verificar que el certificado del par no ha sido revocado por la
+      autoridad emisora, establezca este valor en verdadero. OpenSSL buscará la
+      CRL en su SSL_ca_path, o usará el archivo especificado por SSL_crl_file. Vea la
+      documentación de Net::SSLeay para más detalles. Tenga en cuenta que esta
+      funcionalidad parece estar rota con OpenSSL &lt; v0.9.7b, por lo que su uso
+      </dd>con
+  <dt id="SSL_crl_file"><a class="permalink" href="#SSL_crl_file">versiones </a></dt>inferiores
+  <dd>resultará en un error.
+SSL_crl_file
+Si desea especificar el archivo CRL a usar, establezca este valor en la
+      ruta de acceso a usar. Esto debe usarse además de </dd>establecer
+  <dt id="SSL_ocsp_mode"><a class="permalink" href="#SSL_ocsp_mode">SSL_ocsp_mo</a></dt>de
+  <dd>SSL_check_crl.
+SSL_ocsp_mode
+Define cómo se realiza la revocación de certificados usando OCSP (Protocolo de
+      Revocación de Estado en Línea). El valor predeterminado es enviar una solicitud de
+      OCSP stapling al servidor y si el servidor envía una respuesta OCSP
+    <p class="Pp">de vuelta, se usará
+      el resultado.
+Cualquier otra comprobación
+        <span class="Li">OCSP d</span>ebe h</p>acerse
+    <p class="Pp">manualmente con
+"ocsp_resolver".
+Los siguientes
+        <span class="Li">ind</span>ica</p>do</dd>res</dl> se
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="SSL_OCSP_NO_STAPLE"><a class="permalink" href="#SSL_OCSP_NO_STAPLE">pueden combinar con
+</a></dt>"|":
+  <dd>SSL_OCSP_NO_STAPLE
+No pedir OCSP stapling. Este es el valor predeterminado si </dd>SSL_verify_mode
+  <dt id="SSL_OCSP_TRY_STAPLE"><a class="permalink" href="#SSL_OCSP_TRY_STAPLE">es
+      </a></dt>VERIFY_NONE.
+  <dd>SSL_OCSP_TRY_STAPLE
+Intentar OCSP stapling, pero no quejarse si no se recibe una respuesta con stapling.
+      Este es el valor predeterminado si </dd>SSL_verify_mode
+  <dt id="SSL_OCSP_MUST_STAPLE"><a class="permalink" href="#SSL_OCSP_MUST_STAPLE">es VERIFY_PEER </a></dt>(el
+  <dd>predeterminado).
+SSL_OCSP_MUST_STAPLE
+Considerarlo un error grave si el servidor no envía una respuesta OCSP
+      con stapling de vuelta. La mayoría de los </dd>servidores
+  <dt id="SSL_OCSP_FAIL_HARD"><a class="permalink" href="#SSL_OCSP_FAIL_HARD">actualmente no </a></dt>envían
+  <dd>una respuesta OCSP
+    con stapling de vuelta.
+SSL_OCSP_FAIL_HARD
+Fallar gravemente en errores de respuesta, el valor predeterminado es fallar suavemente como los navegadores
+      lo hacen. Los errores suaves significan que la respuesta OCSP no es utilizable, p. ej., no
+      hay respuesta, respuesta de error, sin
+    <p class="Pp">firma válida, etc. Las revocaciones de certificados
+      dentro </p>de una respuesta verificada se consideran errores graves en cualqu</dd>ier caso.
+Los errores suaves dentro de una respuesta con stapling
+  <dt id="SSL_OCSP_FULL_CHAIN"><a class="permalink" href="#SSL_OCSP_FULL_CHAIN">nunca se </a></dt>consideran
+  <dd>graves, p. ej., se <span class="Li">espera que en este caso se envíe u</span>na solicitud OCSP
+        al respo</dd>ndedor OCSP responsable.
+SSL_OCSP</dl>_FULL_CHAIN
+Esto configurará el
+"o</div>csp_resolver" de modo
+      que se
+<dl class="Bl-tag">
+  <dt id="SSL_ocsp_staple_callback"><a class="permalink" href="#SSL_ocsp_staple_callback">comprobarán todos los </a></dt>certificados
+  <dd>de la cadena del par, de lo contrario solo
+      se comprobará la revocación del certificado hoja.
+SSL_ocsp_staple_callback
+Si se define este
+      <span class="Li">callback,</span> se llamará con el objeto SSL y el
+      identificador de respuesta OCSP obtenido del par, p. ej.
+"&lt;$cb-"($ssl,$resp)&gt;&gt;. <span class="Li">Si el
+      </span>par no proporcionó una respuesta OCSP con stapling, la función se llamará
+      con
+"$resp=undef". Como el identificador de respuesta OCSP
+      ya no es válido después de salir de esta función, no debe
+      copiarse ni liberarse. Si es necesario
+      <span class="Li">acceder a la respuesta después </span>de
+    <p class="Pp">salir de esta función, se puede serializar con
+"Net::SSLeay::i2d_O</p>CSP_RESPONSE".
+Si no se proporciona tal callback, usará el predete</dd>rminado,
+        que verifica la respuesta y la usa para comprobar
+  <dt id="SSL_ocsp_cache"><a class="permalink" href="#SSL_ocsp_cache">si </a></dt>el/los
+  <dd>certificado(s)
+        de la conexión fueron revocados.
+SSL_ocsp_cache
+Con esta opción se puede dar una caché para almacenar respuestas OCSP, que
+      podría compartirse entre diferentes contextos SSL. Si no se da, se
+    <p class="Pp">usará una caché
+      específica solo para el contexto
+        <span class="Li">SSL.
+Puede crear una nueva caché con
+"IO::</span>Socket::SSL::OCSP_Cache-&gt;new([size])"
+        o implementar su propia caché,
+        <span class="Li">que debe tener los </span>métodos
+"put($key,
+        <span class="Li">\%entry)</span>" y
+get($key)
+        <span class="Li">(devolviendo
+</span>"\%entry") donde entry es la representación
+        hash de la respuesta OCSP con campos como
+"nextUpdate".
+        <span class="Li">La implementación
+</span>        predeterminada de la caché considerará las respuestas válidas mientras
+"nextUpdate" sea
+        <span class="Li">menor que la </span>hora
+        actual.
+SSL_psk
+PSK a </p>usar </dd>en
+  <dt id="SSL_psk"><a class="permalink" href="#SSL_psk">lugar </a></dt>de
+  <dd>certificado. Requiere que el par use el mismo PSK.
+En el lado del cliente, la identidad
+    <p class="Pp">y el psk deben proporcionarse como
+        referencia a array con
+"&lt;[identity,psk]"&gt;.
+        <span class="Li">Alternativamente, </span>solo se puede proporcionar el psk, en cuyo caso
+"io_socket_ssl" se usa como identidad.
+        <span class="Li">En el lado del </span>servidor se puede dar un solo psk que se usará no
+        importa qué pista de identidad haya dado el cliente. Alternativamente,
+        se puede proporcionar una referencia a hash con la identidad como clave y el psk como valor para servir a
+        clientes con diferentes psk basados en la pista de identidad. La identidad especial
+'' se usa para establecer un <span class="Li">psk </span>predeterminado.
+Para usar PSK, </p>asegúrese
+    <p class="Pp">de tener los cifrados relevantes habilitados.
+        Con TLS 1.3 esto es implícito, pero con TLS 1.2 y versiones inferiores, añada explícitamente
+        PSK <span class="Li">a
+"SSL_cipher<p class="Pp">Nota que el psk proporcionado se espera que sea binario y no
+hexadecimal, como hacen otras herramientas. Para convertir hexadecimal a binario usa
+<span class="Li">&quot;pack(&quot;H*&quot;,cadenahexadecimal)&quot;</span>. También
+ten en cuenta que los mensajes de error que obtienes si la identidad o el psk no coinciden con la configuración del par pueden ser inútiles (&quot;fallo en el handshake&quot;) o engañosos (&quot;mal mac&quot;).</p>
+<p class="Pp">El soporte PSK necesita la funcionalidad de API correspondiente en Net::SSLeay, que solo se incluyó completamente en 1.94.
+<span class="Li">&quot;IO::Socket::SSL-&gt;can_psk()&quot;</span>
+devuelve undef si la funcionalidad no está disponible y un hash-ref con detalles en caso contrario: la clave <span class="Li">&quot;client&quot;</span> en el hash indica soporte para usar PSK en un cliente SSL (disponible desde Net::SSLeay 1.82), mientras que la clave server indica soporte para PSK en un servidor SSL (desde Net::SSLeay 1.94).</p>
+</dd>
+<dt id="SSL_reuse_ctx"><a class="permalink" href="#SSL_reuse_ctx">SSL_reuse_ctx</a></dt>
+<dd>Si ya has configurado las opciones anteriores para una instancia previa de IO::Socket::SSL, puedes reutilizar el contexto SSL de esa instancia pasándola como valor para el parámetro SSL_reuse_ctx. También puedes crear una nueva instancia de la clase IO::Socket::SSL::SSL_Context, usando cualquier opción de contexto que desees sin especificar opciones de conexión, y pasarla aquí en su lugar.
+<p class="Pp">Si usas esta opción, todas las demás opciones relacionadas con el contexto que pases en la misma llamada a <b>new()</b> serán ignoradas a menos que el contexto proporcionado sea inválido. Ten en cuenta que, a diferencia de las versiones de IO::Socket::SSL anteriores a v0.90, el contexto SSL global no se usará implícitamente a menos que uses la función <b>set_default_context()</b>.</p>
+</dd>
+<dt id="SSL_create_ctx_callback"><a class="permalink" href="#SSL_create_ctx_callback">SSL_create_ctx_callback</a></dt>
+<dd>Con esta devolución de llamada puedes realizar ajustes individuales en el contexto después de que se haya creado y se haya realizado la configuración predeterminada. La devolución de llamada se invocará con el objeto CTX de Net::SSLeay como único argumento.
+<p class="Pp">Ejemplo para limitar el tamaño de la caché de sesiones del servidor:</p>
+<pre>SSL_create_ctx_callback =&gt; sub {
+    my $ctx = shift;
+    Net::SSLeay::CTX_sess_set_cache_size($ctx,128);
+}</pre>
+</dd>
+<dt id="SSL_session_cache_size"><a class="permalink" href="#SSL_session_cache_size">SSL_session_cache_size</a></dt>
+<dd>Si realizas conexiones repetidas al mismo host/puerto y el tiempo de rennegociación SSL es un problema, puedes activar el almacenamiento en caché de sesiones del lado del cliente con esta opción especificando un tamaño de caché positivo. Para conexiones sucesivas, pasa la opción SSL_reuse_ctx a las llamadas <b>new()</b> (o usa <b>set_default_context()</b>) para aprovechar las sesiones almacenadas en caché. El tamaño de la caché de sesiones se refiere al número de pares host/puerto únicos que se pueden almacenar a la vez; las sesiones más antiguas en la caché se eliminarán si se agregan nuevas.
+<p class="Pp">Esta opción no afecta a la caché de sesiones que tiene un servidor para sus clientes, es decir, no afecta a los objetos SSL con SSL_server establecido.</p>
+<p class="Pp">Ten en cuenta que el almacenamiento en caché de sesiones con TLS 1.3 requiere al menos Net::SSLeay 1.86.</p>
+</dd>
+<dt id="SSL_session_cache"><a class="permalink" href="#SSL_session_cache">SSL_session_cache</a></dt>
+<dd>Especifica el objeto de caché de sesiones que se debe usar en lugar de crear uno nuevo. Anula SSL_session_cache_size. Esta opción es útil si deseas reutilizar la caché, pero no el resto del contexto.
+<p class="Pp">Un objeto de caché de sesiones se puede crear usando
+<span class="Li">&quot;IO::Socket::SSL::Session_Cache-&gt;new( tamaños_caché )&quot;</span>.</p>
+<p class="Pp">Usa <b>set_default_session_cache()</b> para establecer un objeto de caché global.</p>
+</dd>
+<dt id="SSL_session_key"><a class="permalink" href="#SSL_session_key">SSL_session_key</a></dt>
+<dd>Especifica una clave para usar en búsquedas e inserciones en la caché de sesiones del cliente. Por defecto, se usará la ip:puerto del destino, pero a veces querrás compartir la misma sesión en varios puertos del mismo servidor (como con FTPS).</dd>
+<dt id="SSL_session_id_context"><a class="permalink" href="#SSL_session_id_context">SSL_session_id_context</a></dt>
+<dd>Esto proporciona una id para la caché de sesiones del servidor. Es necesario si quieres que los clientes se conecten con un certificado de cliente. Si no se proporciona, pero SSL_verify_mode especifica la necesidad de un certificado de cliente, se elegirá una id única del contexto.</dd>
+<dt id="SSL_error_trap"><a class="permalink" href="#SSL_error_trap">SSL_error_trap</a></dt>
+<dd>Al usar los métodos <b>accept()</b> o <b>connect()</b>, puede ocurrir que la conexión de socket real funcione pero la negociación SSL falle, como en el caso de un cliente HTTP conectándose a un servidor HTTPS. Pasar una referencia a una subrutina adjunta a este parámetro te permite obtener el control del socket huérfano en lugar de que se cierre forzosamente. La subrutina, si se llama, recibirá dos parámetros: una referencia al socket en el que falló la negociación SSL y el texto completo del mensaje de error.</dd>
+<dt id="SSL_npn_protocols"><a class="permalink" href="#SSL_npn_protocols">SSL_npn_protocols</a></dt>
+<dd>Si se usa en el lado del servidor, especifica la lista de protocolos anunciados por el servidor SSL como una referencia a un array, p. ej., ['spdy/2','http1.1']. En el lado del cliente, especifica los protocolos ofrecidos por el cliente para NPN como una referencia a un array. Ver también el método <span class="Li">&quot;next_proto_negotiated&quot;</span>.
+<p class="Pp">La Negociación de Protocolo Siguiente (NPN) está disponible con Net::SSLeay 1.46+ y openssl-1.0.1+. NPN no está disponible en el protocolo TLSv1.3. Para comprobar el soporte, puedes llamar a
+<span class="Li">&quot;IO::Socket::SSL-&gt;can_npn()&quot;</span>. Si usas esta opción con una versión no compatible de Net::SSLeay/OpenSSL, lanzará un error.</p>
+</dd>
+<dt id="SSL_alpn_protocols"><a class="permalink" href="#SSL_alpn_protocols">SSL_alpn_protocols</a></dt>
+<dd>Si se usa en el lado del servidor, especifica la lista de protocolos compatibles con el servidor SSL como una referencia a un array, p. ej., ['http/2.0', 'spdy/3.1','http/1.1']. En el lado del cliente, especifica los protocolos anunciados por el cliente para ALPN como una referencia a un array. Ver también el método
+<span class="Li">&quot;alpn_selected&quot;</span>.
+<p class="Pp">La Negociación de Protocolo de Capa de Aplicación (ALPN) está disponible con Net::SSLeay 1.56+ y openssl-1.0.2+. Más detalles sobre la extensión en RFC7301. Para comprobar el soporte, puedes llamar a
+<span class="Li">&quot;IO::Socket::SSL-&gt;can_alpn()&quot;</span>. Si usas esta opción con una versión no compatible de Net::SSLeay/OpenSSL, lanzará un error.</p>
+<p class="Pp">Ten en cuenta que algunas implementaciones de clientes pueden encontrar problemas si se especifican tanto NPN como ALPN. Dado que ALPN pretende ser un reemplazo para NPN, intenta proporcionar protocolos ALPN y luego recurre a NPN si falla.</p>
+</dd>
+<dt id="SSL_ticket_keycb"><a class="permalink" href="#SSL_ticket_keycb">SSL_ticket_keycb
+    =&gt; [$sub,$data] | $sub</a></dt>
+<dd>Esta es una devolución de llamada utilizada para la reutilización de sesiones sin estado (Tickets de Sesión, RFC 5077).
+<p class="Pp">Esta devolución de llamada se invocará como
+<span class="Li">&quot;$sub-&gt;($data,[$nombre_clave])&quot;</span> donde
+<span class="Li">$data</span> es el argumento dado a SSL_ticket_keycb
+(o undef) y <span class="Li">$nombre_clave</span> depende del
+modo:</p>
+</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+<dt id="encrypt"><a class="permalink" href="#encrypt">cifrar ticket</a></dt>
+<dd>Si un ticket necesita ser cifrado, la devolución de llamada se invocará sin
+<span class="Li">$nombre_clave</span>. En este caso, debería devolver
+<span class="Li">&quot;($clave_actual,$nombre_clave_actual&quot;</span>) donde
+<span class="Li">$clave_actual</span> es la clave actual (datos aleatorios de 32 bytes) y
+<span class="Li">$nombre_clave_actual</span> el nombre asociado con esta clave (exactamente 16 bytes). Este
+<span class="Li">$nombre_clave_actual</span> se incorporará al
+ticket.</dd>
+<dt id="decrypt"><a class="permalink" href="#decrypt">descifrar ticket</a></dt>
+<dd>Si un ticket necesita ser descifrado, la devolución de llamada se invocará con
+<span class="Li">$nombre_clave</span> tal como se encuentra en el ticket. Debería devolver
+<span class="Li">&quot;($clave,$nombre_clave_actual&quot;</span>) donde
+<span class="Li">$clave</span> es la clave asociada con el
+<span class="Li">$nombre_clave</span> dado y
+<span class="Li">$nombre_clave_actual</span> el nombre asociado con la clave activa actualmente. Si
+<span class="Li">$nombre_clave_actual</span> es diferente del
+<span class="Li">$nombre_clave</span> dado, la devolución de llamada se invocará nuevamente para volver a cifrar el ticket con la clave activa actualmente.
+<p class="Pp">Si no se encuentra ninguna clave que coincida con el
+<span class="Li">$nombre_clave</span> dado, esta función no debería devolver nada (lista vacía).</p>
+<p class="Pp">Este mecanismo debe usarse para limitar la vida útil de cada clave que cifra el ticket. La compromisión de una clave de cifrado de ticket podría llevar al descifrado de sesiones SSL que usaron tickets de sesión protegidos por esta clave.</p>
+</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Ejemplo:</p>
+<pre>Net::SSLeay::RAND_bytes(my $oldkey,32);
+Net::SSLeay::RAND_bytes(my $newkey,32);
+my $oldkey_name = pack(&quot;a16&quot;,'oldsecret');
+my $newkey_name = pack(&quot;a16&quot;,'newsecret');
+my @keys = (
+   [ $newkey_name, $newkey ], # clave activa actual
+   [ $oldkey_name, $oldkey ], # ya caducada
+);
+my $keycb = [ sub {
+   my ($mykeys,$name) = @_;
+   # devuelve (clave_actual, nombre_clave_actual) si no se da nombre
+   return ($mykeys-&gt;[0][1],$mykeys-&gt;[0][0]) if ! $name;
+   # devuelve (clave_coincidente, nombre_clave_actual) si encontramos una clave que coincide
+   # con el nombre dado
+   for(my $i = 0; $i&lt;@$mykeys; $i++) {
+       next if $name ne $mykeys-&gt;[$i][0];
+       return ($mykeys-&gt;[$i][1],$mykeys-&gt;[0][0]);
+   }
+   # no se encontró clave coincidente
+   return;
+},\@keys ];
+my $srv = IO::Socket::SSL-&gt;new(..., SSL_ticket_keycb =&gt; $keycb);</pre>
+</div>
+<dl class="Bl-tag">
+<dt id="SSL_on_peer_shutdown"><a class="permalink" href="#SSL_on_peer_shutdown">SSL_on_peer_shutdown
+    CODE</a></dt>
+<dd>Esto define una devolución de llamada que se invoca al recibir el cierre SSL (notificación de cierre) del par. Esto se puede usar para anular el comportamiento predeterminado, ver <span class="Li">&quot;stop_SSL&quot;</span> para más detalles.</dd>
+<dt id="SSL_mode_release_buffers"><a class="permalink" href="#SSL_mode_release_buffers">SSL_mode_release_buffers
+    1|0</a></dt>
+<dd>Esto habilita o deshabilita la opción SSL_MODE_RELEASE_BUFFERS en el objeto SSL. Con esta opción, el buffer de lectura se liberará después de cada SSL_read, pero deberá ser reasignado para cada nuevo SSL_read. Si el uso de memoria es una preocupación, esto podría ahorrar mucha memoria mientras tanto, alrededor de 34k por conexión SSL inactiva según la documentación en
+<a href='/man/SSL_CTX_set_mode.3ssl.en'>SSL_CTX_set_mode(3ssl)</a>.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+<dt id="accept"><a class="permalink" href="#accept"><b>accept</b></a></dt>
+<dd>Esto se comporta de manera similar a la función accept de la clase de socket subyacente, pero además realiza el handshake SSL inicial. Pero debido a que la clase de socket subyacente devuelve un manejador de archivo bloqueante incluso cuando se llama a accept en un socket no bloqueante, el SSL</dd>
+</dl>
+el handshake en el nuevo objeto de archivo se realizará de forma bloqueante. Consulte la sección sobre E/S no bloqueantes para obtener más detalles. Si no le gusta este comportamiento, debe realizar accept en el socket TCP y luego actualizarlo con
+      <span class="Li">"start_SSL" </span>más </dd>tarde.
+  <dt id="connect(...)"><a class="permalink" href="#connect(...)"><b>connect(..</b></a></dt>.)
+  <dd>Se comporta de manera similar a la función connect, pero también realiza un handshake SSL. Dado que no puede dar argumentos específicos de SSL a esta función, es mejor que use
+      <span class="Li">"new" </span>para crear un socket SSL de conexión o
+      <span class="Li">"start_SSL" </span>para actualizar un socket TCP establecido a </dd>SSL.
+  <dt id="close(...)"><a class="permalink" href="#close(...)"><b>close(..</b></a></dt>.)
+  <dd>A diferencia de un close para un socket INET simple, un close en SSL también exige un apagado adecuado de la parte SSL. Esto se hace enviando un mensaje de notificación de cierre por ambos pares.
+    <p class="Pp">Una implementación ingenua esperaría hasta recibir el mensaje de notificación de cierre del par, lo que entra en conflicto con la semántica comúnmente esperada de que un close no se bloqueará. El comportamiento predeterminado es, por lo tanto, solo enviar una notificación de cierre pero no esperar la notificación de cierre del par. Si en su lugar debe esperar una notificación de cierre del par, entonces <span class="Li">"SSL_fast_shutdown" </span>debe establecerse explícitamente </p>en false:
+        <pre>$self-&gt;close(SSL_fast_shutdown =&gt;</pre> 0);
+    <p class="Pp">También hay casos en los que un apagado SSL no debe hacerse en absoluto. Esto es cierto, por ejemplo, al hacer fork para que un hijo se ocupe del socket y cerrar el socket en el proceso padre. Un <span class="Li">"close" </span>explícito ingenuo o un close implícito al destruir el socket en el padre enviaría una notificación de cierre al par, lo que haría que el socket SSL en el proceso cliente fuera inutilizable. En este caso, se debe hacer un <span class="Li">"close" </span>explícito con
+        <span class="Li">"SSL_no_shutdown" </span>establecido en true en el proceso </p>padre:
+        <pre>$self-&gt;close(SSL_no_shutdown =&gt;</pre> 1);
+    <p class="Pp">Para más detalles y otros argumentos, consulte
+        <span class="Li">"stop_SSL",</span> que se llama desde
+        <span class="Li">"close" par</span>a apagar el</p> estado SSL </dd>del socket.
+  <dt id="sysread("><a class="permalink" href="#sysread("><b>sysread( BUF, LEN,
+    [ OFFSET </b></a></dt>] )
+  <dd>Esta función se comporta desde el exterior igual que <b>sysread </b>en otros objetos IO::Socket, p. ej. devuelve como máximo LEN bytes de datos. Pero en realidad no lee solo LEN bytes del socket subyacente, sino un solo frame SSL. Luego devuelve hasta LEN bytes que ha descifrado de este frame SSL. Si el frame contenía más datos de los solicitados, devolverá solo LEN datos, almacenará el resto en el búfer y lo devolverá en llamadas de lectura posteriores. Esto significa que podría ser posible leer datos, incluso si el socket subyacente no es legible, por lo que usar poll o select podría no ser suficiente.
+    <p class="Pp">sysread solo devolverá datos de un solo frame SSL, p. ej. o los datos pendientes del frame ya almacenado en el búfer o leerá un frame del socket subyacente y devolverá los datos descifrados. No devolverá datos que abarquen varios frames SSL en una sola </p>llamada.
+    <p class="Pp">Además, las llamadas a sysread podrían fallar, porque primero debe terminar un handshake </p>SSL.
+    <p class="Pp">Entender estos comportamientos es esencial si escribe apli</p>caciones que usan bucles de eventos y/o sockets no bloquea</dd>ntes. Lea las secciones específicas en esta documentación.
+  <dt id="syswrite("><a class="permalink" href="#syswrite("><b>syswrite( BUF, [
+    LEN, [ OFFSET ]</b></a></dt>] )
+  <dd>Esta función se comporta desde el exterior igual que <b>syswrite </b>en otros objetos IO::Socket, p. ej. escribirá como máximo LEN bytes en el socket, pero no hay garantía de que se escriban todos los LEN bytes. Devolverá el número de bytes escritos. Debido a que básicamente solo llama a SSL_write de OpenSSL, syswrite escribirá como máximo un solo frame SSL. Esto significa que no se escribirán más de 16.384 bytes, que es el tamaño máximo de un frame SSL, de una sola vez.
+    <p class="Pp">Para los sockets no bloqueantes se aplica </p>el comportamiento específico de SSL. Lea la</dd> sección específica en esta documentación.
+  <dt id="peek("><a class="permalink" href="#peek("><b>peek( BUF, LEN, [ OFFSET
+   </b></a></dt> ])
+  <dd>Esta función tiene exactamente la misma sintaxis que <b>sysread,</b> y realiza casi la misma tarea pero no avanzará la posición de lectura para que llamadas sucesivas a <b>peek()</b> con los mismos argumentos devuelvan los mismos resultados. Esta función requiere OpenSSL 0.9.6a o posterior para </dd>funcionar.
+  <dt id="pending()"><a class="permalink" href="#pending()"><b>pending</b></a></dt>()
+  <dd>Esta función le da el número de bytes disponibles sin leer del objeto de socket subyacente. Esta función es esencial si trabaja con bucles de eventos, consulte la sección sobre la consulta de sockets </dd>SSL.
+  <dt id="get_fingerprint(_algo,certificate,pubkey_)"><a class="permalink" href="#get_fingerprint(_algo,certificate,pubkey_)"><b>get_fingerprint([algo,certificate,pubkey]</b></a></dt>)
+  <dd>Este método devuelve la huella digital del certificado dado en la forma
+      <span class="Li">"algo$digest_hex",</span> donde
+      <span class="Li">"algo" </span>es el algoritmo utilizado, por defecto
+      'sha256'. Si no se da ningún certificado, se usa el certificado par de la conexión. Si <span class="Li">"pubkey" </span>es true
+      no devolverá la huella digital del certificado sino la huella digital de la clave pública dentro del certificado como
+      <span class="Li">"algo$pub$digest_h</span>e</dd>x".
+  <dt id="get_fingerprint_bin(_algo,certificate,pubkey_)"><a class="permalink" href="#get_fingerprint_bin(_algo,certificate,pubkey_)"><b>get_fingerprint_bin([algo,certificate,pubkey]</b></a></dt>)
+  <dd>Este método devuelve la huella digital binaria del certificado dado usando el algoritmo <span class="Li">"algo",</span> por defecto
+      'sha256'. Si no se da ningún certificado, se usa el certificado par de la conexión. Si <span class="Li">"pubkey" </span>es true
+      no devolverá la huella digital del certificado sino la huella digital de la clave pública dentro del </dd>certificado.
+  <dt id="get_cipher()"><a class="permalink" href="#get_cipher()"><b>get_cipher</b></a></dt>()
+  <dd>Devuelve la forma de cadena del cifrado que está usando el objeto IO::Socket::</dd>SSL.
+  <dt id="get_sslversion()"><a class="permalink" href="#get_sslversion()"><b>get_sslversio</b></a></dt>n()
+  <dd>Devuelve la representación de cadena de la versión SSL de una conexión </dd>establecida.
+  <dt id="get_sslversion_int()"><a class="permalink" href="#get_sslversion_int()"><b>get_sslversion_in</b></a></dt>t()
+  <dd>Devuelve la representación entera de la versión SSL de una conexión </dd>establecida.
+  <dt id="get_session_reused()"><a class="permalink" href="#get_session_reused()"><b>get_session_reuse</b></a></dt>d()
+  <dd>Esto devuelve true si la sesión se reutilizó y false en caso contrario. Tenga en cuenta que con una sesión reutilizada no se envían certificados dentro del handshake y no se ofrecen cifrados, por lo que funciones que dependen de esto podrían no </dd>funcionar.
+  <dt id="dump_peer_certificate()"><a class="permalink" href="#dump_peer_certificate()"><b>dump_peer_certificat</b></a></dt>e()
+  <dd>Devuelve una cadena analizable con campos seleccionados del certificado SSL par. Este método devuelve directamente el resultado del
+      <b>método dump_peer_certificate()</b> de Net::</dd>SSLeay.
+  <dt id="peer_certificate($field;_$refresh_)"><a class="permalink" href="#peer_certificate($field;_$refresh_)"><b>peer_certificate($field;[$refresh]</b></a></dt>)
+  <dd>Si existe un certificado par, esta función puede recuperar valores de él. Si no se da ningún campo, se devuelve la representación interna del certificado de Net::SSLeay. Si refresh es true, no se usará una versión almacenada en caché, sino que se comprobará de nuevo en caso de que el certificado de la conexión haya cambiado debido a una renegociación.
+    <p class="Pp">Se pueden </p>consultar l</dd>os siguient</dl>es campos:
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="authority"><a class="permalink" href="#authority">authority (alias
+    </a></dt>issuer)
+  <dd>La autoridad de certificación que firmó el </dd>certificado.
+  <dt id="owner"><a class="permalink" href="#owner">owner (alias
+    </a></dt>subject)
+  <dd>El propietario del </dd>certificado.
+  <dt id="commonName"><a class="permalink" href="#commonName">commonName (alias
+    cn) - solo para la versión de Net::SSLeay &gt;=1.</a></dt>30
+  <dd>El nombre común, generalmente el nombre del servidor para los certificados </dd>SSL.
+  <dt id="subjectAltNames"><a class="permalink" href="#subjectAltNames">subjectAltNames
+    - solo para la versión de Net::SSLeay &gt;=1.</a></dt>33
+  <dd>Nombres alternativos para el sujeto, generalmente diferentes nombres para el mismo servidor, como example.org, example.com, *.example.com.
+    <p class="Pp">Devuelve una lista de (typ,value) con typ GEN_DNS, GEN_IPADD
+        etc (estas constantes se exportan desde IO::Socket::SSL). Vea
+        Net::SSLeay::X509_get_subjectAlt</p>Nam</dd>e</dl>s</div>.
+<dl class="Bl-tag">
+  <dt id="sock_certificate($field)"><a class="permalink" href="#sock_certificate($field)"><b>sock_certificate($fie</b></a></dt>ld)
+  <dd>Esto es similar a <span class="Li">"peer_certificate"
+  </span>    pero devolverá el certificado propio del sitio. Se pueden usar los mismos argumentos para
+      <span class="Li"><b>$field</b></span><b></b> . Si no se da
+      <b></b><span class="Li"><b>$field</b></span><b></b> se devolverá el
+      manejador de certificado del OpenSSL subyacente. Este manejador solo será válido mientras exista la conexión SSL y si se usa después podría resultar en extraños cierres inesperados de la </dd>aplicación.
+  <dt id="peer_certificates"><a class="permalink" href="#peer_certificates"><b>peer_certifica</b></a></dt>tes
+  <dd>Esto devuelve todos los certificados enviados por el par, p. ej. primero el certificado propio del par y luego el resto de la cadena. Puede usar
+      <b>CERT_asHash </b>de IO::Socket::SSL::Utils para inspeccionar cada uno de los
+      certificados.
+    <p class="Pp">Esta función depende de una versión de Net::SSLeay &gt;= 1.58
+ </p>   </dd>  .
+  <dt id="get_servername"><a class="permalink" href="#get_servername"><b>get_serverna</b></a></dt>me
+  <dd>Esto da el nombre solicitado por el cliente si se usó Server Name Indication (SNI)</dd>.
+  <dt id="verify_hostname($hostname,$scheme,$publicsuffix)"><a class="permalink" href="#verify_hostname($hostname,$scheme,$publicsuffix)"><b>verify_hostname($hostname,$scheme,</b></a></dt>$publicsuffix)
+  <dd>Esto verifica el hostname dado contra el certificado par usando el esquema dado. El hostname es generalmente lo que especifica dentro de PeerAddr. Vea el <span class="Li">parámetro "SSL_verifycn_publicsuffix"
+</span>      para una explicación de la verificación de sufijos y para los valores posibles.
+    <p class="Pp">La verificación del hostname contra un certificado es diferente
+        entre varias aplicaciones y RFC. Algunos esquemas permiten comodines para
+        hostnames, otros solo en subjectAltNames, e incluso sus diferentes
+        esquemas de comodines son posibles. RFC 6125 proporciona una buena visión </p>general.
+    <p class="Pp">Para facilitar la verificación, los siguientes esquemas están predefinidos
+        (ambos proto<p>nombre de columna y nombre rfcXXXX se pueden usar):</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="rfc2818,"><a class="permalink" href="#rfc2818,">rfc2818, xmpp
+    (rfc3920), ftp (rfc4217)</a></dt>
+  <dd>Se permiten comodines extendidos en subjectAltNames y common name, por ejemplo,
+      *.example.org o incluso www*.example.org. El common name solo se
+      verificará si no se proporcionan nombres DNS en subjectAltNames.</dd>
+  <dt id="http"><a class="permalink" href="#http">http (alias www)</a></dt>
+  <dd>Mientras que la verificación de nombres se define en rfc2818, los navegadores actuales
+      generalmente también aceptan una dirección IP (sin comodines) dentro del common name
+      siempre que no se definan subjectAltNames. Por lo tanto, esto es rfc2818 extendido con esta
+      funcionalidad.</dd>
+  <dt id="smtp"><a class="permalink" href="#smtp">smtp (rfc2595), imap, pop3,
+    acap (rfc4642), netconf (rfc5538), syslog (rfc5425), snmp (rfc5953)</a></dt>
+  <dd>Se permiten comodines simples en subjectAltNames, por ejemplo, *.example.org
+      coincide con www.example.org pero no con lala.www.example.org. Si nada de
+      subjectAltNames coincide, verifica contra el common name, donde los comodines
+      también se permiten para coincidir con la etiqueta más a la izquierda completa.</dd>
+  <dt id="ldap"><a class="permalink" href="#ldap">ldap (rfc4513)</a></dt>
+  <dd>Se permiten comodines simples en subjectAltNames, pero no en common name.
+      El common name se verificará incluso si existen subjectAltNames.</dd>
+  <dt id="sip"><a class="permalink" href="#sip">sip (rfc5922)</a></dt>
+  <dd>No se permiten comodines y el common name se verifica incluso si
+      existen subjectAltNames.</dd>
+  <dt id="gist"><a class="permalink" href="#gist">gist (rfc5971)</a></dt>
+  <dd>Se permiten comodines simples en subjectAltNames y common name, pero
+      el common name solo se verificará si no hay nombres DNS en
+      subjectAltNames.</dd>
+  <dt id="default"><a class="permalink" href="#default">default</a></dt>
+  <dd>Este es un superconjunto de todas las reglas y se utiliza automáticamente si no se proporciona un esquema
+      pero se conoce un nombre de host (en lugar de una IP). Se permiten comodines extendidos en subjectAltNames
+      y common name, y el common name se verifica
+      siempre.</dd>
+  <dt id="none"><a class="permalink" href="#none">none</a></dt>
+  <dd>No se realizará ninguna verificación. En realidad, no tiene sentido llamar
+      a verify_hostname en este caso.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">El esquema se puede proporcionar especificando el nombre de uno de
+    los esquemas predefinidos anteriores, o utilizando un hash que puede tener las
+    siguientes claves y valores:</p>
+<dl class="Bl-tag">
+  <dt id="check_cn:"><a class="permalink" href="#check_cn:">check_cn:
+    0|'always'|'when_only'</a></dt>
+  <dd>Determina si se verifica el common name. Si es 'always' (siempre), se verificará siempre
+      (como en ldap); si es 'when_only' (solo cuando), solo se verificará si no se proporcionan nombres
+      en subjectAltNames (como en http); para cualquier otro valor, el
+      common name no se verificará.</dd>
+  <dt id="wildcards_in_alt:"><a class="permalink" href="#wildcards_in_alt:">wildcards_in_alt:
+    0|'full_label'|'anywhere'</a></dt>
+  <dd>Determina si los comodines son posibles en subjectAltNames y dónde. Si
+      es 'full_label' (etiqueta completa), solo serán posibles casos como *.example.org
+      (como en ldap); para 'anywhere' (en cualquier lugar), www*.example.org también es posible (como http);
+      cosas peligrosas como but www.*.org o incluso '*' no estarán permitidas. Para
+      compatibilidad con versiones anteriores, se puede proporcionar 'leftmost' (más a la izquierda) en lugar de
+      'full_label'.</dd>
+  <dt id="wildcards_in_cn:"><a class="permalink" href="#wildcards_in_cn:">wildcards_in_cn:
+    0|'full_label'|'anywhere'</a></dt>
+  <dd>Similar a wildcards_in_alt, pero verifica el common name. No hay
+      esquema predefinido que permita comodines en los common names.</dd>
+  <dt id="ip_in_cn:"><a class="permalink" href="#ip_in_cn:">ip_in_cn:
+    0|1|4|6</a></dt>
+  <dd>Determina si se permite una dirección IP en el common name (no se permiten comodines).
+      Si se establece en 4 o 6, solo permite direcciones IPv4 o IPv6, cualquier
+      otro valor verdadero permite ambos.</dd>
+  <dt id="callback:"><a class="permalink" href="#callback:">callback:
+    \&amp;coderef</a></dt>
+  <dd>Si proporciona una subrutina para la verificación, se llamará con los argumentos
+      ($hostname, $commonName, @subjectAltNames), donde hostname es el
+      nombre proporcionado para la verificación, commonName es el resultado de
+      peer_certificate('cn') y subjectAltNames es el resultado de
+      peer_certificate('subjectAltNames').
+    <p class="Pp">Todos los demás argumentos para el esquema de verificación se ignorarán
+        en este caso.</p>
+  </dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt id="next_proto_negotiated()"><a class="permalink" href="#next_proto_negotiated()"><b>next_proto_negotiated()</b></a></dt>
+  <dd>Este método devuelve el nombre del protocolo negociado, por ejemplo, 'http/1.1'. Funciona
+      tanto para el lado del cliente como para el del servidor de la conexión SSL.
+    <p class="Pp">El soporte NPN está disponible con Net::SSLeay 1.46+ y
+        openssl-1.0.1+. Para verificar el soporte, puede llamar a
+        <span class="Li">&quot;IO::Socket::SSL-&gt;can_npn()&quot;</span>.</p>
+  </dd>
+  <dt id="alpn_selected()"><a class="permalink" href="#alpn_selected()"><b>alpn_selected()</b></a></dt>
+  <dd>Devuelve el protocolo negociado a través de ALPN como una cadena, por ejemplo, 'http/1.1',
+      'http/2.0' o 'spdy/3.1'.
+    <p class="Pp">El soporte ALPN está disponible con Net::SSLeay 1.56+ y
+        openssl-1.0.2+. Para verificar el soporte, utilice
+        <span class="Li">&quot;IO::Socket::SSL-&gt;can_alpn()&quot;</span>.</p>
+  </dd>
+  <dt id="errstr()"><a class="permalink" href="#errstr()"><b>errstr()</b></a></dt>
+  <dd>Devuelve el último error (en formato de cadena) que ocurrió. Si no tiene
+      un objeto real para realizar este método, llame a
+      <b>IO::Socket::SSL::errstr()</b> en su lugar.
+    <p class="Pp">Para errores de lectura y escritura en sockets no bloqueantes, este método
+        puede incluir la cadena <span class="Li">&quot;SSL wants a read
+        first!&quot;</span> o <span class="Li">&quot;SSL wants a write
+        first!&quot;</span>, lo que significa que la otra parte espera leer
+        o escribir en el socket y quiere ser satisfecha antes de que usted pueda hacer nada. Pero con la versión 0.98, es mejor comparar la variable global exportada
+        <span class="Li">$SSL_ERROR</span> con los símbolos exportados SSL_WANT_READ y SSL_WANT_WRITE.</p>
+  </dd>
+  <dt id="opened()"><a class="permalink" href="#opened()"><b>opened()</b></a></dt>
+  <dd>Devuelve falso si el socket no pudo abrirse, 1 si el socket pudo abrirse y la negociación SSL se realizó correctamente, y -1 si el Handle IO subyacente está abierto pero la negociación SSL falló.</dd>
+  <dt id="is_SSL()"><a class="permalink" href="#is_SSL()"><b>is_SSL()</b></a></dt>
+  <dd>Devuelve indefinido si no hay un objeto SSL asociado con el
+      socket. Devolverá <span class="Li">&quot;rw&quot;</span> si el estado
+      del objeto SSL tiene SSL activo para ambas direcciones,
+      <span class="Li">&quot;r&quot;</span> si se produjo una interrupción SSL iniciada localmente (notificación de cierre),
+      <span class="Li">&quot;w&quot;</span> si se recibió una interrupción SSL remota y
+      <span class="Li">&quot;&quot;</span> (cadena vacía pero definida) si se realizó una interrupción SSL bidireccional.
+  </dd>
+  <dt id="IO::Socket::SSL"><a class="permalink" href="#IO::Socket::SSL"><b>IO::Socket::SSL-&gt;start_SSL($socket,
+    ... )</b></a></dt>
+  <dd>Esto convertirá una referencia global o un socket que usted proporcione en un objeto
+      IO::Socket::SSL. Puede pasar parámetros para especificar el contexto
+      o las opciones de conexión, como en una llamada a <b>new()</b>. Si está utilizando
+      esta función en un socket <b>accept()</b>ado, debe establecer el parámetro
+      "SSL_server" a 1, es decir, IO::Socket::SSL-&gt;start_SSL($socket,
+      SSL_server =&gt; 1). Si tiene una clase que hereda de
+      IO::Socket::SSL y desea que el <span class="Li">$socket</span> sea bendecido en su propia clase en lugar de eso, use MyClass-&gt;start_SSL($socket) para
+      lograr el efecto deseado.
+    <p class="Pp">Tenga en cuenta que si <b>start_SSL()</b> falla en la negociación SSL,
+        <span class="Li">$socket</span> seguirá bendecido en su clase original.
+        Para sockets no bloqueantes, es mejor simplemente actualizar el socket a
+        IO::Socket::SSL y llamar a accept_SSL o connect_SSL y al objeto actualizado. Para simplemente actualizar el socket, establezca <b>SSL_startHandshake</b>
+        explícitamente a 0. Si llama a start_SSL sin este parámetro, revertirá
+        a comportamiento bloqueante para accept_SSL y connect_SSL.</p>
+    <p class="Pp">Si se proporciona el parámetro "Timeout", se detendrá si
+        después del tiempo de espera no se estableció ninguna conexión SSL. Este parámetro solo se utiliza para sockets bloqueantes; si no se proporciona, se utilizará el Timeout predeterminado del IO::Socket subyacente.</p>
+  </dd>
+  <dt id="stop_SSL(...)"><a class="permalink" href="#stop_SSL(...)"><b>stop_SSL(...)</b></a></dt>
+  <dd>Esto es lo opuesto a <b>start_SSL()</b>, <b>connect_SSL()</b> y
+      <b>accept_SSL()</b>, por ejemplo, cerrará la conexión SSL y volverá a la clase
+      anterior a <b>start_SSL()</b>. Recibe los mismos argumentos que
+      <b>close()</b>; de hecho, <b>close()</b> llama a <b>stop_SSL()</b> (pero
+      sin degradar la clase).
+    <p class="Pp">Devolverá verdadero si tuvo éxito y indefinido si falló. Esto
+        podría ser el caso de sockets no bloqueantes. En este caso, $! se establecerá a
+        EWOULDBLOCK y el error ssl a SSL_WANT_READ o SSL_WANT_WRITE. En
+        este caso, la llamada debe repetirse con los mismos argumentos una vez
+        que el socket esté listo.</p>
+    <p class="Pp">Para llamar desde <span class="Li">&quot;stop_SSL&quot;</span>,
+        <span class="Li">&quot;SSL_fast_shutdown&quot;</span> tendrá el valor predeterminado de falso,
+        es decir, espera la notificación de cierre del par. Esto es necesario en
+        caso de que desee degradar el socket y continuar usándolo como un socket normal. Si
+        <span class="Li">&quot;SSL_fast_shutdown&quot;</span> se establece
+        en verdadero, solo la dirección de escritura se cerrará para SSL y todavía se pueden
+        leer datos SSL. La dirección de lectura se cerrará automáticamente al recibir una notificación de cierre del par durante la lectura o al llamar explícitamente a
+        <span class="Li">&quot;stop_SSL&quot;</span> con
+        <span class="Li">&quot;SSL_fast_shutdown&quot;</span> falso.</p>
+    <p class="Pp">Después de un stop_SSL completo, el socket se puede volver a utilizar para
+        intercambiar datos en claro. Incluso si la interrupción SSL solo se realiza para escribir
+        (<span class="Li">&quot;SSL_fast_shutdown&quot;</span>), los datos en claro se pueden
+        escribir inmediatamente.</p>
+    <p class="Pp">Si la interrupción SSL fue iniciada por el par, conducirá a una interrupción SSL implícita para la lectura y sysread devolverá 0 en
+        este caso. También interrumpirá el lado local de SSL. Después de esto, el
+        socket está listo para recibir datos en claro del par y los datos locales enviados
+        también se transmitirán en claro. Para evitar el envío/recepción accidental de datos en claro
+        después de una interrupción SSL implícita, las funciones de lectura y escritura devolverán indefinido con
+        <span class="Li">$ERRNO</span> establecido en EPERM hasta que se realice una stop_SSL explícita. Si el par cierra directamente la conexión TCP después de la interrupción SSL sin enviar datos en claro, esto aún se detectará
+      aunque.</p>
+    <p class="Pp">Si este comportamiento predeterminado no se desea, se puede configurar una devolución de llamada
+        utilizando <span class="Li">&quot;SSL_on_peer_shutdown&quot;</span>, que recibe
+        <span class="Li">$self</span> como primer argumento. El resultado de
+        la devolución de llamada se devolverá en lugar de 0 y no se iniciará ninguna interrupción SSL
+        local automáticamente. De manera similar, no se necesita una stop_SSL explícita
+        antes de recibir datos en claro, ya que la devolución de llamada se considera una acción explícita suficiente.</p>
+  </dd>
+  <dt id="conne
+ct_SSL"&gt;<a class="permalink" href="#connect_SSL"><b>connect_</b>SSL,
+    <b>accept_S</b></a></dt>SL
+  <dd>Estas funciones deben usarse para realizar el apretón de manos (handshake) correspondiente, si el socket
+      se creó con <span class="Li">"new" </span>o se actualizó con
+      <span class="Li">"start_SSL" </span>y
+      <span class="Li">"SSL_startHandshake" </span>se estableció en false.
+      Devolverán undef hasta que el apretón de manos haya tenido éxito o se lance un error.
+      Mientras la función devuelva undef y $! esté establecido en EWOULDBLOCK
+      se podría reintentar la llamada después de que el socket se vuelva legible (SSL_WANT_READ) o
+      escribible (SSL_WANT_WRITE)</dd>.
+  <dt id="set_msg_callback"><a class="permalink" href="#set_msg_callback"><b>set_msg_callb</b></a></dt>ack
+  <dd>Esto añadirá/eliminará un callback definido por el usuario para cada mensaje, internamente
+      usando la API SSL_set_msg_callback de openssl. Para asegurarse de que el callback esté
+      activo antes de que comience el apretón de manos, combínelo con
+      <span class="Li">"SSL_startHandshake =&gt; 0" </span>en la
+      configuración previa del objeto SSL. Para eliminar el callback, llámelo explícitamente
+      con una función de callback vacía.
+    <p class="Pp">Ejem</p>plo:
+        <pre>$sock = IO::Socket::SSL-&gt;new( .... , SSL_startHandshake =&gt; 0);
+# establecer callback
+$sock-&gt;set_msg_callback(\&amp;cb, $cbarg1, $cbarg2);
+$sock-&gt;connect_SSL();
+sub cb {
+    my ($sock,
+        # ver SSL_set_msg_callback para los siguientes argumentos
+        $direction, $ssl_ver, $content_type, $buf, $len, $ssl,
+        $cbarg1, $cbarg2)
+        = @_;
+    ...
+    if (no_longer_need_cb) {
+        # deshabilitar callback
+        $sock-&gt;set_msg_callback(undef);
+ </pre>   </dd>}
+}
+  <dt id="ocsp_resolver"><a class="permalink" href="#ocsp_resolver"><b>ocsp_resolv</b></a></dt>er
+  <dd>Esto creará un objeto resolvedor OCSP, que puede usarse para crear solicitudes
+      OCSP para los certificados de la conexión SSL. Qué certificados
+      se verifican depende de la configuración de
+      <span class="Li">"SSL_ocsp_mode":</span> por defecto solo se
+      comprobará el certificado hoja, pero con SSL_OCSP_FULL_CHAIN se comprobarán
+      todos los certificados de la cadena.
+    <p class="Pp">Debido a que para crear una solicitud OCSP el certificado y su
+        certificado emisor deben ser conocidos, no es posible comprobar
+        certificados cuando la cadena de confianza está incompleta o si el certificado es
+        </p>autofirmado.
+    <p class="Pp">El resolvedor OCSP se crea llamando a
+        <span class="Li">"$ssl-&gt;ocsp_r</span>esolver" y pro</p>porciona
+    </dd>    los siguie</dl>ntes métodos:
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="hard_error"><a class="permalink" href="#hard_error">hard_err</a></dt>or
+  <dd>Esto devuelve el error duro (hard error) al comprobar la respuesta OCSP. Los errores duros
+      son revocaciones de certificados. Con el
+      <span class="Li">"SSL_ocsp_mode" </span>de SSL_OCSP_FAIL_HARD
+      cualquier error suave (p. ej., fallos al obtener información firmada sobre los
+      certificados) también se considerará un error duro.
+    <p class="Pp">La resolución OCSP se detendrá en el primer error </p>duro.
+    <p class="Pp">El método devolverá undef mientras no hayan ocurrido errores duros
+        y aún haya solicitudes por resolver. Si todas las solicitudes se resolvieron
+        y no ocurrieron errores duros, el método devolverá
+        <span class="Li">'</span>'</p></dd>.
+  <dt id="soft_error"><a class="permalink" href="#soft_error">soft_err</a></dt>or
+  <dd>Esto devuelve el error o errores suaves (soft error) que ocurrieron al preguntar a los
+      respondedores </dd>OCSP.
+  <dt id="requests"><a class="permalink" href="#requests">reques</a></dt>ts
+  <dd>Esto devolverá un hash consistente en
+      <span class="Li">tuplas "(url,</span>request)", p. ej., que
+      contienen la cadena de solicitud OCSP y la URL a la que debe enviarse.
+      La forma habitual de enviar tal solicitud es como solicitud HTTP POST con un
+      content-type de
+      <span class="Li">"application/ocsp-request" </span>o como una solicitud GET
+      con la solicitud en base64 y codificada para URL añadida a la ruta de
+      la URL.
+    <p class="Pp">Después de haber manejado todas estas solicitudes y añadido la respuesta
+        con <span class="Li">"add_response", es mejor
+        llamar a este método de nuevo para asegurarse de que no quedan
+    </span>    más solicitudes pendientes. IO::Socket::SSL combinará múltiples solicitudes OCSP para el
+      </p>  mismo servidor dentro de una sola solicitud, pero algunos servidores no dan
+        respuesta a t</dd>odas estas solicitudes, por lo que hay que preguntar de nuevo con las
+        solicitudes restantes.
+  <dt id="add_response($uri,$response)"><a class="permalink" href="#add_response($uri,$response)">add_response($uri,</a></dt>$response)
+  <dd>Este método toma el cuerpo HTTP de la respuesta que se recibió al
+      enviar la solicitud OCSP a <span class="Li">$uri.</span> Si no se recibió
+      respuesta o ocurrió un error, se debería reintentar o considerar
+      <span class="Li">$response </span>como vacío, lo que desencadenará un error suave.
+    <p class="Pp">El método devuelve el valor actual de
+        <span class="Li">"hard_error", p. ej., </span>un valor definido
+    </p>    cuando no se nece</dd>sitan más solicitudes.
+  <dt id="resolve_blocking(_args)"><a class="permalink" href="#resolve_blocking(_args)">resolve_blocking(%ar</a></dt>gs)
+  <dd>Esto combina <span class="Li">"requests" </span>y
+      <span class="Li">"add_response" </span>con HTTP::Tiny para hacer
+      todas las solicitudes necesarias de forma bloqueante. <span class="Li">%args
+</span>      se le dará a HTTP::Tiny para que pueda poner configuraciones de proxy, etc. aquí.
+      HTTP::Tiny se llamará con
+      <span class="Li">"verify_SSL" </span>en false, porque las respuestas
+      OCSP tienen sus propias firmas, por lo que no se necesita verificación SSL adicional.
+    <p class="Pp">Si no desea usar solicitudes bloqueantes, necesita crear
+        su propio agente de usuario con <span class="Li">"requests"
+</span>        y <span class="Li">"a</span>dd_</p>res</dd>po</dl>ns</div>e".
+<dl class="Bl-tag">
+  <dt id="IO::Socket::SSL~2"><a class="permalink" href="#IO::Socket::SSL~2"><b>IO::Socket::SSL-&gt;new_from_fd($fd,
+    [mode],</b> <b>%sslargs</b><b></b></a></dt>)
+  <dd>Esto convertirá un socket identificado mediante un descriptor de archivo en un socket
+      SSL. Tenga en cuenta que la lista de argumentos no incluye un argumento "MODE";
+      si proporciona uno, se ignorará cuidadosamente (por
+      compatibilidad con IO::Socket::INET). En su lugar, se asume un modo de '+&lt;'
+      y el descriptor de archivo pasado debe ser capaz de manejar tal E/S
+      porque el apretón de manos SSL inicial requiere comunicación bidireccional.
+    <p class="Pp">Internamente, el <span class="Li">$fd </span>dado será
+        actualizado a un objeto socket usando el
+        <span class="Li">método </span>"new_from_fd" de la super
+        clase (IO::Socket::INET o similar) y luego
+        <span class="Li">se llamará </span>a "start_SSL" usando los
+        datos <span class="Li">%sslargs </span>dados. Si <span class="Li">$fd
+</span>        ya es un objeto IO::Socket, es mejor llamar directamente a
+        <span class="Li">"star</span>t_SS</p>L"</dd>.
+  <dt id="IO::Socket::SSL::default_ca(_"><a class="permalink" href="#IO::Socket::SSL::default_ca(_"><b>IO::Socket::SSL::default_ca([
+    path|dir| SSL_ca_file </b>= ..., SSL_ca_path =&gt; ... </a></dt>])&gt;
+  <dd>Determina o establece la ruta CA predeterminada. Si se da una ruta o directorio existente o un hash
+      se establecerá la ruta CA predeterminada a este valor y nunca se intentará
+      detectarla automáticamente. Si <span class="Li">"undef" </span>se
+      da, olvidará cualquier valor predeterminado almacenado y continuará con la detección de
+      valores predeterminados del sistema. Si no se dan argumentos, comenzará la detección de
+      valores predeterminados del sistema, a menos que ya haya almacenado valores establecidos por el usuario o previamente
+      detectados.
+    <p class="Pp">La detección de valores predeterminados del sistema funciona de manera similar a OpenSSL,
+        p. ej., comprobará el directorio especificado en la variable de entorno
+        SSL_CERT_DIR o la ruta OPENSSLDIR/certs (SSLCERTS: en VMS) y el
+        archivo especificado en la variable de entorno SSL_CERT_FILE o la ruta
+        OPENSSLDIR/cert.pem (SSLCERTS:cert.pem en VMS). Contrariamente a OpenSSL,
+        comprobará si SSL_ca_path contiene archivos PEM con el hash como nombre de
+        archivo y si SSL_ca_file parece ser PEM. Si no se puede encontrar ningún valor predeterminado del sistema
+        utilizable, intentará cargar y usar Mozilla::CA y si no está
+        disponible, abandonará la detección. El resultado de la detección se guardará
+        para acelerar futuras </p>llamadas.
+    <p class="Pp">La función devuelve la CA predete</p>rminada guardada como hash con
+ </dd>       SSL_ca_file y SSL_ca_path.
+  <dt id="IO::Socket::SSL::set_default_context(...)"><a class="permalink" href="#IO::Socket::SSL::set_default_context(...)"><b>IO::Socket::SSL::set_default_context(.</b></a></dt>..)
+  <dd>Puede usar esto para hacer que IO::Socket::SSL reutilice automáticamente un contexto
+      dado (a menos que se anule específicamente en una llamada a <b>new()</b>). Acepta
+      un argumento, que debe ser un objeto IO::Socket::SSL o
+      un objeto IO::Socket::SSL::SSL_Context. Vea la opción SSL_reuse_ctx de
+      <b>new() </b>para más detalles. Tenga en cuenta que esto establece el contexto
+      predeterminado globalmente, así que úselo con precaución (especialmente en scripts de mod_perl)</dd>.
+  <dt id="IO::Socket::SSL::set_default_session_cache(...)"><a class="permalink" href="#IO::Socket::SSL::set_default_session_cache(...)"><b>IO::Socket::SSL::set_default_session_cache(.</b></a></dt>..)
+  <dd>Puede usar esto para hacer que IO::Socket::SSL reutilice automáticamente una caché de
+      sesión dada (a menos que se anule específicamente en una llamada a <b>new()</b>). Acepta
+      un argumento, que debe ser un objeto IO::Socket::SSL::Session_Cache
+      o similar (p. ej., algo que implemente get_session,
+      add_session y del_session como lo hace IO::Socket::SSL::Session_Cache). Vea
+      la opción SSL_session_cache de <b>new() </b>para más detalles. Tenga en cuenta que
+      esto establece la caché predeterminada globalmente, así que úselo con </dd>precaución.
+  <dt id="IO::Socket::SSL::set_defaults(_args)"><a class="permalink" href="#IO::Socket::SSL::set_defaults(_args)"><b>IO::Socket::SSL::set_defaults(%ar</b></a></dt>gs)
+  <dd>Con esta función se pueden establecer valores predeterminados para todos los paráme</dd>tros SSL_* usados para
+      la creación del contexto, como los parámetros SSL_verif</dl>y*. Se puede dar cualquier parámetro
+      SSL_* o las siguientes versiones cortas:
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="mode"><a class="permalink" href="#mode">mode -
+    </a></dt>SSL_verify_mode
+  <dd></dd>
+  <dt id="callback"><a class="permalink" href="#callback">callback -
+    SSL_verify_callb</a></dt>ack
+  <dd></dd>
+  <dt id="scheme"><a class="permalink" href="#scheme">scheme -
+    SSL_verifycn_sch</a></dt>eme
+  <dd></dd>
+  <dt id="name"><a class="permalink" href="#name">name -
+    </a></dt>SSL_verifycn_name
+  <dd></dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt id="IO::Socket::SSL::set_client_defaults(_args)"><a class="permalink" href="#IO::Socket::SSL::set_client_defaults(_args)"><b>IO::Socket::SSL::set_client_defaults(%ar</b></a></dt>gs)
+  <dd>Similar a <span class="Li">"set_defaults", pero </span>solo establece
+      los valores predeterminados para el modo </dd>cliente.
+  <dt id="IO::Socket::SSL::set_server_defaults(_args)"><a class="permalink" href="#IO::Socket::SSL::set_server_defaults(_args)"><b>IO::Socket::SSL::set_server_defaults(%ar</b></a></dt>gs)
+  <dd>Similar a <span class="Li">"set_defaults", pero </span>solo establece
+      los valores predeterminados para el modo </dd>servidor.
+  <dt id="IO::Socket::SSL::set_args_filter_hack("><a class="permalink" href="#IO::Socket::SSL::set_args_filter_hack("><b>IO::Socket::SSL::set_args_filter_hack(\&amp;code|'use_default</b></a></dt>s')
+  <dd>A veces se tiene que usar código que usa argumentos no deseados o inválidos fo
+      SSL, típicamente deshabilitando la verificación SSL o estableciendo cifrados o versiones
+      SSL incorrectas. Con este truco es posible anular estas configuraciones y
+      restaurar la cordura. Ejemplo:
+        <pre>IO::Socket::SSL::set_args_filter_hack( sub {
+    my ($is_server,$args) = @_;
+    if ( ! $is_server ) {
+        # configuraciones del cliente - habilitar la verificación con CA predeterminado
+        # y verificación de nombre de host de respaldo, etc.
+        delete @{$args}{qw(
+            SSL_verify_mode
+            SSL_ca_file
+            SSL_ca_path
+            SSL_verifycn_scheme
+            SSL_version
+        )};
+        # y añadir algunas huellas digitales para certificados conocidos que están firmados por
+        # CA desconocidos o son auto-firmados
+        $args-&gt;{SSL_fingerprint} = ...
+   </pre> }
+});
+    <p class="Pp">Con la configuración corta
+        <span class="Li">set_args_filter_hack('use_defaults') se
+     </span>   preferirán las configuraciones predeterminadas en todos los casos. Estas configuraciones predeterminadas pueden
+        modificarse con <span class="Li">"set_defa</span>ults",
+        <span class="Li">"set_client_defaults" </span>y
+        <span class="Li">"set_server_defau</span>l</p>ts</dd>"</dl>.
+<p class="Pp">Los siguientes métodos no están soportados (¡sin mencionar que son inútiles!) y
+    IO::Socket::SSL emitirá un gran <b>CROAK() </b>si es lo suficientemente tonto como para
+    </p>usarlos:
+<dl class="Bl-tag">
+  <dt id="truncate"><a class="permalink" href="#truncate">trunca</a></dt>te
+  <dd></dd>
+  <dt id="stat"><a class="permalink" href="#stat">st</a></dt>at
+  <dd></dd>
+  <dt id="ungetc"><a class="permalink" href="#ungetc">unge</a></dt>tc
+  <dd></dd>
+  <dt id="setbuf"><a class="permalink" href="#setbuf">setb</a></dt>uf
+  <dd></dd>
+  <dt id="setvbuf"><a class="permalink" href="#setvbuf">setvb</a></dt>uf
+  <dd></dd>
+  <dt id="fdopen"><a class="permalink" href="#fdopen">fdop</a></dt>en
+  <dd></dd>
+  <dt id="send/recv"><a class="permalink" href="#send/recv">send/re</a></dt>cv
+  <dd>Tenga en cuenta que <b>send()</b> y <b>recv() no pueden ser interceptados de manera confiable por un
+      maneja</b>dor de archivos vinculado (tal como el usado por IO::Socket::SSL) y por lo</dd> tanto pueden enviar
+      datos sin cifrar a través del socket. Las llam</dl>adas orientadas a objetos a estas
+      funciones fallarán, indicándole qu</section>e use en su lugar las familias print/printf/syswrite y
+      read/sysread.
+<section class="Sh">
+<h1 class="Sh" id='ACCESS_TO_INTERNALS'><a class='permalink' href='#ACCESS_TO_INTERNALS'>ACCESO A LOS </a></h1>INTERNOS
+<p class="Pp"><span class="Li">"IO::Socket::SSL" </span>usa
+    internamente <span class="Li">"Net::SSLeay" </span>que proporciona una
+    API de bajo nivel a OpenSSL y provee funciones que trabajan directamente con
+    los manejadores SSL y CTX de OpenSSL. A veces puede ser necesario obtener acceso
+    directo a estos manejadores desde
+    <span class="Li">"IO::Socket::</span>SSL" para aplicar
+    funcionalidad disponible solo con
+    <span class="Li">"Net:</span>:SSL</p>eay".
+<p class="Pp">Para esto <span class="Li">"_get_ssl_object" </span>puede
+    usarse en el objeto <span class="Li">"IO::Socket::SSL" </span>para
+    obtener acceso al manejador SSL de OpenSSL y
+    <span class="Li">"_get_ctx_object" </span>puede usarse en
+    <span class="Li">"IO::Socket:</span>:SSL" y
+    <span class="Li">"IO::Socket::SSL_Context" </span>objetos para
+    acceder al manejador CTX de OpenSSL. Úselo con mucho cuidado ya que la gestión de memoria/referencias de OpenSSL
+    debe hacerse manualmente con
+    <span class="Li">"Net</span>::S</p>SLe</section>ay".
+<section class="Sh">
+<h1 class="Sh" id='DEPRECATIONS'><a class='permalink' href='#DEPRECATIONS'>OBSOLESCENCIA</a></h1>S
+<p class="Pp">Las siguientes funciones están obsoletas y se conservan solo para
+    </p>compatibilidad:
+<dl class="Bl-tag">
+  <dt id="context_init()"><a class="permalink" href="#context_init()"><b>context_init</b></a></dt>()
+  <dd>use la opción SSL_reuse_ctx si desea reutilizar un </dd>contexto
+  <dt id="socketToSSL()"><a class="permalink" href="#socketToSSL()"><b>socketToSSL()</b>
+    y <b>socket_to_SS</b></a></dt>L()
+  <dd>use IO::Socket::SSL-&gt;<b>start_SSL() </b>en su </dd>lugar
+  <dt id="kill_socket()"><a class="permalink" href="#kill_socket()"><b>kill_socket</b></a></dt>()
+  <dd>use <b>close()</b> en su </dd>lugar
+  <dt id="get_peer_certificate()"><a class="permalink" href="#get_peer_certificate()"><b>get_peer_certificat</b></a></dt>e()
+  <dd>use la función <b>peer_certificate()</b> en su lugar. Devolvía
+      X509_Certificate con los métodos subject_name e issuer_name. Ahora simplemente
+      devuelve <span class="Li">$self </span>que tiene estos métodos (aunque
+      están obsoletos)</dd>.
+  <dt id="issuer_name()"><a class="permalink" href="#issuer_name()"><b>issuer_name</b></a></dt>()
+  <dd>use peer_certificate( 'issuer' ) en su </dd>lugar
+  <dt id="subject_name()"><a class="permalink" href="#subject_name()"><b>subject_name</b></a></dt>()
+  <dd>use peer_ce</dd>rtificate( </dl>'subject' ) </section>en su lugar
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLO</a></h1>S
+<p class="Pp">Vea el directorio 'example', l</p>as pruebas en 't' y también l</section>as herramientas
+    en 'util'.
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>ERRORE</a></h1>S
+<p class="Pp">Si usa IO::Socket::SSL junto con hilos (threads) debe cargarlo
+    (por ejemplo, use o require) dentro del hilo principal antes de crear cualquier otro
+    hilo que lo use. De esta manera es mucho más rápido porque se
+    inicializará solo una vez. También hay informes de que podría fallar de la otra </p>manera.
+<p class="Pp">Crear un objeto IO::Socket::SSL en un hilo y cerrarlo en
+    otro hilo no </p>funcionará.
+<p class="Pp">IO::Socket::SSL no funciona junto con
+    Storable::fd_retrieve/fd_store. Vea el archivo BUGS para más información y cómo
+    solucionar el </p>problema.
+<p class="Pp">Si tiene un servidor y parece que tiene una fuga de memoria
+    podría verificar el tamaño de su caché de sesiones. El valor predeterminado para Net::SSLeay parece
+    ser 20480, vea el ejemplo de SSL_create_ctx_callback para cómo </p>limitarlo.
+<p class="Pp">El soporte de TLS 1.3 con r</p>especto a la reutilización d</section>e sesiones está incompleto.
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VEA   </a></h1>TAMBIÉN
+<p class="Pp">IO::Socket::INET, IO::</p>Socket::INET6, IO::Sock</section>et::IP,
+  Net::SSLeay.
+<section class="Sh">
+<h1 class="Sh" id='THANKS'><a class='permalink' href='#THANKS'>AGRADECIMIENT</a></h1>OS
+<p class="Pp">Muchas gracias a todos los que añadieron parches o reportaron errores o ayudaron
+    a IO::Socket::SSL de otra manera. Por favor, sigan reportando errores y ayudando
+    con parches, aunque solo arreglen la </p>documentación.
+<p class="Pp">Agradecimiento especial al</p> equipo de Net::SSLeay por</section> la buena
+    cooperación.
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORE</a></h1>S
+<p class="Pp">Steffen Ullrich, &lt;sullr at cpan.org&gt; es el mantenedor
+    </p>actual.
+<p class="Pp">Peter Behroozi, &lt;behrooz at fas.harvard.edu&gt; (Note la falta
+    de una "i" al final de </p>"behrooz")
+<p class="Pp">Marko Asplund, &lt;marko.asplund at kronodoc.fi&gt;, fue el
+    autor original de IO::Socket::</p>SSL.
+<p class="Pp">Parches incorporados </p>de varias personas, ve</section>a el archivo Changes.
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE </a></h1>AUTOR
+<p class="Pp">Las versiones originales de este módulo son Copyright (C) 1999-2002
+    Marko </p>Asplund.
+<p class="Pp">La reescritura de este módulo es Copyright (C) 2002-2005 Peter
+    </p>Behroozi.
+<p class="Pp">Las versiones 0.98 y más recientes son Copyright (C) 2006-2014 Steffen
+    </p>Ullrich.
+<p class="Pp">Este módulo es software libr</p>e; puede redistribuirlo y/o
+</section>    modificarlo bajo los mis</div>mos términos que Perl en sí.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-09</td>-27
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-io-socket-ssl/">extra/perl-io-soc</a></dd>ket-ssl
+        <dt>Vers</dt>ión:
+        <dd>2.</dd>095-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://search.cpan.org/dist/IO-Socket-SSL/">https://search.cpan.org/dist/IO-Sock</a></dd>et-SSL/
+        <dt>Licen</dt>cias:
+        <dd>GPL, </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-io-socket-ssl/">/listing</a></dd>/extra/pe</dl>rl-io-soc</section>ket-ssl/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#Essential_Information_About_SSL/TLS">Información esencial </a></li>sobre SSL/TLS
+        
+            <li><a href="#Basic_SSL_Client">Cliente </a></li>SSL básico
+        
+            <li><a href="#Basic_SSL_Server">Servidor </a></li>SSL básico
+        
+            <li><a href="#Common_Usage_Errors">Errores de </a></li>uso comunes
+        
+            <li><a href="#Common_Problems_with_SSL">Problemas </a></li>comunes con SSL
+        
+            <li><a href="#Using_Non-Blocking_Sockets">Uso de sockets </a></li>no bloqueantes
+        
+            <li><a href="#Advanced_Usage">Uso </a></li>avanzado
+        
+            <li><a href="#Integration_Into_Own_Modules">Integración en </a></li>módulos propios
+        
+            <li><a href="#Description_Of_Methods">Descripción </a></li>de los métodos
+        
+            <li><a href="#ACCESS_TO_INTERNALS">ACCESO A </a></li>LOS INTERNOS
+        
+            <li><a href="#DEPRECATIONS">OBSOL</a></li>ESCENCIAS
+        
+            <li><a href="#EXAMPLES">EJ</a></li>EMPLOS
+        
+            <li><a href="#BUGS">E</a></li>RRORES
+        
+            <li><a href="#SEE_ALSO">VEA </a></li>TAMBIÉN
+        
+            <li><a href="#THANKS">AGR</a></li>ADECIMIENTOS
+        
+            <li><a href="#AUTHORS">AU</a></li>TORES
+        
+            <li><a href="#COPYRIGHT">DER</a></li>ECHO</ul>S D</nav>E AU</details>TOR
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/IO::Socket::SSL.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/IO::Socket::SSL.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> correspondiente de Arch Linux.

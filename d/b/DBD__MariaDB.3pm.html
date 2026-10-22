@@ -1,0 +1,1374 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBD::MariaDB(3pm) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBD__MariaDB(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbd-mariadb/">perl-dbd-mariadb</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBD::MariaDB(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">DBD::MariaDB(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">DBD::MariaDB - Controlador de MariaDB y MySQL para la Interfaz de Base de Datos de Perl5 (DBI)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use DBI;
+my $dsn = "DBI:MariaDB:database=$database;host=$hostname;port=$port";
+my $dbh = DBI-&gt;connect($dsn, $user, $password);
+my $sth = $dbh-&gt;prepare(
+    'SELECT id, first_name, last_name FROM authors WHERE last_name = ?'
+) or die 'prepare statement failed: ' . $dbh-&gt;errstr();
+$sth-&gt;execute('Eggers') or die 'execution failed: ' . $dbh-&gt;errstr();
+print $sth-&gt;rows() . " rows found.\n";
+while (my $ref = $sth-&gt;fetchrow_hashref()) {
+    print "Found a row: id = $ref-&gt;{'id'}, fn = $ref-&gt;{'first_name'}\n";
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE'><a class='permalink' href='#EXAMPLE'>EJEMPLO</a></h1>
+<pre>#!/usr/bin/perl
+use strict;
+use warnings;
+use DBI;
+# Connect to the database.
+my $dbh = DBI-&gt;connect('DBI:MariaDB:database=test;host=localhost',
+                       'joe', q(joe's password),
+                       { RaiseError =&gt; 1, PrintError =&gt; 0 });
+# Drop table 'foo'. This may fail, if 'foo' doesn't exist
+# Thus we put an eval around it.
+eval {
+    $dbh-&gt;do('DROP TABLE foo');
+} or do {
+    print 'Dropping foo failed: ' . $dbh-&gt;errstr() . "\n";
+};
+# Create a new table 'foo'. This must not fail, thus we don't
+# catch errors.
+$dbh-&gt;do('CREATE TABLE foo (id INTEGER, name VARCHAR(20))');
+# INSERT some data into 'foo' using placeholders
+$dbh-&gt;do('INSERT INTO foo VALUES (?, ?)', undef, 2, 'Jochen');
+# now retrieve data from the table.
+my $sth = $dbh-&gt;prepare('SELECT * FROM foo');
+$sth-&gt;execute();
+while (my $ref = $sth-&gt;fetchrow_hashref()) {
+    print "Found a row: id = $ref-&gt;{'id'}, name = $ref-&gt;{'name'}\n";
+}
+# Disconnect from the database.
+$dbh-&gt;disconnect();</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>DBD::MariaDB</b> es el controlador de la Interfaz de Base de Datos de Perl5 para las bases de datos MariaDB y MySQL. En otras palabras: DBD::MariaDB es una interfaz entre el lenguaje de programación Perl y la API de programación MariaDB/MySQL que viene con el sistema de gestión de bases de datos relacionales MariaDB/MySQL. La mayoría de las funciones proporcionadas por esta API de programación son compatibles. Faltan algunas funciones raramente utilizadas, principalmente porque nadie las ha solicitado nunca. :-)</p>
+<p class="Pp">A continuación, primero discutiremos el uso de DBD::MariaDB, porque es lo que más necesitará. Para la instalación, consulte el documento separado DBD::MariaDB::INSTALL. Vea "EJEMPLO" para un ejemplo simple arriba.</p>
+<p class="Pp">Desde perl, activa la interfaz con la declaración</p>
+<pre>use DBI;</pre>
+<p class="Pp">Después de eso, puede conectarse a múltiples servidores de bases de datos MariaDB y MySQL y enviar múltiples consultas a cualquiera de ellos a través de una interfaz orientada a objetos simple. Hay disponibles dos tipos de objetos: manejadores de base de datos y manejadores de sentencias. Perl devuelve un manejador de base de datos al método connect así:</p>
+<pre>my $dbh = DBI-&gt;connect("DBI:MariaDB:database=$db;host=$host",
+                       $user, $password,
+                       { RaiseError =&gt; 1, PrintError =&gt; 0 });</pre>
+<p class="Pp">Una vez que se haya conectado a una base de datos, puede ejecutar sentencias SQL con:</p>
+<pre>$dbh-&gt;do('INSERT INTO foo VALUES (?, ?)', undef, $number, $name);</pre>
+<p class="Pp">Consulte el método do de DBI para más detalles. Consulte también el método bind_param en DBI. Vea "MANEJADORES DE BASE DE DATOS" más abajo para más detalles sobre los manejadores de base de datos.</p>
+<p class="Pp">Si desea recuperar resultados, necesita crear un llamado manejador de sentencia con:</p>
+<pre>my $sth = $dbh-&gt;prepare('SELECT * FROM ' . $dbh-&gt;quote_identifier($table));
+$sth-&gt;execute();</pre>
+<p class="Pp">Este manejador de sentencia puede usarse para múltiples cosas. Primero, puede recuperar una fila de datos:</p>
+<pre>my $row = $sth-&gt;fetchrow_hashref();</pre>
+<p class="Pp">Si su tabla tiene columnas <span class="Li">"ID"</span>
+    y <span class="Li">"NAME"</span>, entonces
+    <span class="Li">$row</span> será una referencia a un hash con las claves
+    <span class="Li">"ID"</span> y
+    <span class="Li">"NAME"</span>. Vea "MANEJADORES DE SENTENCIAS" más abajo para más detalles sobre los manejadores de sentencias.</p>
+<p class="Pp">Pero ahora para un enfoque más formal:</p>
+<section class="Ss">
+<h2 class="Ss" id='Class_Methods'><a class='permalink' href='#Class_Methods'>Clase   Métodos</a></h2>
+<dl class="Bl-tag">
+  <dt id="connect"><a class="permalink" href="#connect">connect</a></dt>
+  <dd>
+    <pre>use DBI;
+my $dsn = "DBI:MariaDB:$database";
+my $dsn = "DBI:MariaDB:database=$database;host=$hostname";
+my $dsn = "DBI:MariaDB:database=$database;host=$hostname;port=$port";
+my $dsn = "DBI:MariaDB:database=$database;mariadb_socket=$socket";
+my $dbh = DBI-&gt;connect($dsn, $user, $password);
+</pre>
+    <p class="Pp">El <i>database</i> no es un atributo requerido, pero por favor note que MariaDB y MySQL no tienen algo así como una base de datos predeterminada. Si no especifica la base de datos en el momento de la conexión, su base de datos activa será nula y necesitaría prefijar sus tablas con el nombre de la base de datos; es decir <span class="Li">"SELECT * FROM
+        mydb.mytable"</span>.</p>
+    <p class="Pp">Esto es similar al comportamiento del cliente de línea de comandos
+        <span class="Li">"mariadb"</span> o
+        <span class="Li">"mysql"</span> . También,
+        <span class="Li">"SELECT DATABASE()"</span> devolverá la base de datos actual activa para el manejador.</p>
+    <p class="Pp">El controlador DBD::MariaDB entiende cualquier atributo de conexión especificado en la sección "MANEJADORES DE BASE DE DATOS" que sea de lectura/escritura y además cualquier otro atributo descrito a continuación.</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="host"><a class="permalink" href="#host">host</a></dt>
+  <dd></dd>
+  <dt id="port"><a class="permalink" href="#port">port</a></dt>
+  <dd>El <i>host</i>, si no se especifica o se especifica como cadena vacía o
+      <span class="Li">"localhost"</span>, será por defecto un servidor MariaDB o MySQL que se ejecuta en la máquina local usando el valor predeterminado para el socket UNIX. Para conectarse a un servidor MariaDB o MySQL en la máquina local a través de TCP, debe especificar la dirección IP de loopback
+      <span class="Li">127.0.0.1</span> como el <i>host</i>.
+    <p class="Pp">Si el servidor MariaDB o MySQL se ejecuta en un número de puerto no estándar, puede indicar explícitamente el
+        <span class="Li">"número de puerto"</span> al que conectarse en el argumento
+        <i>host</i> , concatenando el
+        <span class="Li">"nombre de host"</span> y el
+        <span class="Li">"número de puerto"</span> juntos separados por un carácter de dos puntos (<span class="Li">":"</span>) o usando el argumento
+        <i>port</i> .</p>
+    <p class="Pp">Para conectarse a un servidor MariaDB o MySQL en localhost usando TCP/IP, debe especificar el <i>host</i> como
+        <span class="Li">127.0.0.1</span> con el <i>port</i>opcional, por ejemplo
+        <span class="Li">3306</span>.</p>
+    <p class="Pp">Al conectarse a un servidor MariaDB o MySQL con IPv6, se debe usar una dirección IPv6 entre corchetes. Ejemplo de DSN:</p>
+        <pre>my $dsn = 'DBI:MariaDB:;host=[1a12:2800:6f2:85::f20:8cf];port=3306';
+</pre>
+  </dd>
+  <dt id="mariadb_client_found_rows"><a class="permalink" href="#mariadb_client_found_rows">mariadb_client_found_rows</a></dt>
+  <dd>Si es VERDADERO (Predeterminado), establece el indicador
+      <span class="Li">"CLIENT_FOUND_ROWS"</span> al conectarse al servidor MariaDB o MySQL. Esto hace que las sentencias
+      <span class="Li">"UPDATE"</span> devuelvan el número de filas <b>coincidentes</b>, no el número de filas realmente cambiadas.
+    <p class="Pp">Si desea el número de filas cambiadas en respuesta a una sentencia
+        <span class="Li">"UPDATE"</span> , especifique
+        <span class="Li">"mariadb_client_found_rows=0"</span> en el DSN.</p>
+  </dd>
+  <dt id="mariadb_compression"><a class="permalink" href="#mariadb_compression">mariadb_compression</a></dt>
+  <dd>Si su DSN contiene la opción
+      <span class="Li">"mariadb_compression=1"</span>, entonces la comunicación entre el cliente y el servidor será comprimida.</dd>
+  <dt id="mariadb_connect_timeout"><a class="permalink" href="#mariadb_connect_timeout">mariadb_connect_timeout</a></dt>
+  <dd>Si su DSN contiene la opción
+      <span class="Li">"mariadb_connect_timeout=##"</span>, la solicitud de conexión al servidor expirará si no ha sido exitosa después del número de segundos dado. Un valor cero significa tiempo de espera infinito.</dd>
+  <dt id="mariadb_write_timeout"><a class="permalink" href="#mariadb_write_timeout">mariadb_write_timeout</a></dt>
+  <dd>Si su DSN contiene la opción
+      <span class="Li">"mariadb_write_timeout=##"</span>, la operación de escritura al servidor expirará si no ha sido exitosa después del número de segundos dado. Un valor cero significa tiempo de espera infinito.</dd>
+  <dt id="mariadb_read_timeout"><a class="permalink" href="#mariadb_read_timeout">mariadb_read_timeout</a></dt>
+  <dd>Si su DSN contiene la opción
+      <span class="Li">"mariadb_read_timeout=##"</span>, la operación de lectura del servidorse agotará el tiempo de espera si no ha tenido éxito después del número de segundos indicado. Un valor de cero significa un tiempo de espera </dd>infinito.
+  <dt id="mariadb_init_command"><a class="permalink" href="#mariadb_init_command">mariadb_init_command Si su DSN contiene la opción "mariadb_init_command=SQL" , </a></dt>entonces esta
+  <dd>"SQL"
+      <span class="Li">declaración se ejecuta al
+      conectar al servidor MariaDB o MySQL. Se vuelve a </span>ejecutar automáticamente
+      si ocurre una reconexión.
+      <span class="Li">m</span>ariadb_skip_secure_aut</dd>h
+  <dt id="mariadb_skip_secure_auth"><a class="permalink" href="#mariadb_skip_secure_auth">Esta opción es para bases de datos MySQL más antiguas que no tienen la autenticación segura
+    </a></dt>establecida.
+  <dd>mariadb_read_default_file mariadb_read_default_gro</dd>up
+  <dt id="mariadb_read_default_file"><a class="permalink" href="#mariadb_read_default_file">Estas opciones se pueden usar para leer un archivo de configuración </a></dt>como
+  <dd></dd>
+  <dt id="mariadb_read_default_group"><a class="permalink" href="#mariadb_read_default_group">/etc/my.</a></dt>cnf
+  <dd>o <i>~/.my.</i>cnf
+      <i>. Por defecto,</i> la biblioteca de cliente C de MariaDB y MySQL
+      no usa ningún archivo de configuración, a diferencia de los programas de cliente (mysql,
+      mysqladmin, ...) que sí lo hacen, pero fuera de la biblioteca de cliente C. Por lo tanto,
+      necesita solicitar explícitamente la lectura de un archivo de configuración, como en
+        <pre>my $dsn = 'DBI:MariaDB:test;mariadb_read_default_file=/home/joe/my.cnf';
+my $dbh = DBI-&gt;connect($dsn, $user, $password)</pre>;
+    <p class="Pp">Si el archivo de configuración especifica la contraseña, necesita usar "undef"
+        <span class="Li">en </span>"connect"
+        <span class="Li">, no solo </span>una cadena vacía,
+        para que sea reemplazada por el valor de configuración. Todos los demás atributos reemplazan
+        incluso una cadena </p>vacía.
+    <p class="Pp">La opción mariadb_read_default_group <i>se puede usar para
+     </i>   especificar el grupo predeterminado en el archivo de configuración: Usualmente este es el
+        <span class="Li">"</span>client</p>"
+        <pre>grupo, pero vea el siguiente
+        </pre>ejemplo:
+    <p class="Pp">[client]
+host=localhost
+[perl]
+host=perlhost (¡Tenga en cuenta el orden de las entradas! El ejemplo no funcionará si
+        invierte las <span class="Li">"[client]</span>" y
+        <span class="Li">"[p</span>er</p>l]"
+    <p class="Pp">secciones!) <span class="Li">Si lee este </span>archivo de configuración, típicamente se </p>conectará a
+        <pre>"localhost</pre>"
+    <p class="Pp">. Sin embargo, al
+        usar
+        <span class="Li">my $dsn </span>= 'DBI:MariaDB:test;mariadb_read_default_group=perl;'
+        . 'mariadb_read_default_file=/home/joe/my.cnf';
+my $dbh = DBI-&gt;connect($dsn, $user, $password);
+        <span class="Li">se con</span>ectará</p> a "per</dd>lhost"
+  <dt id="mariadb_socket"><a class="permalink" href="#mariadb_socket">. Tenga en cuenta que si especifica un
+        grupo predeterminado y no especifica un archivo, se leerán todos los archivos de configuración predeterminados. Consulte </a></dt>la documentación de la función C
+  <dd>mysql_options() para más detalles.
+        <pre>mariadb_socke</pre>t
+    <p class="Pp">Es posible elegir el socket de Unix que se usa para conectarse al
+      servidor. Esto se hace, por ejemplo,</p> </dd>con
+  <dt id="mariadb_auth_plugin"><a class="permalink" href="#mariadb_auth_plugin">my $dsn = 'DBI:MariaDB:database=test;'
+        . 'mariadb_socket=/var/run/mysqld/mysqld.</a></dt>sock';
+  <dd>Usualmente no hay necesidad de esta opción, a menos que esté usando
+        otra ubicación para el socket que la que está incorporada en el cliente. mariadb_auth_plugin
+      <span class="Li">Especifique </span>el método de autenticación utilizado durante la conexión al servidor MariaDB o MySQL.
+      El protocolo MySQL usa el método de autenticación
+      <span class="Li">"mysql_native_pass</span>word"
+    <p class="Pp">y la versión 5.5.7 de MySQL extendió el protocolo y añadió soporte para
+      usar otros métodos de autenticación que pueden ser proporcionados a los clientes por
+      plugins. La versión 8.0.4 de MySQL cambió el método de autenticación predeterminado a
+        <span class="Li">"caching</span>_sha2_passwo</p>rd"
+        <pre>. Ejemplo de cómo usar el método de autenticación "caching_sha2_password" : my $dsn = 'DBI:MariaDB:database=test;host=hostname;'
+        . 'mariadb_auth_plugin=caching_sha2_</pre>passw</dd>ord';
+  <dt id="mariadb_ssl"><a class="permalink" href="#mariadb_ssl">mariadb_s</a></dt>sl
+  <dd>Un valor verdadero impone el cifrado SSL al conectarse al servidor MariaDB o
+      MySQL. Un valor falso (que es el predeterminado) deshabilita el cifrado SSL
+      con el servidor MariaDB o MySQL.
+    <p class="Pp">Al habilitar el cifrado SSL, también debe establecer otras opciones SSL, al menos <i>mariadb_ssl_ca_file </i>o
+        <i>mariadb</i>_ssl_ca</p>_path .
+        <pre>my $dsn = 'DBI:MariaDB:database=test;host=hostname;port=3306;'
+        . 'mariadb_ssl=1;mariadb_ssl_verify_server_cert=1;'
+        . 'mariadb_ssl_ca_file=/path/to/ca_cert.</pre>pem';
+    <p class="Pp">Esto significa que su co</p>municación con el servid</dd>or será
+        cifrada.
+  <dt id="mariadb_ssl_ca_file"><a class="permalink" href="#mariadb_ssl_ca_file">mariadb_ssl_ca_file La ruta a un archivo en formato PEM que contiene una lista de autoridades de certificados </a></dt>SSL de confianza.
+  <dd>Cuando se establece, se verifica que el certificado del servidor MariaDB o MySQL
+        esté firmado por algún certificado CA en la lista. El valor del Common Name no se verifica a menos que mariadb_ssl_verify_server_cert
+    <p class="Pp">esté
+        habilitado. mariadb_ssl_ca_path <i>La ruta a un directorio </i>que contiene certificados de autoridades de certificados SSL de confianza en formato PEM. <i>Cuando se establece, se verifica que el certificado del servidor MariaDB o MySQL
+</i>        esté firmado por algún certificado CA en la </p>lista. El </dd>valor del
+  <dt id="mariadb_ssl_ca_path"><a class="permalink" href="#mariadb_ssl_ca_path">Common </a></dt>Name
+  <dd>no se verifica a menos que mariadb_ssl_verify_server_cert esté
+        habilitado.
+    <p class="Pp">Tenga en cuenta que esta opción solo se admite si su cliente MariaDB
+        o MySQL se compiló con la biblioteca OpenSSL, y no con la biblioteca predeterminada
+        yaSSL. <i>mariadb</i>_ssl_verify_server_cert <i>Verifica el valor </i>del Common </p>Name
+    <p class="Pp">en el certificado que el
+      servidor envía al cliente. El cliente verifica ese nombre contra el nomb</p>re de host
+      que el cliente usa para conectarse al servidor, y la conexión falla si hay una discre</dd>pancia. Para conexiones cifradas, esta opción ayuda
+      a prevenir ataques de tipo man-in-the-middle.
+  <dt id="mariadb_ssl_verify_server_cert"><a class="permalink" href="#mariadb_ssl_verify_server_cert">La verificación del nombre de host está deshabilitada por </a></dt>defecto.
+  <dd>mariadb_ssl_client_key <i>El </i>nombre del archivo de clave SSL en formato PEM a usar para establecer una
+      conexión segura.
+    <p class="Pp">mariadb_ssl_client_cert El nombre del archivo de certificado SSL en formato PEM a usar para establecer
+      una </p>conexión </dd>segura.
+  <dt id="mariadb_ssl_client_key"><a class="permalink" href="#mariadb_ssl_client_key">mariadb_ssl_ciph</a></dt>er
+  <dd>Una lista de cifrados permitidos a usar para el cifrado de la conexión. Si ningún
+      cifrado de la lista es compatible, las conexiones cifradas no </dd>funcionarán.
+  <dt id="mariadb_ssl_client_cert"><a class="permalink" href="#mariadb_ssl_client_cert">mariadb_ssl_cipher=AES128-SHA
+mariadb_ssl_cipher=DHE-RSA-AES256-SHA:</a></dt>AES128-SHA
+  <dd>mariadb_ssl_optional Establecer mariadb_ssl_option</dd>al
+  <dt id="mariadb_ssl_cipher"><a class="permalink" href="#mariadb_ssl_cipher">en verdadero desactiva la imposición estricta de SSL
+      y hace que la conexión SSL sea opcional. Esta opción abre una brecha de seguridad
+      para ataques de tipo man-in-the-middle. El valor predeterminado </a></dt>es falso, lo que significa
+      que
+  <dd>mariadb_ssl
+        <pre>establecido en v</pre>erdadero impone</dd> el cifrado SSL.
+  <dt id="mariadb_ssl_optional"><a class="permalink" href="#mariadb_ssl_optional">Debido a las vulnerabilidades The </a></dt>BACKRONYM
+  <dd>http://backronym.fail/ y The
+        Riddle https://riddle.link/ en las bibliotecas libmariadb y
+        libmysqlclient, la imposición del cifrado SSL no era posible y por lo tanto "mariadb_ssl_optional=1" <i>estaba </i>establecido efectivamente para el antiguo controlador DBD::mysql antes de que se creara el fork DBD::MariaDB. DBD::MariaDB con <i>"ma</i>riadb_ssl=1"
+    <p class="Pp">podría rechazar la
+        conexión al servidor MariaDB o MySQL si la biblioteca subyacente libmariadb o
+        libmysqlclient es vulnerable. La opción <a href='http://backronym.fail/'>mariadb_ss</a>l_optional <a href='https://riddle.link/'>se puede </a>usar para hacer que la conexión SSL sea vulnerable. mariadb_local_infile <span class="Li">La </span>capacidad
+        <span class="Li">"LOCAL" para </span>"LOAD DATA" puede estar deshabilitada en la
+      biblioteca de cliente MariaDB o MySQL por defecto. Si su DSN contiene la
+      opción <i>"maria</i>db_local_infile=</p>1</dd>"
+  <dt id="mariadb_local_infile"><a class="permalink" href="#mariadb_local_infile">, "LOAD DATA </a></dt>LOCAL"
+  <dd>será habilitado.
+      Sin embargo, esta opción es <span class="Li">ineficaz si el servidor también </span>ha sido
+      configurado para no permitir "LOCAL" . mariadb_embedded_options La opción
+      <span class="Li">ma</span>riadb_embedded_options <span class="Li">se puede usar para pasar opciones de
+      línea de comandos al servidor embebido. Cuando desee iniciar y </span>conectar
+      el servidor embebido, use
+      <span class="Li">"hos</span>t=embedded" <b>en
+    </b>  el dsn como parámetro de conexión. <span class="Li">Ejemp</span>l</dd>o:
+  <dt id="mariadb_embedded_options"><a class="permalink" href="#mariadb_embedded_options">use DBI;
+my $datadir = '/var/lib/mysql/';
+my $langdir = '/usr/share/mysql/';
+my $dsn = 'DBI:MariaDB:host=embedded;database=test;'
+        . "mariadb_embedded_options=--datadir=$datadir,'
+        .                          '--language=$langdir,'
+        .                          '--log-error=/dev/null";
+my </a></dt>$dbh = DBI-&gt;connect($dsn, undef, undef);
+  <dd>Esto iniciaría el servidor embebido con el directorio de idiomas <i>$</i>langdir <span class="Li">, el </span>directorio de bases de datos
+    <p class="Pp">$dat</p>adir
+        <pre>, descartaría los mensajes de error y se conectaría a la base de </pre>datos
+    <p class="Pp">"test"
+        <span class="Li">. Se </span>sugiere
+        especificar la opción
+        <span class="Li">"-</span>-log-error=" <span class="Li">que
+        define la </span>ubicación para los mensajes de advertencia, porque por defecto el servidor embebido
+        imprime sus mensajes de advertencia y error en <span class="Li">"</span>STDOUT"
+        <span class="Li">, lo cual </span>no es esperado por Perl
+        o la aplicación. El servidor embebido no tiene por qué ser compatible con la
+        biblioteca MariaDB o MySQL configurada. En ese caso,
+        <span class="Li">"DBI</span>-&gt;co</p>nnec</dd>t()"
+  <dt id="mariadb_embedded_groups"><a class="permalink" href="#mariadb_embedded_groups">devuelve un
+      </a></dt>error.
+  <dd>mariadb_embedded_groups La opción <i>mariad</i>b_embedded_groups<i>se </i>puede usar para especificar los
+      grupos en el archivo de configuración (
+      <span class="Li">my.</span>cnf
+      <span class="Li">) que se usarán para obtener
+      </span>opciones para el servidor embebido. Si no se especifica, se usarán los grupos
+    <p class="Pp">"[server]" y </p>"[embedded]" . Ejemplo:
+        <pre>my $dsn = 'DBI:MariaDB:host=embedded;</pre>database=test;'
+        . 'mariadb_emb</dd>edded_groups=embedded_server,common';
+  <dt id="mariadb_conn_attrs"><a class="permalink" href="#mariadb_conn_attrs">mariadb_conn_attrs La </a></dt>opción
+  <dd>mariadb_conn_attrs <i>es un hash de </i>nombres de atributos y
+      valores que se pueden usar para enviar atributos de conexión personalizados adel
+      servidor. Algunos atributos como <span class="Li">"_os"</span>,
+      <span class="Li">"_platform"</span>,
+      <span class="Li">"_client_name"</span> y
+      <span class="Li">"_client_version"</span> son añadidos por
+      libmariadb o libmysqlclient.
+    <p class="Pp">Luego puedes leer estos atributos desde las tablas del esquema de rendimiento, lo cual puede ser bastante útil para perfilar tu base de datos o crear estadísticas. Tendrás que usar tanto el servidor como el cliente al menos en la versión MariaDB 10.0.5 o MySQL 5.6 para aprovechar esta característica. Es una buena idea proporcionar el atributo adicional
+        <span class="Li">"program_name"</span> .</p>
+        <pre>my $dbh= DBI-&gt;connect($dsn, $user, $password, {
+    AutoCommit =&gt; 0,
+    mariadb_conn_attrs =&gt; {
+        program_name =&gt; $0,
+        foo =&gt; 'bar',
+        wiz =&gt; 'bang'
+    },
+});
+</pre>
+    <p class="Pp">Ahora puedes seleccionar los resultados de las tablas del esquema de rendimiento. Puedes hacerlo en la misma sesión, pero también después. Puede ser muy útil para responder preguntas como <i>¿qué script envió esta consulta?</i></p>
+        <pre>my $results = $dbh-&gt;selectall_hashref(
+    'SELECT * FROM performance_schema.session_connect_attrs',
+    'ATTR_NAME'
+);
+</pre>
+    <p class="Pp">Esto devuelve:</p>
+        <pre>$result = {
+    '_client_name' =&gt; {
+        'ATTR_VALUE'       =&gt; 'libmysql',
+        'ATTR_NAME'        =&gt; '_client_name',
+        'ORDINAL_POSITION' =&gt; '1',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    '_client_version' =&gt; {
+        'ATTR_VALUE'       =&gt; '5.6.24',
+        'ATTR_NAME'        =&gt; '_client_version',
+        'ORDINAL_POSITION' =&gt; '7',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    '_os' =&gt; {
+        'ATTR_VALUE'       =&gt; 'osx10.8',
+        'ATTR_NAME'        =&gt; '_os',
+        'ORDINAL_POSITION' =&gt; '0',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    '_pid' =&gt; {
+        'ATTR_VALUE'       =&gt; '59860',
+        'ATTR_NAME'        =&gt; '_pid',
+        'ORDINAL_POSITION' =&gt; '2',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    '_platform' =&gt; {
+        'ATTR_VALUE'       =&gt; 'x86_64',
+        'ATTR_NAME'        =&gt; '_platform',
+        'ORDINAL_POSITION' =&gt; '4',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    'foo' =&gt; {
+        'ATTR_NAME'        =&gt; 'foo',
+        'ATTR_VALUE'       =&gt; 'bar',
+        'ORDINAL_POSITION' =&gt; '6',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    'program_name' =&gt; {
+        'ATTR_VALUE'       =&gt; './foo.pl',
+        'ATTR_NAME'        =&gt; 'program_name',
+        'ORDINAL_POSITION' =&gt; '5',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+    'wiz' =&gt; {
+        'ATTR_VALUE'       =&gt; 'bang',
+        'ATTR_NAME'        =&gt; 'wiz',
+        'ORDINAL_POSITION' =&gt; '3',
+        'PROCESSLIST_ID'   =&gt; '3',
+    },
+};
+</pre>
+  </dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt id="data_sources"><a class="permalink" href="#data_sources">data_sources</a></dt>
+  <dd>
+    <pre>use DBI;
+my @dsns = DBI-&gt;data_sources('MariaDB', {
+    host =&gt; $hostname,
+    port =&gt; $port,
+    user =&gt; $username,
+    password =&gt; $password,
+    ...
+});
+</pre>
+    <p class="Pp">Devuelve una lista de todas las bases de datos en formato dsn adecuado para el método connect, gestionadas por el servidor MariaDB o MySQL. Acepta todos los atributos del método connect.</p>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DATABASE_HANDLES'><a class='permalink' href='#DATABASE_HANDLES'>MANEJADORES DE BASE DE DATOS</a></h1>
+<p class="Pp">El controlador DBD::MariaDB soporta los siguientes atributos de los manejadores de base de datos (solo lectura):</p>
+<pre>my $errno = $dbh-&gt;{'mariadb_errno'};
+my $error = $dbh-&gt;{'mariadb_error'};
+my $hostinfo = $dbh-&gt;{'mariadb_hostinfo'};
+my $info = $dbh-&gt;{'mariadb_info'};
+my $insertid = $dbh-&gt;{'mariadb_insertid'};
+my $protoinfo = $dbh-&gt;{'mariadb_protoinfo'};
+my $serverinfo = $dbh-&gt;{'mariadb_serverinfo'};
+my $ssl_cipher = $dbh-&gt;{'mariadb_ssl_cipher'};
+my $stat = $dbh-&gt;{'mariadb_stat'};
+my $thread_id = $dbh-&gt;{'mariadb_thread_id'};</pre>
+<p class="Pp">Estos corresponden a <span class="Li">mysql_errno()</span>,
+    <span class="Li">mysql_error()</span>,
+    <span class="Li">mysql_get_host_info()</span>,
+    <span class="Li">mysql_info()</span>,
+    <span class="Li">mysql_insert_id()</span>,
+    <span class="Li">mysql_get_proto_info()</span>,
+    <span class="Li">mysql_get_server_info()</span>,
+    <span class="Li">mysql_stat()</span>,
+    <span class="Li">mysql_get_ssl_cipher()</span> y
+    <span class="Li">mysql_thread_id()</span> respectivamente.</p>
+<p class="Pp">Las aplicaciones DBI portables no deberían usarlos. En su lugar deberían usar los métodos estándar de DBI: <span class="Li">"$dbh-&gt;err()"</span>
+    y <span class="Li">"$dbh-&gt;errstr()"</span> para el número y la cadena de error,
+    <span class="Li">"$dbh-&gt;get_info($GetInfoType{SQL_SERVER_NAME})"</span>
+    para el nombre del host del servidor,
+    <span class="Li">"$dbh-&gt;get_info($GetInfoType{SQL_DBMS_NAME})"</span>
+    y
+    <span class="Li">"$dbh-&gt;get_info($GetInfoType{SQL_DBMS_VER})"</span>
+    para el nombre y la versión de la base de datos del servidor,
+    <span class="Li">"$dbh-&gt;last_insert_id()"</span> o
+    <span class="Li">"$sth-&gt;last_insert_id()"</span> para el id de inserción.</p>
+<dl class="Bl-tag">
+  <dt id="mariadb_clientinfo"><a class="permalink" href="#mariadb_clientinfo">mariadb_clientinfo</a></dt>
+  <dd></dd>
+  <dt id="mariadb_clientversion"><a class="permalink" href="#mariadb_clientversion">mariadb_clientversion</a></dt>
+  <dd>Lista la información de la biblioteca cliente de MariaDB o MySQL contra la que se compiló DBD::MariaDB:
+        <pre>print "$dbh-&gt;{mariadb_clientinfo}\n";
+5.2.0-MariaDB
+print "$dbh-&gt;{mariadb_clientversion}\n";
+50200
+</pre>
+    <p class="Pp">Las aplicaciones DBI portables no deberían estar interesadas en la versión de la biblioteca cliente subyacente. DBD::MariaDB está ahí para ocultar cualquier posible incompatibilidad y funciona correctamente con cualquier versión disponible.</p>
+  </dd>
+  <dt id="mariadb_serverversion"><a class="permalink" href="#mariadb_serverversion">mariadb_serverversion</a></dt>
+  <dd>
+    <pre>print "$dbh-&gt;{mariadb_serverversion}\n";
+50200
+</pre>
+    <p class="Pp">Las aplicaciones DBI portables deberían usar
+        <span class="Li">"$dbh-&gt;get_info($GetInfoType{SQL_DBMS_NAME})"</span>
+        y
+        <span class="Li">"$dbh-&gt;get_info($GetInfoType{SQL_DBMS_VER})"</span>
+        para el nombre y la versión de la base de datos del servidor en su lugar.</p>
+  </dd>
+  <dt id="mariadb_ssl_cipher~2"><a class="permalink" href="#mariadb_ssl_cipher~2">mariadb_ssl_cipher</a></dt>
+  <dd>Devuelve el cifrado SSL utilizado para la conexión dada al servidor. En caso de que el cifrado SSL no estuviera habilitado con <i>mariadb_ssl</i> o no se hubiera establecido, devuelve <span class="Li">"undef"</span>.
+        <pre>my $ssl_cipher = $dbh-&gt;{mariadb_ssl_cipher};
+if (defined $ssl_cipher) {
+    print "Connection with server is encrypted with cipher: $ssl_cipher\n";
+} else {
+    print "Connection with server is not encrypted\n";
+}
+</pre>
+  </dd>
+  <dt id="mariadb_dbd_stats"><a class="permalink" href="#mariadb_dbd_stats">mariadb_dbd_stats</a></dt>
+  <dd>
+    <pre>my $info_hashref = $dbh-&gt;{mariadb_dbd_stats};
+</pre>
+    <p class="Pp">DBD::MariaDB mantiene un registro de algunas estadísticas en el atributo
+        <i>mariadb_dbd_stats</i> . Las siguientes estadísticas se mantienen:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="auto_reconnects_ok"><a class="permalink" href="#auto_reconnects_ok">auto_reconnects_ok</a></dt>
+  <dd>El número de veces que DBD::MariaDB se reconectó exitosamente al servidor MariaDB o MySQL.</dd>
+  <dt id="auto_reconnects_failed"><a class="permalink" href="#auto_reconnects_failed">auto_reconnects_failed</a></dt>
+  <dd>El número de veces que DBD::MariaDB intentó reconectarse a MariaDB o MySQL pero falló.</dd>
+</dl>
+</div>
+<p class="Pp">El controlador DBD::MariaDB también soporta los siguientes atributos de los manejadores de base de datos (lectura/escritura):</p>
+<dl class="Bl-tag">
+  <dt id="mariadb_auto_reconnect"><a class="permalink" href="#mariadb_auto_reconnect">mariadb_auto_reconnect</a></dt>
+  <dd>Este atributo determina si DBD::MariaDB se reconectará automáticamente al servidor MariaDB o MySQL si se pierde la conexión. Esta característica está desactivada por defecto. No se recomienda establecer <i>mariadb_auto_reconnect</i> en
+      <span class="Li">1</span> si se usa <span class="Li">"LOCK
+      TABLES"</span> porque si DBD::MariaDB se reconecta a MariaDB o MySQL, todos los bloqueos de tablas se perderán. Este atributo se ignora cuando AutoCommit está desactivado, y cuando AutoCommit está desactivado, DBD::MariaDB no se reconectará automáticamente al servidor.
+    <p class="Pp">También es posible establecer el valor por defecto del atributo
+        <i>mariadb_auto_reconnect</i> para
+        <span class="Li">$dbh</span> pasándolo en el hash
+        <span class="Li">"\%attr"</span> para
+        <span class="Li">"DBI-&gt;connect"</span>.</p>
+        <pre>$dbh-&gt;{mariadb_auto_reconnect} = 1;
+</pre>
+    <p class="Pp">o</p>
+        <pre>my $dbh = DBI-&gt;connect($dsn, $user, $password, {
+    mariadb_auto_reconnect =&gt; 1,
+});
+</pre>
+    <p class="Pp">Ten en cuenta que si estás usando un módulo o framework que realiza reconexiones por ti (por ejemplo DBIx::Connector en modo fixup), este valor debe establecerse en <span class="Li">0</span>.</p>
+  </dd>
+  <dt id="mariadb_use_result"><a class="permalink" href="#mariadb_use_result">mariadb_use_result</a></dt>
+  <dd>Este atributo fuerza al controlador a usar la función de biblioteca
+      <span class="Li">mysql_use_result()</span> en lugar de
+      <span class="Li">mysql_store_result()</span> . La primera es más rápida y consume menos memoria, pero tiende a bloquear otros procesos.
+      <span class="Li">mysql_store_result()</span> es la opción por defecto debido al hecho de que almacenar el resultado es el comportamiento esperado con la mayoría de las aplicaciones.
+    <p class="Pp">Es posible establecer el valor por defecto del atributo
+        <i>mariadb_use_result</i> para <span class="Li">$dbh</span>
+        a través del DSN:</p>
+        <pre>my $dbh = DBI-&gt;connect('DBI:MariaDB:test;mariadb_use_result=1', $user, $pass);
+</pre>
+    <p class="Pp">También puedes establecerlo después de crear el manejador de base de datos:</p>
+        <pre>$dbh-&gt;{mariadb_use_result} = 0; # disable
+$dbh-&gt;{mariadb_use_result} = 1; # enable
+</pre>
+    <p class="Pp">También puedes establecer o desactivar la configuración <i>mariadb_use_result</i>
+        en tu manejador de sentencia, al crear el manejador de sentencia o después de que haya sido creado. Ver "MANEJADORES DE SENTENCIAS".</p>
+    <p class="Pp">Las funciones de biblioteca <span class="Li">mysql_use_result()</span>
+        y <span class="Li">mysql_store_result()</span> no se usan para las sentencias preparadas del lado del servidor, por lo tanto este atributo <i>mariadb_use_result</i>
+        no tiene efecto cuando las sentencias preparadas del lado del servidor están habilitadas.</p>
+    <p class="Pp">Ten en cuenta que la función de biblioteca
+        <span class="Li">mysql_use_result()</span> no proporciona el número de filas en el conjunto de resultados. Por lo tanto, si este atributo <i>mariadb_use_result</i>
+        está habilitado, la variable de DBI
+        <span class="Li">$DBI::rows</span> y los métodos de sentencia execute y rows devuelven <span class="Li">-1</span> (lo que significa que el número de filas no se conoce). Sin embargo, el método de sentencia rows devuelve el número correcto de filas después de que todas las filas ya se hayan obtenido y se haya emitido una llamada adicional de fetch (para este caso especial el controlador sabe que procesó todas las filas y por lo tanto sabe cuál es el ttotal number of rows).</p>
+    <p class="Pp">Habilitar <i>mariadb_use_result</i> el atributo en un manejador de sentencia
+        prohíbe el uso de todos los demás manejadores de sentencia y de base de datos hasta que
+        todas las filas de datos del manejador de sentencia activo se hayan obtenido. Intentar usar
+        otros manejadores de sentencia o de base de datos cuando hay un
+        <i>mariadb_use_result</i> atributo activo en algún manejador de sentencia causa
+        errores impredecibles.</p>
+    <p class="Pp">En la mayoría de los casos no hay beneficio en el uso de este
+        <i>mariadb_use_result</i> atributo, debería permanecer deshabilitado.</p>
+  </dd>
+  <dt id="mariadb_bind_type_guessing"><a class="permalink" href="#mariadb_bind_type_guessing">mariadb_bind_type_guessing</a></dt>
+  <dd>Este atributo hace que el controlador (sentencias preparadas emuladas) intente
+      adivinar si un valor que se está enlazando es un valor numérico, y si lo es, no
+      comilla el valor. Esto fue creado por Dragonchild y es una forma de lidiar
+      con el problema de rendimiento de usar comillas en una sentencia que está
+      insertando o actualizando un valor numérico grande.
+    <p class="Pp">ADVERTENCIA: Aunque puedes insertar un valor entero en una
+        columna de caracteres, si esta columna está indexada, si consultas esa columna
+        con el valor entero sin comillas, no usará el índice:</p>
+        <pre>MariaDB [test]&gt; explain select * from test where value0 = '3' \G
+*************************** 1. row ***************************
+           id: 1
+  select_type: SIMPLE
+        table: test
+         type: ref
+possible_keys: value0
+          key: value0
+      key_len: 13
+          ref: const
+         rows: 1
+        Extra: Using index condition
+1 row in set (0.00 sec)
+MariaDB [test]&gt; explain select * from test where value0 = 3
+    -&gt; \G
+*************************** 1. row ***************************
+           id: 1
+  select_type: SIMPLE
+        table: test
+         type: ALL
+possible_keys: value0
+          key: NULL
+      key_len: NULL
+          ref: NULL
+         rows: 6
+        Extra: Using where
+1 row in set (0.00 sec)
+</pre>
+    <p class="Pp">Ver error:
+        <a href='https://rt.cpan.org/Public/Bug/Display.html?id=43822'>https://rt.cpan.org/Public/Bug/Display.html?id=43822</a></p>
+    <p class="Pp"><i>mariadb_bind_type_guessing</i> puede activarse mediante</p>
+    <p class="Pp">- a través de DSN</p>
+        <pre>my $dbh = DBI-&gt;connect('DBI:MariaDB:test', 'username', 'pass', {
+    mariadb_bind_type_guessing =&gt; 1
+});
+</pre>
+    <p class="Pp">- O después de la creación del manejador</p>
+        <pre>$dbh-&gt;{mariadb_bind_type_guessing} = 1;
+</pre>
+  </dd>
+  <dt id="mariadb_bind_comment_placeholders"><a class="permalink" href="#mariadb_bind_comment_placeholders">mariadb_bind_comment_placeholders</a></dt>
+  <dd>Este atributo hace que el controlador (sentencias preparadas emuladas) haga que
+      cualquier marcador de posición en los comentarios sea enlazado. Este no es el comportamiento correcto de
+      sentencias preparadas, pero algunos desarrolladores han llegado a depender de este
+      comportamiento.</dd>
+  <dt id="mariadb_no_autocommit_cmd"><a class="permalink" href="#mariadb_no_autocommit_cmd">mariadb_no_autocommit_cmd</a></dt>
+  <dd>Este atributo hace que el controlador no emita <span class="Li">"SET
+      AUTOCOMMIT"</span> ya sea de forma explícita o usando
+      <span class="Li">mysql_autocommit()</span>. Esto es particularmente útil en
+      el caso de usar MySQL Proxy.
+    <p class="Pp">Ver el informe de error:
+        <a href='https://rt.cpan.org/Public/Bug/Display.html?id=46308'>https://rt.cpan.org/Public/Bug/Display.html?id=46308</a></p>
+    <p class="Pp"><i>mariadb_no_autocommit_cmd</i> puede activarse al
+        crear el manejador de base de datos:</p>
+        <pre>my $dbh = DBI-&gt;connect('DBI:MariaDB:test', 'username', 'pass', {
+    mariadb_no_autocommit_cmd =&gt; 1
+});
+</pre>
+    <p class="Pp">o usando un manejador de base de datos existente:</p>
+        <pre>$dbh-&gt;{mariadb_no_autocommit_cmd} = 1;
+</pre>
+  </dd>
+  <dt id="mariadb_max_allowed_packet"><a class="permalink" href="#mariadb_max_allowed_packet">mariadb_max_allowed_packet</a></dt>
+  <dd>Este atributo controla el tamaño máximo de un paquete, cualquier cadena generada o
+      intermedia y cualquier parámetro enlazado. El valor predeterminado depende de la
+      biblioteca cliente MariaDB/MySQL y debería ser 1GB.
+        <pre>$dbh-&gt;{mariadb_max_allowed_packet} = 32*1024*1024; # limit max size to 32MB
+</pre>
+  </dd>
+  <dt id="mariadb_multi_statements"><a class="permalink" href="#mariadb_multi_statements">mariadb_multi_statements</a></dt>
+  <dd>El soporte para múltiples sentencias separadas por un punto y coma
+      (<span class="Li">";"</span>) puede habilitarse usando esta
+      opción. Habilitar esta opción puede causar problemas si las sentencias preparadas del lado del servidor
+      también están habilitadas.</dd>
+  <dt id="mariadb_server_prepare"><a class="permalink" href="#mariadb_server_prepare">mariadb_server_prepare</a></dt>
+  <dd>Esta opción se usa para habilitar sentencias preparadas del lado del servidor. Por defecto
+      las sentencias preparadas no se usan y el reemplazo de marcadores de posición lo realiza
+      DBD::MariaDB antes de enviar la sentencia SQL al servidor MariaDB o MySQL.
+    <p class="Pp">Este comportamiento predeterminado puede cambiar en el futuro.</p>
+    <p class="Pp">Para usar sentencias preparadas del lado del servidor, todo lo que necesitas hacer es
+        establecer la variable <i>mariadb_server_prepare</i> en la conexión:</p>
+        <pre>my $dbh = DBI-&gt;connect(
+    'DBI:MariaDB:database=test;host=localhost;mariadb_server_prepare=1',
+    'user',
+    'password',
+    { RaiseError =&gt; 1, PrintError =&gt; 0 },
+);
+</pre>
+    <p class="Pp">o:</p>
+        <pre>my $dbh = DBI-&gt;connect(
+    'DBI:MariaDB:database=test;host=localhost',
+    'user',
+    'password',
+    { RaiseError =&gt; 1, PrintError =&gt; 0, mariadb_server_prepare =&gt; 1 },
+);
+</pre>
+    <p class="Pp">Hay muchos beneficios en usar sentencias preparadas del lado del
+        servidor, principalmente si estás usando sentencias SQL con marcadores de posición o
+        realizando muchas inserciones debido al hecho de que una única sentencia se
+        prepara para aceptar múltiples valores de inserción.</p>
+    <p class="Pp">Ten en cuenta que el servidor MariaDB o MySQL no puede preparar o
+        ejecutar algunas sentencias preparadas. En este caso DBD::MariaDB recurre a
+        una sentencia normal no preparada e intenta de nuevo.</p>
+  </dd>
+  <dt id="mariadb_server_prepare_disable_fallback"><a class="permalink" href="#mariadb_server_prepare_disable_fallback">mariadb_server_prepare_disable_fallback</a></dt>
+  <dd>Esta opción deshabilita la retrocesión a una sentencia normal no preparada cuando el servidor MariaDB
+      o MySQL no soporta la ejecución de la sentencia actual como
+      preparada.
+    <p class="Pp">Útil cuando quieres estar seguro de que la sentencia va a
+        ser ejecutada como preparada del lado del servidor. El mensaje de error y el código en caso de
+        fallo se propagan de vuelta a DBI.</p>
+    <p class="Pp">Este comportamiento predeterminado puede cambiar en el futuro.</p>
+  </dd>
+</dl>
+<p class="Pp">Documentación de algunos métodos de DBD::MariaDB de manejadores de
+  base de datos:</p>
+<dl class="Bl-tag">
+  <dt id="ping"><a class="permalink" href="#ping">ping</a></dt>
+  <dd>Esto puede usarse para enviar un ping al servidor. Ver DBI ping.
+        <pre>my $rc = $dbh-&gt;ping();
+</pre>
+  </dd>
+  <dt id="get_info"><a class="permalink" href="#get_info">get_info</a></dt>
+  <dd>Este método puede usarse para recuperar información sobre el servidor MariaDB o MySQL
+      . Ver DBI get_info. Alguna información útil:
+      <span class="Li">"SQL_DBMS_NAME"</span> devuelve el nombre de la base de datos del servidor, ya sea <span class="Li">"MariaDB"</span> o
+      <span class="Li">"MySQL"</span>.
+      <span class="Li">"SQL_DBMS_VER"</span> devuelve la versión de la base de datos del servidor y <span class="Li">"SQL_SERVER_NAME"</span> devuelve
+      el nombre del host del servidor.
+        <pre>use DBI::Const::GetInfoType;
+print $dbh-&gt;get_info($GetInfoType{SQL_DBMS_NAME});
+MariaDB
+print $dbh-&gt;get_info($GetInfoType{SQL_DBMS_VER});
+10.01.2600
+print $dbh-&gt;get_info($GetInfoType{SQL_SERVER_NAME});
+Localhost via UNIX socket
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='STATEMENT_HANDLES'><a class='permalink' href='#STATEMENT_HANDLES'>MANEJADORES DE SENTENCIAS</a></h1>
+<p class="Pp">Los manejadores de sentencias de DBD::MariaDB soportan una serie de
+    atributos. Accedes a ellos usando, por ejemplo,</p>
+<pre>my $numFields = $sth-&gt;{NUM_OF_FIELDS};</pre>
+<p class="Pp">Ten en cuenta que la mayoría de los atributos son válidos solo después de un
+    execute exitoso. Un valor <span class="Li">"undef"</span> se devolverá
+    de lo contrario. La excepción más importante es el <i>mariadb_use_result</i>
+    atributo.</p>
+<p class="Pp">Para establecer el <i>mariadb_use_result</i> atributo en el manejador de sentencia
+    <span class="Li">$sth</span>, usa cualquiera de los siguientes:</p>
+<pre>my $sth = $dbh-&gt;prepare($sql, { mariadb_use_result =&gt; 1});</pre>
+<p class="Pp">o</p>
+<pre>my $sth = $dbh-&gt;prepare($sql);
+$sth-&gt;{mariadb_use_result} = 1;</pre>
+<p class="Pp">Los atributos dependientes de la columna, por ejemplo <i>NAME</i>, los nombres de
+    las columnas, se devuelven como una referencia a un array. Los índices del array
+    corresponden a los índices de los arrays devueltos por fetchrow y métodos
+    similares. Por ejemplo, el siguiente código imprimirá un encabezado de los nombres de tabla
+    junto con todas las filas:</p>
+<pre>my $sth = $dbh-&gt;prepare('SELECT * FROM t')
+    or die 'Error: ' . $dbh-&gt;errstr() . "\n";
+$sth-&gt;execute()
+    or die 'Error: ' . $sth-&gt;errstr() . "\n";
+my $names = $sth-&gt;{NAME};
+my $numFields = $sth-&gt;{'NUM_OF_FIELDS'} - 1;
+for my $i ( 0..$numFields ) {
+    printf('%s%s', $i ? ',' : '', $$names[$i]);
+}
+print "\n";
+while (my $ref = $sth-&gt;fetchrow_arrayref()) {
+    for my $i ( 0..$numFields ) {
+        printf('%s%s', $i ? ',' : '', $$ref[$i]);
+    }
+    print "\n";
+}</pre>
+<p class="Pp">Para aplicaciones portables, deberías restringirte a
+    atributos con nombres en mayúsculas o en formato mixto. Los nombres de atributos en
+    minúscula son privados de DBD::MariaDB. La lista de atributos incluye:</p>
+<dl class="Bl-tag">
+  <dt id="ChopBlanks"><a class="permalink" href="#ChopBlanks">ChopBlanks</a></dt>
+  <dd>Este atributo determina si un fetchrow recortará los espacios en blanco iniciales y
+      finales de los valores de las columnas. Recortar los espacios en blanco no tiene
+      impacto en el <i>mariadb_max_length</i> atributo.</dd>
+  <dt id="mariadb_insertid"><a class="permalink" href="#mariadb_insertid">mariadb_insertid</a></dt>
+  <dd>Si la sentencia que ejecutaste realiza un
+      <span class="Li">"INSERT"</span>, y hay una columna
+      <span class="Li">"AUTO_INCREMENT"</span> en la tabla en la que
+      insertaste, este atributo contiene el valor almacenado en la
+      <span class="Li">"AUTO_INCREMENT"</span> columna, si ese valor
+      es generado automáticamente, almacenando
+      <span class="Li">"NULL"</span> o <span class="Li">0</span> o
+      se especificó como un valor explícito.
+    <p class="Pp">Típicamente, accederías al valor mediante
+        <span class="Li">"$sth-&gt;{mariadb_insertid}"</span>. El
+        valor también puede accederse mediante
+        <span class="Li">"$dbh-&gt;{mariadb_insertid}"</span> pero esto
+        puede producir fácilmente resultados incorrectos en caso de que un manejador de base de datos
+        esté compartido.</p>
+    <p class="Pp">Las aplicaciones DBI portables no deberían usar
+        <i>mariadb_insertid</i>. En su lugar deberían usar el método DBI
+        <span class="Li">"$dbh-&gt;last_insert_id()"</span> o
+        el método DBI de sentencia
+        <span class="Li">"$sth-&gt;last_insert_id()"</span>. El método de sentencia
+        se introdujo en la versión 1.642 de DBI, pero DBD::MariaDB lo implementa
+        también para versiones anteriores de DBI.</p>
+  </dd>
+  <dt id="mariadb_is_blob"><a class="permalink" href="#mariadb_is_blob">mariadb_is_blob</a></dt>
+  <dd>Referencia a un array de valores booleanos; Un valor lógico verdadero indica
+      que la columna respectiva es un blob.</dd>
+  <dt id="mariadb_is_key"><a class="permalink" href="#mariadb_is_key"&gt;mariadb_is_key</a></dt>
+  <dd>Referencia a un arreglo de valores booleanos; El valor lógico verdadero indica
+      que la respectiva columna es una clave.</dd>
+  <dt id="mariadb_is_num"><a class="permalink" href="#mariadb_is_num">mariadb_is_num</a></dt>
+  <dd>Referencia a un arreglo de valores booleanos; El valor lógico verdadero indica
+      que la respectiva columna contiene valores numéricos.</dd>
+  <dt id="mariadb_is_pri_key"><a class="permalink" href="#mariadb_is_pri_key">mariadb_is_pri_key</a></dt>
+  <dd>Referencia a un arreglo de valores booleanos; El valor lógico verdadero indica
+      que la respectiva columna es una clave primaria.</dd>
+  <dt id="mariadb_is_auto_increment"><a class="permalink" href="#mariadb_is_auto_increment">mariadb_is_auto_increment</a></dt>
+  <dd>Referencia a un arreglo de valores booleanos; El valor lógico verdadero indica que
+      la respectiva columna es una
+      <span class="Li">"AUTO_INCREMENT"</span> columna.</dd>
+  <dt id="mariadb_length"><a class="permalink" href="#mariadb_length">mariadb_length</a></dt>
+  <dd></dd>
+  <dt id="mariadb_max_length"><a class="permalink" href="#mariadb_max_length">mariadb_max_length</a></dt>
+  <dd>Una referencia a un arreglo de tamaños máximos de columna. El
+      <i>mariadb_max_length</i> es el máximo físicamente presente en la tabla de resultados,
+      mientras que <i>mariadb_length</i> da el máximo teóricamente posible.
+    <p class="Pp">Para los tipos de variables orientados a cadenas (char, varchar, text y
+        tipos similares), ambos atributos devuelven el valor en bytes. Si está
+        interesado en el número de caracteres, entonces en lugar de <i>mariadb_length</i>
+        use <span class="Li">"COLUMN_SIZE"</span> a través del método estándar de DBI
+        column_info y en lugar de <i>mariadb_max_length</i> ejecute la consulta SQL <span class="Li">"SELECT MAX(CHAR_LENGTH(...))"</span>.
+        Ejemplo:</p>
+        <pre>my $ci_sth = $dbh-&gt;column_info(undef, undef, $table, $column);
+my $ci_ref = $ci_sth-&gt;fetchall_arrayref({});
+my $mariadb_char_length = $ci_ref-&gt;[0]-&gt;{COLUMN_SIZE};
+my $mariadb_char_max_length = $dbh-&gt;selectrow_array(sprintf(
+                                  'SELECT MAX(CHAR_LENGTH(%s)) FROM %s',
+                                  $dbh-&gt;quote_identifier($column),
+                                  $dbh-&gt;quote_identifier($table),
+                              ));
+</pre>
+  </dd>
+  <dt id="NAME~2"><a class="permalink" href="#NAME~2">NOMBRE</a></dt>
+  <dd>Una referencia a un arreglo de nombres de columnas.</dd>
+  <dt id="NULLABLE"><a class="permalink" href="#NULLABLE">NULLABLE</a></dt>
+  <dd>Una referencia a un arreglo de valores booleanos; El valor lógico verdadero indica
+      que esta columna puede contener
+    <span class="Li">"NULL"</span>'s.</dd>
+  <dt id="NUM_OF_FIELDS"><a class="permalink" href="#NUM_OF_FIELDS">NUM_OF_FIELDS</a></dt>
+  <dd>Número de campos devueltos por una <span class="Li">"SELECT"</span>
+      declaración. Puede usar esto para verificar si una declaración devolvió un
+      resultado: Un valor cero indica una
+      declaración no<span class="Li">"SELECT"</span> como
+      <span class="Li">"INSERT"</span>,
+      <span class="Li">"DELETE"</span> o
+      <span class="Li">"UPDATE"</span>.</dd>
+  <dt id="mariadb_table"><a class="permalink" href="#mariadb_table">mariadb_table</a></dt>
+  <dd>Una referencia a un arreglo de nombres de tablas, útil en un
+      <span class="Li">"JOIN"</span> resultado.</dd>
+  <dt id="TYPE"><a class="permalink" href="#TYPE">TYPE</a></dt>
+  <dd>Una referencia a un arreglo de tipos de columna. Los tipos de columna nativos
+      del motor se mapean a tipos portables como
+      <span class="Li">DBI::SQL_INTEGER()</span> o
+      <span class="Li">DBI::SQL_VARCHAR()</span>, tan bien como sea posible. No todos
+      los tipos nativos tienen un equivalente significativo. Si necesita los tipos de columna
+      nativos, use <i>mariadb_type</i>. Vea abajo.</dd>
+  <dt id="mariadb_type"><a class="permalink" href="#mariadb_type">mariadb_type</a></dt>
+  <dd>Una referencia a un arreglo de los tipos de columna nativos de MySQL, por ejemplo
+      <span class="Li">DBD::MariaDB::TYPE_SHORT()</span> o
+      <span class="Li">DBD::MariaDB::TYPE_STRING()</span>. Use el <i>TYPE</i>
+      atributo, si quiere tipos portables como
+      <span class="Li">DBI::SQL_SMALLINT()</span> o
+      <span class="Li">DBI::SQL_VARCHAR()</span>.</dd>
+  <dt id="mariadb_type_name"><a class="permalink" href="#mariadb_type_name">mariadb_type_name</a></dt>
+  <dd>Similar a <i>mariadb_type</i>, pero se devuelven nombres de tipos y no números.
+      Siempre que sea posible, se prefiere el nombre ANSI SQL.</dd>
+  <dt id="mariadb_warning_count"><a class="permalink" href="#mariadb_warning_count">mariadb_warning_count</a></dt>
+  <dd>El número de advertencias generadas durante la ejecución de la declaración SQL.
+      Este atributo está disponible tanto en manejadores de declaración como en manejadores
+      de base de datos.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='UNICODE_SUPPORT'><a class='permalink' href='#UNICODE_SUPPORT'>SOPORTE   UNICODE</a></h1>
+<p class="Pp">Todos los tipos de variables orientados a cadenas (char, varchar, text y
+    tipos similares) son representados por el DBD::MariaDB como cadenas Unicode
+    de acuerdo con el modelo Unicode estándar de Perl. Significa que los escalares
+    de Perl contienen puntos de código Unicode y no bytes UTF-8. Internamente el DBD::MariaDB
+    usa el <span class="Li">"utf8mb4"</span> charset de MySQL para la
+    comunicación de red con los servidores MariaDB y MySQL. Transforma automáticamente
+    el charset de red de MySQL <span class="Li">"utf8mb4"</span>
+    a los escalares Unicode de Perl y viceversa.</p>
+<p class="Pp">El <span class="Li">"utf8mb4"</span> charset de MySQL para
+    la comunicación de red es configurado por
+    <span class="Li">"MYSQL_SET_CHARSET_NAME"</span>
+    libmariadb/libmysqlclient C library API el cual es un requisito para tener
+    un método quote funcionando y una emulación de reemplazo de placeholders
+  del lado del cliente.</p>
+<p class="Pp">No intente cambiar el charset de red (por ejemplo, vía el comando SQL
+    <span class="Li">"SET NAMES"</span> manualmente) a algo
+    diferente a UTF-8, ya que confundiría la biblioteca C subyacente y
+    DBD::MariaDB se comportaría mal (por ejemplo, llevaría a un método quote
+    roto/inseguro o a una emulación de reemplazo de placeholders del lado del cliente).</p>
+<p class="Pp">Usar un charset no-UTF-8 para una columna, tabla o base de datos está bien
+    porque el servidor MariaDB o MySQL transforma automáticamente el charset de almacenamiento
+    al charset usado por el protocolo de red
+    (<span class="Li">"utf8mb4"</span>). Note que cuando DBD::MariaDB
+    se conecta al servidor MariaDB o MySQL, llama al comando SQL
+    <span class="Li">"SET character_set_server = 'utf8mb4'"</span> para
+    asegurar que el charset por defecto para nuevas bases de datos sea UTF-8. Tenga en cuenta
+    que el charset por defecto para nuevas tablas se establece a partir del charset de la base de datos.</p>
+<p class="Pp">En el caso de que el servidor MySQL no soporte el
+    <span class="Li">"utf8mb4"</span> charset de MySQL para un protocolo de red,
+    entonces DBD::MariaDB intentaría usar el
+    <span class="Li">"utf8"</span> charset de MySQL el cual es un subconjunto de la codificación
+    UTF-8 restringido a las secuencias UTF-8 de 3 bytes. El soporte para el
+    <span class="Li">"utf8mb4"</span> charset de MySQL fue introducido en la versión
+    5.5.3 del servidor MySQL.</p>
+<section class="Ss">
+<h2 class="Ss" id='Working_with_binary_data'><a class='permalink' href='#Working_with_binary_data'>Trabajando   con datos binarios</a></h2>
+<p class="Pp">Los escalares de Perl no distinguen entre <i>byte</i>
+    buffers orientados a <i>Unicode</i> y cadenas orientadas a Unicode. En Perl
+    siempre es responsabilidad del llamador y del receptor definir en su API si las funciones y
+    métodos esperan <i>byte</i> buffers o <i>Unicode</i> cadenas. No es
+    posible (o más bien la aplicación Perl no debería intentar) distinguir si un
+    escalar de Perl contiene un <i>byte</i> buffer o una <i>Unicode</i> cadena.</p>
+<p class="Pp">Al obtener datos de los servidores MariaDB y MySQL, DBD::MariaDB
+    trata todos los campos marcados con el charset de MySQL
+    <span class="Li">"utf8mb4"</span> (y también
+    <span class="Li">"utf8"</span>) como <i>Unicode</i> cadenas.
+    Todo lo demás es tratado como <i>byte</i> buffers orientados a binario.
+    Por lo tanto, la única diferencia es que los campos UTF-8 son automáticamente
+    decodificados a Unicode. Los campos blob binarios permanecen intactos y los escalares de Perl
+    correspondientes contendrían solo ordinales <span class="Li">0..255</span>
+    (secuencia clásica de bytes). Los escalares de cadena Unicode contendrían una secuencia
+    de puntos de código Unicode.</p>
+<p class="Pp">Hay un pequeño problema con los datos de entrada, más precisamente con las declaraciones
+    SQL y sus parámetros de enlace. Por definición, una declaración SQL es una
+    cadena y por lo tanto es esperada y manejada por DBD::MariaDB como una
+    <i>Unicode</i> cadena (no un <i>byte</i> buffer orientado a binario). No hay forma de
+    tratar una declaración SQL como binaria, pero esto no es un problema. Todos los comandos SQL
+    están codificados en ASCII y todos los caracteres ASCII son invariantes en
+    UTF-8 (tienen la misma representación que una secuencia de puntos de código Unicode y
+    también cuando están codificados en UTF-8 en un buffer de bytes). Para la parte restante de una
+    declaración SQL, se pueden y deben usar placeholders con parámetros de enlace.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Binary_parameters'><a class='permalink' href='#Binary_parameters'>Parámetros   binarios</a></h2>
+<p class="Pp">Desafortunadamente, ni el servidor MariaDB ni el de MySQL proporcionan información
+    de tipo para declaraciones SQL preparadas; por lo tanto, DBD::MariaDB
+    no tiene absolutamente ninguna forma de saber si un parámetro de enlace particular para un placeholder
+    debe ser tratado como una <i>Unicode</i> cadena o como un <i>byte</i> buffer orientado a
+    binario. Así que las aplicaciones Perl que usan DBD::MariaDB deben proporcionar información
+    sobre el tipo correcto.</p>
+<p class="Pp">Además, la API de DBI para do, execute y todos los métodos select* enlaza
+    todos los parámetros como <span class="Li">"SQL_VARCHAR"</span> tipo.
+    Actualmente es una limitación de la API que no permite especificar el
+    tipo de enlace. Varchar es una cadena y así DBD::MariaDB trata a todos ellos como
+    <i>Unicode</i> cadenas.</p>
+<p class="Pp">La única forma de especificar un tipo en DBI es a través del método
+    bind_param. Su tercer argumento toma una <span class="Li">"SQL_*"</span>
+    constante que define un tipo para el parámetro de enlace pasado.</p>
+<p class="Pp">Las siguientes constantes de tipo son tratadas como binarias por DBD::MariaDB:
+    <span class="Li">"SQL_BIT"</span>,
+    <span class="Li">"SQL_BLOB"</span>,
+    <span class="Li">"SQL_BINARY"</span>,
+    <span class="Li">"SQL_VARBINARY"</span>,
+    <span class="Li">"SQL_LONGVARBINARY"</span>.</p>
+<p class="Pp">Este enfoque de manejo de datos binarios fue implementado en
+    DBD::MariaDB porque no viola cómo funciona el modelo Unicode de Perl,
+    sigue exactamente la documentación de la API de DBI y, más importante, es
+    cómo otros controladores DBI (incluyendo DBD::Pg y DBD::SQLite) en sus versiones
+    recientes funcionan. Esto asegura una buena compatibilidad para las aplicaciones Perl que
+    usan múltiples backends de base de datos y varios controladores DBI.</p>
+<p class="Pp">Por favor note que el viejo controlador DBD::mysql en la versión 4.041 funciona
+    de manera diferente y tiene el soporte Unicode completamente roto.</p>
+<p class="Pp">Para ilustrar el uso, vea el siguiente ejemplo:</p>
+<pre># Prepare statement
+my $sth = $dbh-&gt;prepare(
+    'INSERT INTO users (id, name, picture) VALUES (?, ?, ?)'
+);
+# Bind number, 7-bit ASCII values are always in Unicode and binary context
+$sth-&gt;bind_param(1, 10);
+# Bind name, may contains Unicode character, in this case U+00E9
+$sth-&gt;bind_param(2, "Andr\x{E9}");
+# Bind picture, it is a sequence of binary bytes, not Unicode code points
+$sth-&gt;bind_param(3, "\x{D8}\x{A0}\x{39}\x{F8}", DBI::SQL_BINARY);
+# Execute statement with bind parameters
+$sth-&gt;execute();</pre>
+<p class="Pp">Explicación: En este caso número <span class="Li">10</span> y
+    nombre <span class="Li">"Andr\x{E9}"</span> se codificarían automáticamente
+    desde escalares de cadena Unicode de Perl al
+    <span class="Li">"utf8mb4"</span> de red de MySQL y
+    <i>imagen</i> no se tocaría ya que se vinculó con el
+    <span class="Li">"DBI::SQL_BINARY"</span> tipo. Tenga en cuenta que los valores ASCII de 7 bits
+    son invariantes en UTF-8, tienen las mismas representaciones en
+    UTF-8, por lo que tanto la operación de codificación como la de decodificación son funciones de identidad.</p>
+<p class="Pp">Esta es la forma preferida y segura de trabajar con datos binarios.
+    También es compatible con otros controladores DBI, incluyendo DBD::Pg y DBD::SQLite
+    (ver arriba).</p>
+<p class="Pp">En DBD::MariaDB, hay otra forma específica de crear una sentencia SQL
+    con datos binarios: llamar al método quote mientras se especifica un
+    tipo binario. Este método toma un parámetro de vinculación y lo cita +
+    escapa adecuadamente. Para tipos binarios convierte el argumento a la sintaxis HEX de MySQL (<span class="Li">"X'...'"</span>) que es ASCII puro de 7 bits y
+    por lo tanto invariante para UTF-8. Vea el siguiente ejemplo:</p>
+<pre>my $param1 = 10;
+my $param2 = "Andr\x{E9}";
+my $param3 = "\x{D8}\x{A0}\x{39}\x{F8}";
+my $query = 'INSERT INTO users (id, name, picture) VALUES (' .
+              $dbh-&gt;quote($param1) . ' ,' .
+              $dbh-&gt;quote($param2) . ' ,' .
+              $dbh-&gt;quote($param3, DBI::SQL_BINARY) .
+            ')';
+$dbh-&gt;do($query);</pre>
+<p class="Pp">Los dos primeros parámetros se citan y escapan para una posterior codificación UTF-8
+    (a la <span class="Li">"utf8mb4"</span> charset)
+    y el tercer parámetro se cita y escapa como un búfer binario a la sintaxis HEX de MySQL para blobs binarios.</p>
+<p class="Pp">Este método no se recomienda, porque los métodos de citado, escapado y
+    similares pueden escribirse fácilmente de forma incorrecta y conducir a inyecciones SQL y otros problemas de seguridad.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TRANSACTION_SUPPORT'><a class='permalink' href='#TRANSACTION_SUPPORT'>SOPORTE   DE TRANSACCIONES</a></h1>
+<p class="Pp">El soporte de transacciones funciona de la siguiente manera:</p>
+<ul class="Bl-bullet">
+  <li>Por defecto, el modo AutoCommit está activado, siguiendo las especificaciones de DBI.</li>
+  <li>Si ejecuta
+        <pre>$dbh-&gt;{AutoCommit} = 0;
+</pre>
+    <p class="Pp">o</p>
+        <pre>$dbh-&gt;{AutoCommit} = 1;
+</pre>
+    <p class="Pp">entonces el controlador establecerá la variable del servidor MariaDB o MySQL
+        autocommit a <span class="Li">0</span> o <span class="Li">1</span>,
+        respectivamente. Cambiar de <span class="Li">0</span> a
+        <span class="Li">1</span> también emitirá un
+        <span class="Li">"COMMIT"</span>, siguiendo las especificaciones de
+        DBI.</p>
+  </li>
+  <li>Los métodos
+        <pre>$dbh-&gt;rollback();
+$dbh-&gt;commit();
+</pre>
+    <p class="Pp">emitirán los comandos
+        <span class="Li">"ROLLBACK"</span> y
+        <span class="Li">"COMMIT"</span>, respectivamente. Un
+        <span class="Li">"ROLLBACK"</span> también se emitirá si
+        el modo AutoCommit está desactivado y se llama al método DESTROY del manejador de base de datos. De nuevo, esto sigue las especificaciones de DBI.</p>
+  </li>
+</ul>
+<p class="Pp">Dado lo anterior, debe tener en cuenta lo siguiente:</p>
+<ul class="Bl-bullet">
+  <li>Nunca debe cambiar manualmente la variable del servidor AutoCommit, a menos
+      que esté ignorando el soporte de transacciones de DBI.</li>
+  <li>Cambiar el modo AutoCommit de activado a desactivado o viceversa puede fallar. Debe
+      comprobar siempre si hay errores al cambiar el modo AutoCommit. La
+      forma sugerida de hacerlo es usando el indicador RaiseError de DBI. Si no
+      le gusta RaiseError, tiene que usar código como el siguiente:
+        <pre>$dbh-&gt;{AutoCommit} = 0;
+if ($dbh-&gt;{AutoCommit}) {
+    # An error occurred!
+}
+</pre>
+  </li>
+  <li>Si detecta un error al cambiar el modo AutoCommit, ya no debe
+      usar el manejador de base de datos. En otras palabras, debe desconectarse y
+      reconectarse de nuevo, porque el modo de transacción es impredecible.
+      Alternativamente, puede verificar el modo de transacción comprobando el valor de
+      la variable del servidor autocommit. Sin embargo, ese comportamiento no es
+    portable.</li>
+  <li>DBD::MariaDB tiene una <i>reconexión</i> característica que maneja el llamado
+      bug de la mañana <i>de MySQL</i>: Si el servidor se ha desconectado, probablemente
+      debido a un tiempo de espera, entonces por defecto el controlador se reconectará e intentará
+      ejecutar la misma sentencia SQL de nuevo. Sin embargo, este comportamiento está desactivado
+      cuando AutoCommit está desactivado: De lo contrario, el estado de la transacción sería
+      completamente impredecible después de una reconexión.</li>
+  <li>La <i>reconexión</i> característica de DBD::MariaDB se puede activar o desactivar usando el
+      <i>mariadb_auto_reconnect</i> atributo. Este comportamiento debería estar
+      desactivado en el código que usa LOCK TABLE porque si el servidor de base de datos agota el
+      tiempo de espera y DBD::MariaDB se reconecta, los bloqueos de tablas se perderán sin
+      ninguna indicación de dicha pérdida.</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MULTIPLE_RESULT_SETS'><a class='permalink' href='#MULTIPLE_RESULT_SETS'>CONJUNTOS   DE RESULTADOS MÚLTIPLES</a></h1>
+<p class="Pp">DBD::MariaDB soporta múltiples conjuntos de resultados, gracias a Guy
+    Harrison.</p>
+<p class="Pp">El uso básico de múltiples conjuntos de resultados es</p>
+<pre>do {
+    while (my @row = $sth-&gt;fetchrow_array()) {
+        do stuff;
+    }
+} while ($sth-&gt;more_results);</pre>
+<p class="Pp">Un ejemplo sería:</p>
+<pre>$dbh-&gt;do('drop procedure if exists someproc')
+    or print $DBI::errstr;
+$dbh-&gt;do('create procedure someproc() deterministic
+    begin
+        declare a,b,c,d int;
+        set a=1;
+        set b=2;
+        set c=3;
+        set d=4;
+        select a, b, c, d;
+        select d, c, b, a;
+        select b, a, c, d;
+        select c, b, d, a;
+    end'
+) or die "$DBI::err: $DBI::errstr";
+my $sth = $dbh-&gt;prepare('call someproc()')
+    or die "$DBI::err: $DBI::errstr";
+$sth-&gt;execute()
+    or die "$DBI::err: $DBI::errstr";
+my $i=0;
+do {
+    print "\nRowset ".++$i."\n---------------------------------------\n\n";
+    foreach my $colno (0..$sth-&gt;{NUM_OF_FIELDS}-1) {
+        print $sth-&gt;{NAME}-&gt;[$colno]."\t";
+    }
+    print "\n";
+    while (my @row = $sth-&gt;fetchrow_array())  {
+        foreach $field (0..$#row) {
+            print $row[$field]."\t";
+        }
+        print "\n";
+    }
+} while ($sth-&gt;more_results);</pre>
+<section class="Ss">
+<h2 class="Ss" id='Issues_with_multiple_result_sets'><a class='permalink' href='#Issues_with_multiple_result_sets'>Problemas   con múltiples conjuntos de resultados</a></h2>
+<p class="Pp">Tenga en cuenta que podría haber problemas si sus conjuntos de resultados son
+    <i>irregulares</i>, lo que significa que el número de columnas de sus resultados varía. Números
+    variables de columnas podrían hacer que su script se bloquee.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MULTITHREADING'><a class='permalink' href='#MULTITHREADING'>MULTIHILADO</a></h1>
+<p class="Pp">Las capacidades de multihilo de DBD::MariaDB dependen completamente
+    de las bibliotecas C subyacentes. Los módulos trabajan solo con datos de manejadores,
+    no se accede a variables globales ni (hasta donde yo sé)
+    se llaman funciones no seguras para hilos. Por lo tanto, se cree que DBD::MariaDB es
+    completamente seguro para hilos, si las bibliotecas C son seguras para hilos y no
+    comparte manejadores entre hilos.</p>
+<p class="Pp">La pregunta obvia es: ¿Son seguras las bibliotecas C para hilos? En el
+    caso de MySQL la respuesta es sí, desde MySQL 5.5 lo es. La biblioteca C de
+    versiones anteriores necesita compilarse con las opciones de
+    <span class="Li">"--with-thread-safe-client"</span> o
+    <span class="Li">"--enable-thread-safe-client"</span> de
+    configure.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ASYNCHRONOUS_QUERIES'><a class='permalink' href='#ASYNCHRONOUS_QUERIES'>CONSULTAS   ASÍNCRONAS</a></h1>
+<p class="Pp">Puede hacer una única consulta asíncrona por conexión MySQL;
+    esto le permite enviar una consulta de larga ejecución al servidor y tener un
+    bucle de eventos que le avise cuando esté lista. Una consulta asíncrona se inicia
+    estableciendo el <i>mariadb_async</i> atributo a un valor verdadero en el método
+    do, o en el método prepare. Las sentencias creadas con
+    <i>mariadb_async</i> establecido a verdadero en prepare siempre ejecutan sus consultas
+    de forma asíncrona cuando se llama a execute. El controlador también ofrece tres
+    métodos adicionales: <span class="Li">mariadb_async_result()</span>,
+    <span class="Li">mariadb_async_ready()</span>y
+    <span class="Li">mariadb_sockfd()</span>.
+    <span class="Li">mariadb_async_result()</span> devuelve lo que do o execute
+    habrían devuelto; es decir, el número de filas afectadas.
+    <span class="Li">mariadb_async_ready()</span> devuelve verdadero si
+    <span class="Li">mariadb_async_result()</span> no se bloqueará, y cero
+    en caso contrario. Ambos devuelven <span class="Li">"undef"</span> si
+    ese manejador no se creó con <i>mariadb_async</i> establecido a verdadero o si una
+    consulta asíncrona no se ha iniciado todavía.
+    <span class="Li">mariadb_sockfd()</span> devuelve el número de descriptor de archivo
+    para la conexión MySQL; puede usar esto en un bucle de eventos.</p>
+<p class="Pp">Aquí hay un ejemplo de cómo usar la interfaz de consulta
+  asíncrona:</p>
+<pre>use feature 'say';
+$dbh-&gt;do('SELECT SLEEP(10)', { mariadb_async =&gt; 1 });
+until($dbh-&gt;mariadb_async_ready()) {
+    say 'not ready yet!';
+    sleep 1;
+}
+my $rows = $dbh-&gt;mariadb_async_result();</pre>
+<p class="Pp">Y otro ejemplo:</p>
+<pre>my $fd = $dbh-&gt;mariadb_sockfd();
+my $sth = $dbh-&gt;prepare('SELECT 1, SLEEP(10), t.id FROM t', { mariadb_async =&gt; 1 });
+$sth-&gt;execute();
+my $bits = '';
+vec($bits, $fd, 1) = 1;
+select($bits, undef, $bits, undef);
+my $num_rows = $sth-&gt;mariadb_async_result();
+print "num rows: $num_rows\n";
+while (my @array = $sth-&gt;fetchrow_array()) {
+    print "row:\n";
+    print "\tvalue: $_\n" foreach @array;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INSTALLATION'><a class='permalink' href='#INSTALLATION'>INSTALACIÓN</a></h1>
+<p class="Pp">Vea DBD::MariaDB::INSTALL.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORES</a></h1>
+<p class="Pp">Originalmente, había un controlador no-DBI, Mysql, que era muy parecido a
+    los controladores PHP como mysql y mysqli. El <b>Mysql</b> módulo fue originalmente
+    escrito por Andreas König (<i>koenig@kulturbox.de</i>) quien todavía, hasta
+    el día de hoy, contribuye con parches a DBD::mysql. Una versión emulada de Mysql
+    fue proporcionada a DBD::mysql por Jochen Wiedmann, pero finalmente se descontinuó
+    ya que era otro paquete de código que mantener.</p>
+<p class="Pp">La primera encarnación de DBD::mysql fue desarrollada por Alligator
+    Descartes, quien también fue ayudado y apoyado por Gary Shea, Andreas König
+    y Tim Bunce.</p>
+<p class="Pp">La encarnación actual de DBD::mysql fue escrita por Jochen
+    Wiedmann, luego numerosos cambios y correcciones de errores fueron añadidos por Rudy Lippan.
+    A continuación, el soporte de sentencias preparadas fue añadido por Patrick Galbraith y Alexy
+    Stroganov (quien también añadió exclusivamente el soporte de servidor embebido).</p>
+<p class="Pp">Desde 2004, DBD::mysql ha sido mantenido por Patrick Galbraith<i>patg@patg.net</i>), y desde 2013 con la gran ayuda de Michiel Beijen
+    (<i>michiel.beijen@gmail.com</i>), junto con toda la comunidad de desarrolladores de Perl
+    que siguen enviando parches para ayudar a continuar mejorando
+    DBD::mysql.</p>
+<p class="Pp">En 2018, la versión no publicada 4.042_01 de DBD::mysql fue bifurcada y
+    se creó DBD::MariaDB para corregir errores de Unicode de larga data y el
+    soporte de MariaDB. El desarrollo en ese momento fue apoyado por GoodData. Actualmente está
+    alojado en Github como parte del gran proyecto perl5-dbi y mantenido por Pali
+    (<i>pali@cpan.org</i>).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONTRIBUTIONS'><a class='permalink' href='#CONTRIBUTIONS'>CONTRIBUCIONES</a></h1>
+<p class="Pp">Se anima a cualquiera que desee contribuir a este proyecto a hacerlo.
+    Actualmente, el código fuente de este proyecto se puede encontrar en
+  Github:</p>
+<p class="Pp"><a href='https://github.com/perl5-dbi/DBD-MariaDB'>https://github.com/perl5-dbi/DBD-MariaDB</a></p>
+<p class="Pp">Haz un fork de este repositorio y produce una rama con tu conjunto de
+    cambios para que el mantenedor pueda fusionarlo en su árbol, o crea un diff con
+    git. El mantenedor está más que encantado de aceptar contribuciones de la
+    comunidad, ya que muchas características y correcciones de DBD::MariaDB han provenido de la
+    comunidad.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Este módulo es</p>
+<ul class="Bl-bullet">
+  <li>Grandes porciones Copyright (c) 2018 GoodData Corporation</li>
+  <li>Grandes porciones Copyright (c) 2015-2022 Pali Rohár</li>
+  <li>Grandes porciones Copyright (c) 2004-2017 Patrick Galbraith</li>
+  <li>Grandes porciones Copyright (c) 2013-2017 Michiel Beijen</li>
+  <li>Grandes porciones Copyright (c) 2004-2007 Alexey Stroganov</li>
+  <li>Grandes porciones Copyright (c) 2003-2005 Rudolf Lippan</li>
+  <li>Grandes porciones Copyright (c) 1997-2003 Jochen Wiedmann, con porciones de código</li>
+  <li>Copyright (c)1994-1997 sus autores originales</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENCIA</a></h1>
+<p class="Pp">Este módulo se publica bajo la misma licencia que Perl en sí. Ver
+    Licenciamiento de Perl <a href='https://dev.perl.org/licenses/'>https://dev.perl.org/licenses/</a> para más detalles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MAILING_LIST_SUPPORT'><a class='permalink' href='#MAILING_LIST_SUPPORT'>SOPORTE DE LISTA DE CORREO</a></h1>
+<p class="Pp">Este módulo se mantiene y se soporta en una lista de correo,
+    dbi-users.</p>
+<p class="Pp">Para suscribirte a esta lista, envía un correo electrónico a</p>
+<p class="Pp"><span class="Li">"dbi-users-subscribe@perl.org"</span>
+    &lt;mailto:dbi-users-subscribe@perl.org&gt;</p>
+<p class="Pp">Los archivos de la lista de correo están en</p>
+<p class="Pp">&lt;<a href='http://groups.google.com/group/perl.dbi.users?hl=en'>http://groups.google.com/group/perl.dbi.users?hl=en</a>&amp;lr=&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ADDITIONAL_DBI_INFORMATION'><a class='permalink' href='#ADDITIONAL_DBI_INFORMATION'>INFORMACIÓN ADICIONAL DE DBI</a></h1>
+<p class="Pp">Se puede encontrar información adicional sobre el proyecto DBI en la
+    World Wide Web en la siguiente URL:</p>
+<p class="Pp"><a href='http://dbi.perl.org'>http://dbi.perl.org</a></p>
+<p class="Pp">donde se puede acceder a la documentación, enlaces a las listas de correo y archivos
+    de las listas de correo, y enlaces a las versiones más actuales de los módulos.</p>
+<p class="Pp">Se puede obtener información sobre la interfaz DBI en sí misma escribiendo:</p>
+<pre>perldoc DBI</pre>
+<p class="Pp">Se puede obtener información sobre DBD::MariaDB específicamente escribiendo:</p>
+<pre>perldoc DBD::MariaDB</pre>
+<p class="Pp">(esto mostrará el documento que estás leyendo actualmente)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUG_REPORTING,_ENHANCEMENT/FEATURE_REQUESTS'><a class='permalink' href='#BUG_REPORTING,_ENHANCEMENT/FEATURE_REQUESTS'>INFORME DE ERRORES, SOLICITUDES DE MEJORAS/CARACTERÍSTICAS</a></h1>
+<p class="Pp">Por favor, informa de errores, incluyendo toda la información necesaria como la
+    versión de DBD::MariaDB, versión de MariaDB/MySQL, tipo/versión del SO, etc., en este
+    enlace:</p>
+<p class="Pp"><a href='https://github.com/perl5-dbi/DBD-MariaDB/issues'>https://github.com/perl5-dbi/DBD-MariaDB/issues</a></p>
+<p class="Pp">En el pasado, para DBD::mysql, MySQL/Sun/Oracle respondió a los errores y
+    ayudó a corregirlos, ¡por lo cual se les debe dar las gracias por su ayuda!
+    Este controlador está fuera del ámbito de los numerosos componentes que ellos soportan,
+    y el mantenedor y la comunidad soportan únicamente DBD::mysql y
+  DBD::MariaDB.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbd-mariadb/">extra/perl-dbd-mariadb</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.24-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/DBD-MariaDB">https://metacpan.org/release/DBD-MariaDB</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-dbd-mariadb/">/listing/extra/perl-dbd-mariadb/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#EXAMPLE">EJEMPLO</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#DATABASE_HANDLES">MANEJADORES DE BASE DE DATOS</a></li>
+        
+            <li><a href="#STATEMENT_HANDLES">MANEJADORES DE SENTENCIAS</a></li>
+        
+            <li><a href="#UNICODE_SUPPORT">SOPORTE UNICODE</a></li>
+        
+            <li><a href="#TRANSACTION_SUPPORT">SOPORTE DE TRANSACCIONES</a></li>
+        
+            <li><a href="#MULTIPLE_RESULT_SETS">CONJUNTOS DE RESULTADOS MÚLTIPLES</a></li>
+        
+            <li><a href="#MULTITHREADING">MULTIHILADO</a></li>
+        
+            <li><a href="#ASYNCHRONOUS_QUERIES">CONSULTAS ASÍNCRONAS</a></li>
+        
+            <li><a href="#INSTALLATION">INSTALACIÓN</a></li>
+        
+            <li><a href="#AUTHORS">AUTORES</a></li>
+        
+            <li><a href="#CONTRIBUTIONS">CONTRIBUCIONES</a></li>
+        
+            <li><a href="#COPYRIGHT">DERECHOS DE AUTOR</a></li>
+        
+            <li><a href="#LICENSE">LICENCIA</a></li>
+        
+            <li><a href="#MAILING_LIST_SUPPORT">SOPORTE DE LISTA DE CORREO</a></li>
+        
+            <li><a href="#ADDITIONAL_DBI_INFORMATION">INFORMACIÓN ADICIONAL DE DBI</a></li>
+        
+            <li><a href="#BUG_REPORTING,_ENHANCEMENT/FEATURE_REQUESTS">INFORME DE ERRORES, SOLICITUDES DE MEJORAS/CARACTERÍSTICAS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBD::MariaDB.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/DBD::MariaDB.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete de Arch Linux correspondiente.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::Server(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__Server(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Net::Server(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Net::Server(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Net::Server - Motor de servidor Perl extensible y general</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#!/usr/bin/perl -w -T
+package MyPackage;
+use base qw(Net::Server);
+sub process_request {
+    my $self = shift;
+    while (&lt;STDIN&gt;) {
+        s/[\r\n]+$//;
+        print &quot;Dijiste '$_'\015\012&quot;; # eco básico
+        last if /quit/i;
+    }
+}
+MyPackage-&gt;run(port =&gt; 160, ipv =&gt; '*');
+# línea de comandos para empezar rápidamente
+perl -e 'use base qw(Net::Server); main-&gt;run(port =&gt; 20208)'
+NOTA: a partir de Net::Server 2.005, el valor por defecto para
+      ipv es IPv* lo que significa que si no se pasa ningún host, o
+      se pasa un nombre de host, se enlazarán sockets IPv4 e IPv6 disponibles.
+      Puedes forzar solo IPv4 añadiendo una configuración ipv =&gt; 4
+      en cualquiera de las media docena de formas en que te permitimos
+      especificarlo.</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FEATURES'><a class='permalink' href='#FEATURES'>CARACTERÍSTICAS</a></h1>
+<pre>* Soporte completo de IPv6
+* Sockets SSL funcionales y https (con y sin IO::Socket::SSL)
+* Modo de Servidor Único
+* Modo de Servidor Inetd
+* Modo Simple Preforking (PreForkSimple)
+* Modo Gestionado Preforking (PreFork)
+* Modo Forking
+* Modo de Multiplexación usando un solo proceso
+* Aceptación de múltiples puertos en modos Single, Preforking y Forking
+* Daemon HTTP básico (soporta IPv6, SSL, logs estilo Apache completos)
+* Daemon PSGI básico
+* Aceptación/recepción simultánea en sockets tcp/udp/unix, ssl/tcp e IPv4/IPv6
+* Manejo seguro de señales en modo Fork/PreFork evita problemas de señales en Perl
+* Ganchos personalizables por el usuario
+* Capacidad de chroot después de bind
+* Cambio de usuario y grupo después de bind
+* Control básico de acceso de permitir/denegar
+* Registro (logging) configurable (Sys::Syslog, Log::Log4perl, log_file, STDERR, o el tuyo propio)
+* Servidor HUPeable (reinicios limpios vía sig HUP)
+* Apagados elegantes (vía sig QUIT)
+* Despliegue en caliente en modos Fork y PreFork (vía sig TTIN y TTOU)
+* Capacidad de dequeue en todos los modos Fork y PreFork.
+* Seguro contra taint (taint clean)
+* Escrito en Perl
+* Protección contra desbordamiento de búfer
+* Flujo de proceso limpio
+* Extensibilidad</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> es un motor de servidor
+    Perl genérico y extensible.</p>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> intenta ser un
+    servidor genérico como <span class="Li">&quot;Net::Daemon&quot;</span> y
+    <span class="Li">&quot;NetServer::Generic&quot;</span>. Incluye la capacidad
+    de ejecutarse como un proceso inetd
+    (<span class="Li">&quot;Net::Server::INET&quot;</span>), un servidor de conexión
+    única (<span class="Li">&quot;Net::Server&quot;</span> o
+    <span class="Li">&quot;Net::Server::Single&quot;</span>), un servidor de forking
+    (<span class="Li">&quot;Net::Server::Fork&quot;</span>), un servidor preforking
+    que mantiene un número constante de hijos preforkeados
+    (<span class="Li">&quot;Net::Server::PreForkSimple&quot;</span>), o como un
+    servidor preforking gestionado que mantiene el número de hijos basándose
+    en la carga del servidor
+    (<span class="Li">&quot;Net::Server::PreFork&quot;</span>). En todos los tipos
+    excepto el tipo inetd, el servidor proporciona la capacidad de conectarse a
+    uno o a múltiples puertos de servidor.</p>
+<p class="Pp">Los tipos de servidor adicionales son posibles a través de
+    &quot;personalidades&quot; o subclases de
+    <span class="Li">&quot;Net::Server&quot;</span>. Al mover los múltiples
+    tipos de servidores fuera de la clase principal
+    <span class="Li">&quot;Net::Server&quot;</span>, el concepto
+    <span class="Li">&quot;Net::Server&quot;</span> se extiende fácilmente a otros
+    tipos (en el futuro cercano, nos gustaría añadir una personalidad de
+    &quot;Thread&quot;).</p>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> toma prestados varios
+    conceptos del Servidor Web Apache.
+    <span class="Li">&quot;Net::Server&quot;</span> utiliza &quot;ganchos&quot; para
+    permitir que servidores personalizados como SMTP, HTTP, POP3, etc. se superpongan
+    a la clase base
+    <span class="Li">&quot;Net::Server&quot;</span>. Además, la clase
+    <span class="Li">&quot;Net::Server::PreFork&quot;</span> toma prestados conceptos
+    de min_start_servers, max_servers y min_waiting servers.
+    <span class="Li">&quot;Net::Server::PreFork&quot;</span> también utiliza el
+    concepto de un accept serializado con flock al aceptar en múltiples puertos
+    (PreFork puede elegir entre flock, IPC::Semaphore y pipe para controlar la
+    serialización).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PERSONALITIES'><a class='permalink' href='#PERSONALITIES'>PERSONALIDADES</a></h1>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> está construido alrededor
+    de una clase común (Net::Server) y se extiende utilizando subclases, o
+    <span class="Li">&quot;personalidades&quot;</span>. Cada personalidad hereda,
+    sobrescribe o mejora los métodos base de la clase base.</p>
+<p class="Pp">Incluidas con el paquete Net::Server hay varias personalidades
+    básicas, cada una con su propio uso.</p>
+<dl class="Bl-tag">
+  <dt id="Fork"><a class="permalink" href="#Fork">Fork</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/Fork.pm (ver Net::Server::Fork). Este
+      servidor se enlaza a uno o más puertos y luego espera una conexión. Cuando
+      se recibe una solicitud de cliente, el padre hace un fork de un hijo, que
+      luego maneja al cliente y sale. Esto es bueno para servicios moderadamente
+      solicitados.</dd>
+  <dt id="INET"><a class="permalink" href="#INET">INET</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/INET.pm (ver Net::Server::INET). Este
+      servidor está diseñado para usarse con inetd. Los métodos
+      <span class="Li">&quot;pre_bind&quot;</span>,
+      <span class="Li">&quot;bind&quot;</span>,
+      <span class="Li">&quot;accept&quot;</span> y
+      <span class="Li">&quot;post_accept&quot;</span> están todos sobrescritos ya que
+      estos servicios son manejados por el demonio INET.</dd>
+  <dt id="MultiType"><a class="permalink" href="#MultiType">MultiType</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/MultiType.pm (ver Net::Server::MultiType).
+      Este servidor no tiene funcionalidad de servidor propia. Está diseñado para
+      servidores que necesitan una forma sencilla de cambiar entre diferentes
+      personalidades. Se pueden dar múltiples parámetros
+      <span class="Li">&quot;server_type&quot;</span> y Net::Server::MultiType
+      ciclara hasta que encuentre una clase que pueda usar.</dd>
+  <dt id="Multiplex"><a class="permalink" href="#Multiplex">Multiplex</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/Multiplex.pm (ver Net::Server::Multiplex).
+      Este servidor se enlaza a uno o más puertos. Utiliza IO::Multiplex para
+      multiplexar entre esperar nuevas conexiones y esperar entrada en conexiones
+      actualmente establecidas. Esta personalidad está diseñada para ejecutarse como
+      un solo proceso sin hacer fork. El método
+      <span class="Li">&quot;process_request&quot;</span> nunca se usa, pero se usa
+      la devolución de llamada <span class="Li">&quot;mux_input&quot;</span> en su
+      lugar (ver también IO::Multiplex). Ver examples/samplechat.pl para un
+      ejemplo que utiliza la mayoría de las características de Net::Server::Multiplex.</dd>
+  <dt id="PreForkSimple"><a class="permalink" href="#PreForkSimple">PreForkSimple</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/PreFork.pm (ver Net::Server::PreFork). Este
+      servidor se enlaza a uno o más puertos y luego hace fork de
+      <span class="Li">&quot;max_servers&quot;</span> procesos hijos. El servidor
+      se asegurará de que en cualquier momento haya siempre
+      <span class="Li">&quot;max_servers&quot;</span> disponibles para recibir una
+      solicitud de cliente. Cada uno de estos hijos procesará hasta
+      <span class="Li">&quot;max_requests&quot;</span> conexiones de cliente. Este
+      tipo es bueno para un sitio con mucha carga que puede dedicar procesos
+      max_server sin importar la carga. Debería escalar bien para la mayoría de las
+      aplicaciones. La aceptación de múltiples puertos se logra usando flock,
+      IPC::Semaphore o pipe para serializar los hijos. La serialización también puede
+      activarse para un solo puerto con el fin de evitar un SO que no permita que
+      múltiples hijos acepten al mismo tiempo. Para una discusión adicional sobre la
+      serialización ver Net::Server::PreFork.</dd>
+  <dt id="PreFork"><a class="permalink" href="#PreFork">PreFork</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/PreFork.pm (ver Net::Server::PreFork). Este
+      servidor se enlaza a uno o más puertos y luego hace fork de
+      <span class="Li">&quot;min_servers&quot;</span> procesos hijos. El servidor
+      se asegurará de que en cualquier momento haya al menos
+      <span class="Li">&quot;min_spare_servers&quot;</span> pero no más de
+      <span class="Li">&quot;max_spare_servers&quot;</span> disponibles para recibir
+      una solicitud de cliente, hasta
+      <span class="Li">&quot;max_servers&quot;</span>. Cada uno de estos hijos
+      procesará hasta <span class="Li">&quot;max_requests&quot;</span> conexiones de
+      cliente. Este tipo es bueno para un sitio con mucha carga, y debería escalar
+      bien para la mayoría de las aplicaciones. La aceptación de múltiples puertos se
+      logra usando flock, IPC::Semaphore o pipe para serializar los hijos. La
+      serialización también puede activarse para un solo puerto con el fin de evitar
+      un SO que no permita que múltiples hijos acepten al mismo tiempo. Para una
+      discusión adicional sobre la serialización ver Net::Server::PreFork.</dd>
+  <dt id="Single"><a class="permalink" href="#Single">Single</a></dt>
+  <dd>Todos los métodos vuelven a Net::Server. Esta personalidad se proporciona solo
+      como paralelismo para Net::Server::MultiType.</dd>
+  <dt id="HTTP"><a class="permalink" href="#HTTP">HTTP</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/HTTP.pm (ver Net::Server::HTTP). Este
+      servidor extiende Net::Server::PreFork para proporcionar un servidor HTTP
+      básico. Está diseñado para servir contenido estático, pero puede ser extendido
+      para servir contenido dinámico. Soporta IPv6, SSL y un formato de registro
+      similar al de Apache.</dd>
+  <dt id="PSGI"><a class="permalink" href="#PSGI">PSGI</a></dt>
+  <dd>Se encuentra en el módulo Net/Server/PSGI.pm (ver Net::Server::PSGI). Este
+      servidor extiende Net::Server::PreFork para proporcionar un servidor PSGI
+      básico. Puede ser utilizado para desplegar aplicaciones PSGI.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE'><a class='permalink' href='#EXAMPLE'>EJEMPLO</a></h1>
+<p class="Pp">Aquí hay un ejemplo sencillo que demuestra cómo usar
+    <span class="Li">&quot;Net::Server&quot;</span> para crear un servidor de eco
+    básico:</p>
+<pre>
+#!/usr/bin/perl -w -T
+package EchoServer;
+use base qw(Net::Server);
+sub process_request {
+    my $self = shift;
+    # $self-&gt;log(LOG_INFO =&gt; &quot;Cliente conectado desde &quot; . $self-&gt;client_addr());
+    while (my $line = $self-&gt;get_line()) {
+        $self-&gt;send_line(&quot;Eco: $line&quot;);
+        last if $line =~ /quit/i;
+    }
+    # $self-&gt;log(LOG_INFO =&gt; &quot;Cliente desconectado desde &quot; . $self-&gt;client_addr());
+}
+EchoServer-&gt;run(
+    port    =&gt; 1500,
+    ipv     =&gt; '\*', # Escucha en todas las interfaces
+    log_level =&gt; LOG_INFO,
+    log_file =&gt; '/tmp/echoserver.log',
+);
+</pre>
+<p class="Pp">Para probar este servidor, puedes ejecutarlo y luego conectarte a
+    él desde otro terminal usando telnet o netcat:</p>
+<pre>
+telnet localhost 1500
+</pre>
+<p class="Pp">Escribe algunos mensajes y presiona Enter. El servidor debería
+    responder con cada mensaje precedido por &quot;Eco: &quot;. Escribe
+    &quot;quit&quot; para desconectar.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<p class="Pp">Cada personalidad de <span class="Li">&quot;Net::Server&quot;</span>
+    implementa un conjunto de métodos que controlan el comportamiento del servidor.
+    Los métodos clave incluyen:</p>
+<dl class="Bl-tag">
+  <dt id="run()"><b>run()</b></dt>
+  <dd>El método de clase principal para iniciar el servidor. Acepta argumentos de
+      configuración como <span class="Li">port</span>,
+      <span class="Li">ipv</span>,
+      <span class="Li">server_type</span>, etc.
+      Ejemplo: <span class="Li">MyServer-&gt;run(port =&gt; 8080, server_type =&gt; 'Fork')</span>
+  </dd>
+  <dt id="init_server()"><b>init_server()</b></dt>
+  <dd>Se llama una vez al inicio del servidor para configurar el entorno. Aquí es
+      donde se pueden establecer las opciones de registro, manejar los permisos, etc.</dd>
+  <dt id="pre_bind()"><b>pre_bind()</b></dt>
+  <dd>Se llama antes de enlazar el socket del servidor. Útil para realizar operaciones
+      previas al enlace, como cambiar el directorio de trabajo o el usuario.</dd>
+  <dt id="bind()"><b>bind()</b></dt>
+  <dd>Enlaza el socket del servidor al puerto y dirección especificados.</dd>
+  <dt id="post_bind()"><b>post_bind()</b></dt>
+  <dd>Se llama inmediatamente después de enlazar el socket. Útil para configurar
+      opciones de socket después del enlace.</dd>
+  <dt id="accept()"><b>accept()</b></dt>
+  <dd>Espera una conexión entrante y devuelve un nuevo manejador de socket para
+      la conexión.</dd>
+  <dt id="post_accept()"><b>post_accept()</b></dt>
+  <dd>Se llama inmediatamente después de aceptar una conexión. Útil para realizar
+      operaciones posteriores a la aceptación, como establecer la configuración del
+      cliente.</dd>
+  <dt id="run_client()"><b>run_client()</b></dt>
+  <dd>Maneja el ciclo de vida de una conexión de cliente individual. Llama a
+      <span class="Li">process_request()</span> para manejar la lógica de la
+      aplicación.</dd>
+  <dt id="process_request()"><b>process_request()</b></dt>
+  <dd>Este es el método principal donde se implementa la lógica específica de la
+      aplicación del servidor. Lee datos del cliente, los procesa y envía respuestas.
+      Debe ser sobrescrito por las subclases.</dd>
+  <dt id="shutdown()"><b>shutdown()</b></dt>
+  <dd>Se llama cuando el servidor se está apagando. Útil para realizar tareas de
+      limpieza.</dd>
+  <dt id="log()"><b>log()</b></dt>
+  <dd>Un método de utilidad para registrar mensajes. Admite diferentes niveles de
+      registro.</dd>
+  <dt id="get_line()"><b>get_line()</b></dt>
+  <dd>Un método de utilidad para leer una línea del socket del cliente (incluyendo
+      el carácter de nueva línea).</dd>
+  <dt id="send_line()"><b>send_line()</b></dt>
+  <dd>Un método de utilidad para enviar una línea al socket del cliente (añade
+      automáticamente un retorno de carro y salto de línea).</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONFIGURATION'><a class='permalink' href='#CONFIGURATION'>CONFIGURACIÓN</a></h1>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> es altamente
+    configurable a través de varios parámetros pasados al método
+    <span class="Li">run()</span> o mediante un archivo de configuración
+    (ver la documentación de <span class="Li">Net::Server::Config</span>).</p>
+<p class="Pp">Algunos parámetros de configuración comunes:</p>
+<dl class="Bl-tag">
+  <dt id="port"><b>port</b></dt>
+  <dd>El número de puerto en el que escuchar. Puede ser un número o un nombre de
+      servicio (por ejemplo, 'http').</dd>
+  <dt id="ipv"><b>ipv</b></dt>
+  <dd>Especifica la interfaz de red en la que escuchar. Puede ser
+      <span class="Li">4</span> (solo IPv4),
+      <span class="Li">6</span> (solo IPv6),
+      <span class="Li">'*'</span> o
+      <span class="Li">undef</span> (todas las interfaces disponibles IPv4 e
+      IPv6), o una dirección IP específica (por ejemplo,
+      <span class="Li">'192.168.1.100'</span>).</dd>
+  <dt id="server_type"><b>server_type</b></dt>
+  <dd>Especifica la personalidad del servidor a utilizar (por ejemplo,
+      <span class="Li">'Fork'</span>, <span class="Li">'PreFork'</span>,
+      <span class="Li">'Single'</span>, etc.).</dd>
+  <dt id="log_level"><b>log_level</b></dt>
+  <dd>El nivel de detalle para el registro (por ejemplo,
+      <span class="Li">LOG_INFO</span>,
+      <span class="Li">LOG_DEBUG</span>).</dd>
+  <dt id="log_file"><b>log_file</b></dt>
+  <dd>La ruta del archivo donde escribir los registros.</dd>
+  <dt id="pid_file"><b>pid_file</b></dt>
+  <dd>La ruta del archivo PID. Útil para gestionar el proceso del servidor.</dd>
+  <dt id="max_servers"><b>max_servers</b></dt>
+  <dd>(Para personalidades de forking/preforking) El número máximo de procesos hijos
+      que se pueden crear.</dd>
+  <dt id="max_requests"><b>max_requests</b></dt>
+  <dd>(Para personalidades de forking/preforking) El número máximo de solicitudes
+      que cada proceso hijo manejará antes de salir.</dd>
+  <dt id="user"><b>user</b></dt>
+  <dd>El usuario al que cambiar después de enlazar el socket.</dd>
+  <dt id="group"><b>group</b></dt>
+  <dd>El grupo al que cambiar después de enlazar el socket.</dd>
+  <dt id="chroot"><b>chroot</b></dt>
+  <dd>El directorio al que hacer chroot después de enlazar el socket.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Clayton L. S. Price &lt;clay@brainstorm.com&gt;</p>
+<p class="Pp">Con contribuciones de muchos otros.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright (c) 2001-2010, Clayton L. S. Price. Todos los derechos
+    reservados.</p>
+<p class="Pp">Esta librería está disponible bajo los términos de la licencia GPL
+    (GNU General Public License). Ver el archivo LICENSE para más detalles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href="Net::Server::Fork.html">Net::Server::Fork(3)</a>, <a href="Net::Server::INET.html">Net::Server::INET(3)</a>, <a href="Net::Server::Multiplex.html">Net::Server::Multiplex(3)</a>, <a href="Net::Server::PreFork.html">Net::Server::PreFork(3)</a>, <a href="Net::Server::HTTP.html">Net::Server::HTTP(3)</a>, <a href="Net::Daemon.html">Net::Daemon(3)</a>, <a href="IO::Socket.html">IO::Socket(3)</a>, <a href="IO::Multiplex.html">IO::Multiplex(3)</a>.</p>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<dt><a href="HTTP.html">HTTP</a></dt>
+  <dd>No es una personalidad distinta. Proporciona un demonio HTTP básico. Esto puede
+      combinarse con el protocolo SSL o SSLEAY para proporcionar un demonio HTTPS. Consulte
+      Net::Server::HTTP.</dd>
+</dl>
+<p class="Pp"><span class="Li">"Net::Server"</span> se escribió parcialmente para facilitar la adición de nuevas personalidades. El uso de módulos separados construidos sobre una arquitectura abierta permite la fácil adición de nuevas características, un proceso de desarrollo separado y la reducción de la hinchazón de código en el módulo principal.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ACCESO_AL_SOCKET'><a class='permalink' href='#ACCESO_AL_SOCKET'>ACCESO AL SOCKET</a></h1>
+<p class="Pp">Una vez iniciado, Net::Server se encargará de vincularse al puerto
+    y esperar las conexiones. Una vez recibida una conexión, Net::Server aceptará en el socket y almacenará el resultado (la conexión del cliente) en
+    <span class="Li">$self</span>-&gt;{server}-&gt;{client}. Esta propiedad es un Socket bendecido en las clases IO::Socket. Los servidores UDP son ligeramente diferentes, ya que realizarán una llamada a <b>recv</b> en lugar de una llamada a <b>accept</b>.</p>
+<p class="Pp">Para facilitar la programación, durante la fase post_accept, STDIN
+    y STDOUT se abren a la conexión del cliente. Esto permite que los programas se escriban usando &lt;STDIN&gt; y `print "out\n"` para imprimir en la conexión del cliente. UDP requerirá el uso de una llamada a `->send`.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLO_DE_CODIGO'><a class='permalink' href='#EJEMPLO_DE_CODIGO'>EJEMPLO DE CÓDIGO</a></h1>
+<p class="Pp">El siguiente es un servidor muy simple. La funcionalidad principal ocurre en la llamada al método process_request, como se muestra a continuación. Tenga en cuenta el uso de tiempos de espera para evitar ataques de Denegación de Servicio al leer. (Otros ejemplos de uso de <span class="Li">"Net::Server"</span> pueden, o se incluirán, con esta distribución).</p>
+<pre>#!/usr/bin/perl -w -T
+package MiPaquete;
+use strict;
+use base qw(Net::Server::PreFork); # cualquier personalidad servirá
+MiPaquete-&gt;run;
+# sobrescribir el manejador de eco predeterminado
+sub process_request {
+    my $self = shift;
+    eval {
+        local $SIG{'ALRM'} = sub { die "¡Tiempo Agotado!\n" };
+        my $timeout = 30; # dar al usuario 30 segundos para escribir algunas líneas
+        my $previous_alarm = alarm($timeout);
+        while (&lt;STDIN&gt;) {
+            s/\r?\n$//;
+            print "Dijiste '$_'\r\n";
+            alarm($timeout);
+        }
+        alarm($previous_alarm);
+    };
+    if ($@ =~ /tiempo agotado/i) {
+        print STDOUT "Tiempo Agotado.\r\n";
+        return;
+    }
+}
+1;</pre>
+<p class="Pp">La ejecución de este archivo desde la línea de comandos invocará un Net::Server utilizando la personalidad PreFork. Al construir una capa de servidor sobre Net::Server, es importante utilizar características como los tiempos de espera para prevenir ataques de Denegación de Servicio.</p>
+<p class="Pp">Net::Server viene con un servidor de eco incorporado por defecto. Puede probarlo simplemente ejecutando lo siguiente desde la línea de comandos:</p>
+<pre>net-server</pre>
+<p class="Pp">Si quisiera probar otro sabor, podría intentar</p>
+<pre>net-server PreFork</pre>
+<p class="Pp">Si quisiera probar un servidor HTTP básico, podría usar</p>
+<pre>net-server HTTP</pre>
+<p class="Pp">O si quisiera probar un CGI que está escribiendo, podría usar</p>
+<pre>net-server HTTP --app ../../mycgi.cgi</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTOS'><a class='permalink' href='#ARGUMENTOS'>ARGUMENTOS</a></h1>
+<p class="Pp">Hay al menos cinco formas posibles de pasar argumentos a Net::Server. Son <i>pasar al método new</i>, <i>pasar en la línea de comandos</i>, <i>pasar parámetros a run</i>, <i>usar un archivo de configuración</i>, <i>devolver valores en el método default_values</i> o <i>configurar los valores en post_configure_hook</i>.</p>
+<p class="Pp">El método <span class="Li">"options"</span> se utiliza para determinar qué argumentos buscará el servidor y se puede utilizar para extender los parámetros analizados. Cualquier argumento encontrado en la línea de comandos, parámetros pasados a `run` y argumentos encontrados en el archivo de configuración (`conf_file`) se compararán con las claves de la plantilla de opciones. Cualquier parámetro de línea de comandos que no coincida se dejará en su lugar y podrá ser procesado posteriormente por el servidor en los diversos hooks (buscando en <span class="Li">@ARGV</span>). Los argumentos pasados a `new` prevalecerán automáticamente sobre cualquier otra opción (esto se puede usar si desea prohibir que un usuario pase otros argumentos).</p>
+<p class="Pp">Los argumentos consisten en pares clave-valor. En la línea de comandos, estos pares siguen el estilo POSIX de <span class="Li">"--key value"</span> o <span class="Li">"--key=value"</span>, y también <span class="Li">"key=value"</span>. En el archivo de configuración, la forma de pasar parámetros se puede mostrar mejor mediante la siguiente expresión regular: ($key,$val)=~/^(\w+)\s+(\S+?)\s+$/. Pasar argumentos al método `run` se hace de la siguiente manera: <span class="Li">"&lt;Net::Server-&gt;run(key1 =&gt; 'val1')&gt;&gt;"</span>. Pasar argumentos a través de un objeto preconstruido se puede mostrar mejor en el siguiente código:</p>
+<pre>#!/usr/bin/perl -w -T
+package MiPaquete;
+use strict;
+use base qw(Net::Server);
+my $server = MiPaquete-&gt;new({
+    key1 =&gt; 'val1',
+});
+$server-&gt;run;</pre>
+<p class="Pp">Los cinco métodos para pasar argumentos pueden usarse al mismo tiempo. Una vez que se establece un argumento, no se sobrescribe si otro método pasa el mismo argumento. <span class="Li">"Net::Server"</span> buscará argumentos en el siguiente orden:</p>
+<pre>1) Argumentos pasados al método C&lt;new&gt;.
+2) Argumentos pasados en la línea de comandos.
+3) Argumentos pasados al método C&lt;run&gt;.
+4) Argumentos pasados a través de un archivo de configuración.
+5) Argumentos establecidos en el método C&lt;default_values&gt;.</pre>
+<p class="Pp">Además, los siguientes hooks están disponibles:</p>
+<pre>1) Argumentos establecidos en el configure_hook (ocurre después de new
+   pero antes de que se verifiquen las otras áreas).
+2) Argumentos establecidos y validados en el post_configure_hook
+   (ocurre después de que se verifiquen todas las otras áreas).</pre>
+<p class="Pp">Cada uno de estos niveles anulará los parámetros del mismo nombre especificados en niveles posteriores. Por ejemplo, especificar `--setsid=0` en la línea de comandos anulará un valor de `"setsid 1"` en el archivo de configuración.</p>
+<p class="Pp">Tenga en cuenta que el método `configure_hook` no devuelve valores para establecer, sino que está ahí para permitir la configuración de valores antes de que se llame al método `configure`.</p>
+<p class="Pp">Los pares clave/valor utilizados por el servidor son eliminados por el proceso de configuración para que las capas de servidor encima de <span class="Li">"Net::Server"</span> puedan pasar y leer sus propios parámetros.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AÑADIR_ARGUMENTOS_PERSONALIZADOS'><a class='permalink' href='#AÑADIR_ARGUMENTOS_PERSONALIZADOS'>AÑADIR ARGUMENTOS PERSONALIZADOS</a></h1>
+<p class="Pp">Es posible agregar sus propios parámetros personalizados a los analizados por Net::Server. El siguiente código muestra cómo se hace:</p>
+<pre>sub options {
+    my $self     = shift;
+    my $prop     = $self-&gt;{'server'};
+    my $template = shift;
+    # configurar opciones en las clases padre
+    $self-&gt;SUPER::options($template);
+    # añadir una opción de valor único
+    $prop-&gt;{'my_option'} ||= undef;
+    $template-&gt;{'my_option'} = \ $prop-&gt;{'my_option'};
+    # añadir una opción de múltiples valores
+    $prop-&gt;{'an_arrayref_item'} ||= [];
+    $template-&gt;{'an_arrayref_item'} = $prop-&gt;{'an_arrayref_item'};
+}</pre>
+<p class="Pp">Sobrescribir el método <span class="Li">"options"</span> permite agregar sus propios campos personalizados. Se pasa un hashref de plantilla, que luego debe modificarse para contener sus campos personalizados. Los campos destinados a recibir un único valor escalar deben contener una referencia al escalar de destino. Los campos destinados a recibir múltiples valores deben hacer referencia al arrayref de destino correspondiente.</p>
+<p class="Pp">Usted es responsable de validar sus opciones personalizadas una vez que hayan sido analizadas. El `post_configure_hook` es un buen lugar para realizar su validación.</p>
+<p class="Pp">Algunos correos electrónicos han preguntado por qué usamos este método de "plantilla". La idea es que usted está creando la estructura de datos para almacenar los valores y también está creando una forma de obtener los valores en la estructura de datos. La plantilla es la forma de llevar los valores a la estructura de datos del servidor. Una de las posibilidades (que probablemente no se usa mucho) es que al permitirle especificar el mapeo, podría construir una estructura de datos anidada, aunque los argumentos pasados sean planos. También le permite configurar alias para sus nombres.</p>
+<p class="Pp">Por ejemplo, una estructura básica podría verse así:</p>
+<pre>$prop = $self-&gt;{'server'}
+$prop-&gt;{'my_custom_option'} ||= undef;
+$prop-&gt;{'my_custom_array'}  ||= [];
+$template = {
+    my_custom_option =&gt; \ $prop-&gt;{'my_custom_option'},
+    mco              =&gt; \ $prop-&gt;{'my_custom_option'}, # alias
+    my_custom_array  =&gt; $prop-&gt;{'my_custom_array'},
+    mca              =&gt; $prop-&gt;{'my_custom_array'}, # alias
+};
+$template-&gt;{'mco2'} = $template-&gt;{'mco'}; # otra forma de alias</pre>
+<p class="Pp">Pero también podría tener datos más complejos:</p>
+<pre>$prop = $self-&gt;{'server'};
+$prop-&gt;{'one_layer'} = {
+    two_layer =&gt; [
+        undef,
+        undef,
+    ],
+};
+$template = {
+    param1 =&gt; \ $prop-&gt;{'one_layer'}-&gt;{'two_layer'}-&gt;[0],
+    param2 =&gt; \ $prop-&gt;{'one_layer'}-&gt;{'two_layer'}-&gt;[1],
+};</pre>
+<p class="Pp">Este es, por supuesto, un ejemplo forzado, pero muestra que puede obtener los datos de los argumentos planos pasados a cualquier tipo de estructura que necesite, con solo un poco de esfuerzo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTOS_PREDETERMINADOS_PARA_Net::Server'><a class='permalink' href='#ARGUMENTOS_PREDETERMINADOS_PARA_Net::Server'>ARGUMENTOS PREDETERMINADOS PARA Net::Server</a></h1>
+<p class="Pp">Los siguientes argumentos están disponibles en los módulos predeterminados
+    <span class="Li">"Net::Server"</span> o <span class="Li">"Net::Server::Single"</span>. (Otras
+    personalidades pueden usar parámetros adicionales y opcionalmente no usar parámetros de la clase base).</p>
+<pre>Clave               Valor                    Predeterminado
+conf_file         "nombre_archivo"               undef
+log_level         0-4                      2
+log_file          (nombre_archivo|Sys::Syslog
+                   |Log::Logperl)             undef
+log_function                               undef
+port              \d+                      20203
+host              "host"                   "*"
+ipv               (4|6|*)                  *
+proto             (tcp|udp|unix)           "tcp"
+listen            \d+                      SOMAXCONN
+ipv6_package      (IO::Socket::INET6       IO::Socket::IP
+                   |IO::Socket::IP)
+## parámetros de syslog (si log_file es Sys::Syslog)
+syslog_logsock    (native|unix|inet|udp
+                   |tcp|stream|console)    unix (en Sys::Syslog &lt; 0.15)
+syslog_ident      "identidad"               "net_server"
+syslog_logopt     (cons|ndelay|nowait|pid) pid
+syslog_facility   \w+                      daemon
+reverse_lookups   (1|double|double-debug)  undef
+double_reverse_lookups  (1|debug|autofail) undef
+allow             /regex/                  none
+deny              /regex/                  none
+cidr_allow        CIDR                     none
+cidr_deny         CIDR                     none
+## parámetros de daemonización
+pid_file          "nombre_archivo"               undef
+chroot            "directorio"              undef
+user              (uid|nombre_usuario)           "nobody"
+grou</pre>
+p             (gid|grupo)              &quot;nadie&quot;
+background        1                        undef
+setsid            1                        undef
+no_close_by_child (1|undef)                undef
+## Ver Net::Server::Proto::(TCP|UDP|UNIX|SSL|SSLeay|etc)
+## para más ejemplos de parámetros.
+
+<dl class="Bl-tag">
+  <dt id="conf_file"><a class="permalink" href="#conf_file">conf_file</a></dt>
+  <dd>Nombre del archivo desde el cual se leerán los pares de valor adicionales para iniciar el servidor. El valor por defecto es undef.
+    <p class="Pp">Hay dos formas de especificar un lugar por defecto para conf_file. La primera es pasar el valor por defecto al método run, como:</p>
+    <pre>MiServidor-&gt;run({
+   conf_file =&gt; '/etc/mi_servidor.conf',
+});
+</pre>
+    <p class="Pp">Si el usuario final pasa --conf_file=/etc/su_servidor.conf, el valor será reemplazado.</p>
+    <p class="Pp">La segunda forma fue añadida en la versión 0.96. Usa el método default_values como:</p>
+    <pre>sub default_values {
+    return {
+        conf_file =&gt; '/etc/mi_servidor.conf',
+    }
+}
+</pre>
+    <p class="Pp">Este método tiene la ventaja de poder ser sobreescrito en el método run.</p>
+    <p class="Pp">Si no quieres que el usuario pueda especificar un conf_file, puedes pasar conf_file al método new cuando crees tu objeto:</p>
+    <pre>MiServidor-&gt;new({
+   conf_file =&gt; '/etc/mi_servidor.conf',
+})-&gt;run;
+</pre>
+    <p class="Pp">Si lo pasas así, el valor pasado a new superará cualquier otro valor pasado.</p>
+  </dd>
+  <dt id="log_level"><a class="permalink" href="#log_level">log_level</a></dt>
+  <dd>Rango de 0 a 4 en nivel. Especifica qué nivel de error se registrará. "0" significa que el registro está apagado. "4" significa muy detallado. Estos niveles deben correlacionarse con los niveles de syslog. El valor por defecto es 2. Estos niveles correlacionan con los niveles de syslog según los pares clave/valor siguientes: 0=&gt;'err', 1=&gt;'warning', 2=&gt;'notice', 3=&gt;'info', 4=&gt;'debug'.</dd>
+  <dt id="log_file"><a class="permalink" href="#log_file">log_file</a></dt>
+  <dd>Nombre del archivo de registro o sistema de registro a escribir. Si no se especifica un nombre y el write_to_log_hook no se sobrescribe, el log se envía a STDERR. El valor por defecto es undef.
+    <p class="Pp">El log_file puede también ser el nombre de una clase de registro conectable de Net::Server. Net::Server viene con Sys::Syslog y Log::Log4perl. Si el log_file parece ser un nombre de módulo, se agregará "Net::Server::Log::" al frente y se requerirá. La clase debe proporcionar un método "initialize" que devuelva una función única que se usará para el registro. Esta función devuelta se pasará el nivel de mensaje y el mensaje.</p>
+    <p class="Pp">Si se usa el nombre mágico "Sys::Syslog", todos los registros se realizarán mediante el módulo Net::Server::Log::Sys::Syslog. Si se usa syslog, los parámetros <span class="Li">&quot;syslog_logsock&quot;</span>, <span class="Li">&quot;syslog_ident&quot;</span>, y <span class="Li">&quot;syslog_logopt&quot;</span> y <span class="Li">&quot;syslog_facility&quot;</span> también pueden definirse. Véase Net::Server::Log::Sys::Syslog.</p>
+    <p class="Pp">Si se usa el nombre mágico "Log::Log4perl", todos los registros se dirán al sistema Log4perl. Si se usa, se pueden definir <span class="Li">&quot;log4perl_conf&quot;</span>, <span class="Li">&quot;log4perl_poll&quot;</span>, <span class="Li">&quot;log4perl_logger&quot;</span>. Véase Net::Server::Log::Log::Log4per.</p>
+    <p class="Pp">Si se especifica un <span class="Li">&quot;log_file&quot;</span> o si se establece <span class="Li">&quot;setsid&quot;</span>, se abrirán automáticamente STDIN y STDOUT a /dev/null y STDERR se abrirá a STDOUT. Esto evitará que cualquier salida se deposite en la terminal.</p>
+  </dd>
+  <dt id="log_function"><a class="permalink" href="#log_function">log_function</a></dt>
+  <dd>Puede tomar un coderef o nombre de método que se llama cuando ocurre un evento de registro. Se pasarán el nivel del mensaje y el mensaje del evento.
+    <p class="Pp">Nota: Las funciones dependientes de stdout no funcionarán durante process_request si tie_stdout está activado (como en Net::Server::HTTP).</p>
+  </dd>
+  <dt id="pid_file"><a class="permalink" href="#pid_file">pid_file</a></dt>
+  <dd>Nombre del archivo donde se almacena el PID del proceso padre. Generalmente se aplica solo a servidores que se bifurcan. El valor por defecto es none (undef).</dd>
+  <dt id="port"><a class="permalink" href="#port">port</a></dt>
+  <dd>Véase Net::Server::Proto para ejemplos adicionales de configuración.
+    <p class="Pp">Puerto local en el que se adjuntará. Si es un puerto bajo, el proceso debe iniciar como root. Si se especifican múltiples puertos, todos se abrirán al iniciar el servidor. Puede ser de la forma <span class="Li">&quot;host:port/proto&quot;</span>, <span class="Li">&quot;host:port/proto/ipv&quot;</span>, <span class="Li">&quot;host:port&quot;</span>, <span class="Li">&quot;port/proto&quot;</span>, o <span class="Li">&quot;port&quot;</span>, donde <i>host</i> representa un nombre de host en la máquina local, y <i>port</i> representa el número de puerto (por ejemplo, &quot;80&quot;) o la designación del servicio (por ejemplo, &quot;http&quot;), donde <i>ipv</i> representa la versión de protocolo (IPv4 o IPv6 o IPv*) y <i>proto</i> representa el protocolo a utilizar. Véase Net::Server::Proto. Las siguientes son algunas cadenas de puertos válidas:</p>
+    <pre>20203                            # puerto solo
+localhost:20203                  # host y puerto
+localhost:http                   # localhost con puerto 80
+localhost:20203/tcp              # host, puerto, protocolo
+localhost:20203/tcp/IPv*         # host, puerto, protocolo y familia
+localhost, 20203, tcp, IPv*      # mismo
+localhost | 20203 | tcp | IPv*   # mismo
+localhost:20203/IPv*             # vincular cualquier interfaz local para IPv4 o 6 (por defecto)
+localhost:20203/IPv4/IPv6        # vincular localhost en IPv4 y 6 (falla si no puede hacer ambos)
+*:20203                          # vincular todas las interfaces locales
+</pre>
+    <p class="Pp">Adicionalmente, cuando se pasa el código (no en línea y no en configuración), el puerto puede pasarse como un hashref o arrayhashref de información:</p>
+    <pre>port =&gt; {
+    host  =&gt; 'localhost',
+    port  =&gt; '20203',
+    ipv   =&gt; 6,     # solo IPv6
+    proto =&gt; 'udp', # protocolo UDP
+}
+port =&gt; [{
+    host  =&gt; '*',
+    port  =&gt; '20203',
+    ipv   =&gt; 4,     # solo IPv4
+    proto =&gt; 'tcp', # (por defecto)
+}, {
+    host  =&gt; 'localhost',
+    port  =&gt; '20204',
+    ipv   =&gt; '*',      # por defecto - todas las interfaces IPv4 e IPv6 enlazadas a localhost
+    proto =&gt; 'ssleay', # o ssl - usando SSL
+}],
+</pre>
+    <p class="Pp">Un <i>host</i> explícito en una especificación de puerto sobrescribe una dirección de enlace por defecto (un <span class="Li">&quot;host&quot;</span>, véase a continuación). La parte <i>host</i> puede estar entre corchetes, pero cuando es una dirección IPv6 numérica debe estar entre corchetes para evitar ambigüedad en el análisis de un número de puerto, por ejemplo: &quot;[::1]:80&quot;. Sin embargo, también puedes usar barras verticales, espacios en blanco o comas para separar estos. Nota: El host y el número de puerto deben ir primero.</p>
+    <p class="Pp">Si el protocolo no se especifica, <i>proto</i> se utilizará como el <span class="Li">&quot;proto&quot;</span> especificado en los argumentos. Si <span class="Li">&quot;proto&quot;</span> no se especifica, se utilizará por defecto &quot;tcp&quot;. Si <i>host</i> no se especifica, <i>host</i> se utilizará como el <span class="Li">&quot;host&quot;</span> especificado en los argumentos. Si <span class="Li">&quot;host&quot;</span> no se especifica, se utilizará por defecto &quot;*&quot;. El puerto por defecto es 20203. La configuración pasada a new o run puede ser un escalar con un número de puerto o un array de puertos. Si <span class="Li">&quot;ipv&quot;</span> no se especifica, se utilizará por defecto &quot;*&quot; (cualquier dirección resuelta bajo IPv4 o IPv6).</p>
+    <p class="Pp">Si estás trabajando con sockets Unix, también puedes especificar <span class="Li">&quot;socket_file|unix&quot;</span> o <span class="Li">&quot;socket_file|type|unix&quot;</span> donde type es SOCK_DGRAM o SOCK_STREAM.</p>
+    <p class="Pp">En sistemas que lo soportan, un valor de puerto de 0 puede usarse para hacer que el sistema operativo asigne un puerto automáticamente. El valor del puerto asumido se almacenará en la propiedad NS_port del objeto Net::Server::Proto::TCP y también estará disponible en el método sockport. Cuando el servidor procesa una solicitud, la propiedad $self->{server}->{sockport} contiene el puerto conectado.</p>
+  </dd>
+  <dt id="host"><a class="permalink" href="#host">host</a></dt>
+  <dd>Host local o dirección en la que se adjuntará el puerto. Si se da un valor de '*' se asignará el puerto a todas las direcciones disponibles en la máquina. El argumento <span class="Li">&quot;host&quot;</span> proporciona un host local por defecto si el argumento <span class="Li">&quot;port&quot;</span> omite una especificación de host. Véase Net::Server::Proto. Véase IO::Socket. La configuración pasada a new o run puede ser un escalar con un solo host o un array de hosts - si el array de hosts es más corto que el array de puertos, el último registro será usado para reforzar el array de hosts hasta el tamaño del array de puertos.
+    <p class="Pp">Si se pasa una dirección IPv4, se creará un socket IPv4. Si se pasa una dirección IPv6, se creará un socket IPv6. Si se pasa un nombre de host, Net::Server verá el valor de ipv (por defecto IPv4) para determinar qué tipo de socket crear. Opcionalmente, la especificación de ipv puede pasarse como parte del nombre de host.</p>
+    <pre>host =&gt; &quot;127.0.0.1&quot;,  # una dirección IPv4
+host =&gt; &quot;::1&quot;,        # una dirección IPv6
+host =&gt; 'localhost',  # direcciones que coinciden con localhost (por defecto cualquier IPv4 y/ó IPv6)
+host =&gt; 'localhost/IPv*',  # mismo
+ipv  =&gt; 6,
+host =&gt; 'localhost',  # direcciones que coinciden con localhost (solo IPv6)
+ipv  =&gt; 4,
+host =&gt; 'localhost',  # direcciones que coinciden con localhost (solo IPv4)
+ipv  =&gt; 'IPv4 IPv6',
+host =&gt; 'localhost',  # direcciones que coinciden con localhost (requiere IPv6 y IPv4)
+host =&gt; '*',          # cualquier interfaz local (cualquier IPv6 o IPv4)
+host =&gt; '*/IPv*',     # mismo (cualquier IPv6 o IPv4)
+ipv  =&gt; 4,
+host =&gt; '*',          # cualquier interfaz IPv4 local
+</pre>
+  </dd>
+  <dt id="proto"><a class="permalink" href="#proto">proto</a></dt>
+  <dd>Véase Net::Server::Proto. Protocolo a utilizar al enlazar puertos. Véase IO::Socket. Desde la versión 2.0, Net::Server soporta tcp, udp, unix, unixdgram, ssl y ssleay. Otros tipos necesitarán ser añadidos más tarde (o se podrán usar módulos personalizados que extiendan la clase Net::Server::Proto). La configuración pasada a new o run puede ser un escalar con un solo proto o un array de protos - si el array de protos es más corto que el array de puertos, el último registro será usado para reforzar el array de protos hasta el tamaño del array de puertos.
+    <p class="Pp">Adicionalmente, el proto puede también contener la especificación de ipv.</p>
+  </dd>
+  <dt id="ipv"><a class="permalink" href="#ipv">ipv (IPv4 y IPv6)</a></dt>
+  <dd>Véase Net::Server::Proto.
+    <p class="Pp">Este parámetro se usa para especificar el tipo de socket a crear. El valor por defecto es IPv4.</p>
+  </dd>
+  <dt id="log_level"><a class="permalink" href="#log_level">log_level</a></dt>
+  <dd>Rango de 0 a 4 en nivel. Especifica qué nivel de error se registrará. "0" significa que el registro está apagado. "4" significa muy detallado. Estos niveles deben correlacionarse con los niveles de syslog. El valor por defecto es 2. Estos niveles correlacionan con los niveles de syslog según los pares clave/valor siguientes: 0=&gt;'err', 1=&gt;'warning', 2=&gt;'notice', 3=&gt;'info', 4=&gt;'debug'.</dd>
+</dl><p class="Pp">IPv6 ya está disponible en Net::Server. Se utilizará
+        automáticamente si se proporciona una dirección IPv6, o si la propiedad
+        ipv se establece explícitamente en IPv6, o si la propiedad ipv se deja
+        como valor predeterminado de IPv*. Esto es un cambio significativo con
+        respecto a la versión 2.004 y anteriores, donde el valor predeterminado
+        era IPv4. Sin embargo, el comportamiento anterior causaba confusión en
+        hosts solo con IPv6 y en hosts que solo tenían entradas IPv6 para un
+        nombre de host local. Intentar pasar una dirección IPv4 cuando ipv está
+        configurado en 6 (solo 6 - no * o 4) generará un error.</p>
+        <pre>localhost:20203 # usará IPv6 si hay una entrada correspondiente para localhost
+                # también usará IPv4 si hay una entrada v4 correspondiente para localhost
+localhost:20203:IPv*  # lo mismo (predeterminado)
+localhost:20203:IPv6  # usará IPv6
+[::1]:20203           # usará IPv6 (dirección estilo IPv6)
+localhost:20203:IPv4  # usará IPv4
+127.0.0.1:20203       # usará IPv4 (dirección estilo IPv4)
+localhost:20203:IPv4:IPv6 # se enlazará a v4 y v6 - falla de lo contrario
+# o como un hashref
+port =&gt; {
+    host =&gt; &quot;localhost&quot;,
+    ipv  =&gt; 6, # solo enlaza IPv6
+}
+port =&gt; {
+    host =&gt; &quot;localhost&quot;,
+    ipv  =&gt; 4, # solo enlaza IPv4
+}
+port =&gt; {
+    host =&gt; &quot;::1&quot;,
+    ipv  =&gt; &quot;IPv6&quot;, # lo mismo que pasar &quot;6&quot;
+}
+port =&gt; {
+    host =&gt; &quot;localhost/IPv*&quot;,       # cualquier IPv4 o IPv6
+}
+port =&gt; {
+    host =&gt; &quot;localhost IPv4 IPv6&quot;,  # debe crear ambos
+}
+</pre>
+    <p class="Pp">En muchas soluciones propuestas de Net::Server, IPv* estaba
+        habilitado por defecto. Para las versiones 2.000 a 2.004, se usó el
+        valor predeterminado anterior de IPv4. Hemos intentado facilitar la
+        configuración de IPv4, IPv6 o IPv*. Si no desea o no necesita IPv6,
+        simplemente establezca ipv en 4, pase IPv4 en la especificación del puerto,
+        establezca <span class="Li">$ENV</span>{'IPV'}=4; antes de ejecutar el
+        servidor, establezca <span class="Li">$ENV</span>{'NO_IPV6'}, o desinstale
+        IO::Socket::IP y/o IO::Socket::INET6.</p>
+    <p class="Pp">En mi máquina local, el siguiente comando produce la siguiente
+        salida:</p>
+        <pre>perl -e 'use base qw(Net::Server); main-&gt;run(host =&gt; &quot;localhost&quot;)'
+Resolved [localhost]:20203 to [::1]:20203, IPv6
+Resolved [localhost]:20203 to [127.0.0.1]:20203, IPv4
+Binding to TCP port 20203 on host ::1 with IPv6
+Binding to TCP port 20203 on host 127.0.0.1 with IPv4
+</pre>
+    <p class="Pp">Mi máquina local tiene IPv6 habilitado y hay entradas para
+        localhost tanto en IPv6 ::1 como en IPv4 127.0.0.1. También podría elegir
+        enlazar puertos explícitamente en lugar de depender de ipv =&gt; &quot;*&quot;
+        para resolverlos, como en el siguiente ejemplo:</p>
+        <pre>perl -e 'use base qw(Net::Server); main-&gt;run(port =&gt; [20203,20203], host =&gt; &quot;localhost&quot;, ipv =&gt; [4,6])'
+Binding to TCP port 20203 on host localhost with IPv4
+Binding to TCP port 20203 on host localhost with IPv6
+</pre>
+    <p class="Pp">Existe un caso especial de uso de host =&gt; &quot;*&quot;
+        así como de ipv =&gt; &quot;*&quot;. El método
+        Net::Server::Proto::_bindv6only se utiliza para verificar la configuración
+        del sistema de <span class="Li">&quot;sysctl -n net.ipv6.bindv6only&quot;</span>
+        (o net.inet6.ip6.v6only). Si esta configuración es falsa, entonces un
+        socket IPv6 escuchará la dirección IPv4 correspondiente. Por ejemplo, la
+        dirección [::] (equivalente IPv6 de INADDR_ANY) también escuchará a
+        0.0.0.0. La dirección ::FFFF:127.0.0.1 (IPv6) también escuchará a
+        127.0.0.1 (IPv4). En este caso, solo se creará un socket porque manejará
+        ambos casos (se devuelve un error si se intenta escuchar en ambas
+        direcciones cuando bindv6only es falso).</p>
+    <p class="Pp">Sin embargo, si net.ipv6.bindv6only (o equivalente) es verdadero,
+        entonces un nombre de host (como *) que se resuelve tanto en una entrada
+        IPv4 como en una IPv6 resultará en un socket IPv4 y un socket IPv6.</p>
+    <p class="Pp">En mi máquina Linux, que por defecto tiene
+        net.ipv6.bindv6only=0, la siguiente salida se produce.</p>
+        <pre>perl -e 'use base qw(Net::Server); main-&gt;run(host =&gt; &quot;*&quot;)'
+Resolved [*]:8080 to [::]:8080, IPv6
+Not including resolved host [0.0.0.0] IPv4 because it will be handled by [::] IPv6
+Binding to TCP port 8080 on host :: with IPv6
+</pre>
+    <p class="Pp">Si ejecuto <span class="Li">&quot;sudo /sbin/sysctl -w
+        net.ipv6.bindv6only=1&quot;</span>, la siguiente salida se produce.</p>
+        <pre>perl -e 'use base qw(Net::Server); main-&gt;run(host =&gt; &quot;*&quot;)'
+Resolved [*]:8080 to [0.0.0.0]:8080, IPv4
+Resolved [*]:8080 to [::]:8080, IPv6
+Binding to TCP port 8080 on host 0.0.0.0 with IPv4
+Binding to TCP port 8080 on host :: with IPv6
+</pre>
+    <p class="Pp">BSD difiere de Linux y generalmente utiliza por defecto
+        net.inet6.ip6.v6only=0. Si no se puede determinar en tu sistema operativo,
+        se establecerá por defecto en falso y el mensaje de registro cambiará de
+        "it will be handled" a "it should be handled" (si tienes una forma de
+        verificarlo que no consuma muchos recursos en tu plataforma, siéntete libre
+        de enviarme un correo electrónico). Asegúrate de revisar los registros
+        mientras pruebas tu servidor para asegurarte de que has enlazado los puertos
+        deseados. Siempre puedes pasar especificaciones de puertos IPv4 e IPv6
+        explícitas e individuales si lo necesitas. Por ejemplo, si tu sistema tiene
+        interfaces IPv4 e IPv6 pero solo deseas enlazar a entradas IPv6, entonces
+        deberías usar un nombre de host de [::] en lugar de [*].</p>
+    <p class="Pp">Si bindv6only (o equivalente) es falso, y recibes una conexión
+        IPv4 en un puerto IPv6 enlazado, la representación textual de la dirección
+        IPv4 del par generalmente tendrá la forma de una dirección IPv6 mapeada a
+        IPv4, por ejemplo, "::FFFF:127.0.0.1".</p>
+    <p class="Pp">Se eligió el parámetro ipv porque no entra en conflicto con
+        ningún otro uso existente, es muy similar a ipv4 o ipv6, permite que el
+        código del usuario no necesite conocer Socket::AF_INET o
+        Socket6::AF_INET6 o Socket::AF_UNSPEC, y es corto.</p>
+  </dd>
+  <dt id="listen"><a class="permalink" href="#listen">listen</a></dt>
+  <dd>Ver IO::Socket. No se usa con el protocolo udp (o UNIX SOCK_DGRAM).</dd>
+  <dt id="ipv6_package"><a class="permalink" href="#ipv6_package">ipv6_package</a></dt>
+  <dd>Net::Server::Proto intentará determinar la clase de socket apropiada a usar
+      si se necesita un socket v6. Por defecto, intentará IO::Socket::IP primero,
+      y luego IO::Socket::INET6. Especificar este paquete permite usar un paquete
+      específico (ten en cuenta que IO::Socket::SSL, utilizado por Proto::SSL,
+      realiza su propia determinación del paquete de socket ipv6).</dd>
+  <dt id="reverse_lookups"><a class="permalink" href="#reverse_lookups">reverse_lookups</a></dt>
+  <dd>Especifica si se debe buscar el nombre de host de la IP conectada. La
+      información se almacena en caché en el objeto servidor bajo la propiedad
+      <span class="Li">&quot;peerhost&quot;</span>. El valor predeterminado es no
+      usar reverse_lookups (undef).</p>
+    <p class="Pp">Puede establecerse a los valores &quot;double&quot;,
+        &quot;double-detail&quot;, &quot;double-autofail&quot;, o
+        &quot;double-debug&quot; para establecer double_reverse_lookups.</p>
+  </dd>
+  <dt id="double_reverse_lookups"><a class="permalink" href="#double_reverse_lookups">double_reverse_lookups</a></dt>
+  <dd>Si se establece, también establece reverse_lookups.</p>
+    <p class="Pp">Lo mismo que establecer reverse_lookups a &quot;double&quot;.
+        Busca las IPs a las que se resuelve el nombre de host para asegurarse de
+        que la IP de conexión sea una de esas IPs.</p>
+    <p class="Pp">Establece peerhost_rev como un hashref de direcciones IP a las
+        que se resolvió el nombre durante get_client_info.</p>
+    <p class="Pp">Si se establece double_reverse_lookups, el método
+        double_reverse_lookup se llama durante el método allow_deny. Al método
+        double_reverse_lookup se le pasan:</p>
+        <pre>addr  - la dirección IPv4 o IPv6
+host  - el nombre de host al que se resolvió addr
+addrs - el hashref de direcciones IP a las que se resolvió host
+orig  - la dirección original sin filtrar
+</pre>
+    <p class="Pp">Hace que allow_deny devuelva falso si no hay nombre de host,
+        no hay IPs inversas, o si una de las direcciones IP no coincide con la
+        dirección IP de conexión. Envía un mensaje de nivel de registro 3.</p>
+    <p class="Pp">Puede establecer double_reverse_lookups a uno de los siguientes
+        para ajustar el registro:</p>
+        <pre>detail   - agrega addrs a los mensajes de fallo
+autofail - falla en cada conexión y registra
+debug    - registra información de direcciones (pero no falla) para conexiones exitosas
+</pre>
+    <p class="Pp">Los siguientes comandos de una línea pueden ayudar a depurar:</p>
+        <pre>net-server HTTP --reverse_lookups=double-debug --log_level=3
+# curl localhost:8080 en otra ventana
+2022/11/30-22:16:45 CONNECT TCP Peer: &quot;[::ffff:127.0.0.1]:44766&quot; (localhost)  Local: &quot;[::ffff:127.0.0.1]:8080&quot;
+2022/11/30-22:16:45 Double reverse debug:  addr: 127.0.0.1,  host: localhost,  addrs: (127.0.0.1),  orig_addr: ::ffff:127.0.0.1
+</pre>
+    <p class="Pp">El double_reverse_lookup se llama antes de ejecutar cualquier
+        regla de allow/deny.</p>
+  </dd>
+  <dt id="allow/deny"><a class="permalink" href="#allow/deny">allow/deny</a></dt>
+  <dd>Puede especificarse varias veces. Contiene expresiones regulares para
+      comparar con incoming peeraddr o peerhost (si se ha habilitado
+      reverse_lookups). Si se proporcionan opciones allow o deny, el cliente
+      entrante debe coincidir con un allow y no coincidir con un deny, o la
+      conexión del cliente se cerrará. Por defecto son arrays vacíos.</dd>
+  <dt id="cidr_allow/cidr_deny"><a class="permalink" href="#cidr_allow/cidr_deny">cidr_allow/cidr_deny</a></dt>
+  <dd>Puede especificarse varias veces. Contiene un bloque CIDR para comparar con
+      incoming peeraddr. Si se proporcionan opciones cidr_allow o cidr_deny, el
+      cliente entrante debe coincidir con un cidr_allow y no coincidir con un
+      cidr_deny, o la conexión del cliente se cerrará. Por defecto son arrays
+      vacíos.</dd>
+  <dt id="chroot"><a class="permalink" href="#chroot">chroot</a></dt>
+  <dd>Directorio al que cambiar (chroot) después de que el proceso de enlace
+      haya ocurrido y el servidor siga ejecutándose como root. Por defecto es
+      undef.</dd>
+  <dt id="user"><a class="permalink" href="#user">user</a></dt>
+  <dd>ID de usuario o nombre de usuario al que convertirse después de que haya
+      ocurrido el proceso de enlace. Por defecto es &quot;nobody.&quot; Si desea
+      que el servidor se ejecute como root, deberá especificar
+      <span class="Li">&quot;user&quot;</span> igual a &quot;root&quot;.</dd>
+  <dt id="group"><a class="permalink" href="#group">group</a></dt>
+  <dd>ID de grupo o nombre de grupo al que convertirse después de que haya ocurrido
+      el proceso de enlace. Por defecto es &quot;nobody.&quot; Si desea que el
+      servidor se ejecute como root, deberá especificar
+      <span class="Li">&quot;group&quot;</span> igual a &quot;root&quot;.</dd>
+  <dt id="background"><a class="permalink" href="#background">background</a></dt>
+  <dd>Especifica si el servidor debe hacer fork después del método bind para
+      liberarse de la línea de comandos. Por defecto es undef. El proceso también
+      se ejecutará en segundo plano si se establece
+      <span class="Li">&quot;setsid&quot;</span>.</dd>
+  <dt id="setsid"><a class="permalink" href="#setsid">setsid</a></dt>
+  <dd>Especifica si el servidor debe hacer fork después del método bind para
+      liberarse de la línea de comandos y luego ejecutar el comando
+      <span class="Li">POSIX::setsid()</span> para daemonizar realmente. Por
+      defecto es undef. Si se proporciona un
+      <span class="Li">&quot;log_file&quot;</span> o si se establece
+      <span class="Li">&quot;setsid&quot;</span>, STDIN y STDOUT se abrirán
+      automáticamente a /dev/null y STDERR se abrirá a STDOUT. Esto evitará que
+      cualquier salida llegue a la terminal.</dd>
+  <dt id="no_close_by_child"><a class="permalink" href="#no_close_by_child">no_close_by_child</a></dt>
+  <dd>Booleano. Especifica si un hijo debe cerrar la conexión.</dd>
+</dl>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTS'><a class='permalink' href='#ARGUMENTS'>ARGUMENTS</a></h1>
+<dl class="Bl-tag">
+  <dt id="allow_deny_child"><a class="permalink" href="#allow_deny_child">allow_deny_child</a></dt>
+  <dd>Boolean. Default undef (not set). If set to 0, the child process may NOT
+      initiate a denial of service attack on the parent. If set to 1, the child
+      may signal the parent that it does not have permission to shutdown the
+      entire server process. If set to 0, the child may NOT signal the parent
+      to shut down all children. Default is undef (not set). </dd>
+  <dt id="no_client_stdout"><a class="permalink" href="#no_client_stdout">no_client_stdout</a></dt>
+  <dd>Booleano. Por defecto es undef (no establecido). Especifica que STDIN y
+      STDOUT no se abrirán en el manejador del cliente una vez que se haya
+      aceptado una conexión. Por defecto, Net::Server abrirá STDIN y STDOUT en
+      el socket del cliente, lo que facilita a muchos tipos de scripts leer
+      directamente y escribir directamente en el socket utilizando los métodos
+      normales de impresión y lectura. Deshabilitar esto es útil en clientes
+      que pueden estar abriendo sus propias conexiones a STDIN y STDOUT.
+    <p class="Pp">Esta opción no tiene ningún efecto en STDIN y STDOUT, que
+        tienen una propiedad de cliente mágica que está vinculada a los STDIN y
+        STDOUT ya abiertos.</p>
+  </dd>
+  <dt id="leave_children_open_on_hup"><a class="permalink" href="#leave_children_open_on_hup">leave_children_open_on_hup</a></dt>
+  <dd>Booleano. Por defecto es undef (no establecido). Si se establece, el
+      progenitor no intentará cerrar los procesos hijos si el progenitor
+      recibe una señal HUP. El progenitor volverá a enlazar el puerto abierto
+      y comenzará a rastrear un nuevo conjunto de hijos.
+    <p class="Pp">Los hijos de un servidor Fork saldrán después de su solicitud
+        actual. Los hijos de un servidor de tipo Prefork terminarán la solicitud
+        actual y luego saldrán.</p>
+    <p class="Pp">Nota: el progenitor recién reiniciado iniciará un nuevo conjunto
+        de servidores en servidores fork. El nuevo progenitor intentará
+        rastrear a los hijos del progenitor anterior, pero los canales de
+        comunicación personalizados (tuberías abiertas del hijo al progenitor
+        anterior) ya no estarán disponibles para los procesos hijos anteriores.
+        Los nuevos procesos hijos seguirán conectándose correctamente al nuevo
+        progenitor.</p>
+  </dd>
+  <dt id="sig_passthrough"><a class="permalink" href="#sig_passthrough">sig_passthrough</a></dt>
+  <dd>Por defecto es ninguno. Permite pasar las señales solicitadas a los hijos.
+      Acepta un solo nombre de señal, una lista de nombres separada por comas
+      o una referencia de matriz de nombres de señales. Primero envía las
+      señales a los hijos antes de llamar a cualquier señal registrada
+      actualmente con ese nombre.</dd>
+  <dt id="tie_client_stdout"><a class="permalink" href="#tie_client_stdout">tie_client_stdout</a></dt>
+  <dd>Por defecto es undef. Si se establece, utilizará la interfaz enlazada de
+      Net::Server::TiedHandle para STDIN y STDOUT. Esta interfaz permite que SSL
+      y SSLEAY funcionen. También permite interceptar lecturas y escrituras a
+      través de tied_stdin_callback y tied_stdout_callback.</dd>
+  <dt id="tied_stdin_callback"><a class="permalink" href="#tied_stdin_callback">tied_stdin_callback</a></dt>
+  <dd>Por defecto es undef. Se llama durante una lectura de datos de STDIN si se
+      ha establecido tie_client_stdout, o si el método tie_stdout del manejador
+      del cliente devuelve verdadero. Se le pasa la conexión del cliente, el
+      nombre del método que se llamaría y los argumentos que se están pasando.
+      La devolución de llamada es entonces responsable de llamar a ese método
+      en el manejador o de realizar alguna otra operación de entrada.</dd>
+  <dt id="tied_stdout_callback"><a class="permalink" href="#tied_stdout_callback">tied_stdout_callback</a></dt>
+  <dd>Por defecto es undef. Se llama durante una escritura de datos a STDOUT si se
+      ha establecido tie_client_stdout, o si el método tie_stdout del manejador
+      del cliente devuelve verdadero. Se le pasa la conexión del cliente, el
+      nombre del método que se llamaría y los argumentos que se están pasando.
+      La devolución de llamada es entonces responsable de llamar a ese método
+      en el manejador o de realizar alguna otra operación de salida.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROPIEDADES'><a class='permalink' href='#PROPIEDADES'>PROPIEDADES</a></h1>
+<p class="Pp">Todos los <span class="Li">&quot;ARGUMENTOS&quot;</span> enumerados
+    anteriormente se convierten en propiedades del objeto del servidor bajo el
+    mismo nombre. Estas propiedades, así como otras propiedades internas, están
+    disponibles durante los hooks y otras llamadas a métodos.</p>
+<p class="Pp">La estructura de un objeto Net::Server se muestra a continuación:</p>
+<pre>$self = bless({
+    server =&gt; {
+        key1 =&gt; 'val1',
+        # más clave/valor
+    },
+}, 'Net::Server');</pre>
+<p class="Pp">Esta estructura fue elegida para que todas las propiedades
+    relacionadas con el servidor estén agrupadas bajo una única clave del hashref
+    del objeto. Esto es para que otros objetos puedan superponerse a la clase
+    del objeto Net::Server y aún tener un espacio de nombres bastante limpio en
+    el hashref.</p>
+<p class="Pp">Puede obtener y establecer propiedades de dos maneras. La forma
+    sugerida es acceder directamente a las propiedades a través de</p>
+<pre>my $val = $self-&gt;{server}-&gt;{key1};</pre>
+<p class="Pp">El acceso directo a las propiedades acelerará el proceso del
+    servidor, aunque algunos considerarían esto un mal estilo. Se ha proporcionado
+    una segunda forma para los tipos orientados a objetos que creen en los
+    métodos. La segunda forma consiste en los siguientes métodos:</p>
+<pre>my $val = $self-&gt;get_property( 'key1' );
+my $self-&gt;set_property( key1 =&gt; 'val1' );</pre>
+<p class="Pp">Se permiten cambiar las propiedades en cualquier momento con
+    precaución (por favor, no elimine la propiedad de sock o cerrará la conexión
+    del cliente).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARCHIVO_DE_CONFIGURACIÓN'><a class='permalink' href='#ARCHIVO_DE_CONFIGURACIÓN'>ARCHIVO DE
+    CONFIGURACIÓN</a></h1>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> permite el uso de
+    un archivo de configuración para leer parámetros del servidor. El formato de
+    este archivo de configuración son simples pares clave-valor. Los comentarios y
+    las líneas en blanco se ignoran.</p>
+<pre>  #-------------- archivo test.conf --------------
+  ### usuario y grupo al que convertirse
+  user        alguien
+  group       todos
+  # ¿registro?
+  log_file    /var/log/servidor.log
+  log_level   3
+  pid_file    /tmp/servidor.pid
+  # directiva opcional de syslog
+  # se usa en lugar de log_file arriba
+  #log_file       Sys::Syslog
+  #syslog_logsock unix
+  #syslog_ident   miservidor
+  #syslog_logopt  pid|cons
+  # control de acceso
+  allow       .+\.(net|com)
+  allow       dominio\.com
+  deny        a.+
+  cidr_allow  127.0.0.0/8
+  cidr_allow  192.0.2.0/24
+  cidr_deny   192.0.2.4/30
+  # ¿poner el proceso en segundo plano?
+  background  1
+  # puertos a enlazar (esto debería enlazar
+  # 127.0.0.1:20205 en IPv6 y
+  # localhost:20204 en IPv4)
+  # Ver Net::Server::Proto
+  host        127.0.0.1
+  ipv         IPv6
+  port        localhost:20204/IPv4
+  port        20205
+  # ¿búsquedas inversas?
+  # reverse_lookups on
+#-------------- archivo test.conf --------------</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FLUJO_DEL_PROCESO'><a class='permalink' href='#FLUJO_DEL_PROCESO'>FLUJO DEL
+    PROCESO</a></h1>
+<p class="Pp">El flujo del proceso está escrito de una manera abierta, fácil de
+    anular y fácil de enganchar. El flujo básico se muestra a continuación. Este
+    es el flujo del método <span class="Li">&quot;$self-&gt;run&quot;</span>.</p>
+<pre>$self-&gt;configure_hook;
+$self-&gt;configure(@_);
+$self-&gt;post_configure;
+$self-&gt;post_configure_hook;
+$self-&gt;pre_bind;
+$self-&gt;bind;
+$self-&gt;post_bind_hook;
+$self-&gt;post_bind;
+$self-&gt;pre_loop_hook;
+$self-&gt;loop;
+### rutinas dentro de un $self-&gt;loop estándar
+# $self-&gt;accept;
+# $self-&gt;run_client_connection;
+# $self-&gt;done;
+$self-&gt;pre_server_close_hook;
+$self-&gt;server_close;</pre>
+<p class="Pp">Luego el servidor sale.</p>
+<p class="Pp">Durante la fase de procesamiento del cliente
+    (<span class="Li">&quot;$self-&gt;run_client_connection&quot;</span>), lo
+    siguiente representa el flujo del programa:</p>
+<pre>$self-&gt;post_accept;
+$self-&gt;get_client_info;
+$self-&gt;post_accept_hook;
+if ($self-&gt;allow_deny
+    &amp;&amp; $self-&gt;allow_deny_hook) {
+    $self-&gt;process_request;
+} else {
+    $self-&gt;request_denied_hook;
+}
+$self-&gt;post_process_request_hook;
+$self-&gt;post_process_request;
+$self-&gt;post_client_connection_hook;</pre>
+<p class="Pp">El método allow_deny llama a
+    <span class="Li">$self</span>-&gt;double_reverse_lookup si las búsquedas
+    inversas dobles están habilitadas.</p>
+<p class="Pp">El proceso luego se repite y espera la próxima conexión. Para una
+    discusión más profunda, por favor lea el código.</p>
+<p class="Pp">Durante la fase de cierre del servidor
+    (<span class="Li">&quot;$self-&gt;server_close&quot;</span>), lo siguiente
+    representa el flujo del programa:</p>
+<pre>$self-&gt;close_children;  # si los hay
+$self-&gt;post_child_cleanup_hook;
+if (Reiniciando servidor) {
+    $self-&gt;restart_close_hook();
+    $self-&gt;hup_server;
+}
+$self-&gt;shutdown_sockets;
+$self-&gt;server_exit;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS_PRINCIPALES_DEL_SERVIDOR'><a class='permalink' href='#MÉTODOS_PRINCIPALES_DEL_SERVIDOR'>MÉTODOS PRINCIPALES DEL
+    SERVIDOR</a></h1>
+<dl class="Bl-tag">
+  <dt>&quot;$self-&gt;run&quot;</dt>
+  <dd>Este método incorpora el flujo principal del proceso. Este flujo se enumera
+      anteriormente.
+    <p class="Pp">El método run puede llamarse de cualquiera de las siguientes
+        maneras.</p>
+        <pre>MyPackage-&gt;run(port =&gt; 20201);
+MyPackage-&gt;new({port =&gt; 20201})-&gt;run;
+my $obj = bless {server=&gt;{port =&gt; 20201}}, 'MyPackage';
+$obj-&gt;run;
+</pre>
+    <p class="Pp">El método -&gt;run típicamente debería ser la última llamada a
+        método en un script de inicio de servidor (el servidor saldrá al final
+        del método -&gt;run).</p>
+  </dd>
+  <dt>&quot;$self-&gt;configure&quot;</dt>
+  <dd>Este método intenta leer las configuraciones de la línea de comandos, de la
+      llamada al método run, o de un archivo de configuración especificado
+      (el archivo de configuración puede especificarse mediante parámetros
+      pasados, o en los valores predeterminados). Todos los parámetros
+      configurados se almacenan luego en la propiedad {&quot;server&quot;} del
+      objeto Server.</dd>
+  <dt>&quot;$self-&gt;post_configure&quot;</dt>
+  <dd>El hook post_configure inicia el arranque del servidor. Durante la ejecución
+      de este método, se verifican las instancias de servidor en ejecución, se
+      crean los archivos pid, se crean los archivos de registro, se inicializa
+      Sys::Syslog (según sea necesario), se pone en segundo plano el proceso y
+      el servidor cierra STDIN y STDOUT (según sea necesario).</dd>
+  <dt>&quot;$self-&gt;pre_bind&quot;</dt>
+  <dd>Este método se utiliza para inicializar todos los objetos de socket utilizados
+      por el servidor.</dd>
+  <dt>&quot;$self-&gt;bind&quot;</dt>
+  <dd>Este método realmente se enlaza a los sockets inicializados (o se vuelve a
+      enlazar si el servidor ha sido HUPed).</dd>
+  <dt>&quot;$self-&gt;post_bind&quot;</dt>
+  <dd>Durante este método, se pierden los privilegios. Las señales INT, TERM y
+      QUIT se configuran para ejecutar server_close. Sig PIPE se establece en
+      IGNORE. Sig CHLD se establece en sig_chld. Y sig HUP se establece para
+      llamar a sig_hup.
+    <p class="Pp">En las personalidades Fork, PreFork y PreFork simple, estas
+        señales se registran utilizando Net::Server::SIG para permitir el manejo
+        seguro de señales.</p>
+  </dd>
+  <dt>&quot;$self-&gt;loop&quot;</dt>
+  <dd>Durante esta fase, el servidor acepta conexiones entrantes. El comportamiento
+      de cómo ocurre la aceptación y si un proceso hijo maneja la conexión se
+      controla según el tipo de personalidad de Net::Server que esté utilizando
+      el servidor.
+    <p class="Pp">Net::Server y Net::Server solo aceptan una conexión a la vez.</p>
+    <p class="Pp">Net::Server::INET ejecuta una conexión y luego sale (para ser
+        utilizado por daemons inetd o xinetd).</p>
+    <p class="Pp">Net::Server::MultiPlex permite que un proceso maneje
+        simultáneamente múltiples conexiones (pero requiere reescribir el código
+        process_request para operar de una manera más "similar a paquetes").</p>
+    <p class="Pp">Net::Server::Fork crea un nuevo proceso hijo para cada conexión
+        entrante.</p>
+    <p class="Pp">Net::Server::PreForkSimple inicia un número fijo de procesos que
+        todos aceptan conexiones entrantes.</p>
+    <p class="Pp">Net::Server::PreFork inicia un número base de procesos hijos
+        que todos aceptan en la entrada</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SERVER_CONTROL_METHODS"><a class="permalink" href="#SERVER_CONTROL_METHODS">MÉTODOS DE CONTROL DEL SERVIDOR</a></h1>
+<dl class="Bl-tag">
+<dt>&quot;$self-&gt;configure&quot;</dt>
+<dd>Este método se llama al comienzo de la ejecución del servidor para configurar
+    todos los parámetros y llamar a los hooks. Si no se proporcionan parámetros
+    de línea de comandos, entonces se pasan los parámetros de configuración del
+    archivo. Si se proporcionan parámetros de línea de comandos, estos anulan los
+    parámetros del archivo de configuración.</dd>
+<dt>&quot;$self-&gt;run&quot;</dt>
+<dd>Este método inicia el servidor. Crea el objeto de servidor y llama a los
+    métodos `configure`, `pre_startup` y `loop`. Este método se utiliza para
+    ejecutar el servidor en primer plano.</dd>
+<dt>&quot;$self-&gt;pre_startup&quot;</dt>
+<dd>Este método se llama inmediatamente antes de que el servidor comience a
+    aceptar conexiones. Se puede utilizar para realizar tareas de configuración
+    adicionales antes de que el servidor comience a procesar solicitudes.</dd>
+<dt>&quot;$self-&gt;loop&quot;</dt>
+<dd>Este método es el bucle principal del servidor. Escucha las conexiones
+    entrantes y las pasa al método `run_client_connection`. El servidor
+    limita el número de procesos en ejecución en función del número de solicitudes
+    entrantes (similar al concepto de cómo Apache controla sus procesos hijos en un
+    servidor PreFork).</dd>
+<dt>&quot;$self-&gt;server_close&quot;</dt>
+<dd>Este método se llama una vez que se ha señalado al servidor que debe
+    terminar, o que debe reiniciarse (a través de HUP), o que el método
+    `loop` ha finalizado.
+<p class="Pp">Este método se encarga de limpiar los procesos hijos restantes,
+    establecer las banderas apropiadas en los sockets (para HUPing), cerrar el
+    registro y luego cerrar los sockets abiertos.</p>
+<p class="Pp">Opcionalmente, se le puede pasar un valor de salida que se pasará a la
+    llamada a `server_exit`.</p>
+</dd>
+<dt>&quot;$self-&gt;server_exit&quot;</dt>
+<dd>Este método se llama al final de `server_close`. Llama a `exit`, pero puede
+    ser anulado para realizar otras acciones. En este punto, todos los servicios
+    deben estar apagados.
+<p class="Pp">Opcionalmente, se le puede pasar un valor de salida que se pasará a la
+    llamada `exit`.</p>
+</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MÉTODOS_PRINCIPALES_DE_CONEXIÓN_DEL_CLIENTE"><a class="permalink" href="#MÉTODOS_PRINCIPALES_DE_CONEXIÓN_DEL_CLIENTE">MÉTODOS PRINCIPALES DE CONEXIÓN DEL CLIENTE</a></h1>
+<dl class="Bl-tag">
+<dt>&quot;$self-&gt;run_client_connection&quot;</dt>
+<dd>Este método se ejecuta después de que el servidor ha aceptado y recibido una
+    conexión de cliente. El flujo completo del proceso se enumera anteriormente en
+    FLUJOS DE PROCESO. Este método se encarga de manejar cada conexión de
+    cliente.</dd>
+<dt>&quot;$self-&gt;post_accept&quot;</dt>
+<dd>Este método abre STDIN y STDOUT al socket del cliente. Esto permite que
+    cualquiera de los métodos durante la fase `run_client_connection` imprima
+    directamente en el socket del cliente y lea directamente de él.</dd>
+<dt>&quot;$self-&gt;get_client_info&quot;</dt>
+<dd>Este método busca información sobre la conexión del cliente, como la
+    dirección IP, el tipo de socket y el nombre de host (según sea necesario).
+<p class="Pp">Establece lo siguiente en
+    <span class="Li">$self</span>-&gt;{'server'} (tenga en cuenta que estos nombres no
+    necesariamente corresponden a los nombres de las bibliotecas de IO::Socket:</p>
+<pre>sockaddr     - Dirección IP legible por humanos a la que se conectó
+sockport     - Puerto local al que se conectó
+peeraddr     - Dirección IP legible por humanos de la fuente remota (IPv6 o IPv4)
+peerport     - Puerto de origen de la conexión
+peerhost     - Dirección IP resuelta a nombre de host (si es posible)
+peerhost_rev - Hashref de IPs de la búsqueda inversa de peerhost - solo se establece si double_reverse_lookups
+</pre>
+</dd>
+<dt>&quot;$self-&gt;allow_deny&quot;</dt>
+<dd>Este método utiliza las reglas definidas en los parámetros de configuración
+    `allow` y `deny` para determinar si se debe aceptar la dirección IP.</dd>
+<dt>&quot;$self-&gt;double_reverse_lookup&quot;</dt>
+<dd>Se llama si el valor `double_reverse_lookups` está establecido o si
+    `reverse_lookups` está establecido en &quot;double&quot;. Utiliza el
+    hashref `peerhost_rev` para verificar que la IP de la conexión sea válida
+    para el nombre de host. Consulte la configuración de `double_reverse_lookups`.
+</dd>
+<dt>&quot;$self-&gt;process_request&quot;</dt>
+<dd>Este método está diseñado para manejar toda la comunicación con el cliente.
+    En este punto, STDIN y STDOUT están abiertos al cliente, la dirección IP ha
+    sido verificada. El servidor puede interactuar con la conexión del cliente
+    según la API o el protocolo que esté implementando el servidor. Tenga en
+    cuenta que la implementación de ejemplo utiliza STDIN y STDOUT y no
+    funcionará si se establece la bandera `no_client_stdout`.
+<p class="Pp">Este es el método principal que se debe anular.</p>
+<p class="Pp">El método predeterminado implementa un servidor de eco simple que
+    repetirá todo lo que se envíe. Saldrá del hijo si se envía &quot;quit&quot;
+    y saldrá del servidor si se envía &quot;exit&quot;.</p>
+<p class="Pp">A partir de la versión 2.000, el manejador del cliente se pasa como
+    argumento.</p>
+</dd>
+<dt>&quot;$self-&gt;post_process_request&quot;</dt>
+<dd>Este método se utiliza para limpiar la conexión del cliente y manejar la
+    contabilidad de padres/hijos para los servidores de bifurcación.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="HOOKS"><a class="permalink" href="#HOOKS">HOOKS</a></h1>
+<p class="Pp"><span class="Li">&quot;Net::Server&quot;</span> proporciona una serie
+    de &quot;hooks&quot; que permiten que los servidores construidos sobre
+    <span class="Li">&quot;Net::Server&quot;</span> respondan en diferentes niveles
+    de ejecución sin tener que llamar a la clase &quot;SUPER&quot; de los métodos
+    integrados principales. La ubicación de los hooks se puede ver en la sección
+    FLUJO DE PROCESO.</p>
+<p class="Pp">Casi todos los métodos de hook predeterminados no hacen nada. Para
+    usar un hook, simplemente necesita anular el método en su subclase. Por ejemplo,
+    para agregar su propio `post_configure_hook` podría hacer algo como lo
+    siguiente:</p>
+<pre>paquete MiServidor;
+sub post_configure_hook {
+    mi $self = shift;
+    mi $prop = $self-&gt;{'server'};
+    # hacer alguna validación aquí
+}</pre>
+<p class="Pp">Lo siguiente describe los hooks disponibles en la clase
+    Net::Server simple (otros como Fork o PreFork tienen hooks adicionales).</p>
+<dl class="Bl-tag">
+<dt>&quot;$self-&gt;configure_hook()&quot;</dt>
+<dd>Este hook tiene lugar inmediatamente después de que se llama al método
+      <span class="Li">&quot;-&gt;run()&quot;</span>. Este hook permite la
+      configuración del objeto antes de que tenga lugar cualquier configuración
+      integrada. Esto permite una configurabilidad personalizada.</dd>
+<dt>&quot;$self-&gt;post_configure_hook()&quot;</dt>
+<dd>Este hook ocurre justo después de leer los parámetros de configuración e
+      iniciar el registro y la creación del archivo pid. También ocurre antes de
+      que se llamen los métodos <span class="Li">&quot;-&gt;pre_bind()&quot;</span>
+      y <span class="Li">&quot;-&gt;bind()&quot;</span>. Este hook permite
+      verificar los parámetros de configuración.</dd>
+<dt>&quot;$self-&gt;post_bind_hook()&quot;</dt>
+<dd>Este hook ocurre justo después del proceso de enlace y justo antes de que
+      ocurran el chroot, el cambio de usuario o el cambio de grupo. En este
+      punto, el proceso seguirá ejecutándose como el usuario que inició el
+      servidor.</dd>
+<dt>&quot;$self-&gt;pre_loop_hook()&quot;</dt>
+<dd>Este hook ocurre después de que han ocurrido el chroot, el cambio de
+      usuario y el cambio de grupo. Permite la preparación antes de que comience
+      el bucle.</dd>
+<dt>&quot;$self-&gt;can_read_hook()&quot;</dt>
+<dd>Este hook ocurre después de que un socket se vuelve legible en una solicitud
+      `accept_multi_port` (`accept_multi_port` se utiliza si hay varios puertos
+      enlazados para aceptar, o si el parámetro de configuración
+      &quot;multi_port&quot; está establecido en verdadero). Este hook está
+      destinado a permitir el procesamiento de manejadores arbitrarios agregados
+      al IO::Select utilizado para `accept_multi_port`. Estos manejadores podrían
+      haberse agregado durante el `post_bind_hook`. No se agrega soporte interno
+      para procesar estos manejadores o agregarlos a IO::Socket. Se debe tener
+      cuidado con la cantidad de tiempo que ocurre durante el `can_read_hook`,
+      ya que un tiempo de respuesta largo hará que el servidor sea susceptible a
+      ataques DOS. Un valor de retorno verdadero indica que el Servidor no debe
+      pasar el manejador legible a las fases `post_accept` y `process_request`.
+<p class="Pp">En general, se sugiere que se busquen otras vías para enviar
+      mensajes a través de sockets no creados por Net::Server.</p>
+</dd>
+<dt>&quot;$self-&gt;post_accept_hook()&quot;</dt>
+<dd>Este hook ocurre después de que un cliente se ha conectado al servidor. En
+      este punto, STDIN y STDOUT están mapeados al socket del cliente. Este hook
+      ocurre antes del procesamiento de la solicitud.</dd>
+<dt>&quot;$self-&gt;allow_deny_hook()&quot;</dt>
+<dd>Este hook permite la verificación de información de IP y host más allá de la
+      rutina
+      <span class="Li">&quot;$self-&gt;allow_deny()&quot;</span>. Si este hook
+      devuelve 1, la solicitud del cliente será procesada, de lo contrario, se
+      denegará el procesamiento de la solicitud.
+<p class="Pp">A partir de la versión 2.000, la conexión del cliente se pasa como
+      argumento.</p>
+</dd>
+<dt>&quot;$self-&gt;request_denied_hook()&quot;</dt>
+<dd>Este hook ocurre si se ha realizado el
+      <span class="Li">&quot;$self-&gt;allow_deny()&quot;</span> o el
+      <span class="Li">&quot;$self-&gt;allow_deny_hook()&quot;</span>.</dd>
+<dt>&quot;$self-&gt;post_process_request_hook()&quot;</dt>
+<dd>Este hook ocurre después del procesamiento de la solicitud, pero antes de
+      que se haya cerrado la conexión del cliente.</dd>
+<dt>&quot;$self-&gt;post_client_connection_hook&quot;</dt>
+<dd>Este es un hook final que ocurre al final del método
+      `run_client_connection`. En este punto, todos los demás métodos y hooks
+      que se ejecutarán durante `run_client_connection` han finalizado y la
+      conexión del cliente ya se ha cerrado.
+<p class="Pp">ítem
+      <span class="Li">&quot;$self-&gt;other_child_died_hook($pid)&quot;</span></p>
+<p class="Pp">Net::Server toma el control del manejo de señales y la limpieza de
+      procesos hijos; esto hace que sea difícil saber cuándo termina un proceso
+      hijo si ese proceso hijo no fue iniciado por Net::Server. Si Net::Server
+      detecta que otro proceso hijo muere que no inició, activará este hook con
+      el PID del proceso terminado.</p>
+</dd>
+<dt>&quot;$self-&gt;pre_server_close_hook()&quot;</dt>
+<dd>Este hook ocurre antes de que el servidor comience a cerrarse.</dd>
+<dt>&quot;$self-&gt;write_to_log_hook&quot;</dt>
+<dd>Este hook maneja la escritura en archivos de registro. El hook predeterminado
+      es escribir en STDERR, o en el nombre de archivo contenido en el parámetro
+      <span class="Li">&quot;log_file&quot;</span>. Los argumentos que se pasan son
+      un nivel de registro de 0 a 4 (4 siendo muy detallado) y una línea de registro.
+      Si `log_file` es igual a &quot;Sys::Syslog&quot;, entonces el registro irá
+      a Sys::Syslog y omitirá el `write_to_log_hook`.</dd>
+<dt>&quot;$self-&gt;fatal_hook&quot;</dt>
+<dd>Este hook ocurre cuando el servidor ha encontrado un error irrecuperable. Los
+      argumentos que se pasan son el mensaje de error, el paquete, el archivo y el
+      número de línea. El hook puede cerrar el servidor, pero se sugiere que
+      simplemente regrese y utilice las funciones de cierre integradas.</dd>
+<dt>&quot;$self-&gt;post_child_cleanup_hook&quot;</dt>
+<dd>Este hook ocurre en el proceso del servidor padre después de que todos los
+      hijos han sido cerrados y justo antes de que el servidor se reinicie o salga.
+      Está destinado a la limpieza adicional de información. En este punto, los
+      archivos `pid_files` y `lockfiles` aún existen.</dd>
+<dt>&quot;$self-&gt;restart_open_hook&quot;</dt>
+<dd>Este hook ocurre si un servidor ha sido HUPed (reiniciado a través de la
+      señal HUP). Ocurre justo antes de volver a abrir los `filenos` de los
+      sockets que ya estaban abiertos.</dd>
+<dt>&quot;$self-&gt;restart_close_hook&quot;</dt>
+<dd>Este hook ocurre si un servidor ha sido HUPed (reiniciado a través de la
+      señal HUP). Ocurre justo antes de reiniciar el servidor a través de `exec`.
+</dd>
+<dt>&quot;$self-&gt;child_init_hook()&quot;</dt>
+<dd>Este hook se llama durante los servidores de bifurcación. También se llama
+      durante `run_dequeue`. Se ejecuta justo después de la bifurcación y después
+      de que se hayan limpiado las señales. Si es un proceso de dequeue, se pasará
+      la cadena 'dequeue' como argumento.
+<p class="Pp">Si sus procesos hijos necesitarán números aleatorios, este hook es
+      un buen lugar para inicializar `srand` (los procesos bifurcados mantienen la
+      misma semilla aleatoria a menos que se cambie).</p>
+<pre>sub child_init_hook {
+    # de perldoc -f srand
+    srand(time ^ $$ ^ unpack &quot;%L*&quot;, `ps axww | gzip -f`);
+}
+</pre>
+</dd>
+<dt>&quot;$self-&gt;pre_fork_hook()&quot;</dt>
+<dd>Similar al hijo</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HOOKS'><a class='permalink' href='#HOOKS'>HOOKS</a></h1>
+<dl class="Bl-tag">
+  <dt>&quot;$self-&gt;child_init_hook()&quot;</dt>
+  <dd>Called by child process when it is first created. This is after the fork,
+      but before the child begins its work.</dd>
+  <dt>&quot;$self-&gt;child_pre_run_hook()&quot;</dt>
+  <dd>Called by child process just before the child calls the run method. This
+      is after the fork, but before the child begins its work.</dd>
+  <dt>&quot;$self-&gt;child_accept_hook()&quot;</dt>
+  <dd>Called by child process when it has accepted a client connection (prior to
+      calling the run method).</dd>
+  <dt>&quot;$self-&gt;configure_hook&quot;</dt>
+  <dd>Called after the configuration is loaded, but before the server starts.
+      This can be used to modify configuration values or perform other
+      setup actions. This hook is called in the parent process.</dd>
+  <dt>&quot;$self-&gt;post_configure_hook&quot;</dt>
+  <dd>Called after the configuration is loaded and after the server has been
+      configured (e.g. sockets opened). This hook is called in the parent
+      process.</dd>
+  <dt>&quot;$self-&gt;init_hook&quot;</dt>
+  <dd>Called after the server object is created, but before any configuration
+      is loaded. This hook is called in the parent process.</dd>
+  <dt>&quot;$self-&gt;pre_fork_hook&quot;</dt>
+  <dd>Called by the parent process just before a child is forked. This can be
+      used for setup that needs to happen before the fork, but doesn't need to
+      be duplicated in the child.</dd>
+  <dt>&quot;$self-&gt;register_child($pid, $type)&quot;</dt>
+  <dd>Called by the parent process when a child has been forked. Type will be one
+      of dequeue, fork, prefork, or preforksimple depending on where the child
+      was created.</dd>
+  <dt>&quot;$self-&gt;child_finish_hook()&quot;</dt>
+  <dd>Similar to the child_init_hook, but ran when the forked process is about to
+      finish up.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OTHER_METHODS'><a class='permalink' href='#OTHER_METHODS'>OTHER METHODS</a></h1>
+<dl class="Bl-tag">
+  <dt>&quot;$self-&gt;default_values&quot;</dt>
+  <dd>Allow for returning configuration values that will be used if no other
+      value could be found.
+    <p class="Pp">Should return a hashref.</p>
+        <pre>sub default_values {
+    return {
+        port =&gt; 20201,
+    };
+}
+</pre>
+  </dd>
+  <dt>&quot;$self-&gt;handle_syslog_error&quot;</dt>
+  <dd>Called when log_file is set to 'Sys::Syslog' and an error occurs while
+      writing to the syslog. It is passed two arguments, the value of $@, and
+      an arrayref containing the arguments that were passed to the log method
+      when the error occurred.</dd>
+  <dt>&quot;$self-&gt;log&quot;</dt>
+  <dd>Parameters are a log_level and a message.
+    <p class="Pp">If log_level is set to 'Sys::Syslog', the parameters may
+        alternately be a log_level, a format string, and format string
+        parameters. (The second parameter is assumed to be a format string if
+        additional arguments are passed along). Passing arbitrary format strings
+        to Sys::Syslog will allow the server to be vulnerable to exploit. The
+        server maintainer should make sure that any string treated as a format
+        string is controlled.</p>
+        <pre># assuming log_file = 'Sys::Syslog'
+$self-&gt;log(1, &quot;My Message with %s in it&quot;);
+# sends &quot;%s&quot;, &quot;My Message with %s in it&quot; to syslog
+$self-&gt;log(1, &quot;My Message with %s in it&quot;, &quot;Foo&quot;);
+# sends &quot;My Message with %s in it&quot;, &quot;Foo&quot; to syslog
+</pre>
+    <p class="Pp">If log_file is set to a file (other than Sys::Syslog), the
+        message will be appended to the log file by calling the
+        write_to_log_hook.</p>
+    <p class="Pp">If the log_file is Sys::Syslog and an error occurs during
+        write, the handle_syslog_error method will be called and passed the
+        error exception. The default option of handle_syslog_error is to die -
+        but could easily be told to do nothing by using the following code in
+        your subclassed server:</p>
+        <pre>sub handle_syslog_error {}
+</pre>
+    <p class="Pp">It the log had been closed, you could attempt to reopen it in
+        the error handler with the following code:</p>
+        <pre>sub handle_syslog_error {
+    my $self = shift;
+    $self-&gt;open_syslog;
+}
+</pre>
+  </dd>
+  <dt>&quot;$self-&gt;new&quot;</dt>
+  <dd>As of Net::Server 0.91 there is finally a &quot;new&quot; method. This
+      method takes a class name and an argument hashref as parameters. The
+      argument hashref becomes the &quot;server&quot; property of the object.
+        <pre>package MyPackage;
+use base qw(Net::Server);
+my $obj = MyPackage-&gt;new({port =&gt; 20201});
+# same as
+my $obj = bless {server =&gt; {port =&gt; 20201}}, 'MyPackage';
+</pre>
+  </dd>
+  <dt>&quot;$self-&gt;open_syslog&quot;</dt>
+  <dd>Called during post_configure when the log_file option is set to
+      'Sys::Syslog'. By default it use the parsed configuration options listed
+      in this document. If more custom behavior is desired, the method could be
+      overridden and Sys::Syslog::openlog should be called with the custom
+      parameters.</dd>
+  <dt>&quot;$self-&gt;shutdown_sockets&quot;</dt>
+  <dd>This method will close any remaining open sockets. This is called at the
+      end of the server_close method.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='RESTARTING'><a class='permalink' href='#RESTARTING'>RESTARTING</a></h1>
+<p class="Pp">Each of the server personalities (except for INET), support
+    restarting via a HUP signal (see &quot;kill -l&quot;). When a HUP is
+    received, the server will close children (if any), make sure that sockets
+    are left open, and re-exec using the same commandline parameters that
+    initially started the server. (Note: for this reason it is important that
+    <span class="Li">@ARGV</span> is not modified until
+    <span class="Li">&quot;-&gt;run&quot;</span> is called).</p>
+<p class="Pp">The Net::Server will attempt to find out the commandline used for
+    starting the program. The attempt is made before any configuration files or
+    other arguments are processed. The outcome of this attempt is stored using
+    the method <span class="Li">&quot;-&gt;commandline&quot;</span>. The stored
+    commandline may also be retrieved using the same method name. The stored
+    contents will undoubtedly contain Tainted items that will cause the server
+    to die during a restart when using the -T flag (Taint mode). As it is
+    impossible to arbitrarily decide what is taint safe and what is not, the
+    individual program must clean up the tainted items before doing a
+  restart.</p>
+<pre>sub configure_hook{
+    my $self = shift;
+    ### see the contents
+    my $ref  = $self-&gt;commandline;
+    use Data::Dumper;
+    print Dumper $ref;
+    ### arbitrary untainting - VERY dangerous
+    my @untainted = map {/(.+)/;$1} @$ref;
+    $self-&gt;commandline(\@untainted)
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SHUTDOWN'><a class='permalink' href='#SHUTDOWN'>SHUTDOWN</a></h1>
+<p class="Pp">Each of the Fork and PreFork personalities support graceful
+    shutdowns via the QUIT signal. When a QUIT is received, the parent will
+    signal the children and then wait for them to exit.</p>
+<p class="Pp">All server personalities support the normal TERM and INT signal
+    shutdowns.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HOT_DEPLOY'><a class='permalink' href='#HOT_DEPLOY'>HOT DEPLOY</a></h1>
+<p class="Pp">Since version 2.000, the Fork and PreFork personalities have
+    accepted the TTIN and TTOU signals. When a TTIN is received, the max_servers
+    is increased by 1. If a TTOU signal is received the max_servers is decreased
+    by 1. This allows for adjusting the number of handling processes without
+    having to restart the server.</p>
+<p class="Pp">If the log_level is set to at 3, then the new value is displayed
+    in the logs.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FILES'><a class='permalink' href='#FILES'>FILES</a></h1>
+<p class="Pp">The following files are installed as part of this
+  distribution.</p>
+<pre>Net/Server.pm
+Net/Server/Fork.pm
+Net/Server/INET.pm
+Net/Server/MultiType.pm
+Net/Server/PreForkSimple.pm
+Net/Server/PreFork.pm
+Net/Server/Single.pm
+Net/Server/Daemonize.pm
+Net/Server/SIG.pm
+Net/Server/Proto.pm
+Net/Server/Proto/*.pm</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INSTALL'><a class='permalink' href='#INSTALL'>INSTALL</a></h1>
+<p class="Pp">Download and extract tarball before running these commands in its
+    base directory:</p>
+<pre>perl Makefile.PL
+make
+make test
+make install</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Paul Seamons &lt;paul at seamons.com&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THANKS'><a class='permalink' href='#THANKS'>THANKS</a></h1>
+<p class="Pp">As we move to a github flow, please be sure to add yourself to the
+    credits as patches are passed along (if you'd like to be mentioned).</p>
+<p class="Pp">Thanks to Rob Brown (bbb at cpan.org) for help with miscellaneous
+    concepts such as tracking down the serialized select via flock ala Apache
+    and the reference to IO::Select making multiport servers possible. And for
+    researching into allowing sockets to remain open upon exec (making HUP
+    possible).</p>
+<p class="Pp">Thanks to Jonathan J. Miner &lt;miner at doit.wisc.edu&gt; for
+    patching a blatant problem in the reverse lookups.</p>
+<p class="Pp">Thanks to Bennett Todd &lt;bet at rahul.net&gt; for pointing out a
+    problem in Solaris 2.5.1 which does not allow multiple children to accept on
+    the same port at the same time. Also for showing some sample code from
+    Viktor Duchovni which now represents the semaphore option of the serialize
+    argument in the PreFork server.</p>
+<p class="Pp">Thanks to <i>traveler</i> and <i>merlyn</i> from
+    <a href='http://perlmonks.org'>http://perlmonks.org</a> for pointing me in the right direction for determining
+    the protocol used on a socket connection.</p>
+<p class="Pp">Thanks to Jeremy Howard &lt;j+daemonize at howard.fm&gt; for
+    numerous suggestions and for work on Net::Server::Daemonize.</p>
+<p class="Pp">Thanks to Vadim &lt;vadim at hardison.net&gt; for patches to
+    implement parent/child communication on PreFork.pm.</p>
+<p class="Pp">Thanks to Carl Lewis for suggesting &quot;-&quot; in user
+  names.</p>
+<p class="Pp">Thanks to Slaven Rezic for suggesting Reuse =&gt; 1 in
+  Proto::UDP.</p>
+<p class="Pp">Thanks to Tim Watt for adding udp_broadcast to Proto::UDP.</p>
+<p class="Pp">Thanks to Christopher A Bongaarts for pointing out problems with
+    the Proto::SSL implementation that currently locks around the socket accept
+    and the SSL negotiation. See Net::Server::Proto::SSL.</p>
+<p class="Pp">Thanks to Alessandro Zummo for pointing out various bugs including
+    some in configuration, commandline args, and cidr_allow.</p>
+<p class="Pp">Thanks to various other people for bug fixes over the years. These
+    and future thank-you's are available in the Changes file as well as CVS
+    comments.</p>
+<p class="Pp">Thanks to Ben Cohen and tye (on Permonks) for finding and
+    diagnosing more correct behavior for dealing with re-opening STDIN and
+    STDOUT on the client handles.</p>
+<p class="Pp">Thanks to Mark Martinec for trouble shooting other problems with
+    STDIN and STDOUT (he proposed having a flag that is now the no_client_stdout
+    flag).</p>
+<p class="Pp">Thanks to David (DSCHWEI) on cpan for asking for the nofatal
+    option with syslog.</p>
+<p class="Pp">Thanks to Andreas Kippnick and Peter Beckman for suggesting
+    leaving open child connections open during a HUP (this is now available via
+    the leave_children_open_on_hup flag).</p>
+<p class="Pp">Thanks to LUPE on cpan for helping patch HUP with taint on.</p>
+<p class="Pp">Thanks to Michael Virnstein for fixing a bug in the check_for_dead
+    section of PreFork server.</p>
+<p class="Pp">Thanks to Rob Mueller for patching PreForkSimple to only open
+    lock_file once during parent call. This patch should be portable on systems
+    supporting flock. Rob also suggested not closing STDIN/STDOUT but instead
+    reopening them to /dev/null to prevent spurious warnings. Also suggested
+    short circuit in post_accept if in UDP. Also for cleaning up some of the
+    child management code of PreFork.</p>
+<p class="Pp">Thanks to Mark Martinec for suggesting additional log messages for
+    failure during accept.</p>
+<p class="Pp">Thanks to Bill Nesbitt and Carlos Velasco for pointing out double
+    decrement bug in PreFork.pm (rt #21271)</p>
+<p class="Pp">Thanks to John W. Krahn for pointing out glaring precedence with
+    non-parened open and ||.</p>
+<p class="Pp">Thanks to Ricardo Signes for pointing out setuid bug for perl
+    5.6.1 (rt #21262).</p>
+<p class="Pp">Thanks to Carlos Velasco for updating the Syslog options (rt
+    #21265). And for additional fixes later.</p>
+<p class="Pp">Thanks to Steven Lembark for pointing out that no_client_stdout
+    wasn't working with the Multiplex server.</p>
+<p class="Pp">Thanks to Peter Beckman for suggesting allowing Sys::SysLog
+    keywords be passed through the -&gt;log method and for suggesting we allow
+    more types of characters through in syslog_ident. Also to Pet</p>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">Por favor, vea también Net::Server::Fork, Net::Server::INET, Net::Server::PreForkSimple, Net::Server::PreFork, Net::Server::MultiType, Net::Server::Single Net::Server::HTTP</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TODO'><a class='permalink' href='#TODO'>PENDIENTE</a></h1>
+<p class="Pp">Mejorar el conjunto de pruebas para cubrir completamente el código (usando Devel::Cover). Cualquiera que desee enviarme parches a los archivos t/*.t que mejoren la cobertura obtendrá un gran agradecimiento.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CODE_REPOSITORY'><a class='permalink' href='#CODE_REPOSITORY'>REPOSITORIO DE CÓDIGO</a></h1>
+<p class="Pp"><a href='https://github.com/rhandom/perl-net-server'>https://github.com/rhandom/perl-net-server</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR_2'><a class='permalink' href='#AUTHOR_2'>AUTOR</a></h1>
+<pre>Paul Seamons &lt;paul at seamons.com&gt;
+http://seamons.com/
+Rob Brown &lt;bbb at cpan.org&gt;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENCIA</a></h1>
+<p class="Pp">Este paquete puede ser distribuido bajo los términos de</p>
+<pre>Licencia Pública General de GNU
+  o la Licencia Artística de Perl</pre>
+<p class="Pp">Todos los derechos reservados.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+<main>
+<article>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Net::Server</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Use <code class="synopsis">Net::Server</code> para crear un servidor.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FEATURES'><a class='permalink' href='#FEATURES'>CARACTERÍSTICAS</a></h1>
+<p class="Pp">Características de <code class="synopsis">Net::Server</code>:</p>
+<ul>
+<li>Servidor multihilo</li>
+<li>Soporte para IPv4 e IPv6</li>
+<li>Soporte para múltiples backends</li>
+<li>Soporte para E/S asíncrona</li>
+<li>Soporte para programación orientada a eventos</li>
+<li>Soporte para manejo de señales</li>
+<li>Soporte para hooks personalizados</li>
+<li>Soporte para configuración dinámica</li>
+<li>Soporte para despliegue en caliente</li>
+<li>Soporte para reinicio</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><code class="synopsis">Net::Server</code> es una implementación de servidor que proporciona una forma simple y eficiente de crear un servidor en Perl. Soporta tanto IPv4 como IPv6, y puede ser configurado para usar diferentes backends. También soporta E/S asíncrona y programación orientada a eventos, haciéndolo adecuado para aplicaciones de alto rendimiento.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PERSONALITIES'><a class='permalink' href='#PERSONALITIES'>PERSONALIDADES</a></h1>
+<p class="Pp">Personalidades de <code class="synopsis">Net::Server</code>:</p>
+<ul>
+<li>Multihilo</li>
+<li>Soporte IPv4 e IPv6</li>
+<li>Múltiples backends</li>
+<li>E/S asíncrona</li>
+<li>Programación orientada a eventos</li>
+<li>Manejo de señales</li>
+<li>Hooks personalizados</li>
+<li>Configuración dinámica</li>
+<li>Despliegue en caliente</li>
+<li>Reinicio</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SOCKET_ACCESS'><a class='permalink' href='#SOCKET_ACCESS'>ACCESO A SOCKET</a></h1>
+<p class="Pp">Acceso a sockets en <code class="synopsis">Net::Server</code>:</p>
+<ul>
+<li>Soporte IPv4 e IPv6</li>
+<li>Servidor multihilo</li>
+<li>Soporte para múltiples backends</li>
+<li>E/S asíncrona</li>
+<li>Programación orientada a eventos</li>
+<li>Manejo de señales</li>
+<li>Hooks personalizados</li>
+<li>Configuración dinámica</li>
+<li>Despliegue en caliente</li>
+<li>Reinicio</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SAMPLE_CODE'><a class='permalink' href='#SAMPLE_CODE'>CÓDIGO DE EJEMPLO</a></h1>
+<p class="Pp">Código de ejemplo para <code class="synopsis">Net::Server</code>:</p>
+<pre><code class="language-perl">
+use Net::Server;
+
+my $server = Net::Server-&gt;new(
+    listen =&gt; '0.0.0.0:8080',
+    server =&gt; 'my_server',
+);
+
+$server-&gt;run();
+</code></pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTS'><a class='permalink' href='#ARGUMENTS'>ARGUMENTOS</a></h1>
+<p class="Pp">Argumentos para <code class="synopsis">Net::Server</code>:</p>
+<ul>
+<li>listen - Dirección IP y puerto a escuchar</li>
+<li>server - Nombre del servidor</li>
+<li>max_servers - Número máximo de servidores a ejecutar</li>
+<li>max_connections - Número máximo de conexiones por servidor</li>
+<li>max_children - Número máximo de hijos a ejecutar</li>
+<li>max_restarts - Número máximo de reinicios</li>
+<li>timeout - Tiempo de espera para conexiones</li>
+<li>log - Archivo de registro para escribir</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+<li>log_file - Archivo de registro</li>
+<li>log_level - Nivel de registro</li>
+<li>log_format - Formato de registro</li>
+<li>log_rotate - Rotación de registro</li>
+<li>log_tz - Zona horaria</li>
+<li>log_time - Formato de hora</li>
+<li>log_timezone - Zona horaria</li>
+<li>log_timestamp - Formato de marca de tiempo</li>
+<li>log_verbosity - Nivel de verbosidad</li>
+</ul>
+</section>

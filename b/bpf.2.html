@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>bpf(2) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+        <link rel="alternate" href="/man/bpf.2.fr" hreflang="fr">
+    
+        <link rel="alternate" href="/man/bpf.2.ru" hreflang="ru">
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">bpf(2)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/any/man-pages/">man-pages</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">bpf(2)</td>
+    <td class="head-vol">Manual de Llamadas al Sistema</td>
+    <td class="head-rtitle">bpf(2)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">bpf - realizar un comando en un mapa o programa BPF extendido</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre><b>#include &lt;linux/bpf.h&gt;</b></pre>
+<pre><b>int bpf(int </b><i>cmd</i><b>, union bpf_attr *</b><i>attr</i><b>, unsigned int </b><i>size</i><b>);</b></pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La llamada al sistema <b>bpf</b>() realiza una serie de operaciones
+    relacionadas con los filtros de paquetes Berkeley extendidos. Berkeley Packet
+    Filter extendido (o eBPF) es similar al BPF original ("clásico") (cBPF)
+    utilizado para filtrar paquetes de red. Para ambos programas, cBPF y eBPF,
+    el kernel analiza estáticamente los programas antes de cargarlos, para
+    garantizar que no puedan dañar el sistema en ejecución.</p>
+<p class="Pp">eBPF extiende cBPF de múltiples maneras, incluida la capacidad de
+    llamar a un conjunto fijo de funciones de ayuda en el kernel (a través de la
+    extensión de opcode <b>BPF_CALL</b> proporcionada por eBPF) y acceder a
+    estructuras de datos compartidas como los mapas eBPF.</p>
+<section class="Ss">
+<h2 class="Ss" id='Diseño/Arquitectura_BPF_Extendida'><a class='permalink' href='#Diseño/Arquitectura_BPF_Extendida'>Diseño/Arquitectura   BPF   Extendida</a></h2>
+<p class="Pp">Los mapas eBPF son una estructura de datos genérica para el
+    almacenamiento de diferentes tipos de datos. Los tipos de datos generalmente
+    se tratan como bloques binarios, por lo que un usuario simplemente especifica
+    el tamaño de la clave y el tamaño del valor en el momento de la creación del
+    mapa. En otras palabras, una clave/valor para un mapa dado puede tener una
+    estructura arbitraria.</p>
+<p class="Pp">Un proceso de usuario puede crear múltiples mapas (con pares clave/valor
+    siendo bytes de datos opacos) y acceder a ellos a través de descriptores de
+    archivo. Diferentes programas eBPF pueden acceder a los mismos mapas en
+    paralelo. Depende del proceso de usuario y del programa eBPF decidir qué
+    almacenar dentro de los mapas.</p>
+<p class="Pp">Hay un tipo especial de mapa, llamado array de programas. Este tipo
+    de mapa almacena descriptores de archivo que hacen referencia a otros
+    programas eBPF. Cuando se realiza una búsqueda en el mapa, el flujo del
+    programa se redirige in situ al principio de otro programa eBPF y no
+    devuelve el control al programa que lo llama. El nivel de anidamiento tiene
+    un límite fijo de 32, de modo que no se puedan crear bucles infinitos. En
+    tiempo de ejecución, los descriptores de archivo de programas almacenados en
+    el mapa se pueden modificar, por lo que la funcionalidad del programa se puede
+    alterar según los requisitos específicos. Todos los programas a los que se
+    hace referencia en un mapa de array de programas deben haberse cargado
+    previamente en el kernel a través de <b>bpf</b>(). Si una búsqueda de mapa
+    falla, el programa actual continúa su ejecución. Consulte
+    <b>BPF_MAP_TYPE_PROG_ARRAY</b> más abajo para obtener más detalles.</p>
+<p class="Pp">En general, los programas eBPF son cargados por el proceso de
+    usuario y descargados automáticamente cuando el proceso sale. En algunos
+    casos, por ejemplo, <a href='/man/tc-bpf.8.en'>tc-bpf(8)</a>, el programa seguirá vivo dentro del
+    kernel incluso después de que el proceso que cargó el programa termine. En
+    ese caso, el subsistema tc mantiene una referencia al programa eBPF después
+    de que el programa de espacio de usuario haya cerrado el descriptor de
+    archivo. Por lo tanto, si un programa específico continúa vivo dentro del
+    kernel depende de cómo se adjunte posteriormente a un subsistema del kernel
+    dado después de haber sido cargado a través de <b>bpf</b>().</p>
+<p class="Pp">Cada programa eBPF es un conjunto de instrucciones que es seguro
+    ejecutar hasta su finalización. Un verificador del kernel determina
+    estáticamente que el programa eBPF termina y es seguro de ejecutar. Durante
+    la verificación, el kernel incrementa los recuentos de referencia de cada uno
+    de los mapas que utiliza el programa eBPF, de modo que los mapas adjuntos no
+    se puedan eliminar hasta que se descargue el programa.</p>
+<p class="Pp">Los programas eBPF se pueden adjuntar a diferentes eventos. Estos
+    eventos pueden ser la llegada de paquetes de red, eventos de trazado, eventos
+    de clasificación por disciplinas de colas de red (para programas eBPF
+    adjuntos a un clasificador <a href='/man/tc.8.en'>tc(8)</a>) y otros tipos que se
+    puedan añadir en el futuro. Un nuevo evento activa la ejecución del programa
+    eBPF, que puede almacenar información sobre el evento en mapas eBPF. Más
+    allá de almacenar datos, los programas eBPF pueden llamar a un conjunto fijo
+    de funciones de ayuda en el kernel.</p>
+<p class="Pp">El mismo programa eBPF se puede adjuntar a múltiples eventos y
+    diferentes programas eBPF pueden acceder al mismo mapa:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>trazado     trazado    trazado    paquete      paquete     paquete
+evento A     evento B    evento C    en eth0     en eth1    en eth2
+ |             |         |          |           |          ^
+ |             |         |          |           v          |
+ --&gt; trazado &lt;--     trazado     socket    tc entrada   tc salida
+      prog_1          prog_2      prog_3    clasificador   acción
+      |  |              |           |         prog_4      prog_5
+   |---  -----|  |------|          map_3        |           |
+ map_1       map_2                              --| map_4 |--</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Argumentos'><a class='permalink' href='#Argumentos'>Argumentos</a></h2>
+<p class="Pp">La operación a realizar por la llamada al sistema <b>bpf</b>() se
+    determina mediante el argumento <i>cmd</i>. Cada operación toma un argumento
+    complementario, proporcionado a través de <i>attr</i>, que es un puntero a
+    una unión del tipo <i>bpf_attr</i> (ver abajo). Los campos no utilizados y el
+    relleno deben ponerse a cero antes de la llamada. El argumento <i>size</i>
+    es el tamaño de la unión apuntada por <i>attr</i>.</p>
+<p class="Pp">El valor proporcionado en <i>cmd</i> es uno de los siguientes:</p>
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_CREATE"><a class="permalink" href="#BPF_MAP_CREATE"><b>BPF_MAP_CREATE</b></a></dt>
+  <dd>Crea un mapa y devuelve un descriptor de archivo que se refiere al mapa. La
+      bandera de archivo cerrado al ejecutar (ver <a href='/man/fcntl.2.en'>fcntl(2)</a>) se habilita
+      automáticamente para el nuevo descriptor de archivo.</dd>
+  <dt id="BPF_MAP_LOOKUP_ELEM"><a class="permalink" href="#BPF_MAP_LOOKUP_ELEM"><b>BPF_MAP_LOOKUP_ELEM</b></a></dt>
+  <dd>Busca un elemento por clave en un mapa especificado y devuelve su valor.</dd>
+  <dt id="BPF_MAP_UPDATE_ELEM"><a class="permalink" href="#BPF_MAP_UPDATE_ELEM"><b>BPF_MAP_UPDATE_ELEM</b></a></dt>
+  <dd>Crea o actualiza un elemento (par clave/valor) en un mapa especificado.</dd>
+  <dt id="BPF_MAP_DELETE_ELEM"><a class="permalink" href="#BPF_MAP_DELETE_ELEM"><b>BPF_MAP_DELETE_ELEM</b></a></dt>
+  <dd>Busca y elimina un elemento por clave en un mapa especificado.</dd>
+  <dt id="BPF_MAP_GET_NEXT_KEY"><a class="permalink" href="#BPF_MAP_GET_NEXT_KEY"><b>BPF_MAP_GET_NEXT_KEY</b></a></dt>
+  <dd>Busca un elemento por clave en un mapa especificado y devuelve la clave del
+      siguiente elemento.</dd>
+  <dt id="BPF_PROG_LOAD"><a class="permalink" href="#BPF_PROG_LOAD"><b>BPF_PROG_LOAD</b></a></dt>
+  <dd>Verifica y carga un programa eBPF, devolviendo un nuevo descriptor de
+      archivo asociado con el programa. La bandera de archivo cerrado al
+      ejecutar (ver <a href='/man/fcntl.2.en'>fcntl(2)</a>) se habilita automáticamente para el nuevo
+      descriptor de archivo.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>La unión <i>bpf_attr</i> consta de varias estructuras anónimas que son
+      utilizadas por diferentes comandos de <b>bpf</b>():</dd>
+</dl>
+<p class="Pp">
+  <br/>
+</p>
+<pre>union bpf_attr {
+    struct {    /* Usado por BPF_MAP_CREATE */
+        __u32         map_type;
+        __u32         key_size;    /* tamaño de la clave en bytes */
+        __u32         value_size;  /* tamaño del valor en bytes */
+        __u32         max_entries; /* número máximo de entradas
+                                      en un mapa */
+    };
+    struct {    /* Usado por los comandos BPF_MAP_*_ELEM y BPF_MAP_GET_NEXT_KEY
+                   */
+        __u32         map_fd;
+        __aligned_u64 key;
+        union {
+            __aligned_u64 value;
+            __aligned_u64 next_key;
+        };
+        __u64         flags;
+    };
+    struct {    /* Usado por BPF_PROG_LOAD */
+        __u32         prog_type;
+        __u32         insn_cnt;
+        __aligned_u64 insns;      /* 'const struct bpf_insn *' */
+        __aligned_u64 license;    /* 'const char *' */
+        __u32         log_level;  /* nivel de verbosidad del verificador */
+        __u32         log_size;   /* tamaño del buffer del usuario */
+        __aligned_u64 log_buf;    /* buffer 'char *' suministrado por el usuario */
+        __u32         kern_version;
+                                  /* comprobado cuando prog_type=kprobe
+                                     (desde Linux 4.1) */
+    };
+} __attribute__((aligned(8)));</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='mapas_eBPF'><a class='permalink' href='#mapas_eBPF'>Mapas   eBPF</a></h2>
+<p class="Pp">Los mapas son una estructura de datos genérica para el
+    almacenamiento de diferentes tipos de datos. Permiten compartir datos entre
+    programas eBPF del kernel y también entre aplicaciones del kernel y del
+    espacio de usuario.</p>
+<p class="Pp">Cada tipo de mapa tiene los siguientes atributos:</p>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>tipo</dd>
+  <dt>&#x2022;</dt>
+  <dd>número máximo de elementos</dd>
+  <dt>&#x2022;</dt>
+  <dd>tamaño de la clave en bytes</dd>
+  <dt>&#x2022;</dt>
+  <dd>tamaño del valor en bytes</dd>
+</dl>
+<p class="Pp">Las siguientes funciones envoltorio demuestran cómo se pueden usar
+    varios comandos de <b>bpf</b>() para acceder a los mapas. Las funciones usan
+    el argumento <i>cmd</i> para invocar diferentes operaciones.</p>
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_CREATE~2"><a class="permalink" href="#BPF_MAP_CREATE~2"><b>BPF_MAP_CREATE</b></a></dt>
+  <dd>Crea un mapa. Los campos relevantes de la estructura
+      <i>bpf_attr</i> se inicializan como sigue:</dd>
+</dl>
+<p class="Pp">
+  <br/>
+</p>
+<pre>attr.map_type = BPF_MAP_TYPE_HASH; /* o BPF_MAP_TYPE_ARRAY, etc. */
+attr.key_size = sizeof(key);
+attr.value_size = sizeof(value);
+attr.max_entries = max_entries;</pre>
+<p class="Pp">Los mapas se pueden crear con los siguientes tipos:</p>
+<dl class="Bl-tag">
+  <dt><b>BPF_MAP_TYPE_HASH</b></dt>
+  <dd>Tabla hash. Las búsquedas, actualizaciones y eliminaciones son O(1) en
+      promedio.</dd>
+  <dt><b>BPF_MAP_TYPE_ARRAY</b></dt>
+  <dd>Array. Las búsquedas, actualizaciones y eliminaciones son O(1).</dd>
+  <dt><b>BPF_MAP_TYPE_PROG_ARRAY</b></dt>
+  <dd>Array de programas. Los elementos son descriptores de archivo de programas
+      eBPF. La búsqueda de un elemento devuelve el descriptor de archivo del
+      programa eBPF para su ejecución, o devuelve un valor de error si el
+      descriptor de archivo no es válido o no está establecido.</dd>
+</dl>
+<p class="Pp">El descriptor de archivo devuelto se puede utilizar para realizar
+    operaciones en los elementos del mapa.</p>
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_LOOKUP_ELEM~2"><a class="permalink" href="#BPF_MAP_LOOKUP_ELEM~2"><b>BPF_MAP_LOOKUP_ELEM</b></a></dt>
+  <dd>Busca un elemento en el mapa por su clave y copia el valor asociado en el
+      buffer del usuario. Los campos relevantes de la estructura
+      <i>bpf_attr</i> se inicializan como sigue:</dd>
+</dl>
+<p class="Pp">
+  <br/>
+</p>
+<pre>attr.map_fd = map_fd;
+attr.key = (uintptr_t)&amp;key;
+attr.value = (uintptr_t)&amp;value;</pre>
+<p class="Pp">El valor recuperado se copia en el buffer de memoria del usuario
+    apuntado por `attr.value`.</p>
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_UPDATE_ELEM~2"><a class="permalink" href="#BPF_MAP_UPDATE_ELEM~2"><b>BPF_MAP_UPDATE_ELEM</b></a></dt>
+  <dd>Actualiza un elemento en el mapa con el par clave/valor proporcionado. Si
+      la clave ya existe, se actualiza su valor. Si no existe, se inserta un
+      nuevo elemento. Los campos relevantes de la estructura <i>bpf_attr</i>
+      se inicializan como sigue:</dd>
+</dl>
+<p class="Pp">
+  <br/>
+</p>
+<pre>attr.map_fd = map_fd;
+attr.key = (uintptr_t)&amp;key;
+attr.value = (uintptr_t)&amp;value;
+attr.flags = flags; /* BPF_ANY, BPF_NOEXIST, o BPF_EXIST */</pre>
+<p class="Pp">El campo <i>flags</i> se puede establecer en:</p>
+<dl class="Bl-tag">
+  <dt><b>BPF_ANY</b></dt>
+  <dd>Reemplaza el elemento existente o lo inserta si no existe.</dd>
+  <dt><b>BPF_NOEXIST</b></dt>
+  <dd>Inserta el elemento solo si la clave no existe.</dd>
+  <dt><b>BPF_EXIST</b></dt>
+  <dd>Actualiza el elemento solo si la clave ya existe.</dd>
+</dl>
+<p class="Pp">Las operaciones fallarán con <b>EEXIST</b> si se utiliza
+    <b>BPF_NOEXIST</b> y la clave ya existe, o con <b>ENOENT</b> si se utiliza
+    <b>BPF_EXIST</b> y la clave no existe.</p>
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_DELETE_ELEM~2"><a class="permalink" href="#BPF_MAP_DELETE_ELEM~2"><b>BPF_MAP_DELETE_ELEM</b></a></dt>
+  <dd>Elimina un elemento del mapa por su clave. Los campos relevantes de la
+      estructura <i>bpf_attr</i> se inicializan como sigue:</dd>
+</dl>
+<p class="Pp">
+  <br/>
+</p>
+<pre>attr.map_fd = map_fd;
+attr.key = (uintptr_t)&amp;key;</pre>
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_GET_NEXT_KEY~2"><a class="permalink" href="#BPF_MAP_GET_NEXT_KEY~2"><b>BPF_MAP_GET_NEXT_KEY</b></a></dt>
+  <dd>Devuelve la clave del siguiente elemento en el mapa. Si se proporciona una
+      clave válida, se devuelve la clave del siguiente elemento después de ella.
+      Si se proporciona una clave nula (es decir, todos los bits a 0), se
+      devuelve la clave del primer elemento del mapa. Los campos relevantes de la
+      estructura <i>bpf_attr</i> se inicializan como sigue:</dd>
+</dl>
+<p class="Pp">
+  <br/>
+</p>
+<pre>attr.map_fd = map_fd;
+attr.key = (uintptr_t)&amp;key;      /* Clave actual o clave nula */
+attr.next_key = (uintptr_t)&amp;next_key; /* Buffer para la siguiente clave */</pre>
+<p class="Pp">La operación falla con <b>ENOENT</b> si no hay más claves.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Carga_de_programas_eBPF'><a class='permalink' href='#Carga_de_programas_eBPF'>Carga   de   programas   eBPF</a></h2>
+<p class="Pp">El comando <b>BPF_PROG_LOAD</b> se utiliza para cargar un programa
+    eBPF en el kernel. El programa consiste en una secuencia de instrucciones eBPF
+    (struct bpf_insn). El kernel realiza una verificación exhaustiva del programa
+    para garantizar que sea seguro y que termine. Si la verificación se realiza
+    correctamente, se devuelve un descriptor de archivo para el programa cargado.</p>
+<p class="Pp">Los campos relevantes de la estructura <i>bpf_attr</i> se
+    inicializan como sigue:</p>
+<dl class="Bl-tag">
+  <dt>
+    <pre>attr.prog_type = prog_type;
+attr.insns = (uintptr_t)insns;
+attr.insn_cnt = insn_cnt;
+attr.license = (uintptr_t)license;
+attr.log_level = log_level;
+attr.log_size = log_size;
+attr.log_buf = (uintptr_t)log_buf;
+attr.kern_version = kern_version;</pre>
+  </dt>
+</dl>
+<p class="Pp">Los tipos de programa soportados (<i>prog_type</i>) incluyen:</p>
+<dl class="Bl-tag">
+  <dt><b>BPF_PROG_TYPE_SOCKET_FILTER</b></dt>
+  <dd>Programas para filtrar paquetes de red en sockets.</dd>
+  <dt><b>BPF_PROG_TYPE_KPROBE</b></dt>
+  <dd>Programas para adjuntar a kprobes (eventos de kernel).</dd>
+  <dt><b>BPF_PROG_TYPE_TRACING</b></dt>
+  <dd>Programas para trazado genérico (usando kprobes o uprobes).</dd>
+  <dt><b>BPF_PROG_TYPE_SCHED_CLS</b></dt>
+  <dd>Programas para clasificación de paquetes en tc (traffic control).</dd>
+  <dt><b>BPF_PROG_TYPE_SCHED_ACT</b></dt>
+  <dd>Programas para acciones en tc.</dd>
+  <dt><b>BPF_PROG_TYPE_XDP</b></dt>
+  <dd>Programas para el framework de Data Path de alto rendimiento (XDP).</dd>
+</dl>
+<p class="Pp">El campo <i>license</i> es una cadena de caracteres que indica la
+    licencia del programa eBPF. Es obligatorio para poder usar las funciones de
+    ayuda del kernel. El kernel verifica que la licencia permita el uso de las
+    funciones de ayuda. Se debe usar una licencia SPDX compatible, como
+    "GPL".</p>
+<p class="Pp">Los campos <i>log_level</i>, <i>log_size</i> y <i>log_buf</i>
+    se utilizan para recopilar información de depuración y errores generada por
+    el verificador del kernel. Si la verificación falla, esta información estará
+    disponible en <i>log_buf</i>.</p>
+<p class="Pp">El campo <i>kern_version</i> se usa para indicar la versión del
+    kernel para la que se compiló el programa. Esto es importante para la
+    compatibilidad y para acceder a nuevas funciones o estructuras de datos del
+    kernel.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEVOLUCIÓN'><a class='permalink' href='#DEVOLUCIÓN'>DEVOLUCIÓN</a></h1>
+<p class="Pp">En caso de éxito, <b>bpf</b>() devuelve un descriptor de archivo
+    no negativo. En caso de error, devuelve -1 y establece <i>errno</i> para
+    indicar el error.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES'><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<dl class="Bl-tag">
+  <dt><b>EACCES</b></dt>
+  <dd>Se intentó una operación prohibida (por ejemplo, acceder a un mapa sin
+      los permisos adecuados).</dd>
+  <dt><b>EFAULT</b></dt>
+  <dd>Se especificó una dirección de memoria inválida en <i>attr</i>.</dd>
+  <dt><b>EINVAL</b></dt>
+  <dd>Se especificó un argumento inválido (por ejemplo, un tipo de mapa
+      desconocido, un número de instrucciones incorrecto, o una licencia
+      inválida).</dd>
+  <dt><b>EEXIST</b></dt>
+  <dd>Se intentó insertar un elemento en un mapa usando <b>BPF_NOEXIST</b> y la
+      clave ya existe.</dd>
+  <dt><b>ENOENT</b></dt>
+  <dd>Se intentó buscar un elemento que no existe en el mapa, o se intentó
+      eliminar/actualizar un elemento que no existe usando <b>BPF_EXIST</b>.
+      También se devuelve si no hay más claves en <b>BPF_MAP_GET_NEXT_KEY</b>.</dd>
+  <dt><b>ENOMEM</b></dt>
+  <dd>No hay suficiente memoria disponible en el kernel.</dd>
+  <dt><b>ENOSPC</b></dt>
+  <dd>El mapa ha alcanzado su número máximo de entradas.</dd>
+  <dt><b>EPERM</b></dt>
+  <dd>Se requiere un privilegio de administrador para la operación.</dd>
+  <dt><b>E2BIG</b></dt>
+  <dd>El tamaño del buffer de registro es demasiado pequeño.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSIÓN'><a class='permalink' href='#VERSIÓN'>VERSIÓN</a></h1>
+<p class="Pp">La llamada al sistema <b>bpf</b>() está disponible desde Linux 3.18.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLOS'><a class='permalink' href='#EJEMPLOS'>EJEMPLOS</a></h1>
+<p class="Pp">Aquí hay un ejemplo simple de cómo crear un mapa de tipo hash
+    y actualizar/leer un elemento:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;linux/bpf.h&gt;
+#include &lt;sys/syscall.h&gt;
+
+// Helper macro para llamar a la syscall bpf()
+static inline int bpf_syscall(int cmd, union bpf_attr *attr, unsigned int size) {
+    return syscall(__NR_bpf, cmd, attr, size);
+}
+
+int main() {
+    union bpf_attr attr = {0};
+    int map_fd;
+    int key = 1, value = 123;
+    int retrieved_value;
+
+    // Crear un mapa hash
+    attr.map_type = BPF_MAP_TYPE_HASH;
+    attr.key_size = sizeof(key);
+    attr.value_size = sizeof(value);
+    attr.max_entries = 100;
+
+    map_fd = bpf_syscall(BPF_MAP_CREATE, &amp;attr, sizeof(attr));
+    if (map_fd &lt; 0) {
+        perror("BPF_MAP_CREATE failed");
+        return 1;
+    }
+
+    printf("Map created with fd: %d\n", map_fd);
+
+    // Actualizar un elemento
+    attr.map_fd = map_fd;
+    attr.key = (uintptr_t)&amp;key;
+    attr.value = (uintptr_t)&amp;value;
+    attr.flags = BPF_ANY; // Sobrescribir si existe, insertar si no
+
+    if (bpf_syscall(BPF_MAP_UPDATE_ELEM, &amp;attr, sizeof(attr)) &lt; 0) {
+        perror("BPF_MAP_UPDATE_ELEM failed");
+        close(map_fd);
+        return 1;
+    }
+
+    printf("Element updated: key=%d, value=%d\n", key, value);
+
+    // Buscar el elemento
+    memset(&amp;attr, 0, sizeof(attr)); // Limpiar la estructura para la siguiente operación
+    attr.map_fd = map_fd;
+    attr.key = (uintptr_t)&amp;key;
+    attr.value = (uintptr_t)&amp;retrieved_value; // Buffer para el valor recuperado
+
+    if (bpf_syscall(BPF_MAP_LOOKUP_ELEM, &amp;attr, sizeof(attr)) &lt; 0) {
+        perror("BPF_MAP_LOOKUP_ELEM failed");
+        close(map_fd);
+        return 1;
+    }
+
+    printf("Element looked up: key=%d, value=%d\n", key, retrieved_value);
+
+    // Eliminar el elemento
+    memset(&amp;attr, 0, sizeof(attr));
+    attr.map_fd = map_fd;
+    attr.key = (uintptr_t)&amp;key;
+
+    if (bpf_syscall(BPF_MAP_DELETE_ELEM, &amp;attr, sizeof(attr)) &lt; 0) {
+        perror("BPF_MAP_DELETE_ELEM failed");
+        close(map_fd);
+        return 1;
+    }
+
+    printf("Element deleted: key=%d\n", key);
+
+    close(map_fd);
+    return 0;
+}
+</pre>
+<p class="Pp">Para compilar y ejecutar este ejemplo, necesitará las cabeceras
+    del kernel de Linux. Puede instalarlas con el paquete <i>linux-headers</i>.</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>gcc -o bpf_example bpf_example.c
+sudo ./bpf_example</pre>
+<p class="Pp">Nota: este programa requiere privilegios de administrador (root)
+    para crear mapas eBPF.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/bpf-helpers.7.en'>bpf-helpers(7)</a>, <a href='/man/intro.2.en'>intro(2)</a>, <a href='/man/syscalls.7.en'>syscalls(7)</a>, <a href='/man/tc.8.en'>tc(8)</a></p>
+</section>
+</div>
+</section>
+
+            </article>
+            <aside id="content-right">
+                
+            </aside>
+        </main>
+    </body>
+</html>
+_MAP_CREATE~2"&gt;<b>BPF_MAP_CREA</b></a></dt>TE
+  <dd>El <b>comando BPF_MAP_CREATE crea</b> un nuevo mapa, devolviendo</dd> un nuevo descriptor de arch</dl>ivo que se refiere al mapa.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>int
+bpf_create_map(enum bpf_map_type map_type,
+               unsigned int key_size,
+               unsigned int value_size,
+               unsigned int max_entries)
+{
+    union bpf_attr attr = {
+        .map_type    = map_type,
+        .key_size    = key_size,
+        .value_size  = value_size,
+        .max_entries = max_entries
+    };
+    return bpf(BPF_MAP_CREATE, &amp;attr, sizeof(attr)</pre>);
+}
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>El nuevo mapa tiene el tipo especificado por <i>map_type,</i> y atributos como
+      se especifica en <i>key_siz</i>e, <i>value_size,</i> y <i>max_entries.</i>
+      En caso de éxito, esta operación devuelve un descriptor de archivo. En caso de error, se devuelve -1 y <i>errno </i>se establece en <b>EINVA</b>L, <b>EPERM,</b> o
+      <b>ENOM</b>E</dd>M.
+  <dt></dt>
+  <dd>Los <i>atributos </i>key_size y <i>value_size </i>serán utilizados por el
+      verificador durante la carga del programa para comprobar que el programa está llamando a
+      <b>las funciones </b>auxiliares bpf_map_*_elem() con una
+      <i>clave </i>correctamente inicializada y para comprobar que el programa no accede al
+      <i>valor </i>del elemento del mapa más allá del <i>value_size </i>especificado. Por ejemplo, cuando un
+      mapa se crea con un <i>key_size </i>de 8 y el programa eBPF llama </dd>a
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>bpf_map_lookup_elem(map_fd, fp </pre>- 4)
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>el programa será rechazado, ya que la función auxiliar en el </dd>kernel
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>bpf_map_lookup_elem(map_fd, void </pre>*key)
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>espera leer 8 bytes desde la ubicación a la que apunta <i>key,</i> pero
+      la <i>dirección de </i>inicio fp - 4 (donde <i>fp </i>es la parte superior de la pila)
+      causará un acceso a la pila fuera de los </dd>límites.
+  <dt></dt>
+  <dd>De manera similar, cuando un mapa se crea con un <i>value_size </i>de 1 y el
+      programa eBPF </dd>contiene
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>value = bpf_map_lookup_elem(...);
+*(u32 *) value </pre>= 1;
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>el programa será rechazado, ya que accede al <i>puntero </i>value
+      más allá del límite de 1 byte <i>value_si</i>ze espec</dd>ificado.
+  <dt></dt>
+  <dd>Actualmente, se admiten los siguientes valores para <i>map_ty</i>p</dd>e:
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>enum bpf_map_type {
+    BPF_MAP_TYPE_UNSPEC,  /* Reserve 0 as invalid map type */
+    BPF_MAP_TYPE_HASH,
+    BPF_MAP_TYPE_ARRAY,
+    BPF_MAP_TYPE_PROG_ARRAY,
+    BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    BPF_MAP_TYPE_PERCPU_HASH,
+    BPF_MAP_TYPE_PERCPU_ARRAY,
+    BPF_MAP_TYPE_STACK_TRACE,
+    BPF_MAP_TYPE_CGROUP_ARRAY,
+    BPF_MAP_TYPE_LRU_HASH,
+    BPF_MAP_TYPE_LRU_PERCPU_HASH,
+    BPF_MAP_TYPE_LPM_TRIE,
+    BPF_MAP_TYPE_ARRAY_OF_MAPS,
+    BPF_MAP_TYPE_HASH_OF_MAPS,
+    BPF_MAP_TYPE_DEVMAP,
+    BPF_MAP_TYPE_SOCKMAP,
+    BPF_MAP_TYPE_CPUMAP,
+    BPF_MAP_TYPE_XSKMAP,
+    BPF_MAP_TYPE_SOCKHASH,
+    BPF_MAP_TYPE_CGROUP_STORAGE,
+    BPF_MAP_TYPE_REUSEPORT_SOCKARRAY,
+    BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE,
+    BPF_MAP_TYPE_QUEUE,
+    BPF_MAP_TYPE_STACK,
+    /* See /usr/include/linux/bpf.h for the full list.  </pre>*/
+};
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd><i>map_type </i>selecciona una de las implementaciones de mapas disponibles en el
+      kernel. Para todos los tipos de mapa, los programas eBPF acceden a los mapas con las mismas
+      <b>funciones auxiliares bpf_map_lookup_elem()</b> y <b>bpf_map_update_elem(). Se</b> proporcionan más detalle</dd>s de los diferentes tipo</dl>s de mapa a continuación.
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_LOOKUP_ELEM~2"><a class="permalink" href="#BPF_MAP_LOOKUP_ELEM~2"><b>BPF_MAP_LOOKUP_E</b></a></dt>LEM
+  <dd>El <b>comando </b>BPF_MAP_LOOKUP_ELEM busca un elemento con una
+      <i>clave </i>dada en el mapa al que se refiere el descriptor de archivo <i>f</i>d</dd></dl>.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>int
+bpf_lookup_elem(int fd, const void *key, void *value)
+{
+    union bpf_attr attr = {
+        .map_fd = fd,
+        .key    = ptr_to_u64(key),
+        .value  = ptr_to_u64(value),
+    };
+    return bpf(BPF_MAP_LOOKUP_ELEM, &amp;attr, sizeof(attr)</pre>);
+}
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>Si se encuentra un elemento, la operación devuelve cero y almacena el
+      valor del elemento en <i>value,</i> que debe apuntar a un búfer de
+      <i>value_</i>size </dd>bytes.
+  <dt></dt>
+  <dd>Si no se encuentra ningún elemento, la operación devuelve -1 y establece <i>errno </i>en
+      <b>EN</b>OE</dd>N</dl>T.
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_UPDATE_ELEM~2"><a class="permalink" href="#BPF_MAP_UPDATE_ELEM~2"><b>BPF_MAP_UPDATE_E</b></a></dt>LEM
+  <dd>El <b>comando </b>BPF_MAP_UPDATE_ELEM crea o actualiza un elemento con
+      una <i>clave/valor </i>dada en el mapa al que se refiere el descriptor de archivo
+      <i>f</i>d</dd></dl>.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>int
+bpf_update_elem(int fd, const void *key, const void *value,
+                uint64_t flags)
+{
+    union bpf_attr attr = {
+        .map_fd = fd,
+        .key    = ptr_to_u64(key),
+        .value  = ptr_to_u64(value),
+        .flags  = flags,
+    };
+    return bpf(BPF_MAP_UPDATE_ELEM, &amp;attr, sizeof(attr)</pre>);
+}
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>El <i>argumento flags </i>debe especificars</dd>e como uno de los</dl>
+    siguientes:
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="BPF_ANY"><a class="permalink" href="#BPF_ANY"><b>BPF_A</b></a></dt>NY
+  <dd>Crea un nuevo elemento o actualiza un elemento </dd>existente.
+  <dt id="BPF_NOEXIST"><a class="permalink" href="#BPF_NOEXIST"><b>BPF_NOEXI</b></a></dt>ST
+  <dd>Crea un nuevo elemento solo si no </dd>existía.
+  <dt id="BPF_EXIST"><a class="permalink" href="#BPF_EXIST"><b>BPF_EXI</b></a></dt>ST
+  <dd>Actualiz</dd>a un ele</dl>mento ex</div>istente.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>En caso de éxito, la operación devuelve cero. En caso de error, se devuelve -1 y
+      <i>errno </i>se establece en <b>EINVA</b>L, <b>EPER</b>M, <b>ENOMEM,</b> o
+      <b>E2BI</b>G. <b>E2BIG </b>indica que el número de elementos en el
+      mapa alcanzó el <i>límite max_entries </i>especificado en el momento de la creación del mapa.
+      <b>Se </b>devolverá EEXIST si <i>flags </i>especifica
+      <b>BPF_NOEXIST </b>y el elemento con <i>clave </i>ya existe en el
+      mapa. <b>Se </b>devolverá ENOENT si <i>flags </i>especifica
+      <b>BPF_EXIST </b>y el elemento con <i>clave no</i> existe </dd>en el
+ </dl>   mapa.
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_DELETE_ELEM~2"><a class="permalink" href="#BPF_MAP_DELETE_ELEM~2"><b>BPF_MAP_DELETE_E</b></a></dt>LEM
+  <dd>El <b>comando </b>BPF_MAP_DELETE_ELEM elimina el elemento cuya clave es
+      <i>key </i>del mapa al que se refiere el descriptor de archivo <i>f</i>d</dd></dl>.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>int
+bpf_delete_elem(int fd, const void *key)
+{
+    union bpf_attr attr = {
+        .map_fd = fd,
+        .key    = ptr_to_u64(key),
+    };
+    return bpf(BPF_MAP_DELETE_ELEM, &amp;attr, sizeof(attr)</pre>);
+}
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>En caso de éxito, se devuelve cero. Si no se encuentra el elemento, se devuelve -1 y <i>errno </i>se establece en <b>EN</b>OE</dd>N</dl>T.
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_GET_NEXT_KEY~2"><a class="permalink" href="#BPF_MAP_GET_NEXT_KEY~2"><b>BPF_MAP_GET_NEXT_</b></a></dt>KEY
+  <dd>El <b>comando BPF_MAP_GET_NEXT_KEY </b>busca un elemento por <i>clave
+</i>      en el mapa al que se refiere el descriptor de archivo <i>fd </i>y establece el
+      <i>puntero next_</i>key en la cla</dd>ve del siguie</dl>nte elemento.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>int
+bpf_get_next_key(int fd, const void *key, void *next_key)
+{
+    union bpf_attr attr = {
+        .map_fd   = fd,
+        .key      = ptr_to_u64(key),
+        .next_key = ptr_to_u64(next_key),
+    };
+    return bpf(BPF_MAP_GET_NEXT_KEY, &amp;attr, sizeof(attr)</pre>);
+}
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>Si <i>key </i>se encuentra, la operación devuelve cero y establece el
+      <i>puntero </i>next_key en la clave del siguiente elemento. Si <i>key </i>no se
+      encuentra, la operación devuelve cero y establece el <i>puntero </i>next_key
+      en la clave del primer elemento. Si <i>key </i>es el último elemento, se devuelve -1 y <i>errno </i>se establece en <b>ENOENT.</b> Otros valores posibles de
+      <i>errno </i>son <b>ENOME</b>M, <b>EFAUL</b>T, <b>EPERM,</b> y
+      <b>EINVAL. Este método se </b>puede utilizar para ite</dd>rar sobre todos los elem</dl>entos en el
+      mapa.
+<dl class="Bl-tag">
+  <dt id="close(map_fd)"><a class="permalink" href="#close(map_fd)"><b>close(map_f</b></a></dt>d)
+  <dd>Elimina el mapa al que se refiere el descriptor de archivo <i>map_fd. Cuando el
+      progra</i>ma de espacio de usuario que c</dd>reó un mapa termina, todos los</dl> mapas se eliminarán
+      aut</section>omáticamente (pero ver NOTAS).
+<section class="Ss">
+<h2 class="Ss" id='eBPF_map_types'><a class='permalink' href='#eBPF_map_types'>Tipos de mapas </a></h2>eBPF
+<p class="Pp">Se admiten los siguientes tipos de </p>mapa:
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_TYPE_HASH"><a class="permalink" href="#BPF_MAP_TYPE_HASH"><b>BPF_MAP_TYPE_H</b></a></dt>ASH
+  <dd>Los mapas de tabla hash tienen las siguientes </dd>características</dl>:
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt></dt>•
+  <dd>Los mapas son creados y destruidos por programas de espacio de usuario. Tanto los programas de espacio de usuario como los
+      programas eBPF pueden realizar operaciones de búsqueda, actualización y </dd>eliminación.
+  <dt></dt>•
+  <dd>El kernel se encarga de asignar y liberar los pares </dd>clave/valor.
+  <dt></dt>•
+  <dd>El <b>auxiliar map_update_elem()</b> fallará al insertar un nuevo elemento cuando se alcance el <i>límite </i>max_entries. (Esto garantiza que los programas eBPF no puedan agotar la memoria.</dd>)
+  <dt></dt>•
+  <dd><b>map_update_ele</b>m() reemplaza </dd>los elementos </dl>existentes de </div>forma atómica.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Los mapas de tabla hash </dd>están optimizados para l</dl>a velocidad de búsqueda.
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_TYPE_ARRAY"><a class="permalink" href="#BPF_MAP_TYPE_ARRAY"><b>BPF_MAP_TYPE_AR</b></a></dt>RAY
+  <dd>Los mapas de array tienen las siguientes </dd>características</dl>:
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt></dt>•
+  <dd>Optimizados para la búsqueda más rápida posible. En el futuro, el verificador/compiler JIT puede reconocer operaciones lookup() que emplean una clave constante y optimizarla en un puntero constante. Es posible optimizar una
+      clave no constante en aritmética de punteros directa también, ya que los punteros y <i>value_size </i>son constantes durante la vida del programa eBPF. En
+      otras palabras, <b>array_map_lookup_elem() </b>puede ser 'inlineado' por el
+      verificador/compiler JIT mientras se conserva el acceso concurrente a este mapa desde
+      el espacio de </dd>usuario.
+  <dt></dt>•
+  <dd>Todos los elementos del array se preasignan y se inicializan a cero en el momento de la </dd>inicialización
+  <dt></dt>•
+  <dd>La clave es un índice de array y debe tener exactamente cuatro </dd>bytes.
+  <dt></dt>•
+  <dd><b>map_delete_elem()</b> falla con el error <b>EINVAL,</b> ya que
+      los elementos no se pueden </dd>eliminar.
+  <dt></dt>•
+  <dd><b>map_update_elem() </b>reemplaza los elementos de una <b>manera no </b>atómica;
+      para actualizaciones atómicas, se debe usar en su lugar un mapa de tabla hash. Sin embargo, hay un caso especial que también se puede usar con arrays: el built-in atómico <b>__sync_fetch_and_add() se puede usar en contadores atómicos de 32 y 64 </b>bits. Por ejemplo, se puede aplicar en el valor completo si
+      repre</dd>senta un solo contador, o en caso de una estructura que contiene múlti</dl>ples contadores, se podría usar en contadores individuales. Esto es bas</div>tante a menudo
+      útil para la agregación y contabilidad de eventos.
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Entre los usos de los mapas de array se encuentran los siguientes:d</dl>&gt;
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt></dt>•
+  <dd>Como variables eBPF "globales": un array de 1 elemento cuya clave es
+      (índice) 0 y cuyo valor es una colección de variables 'globales' que los
+      programas eBPF pueden usar para mantener estado entre </dd>eventos.
+  <dt></dt>•
+  <dd>Agregación de eventos de trazado en un conjunto fijo de </dd>contenedores.
+  <dt></dt>•
+  <dd>Contabilización de eve</dd>ntos de red, por ejemp</dl>lo, número de paquetes</div> y tamaños de paquete.
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_TYPE_PROG_ARRAY"><a class="permalink" href="#BPF_MAP_TYPE_PROG_ARRAY"><b>BPF_MAP_TYPE_PROG_ARRAY
+</b>    (desde Linux </a></dt>4.2)
+  <dd>Un mapa de array de programas es un tipo especial de mapa de array cuyos valores de mapa
+      contienen solo descriptores de archivo que se refieren a otros programas eBPF. Por lo tanto, tanto el <i>key_size </i>como <i>value_size </i>deben ser exactamente cuatro bytes. Este
+      mapa se usa en conjunto con el <b>auxili</b>ar bpf</dd>_tail_c</dl>all().
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>Esto significa que un programa eBPF con un mapa de array de programas adjunto
+      puede llamar desde el lado del kernel </dd>a
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>void bpf_tail_call(void *context, void *prog_map,
+                   unsigned int </pre>index);
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>y por lo tanto reemplazar su propio flujo de programa con el del programa
+      en la ranura de array de programa dada, si existe. Esto puede considerarse como una
+      especie de tabla de saltos a un programa eBPF diferente. El programa invocado reutilizará
+      la misma pila. Cuando se ha realizado un salto al nuevo programa,
+      ya no volverá al programa </dd>antiguo.
+  <dt></dt>
+  <dd>Si no se encuentra ningún programa eBPF en el índice dado del array de programa
+      (porque la ranura del mapa no contiene un descriptor de archivo de programa válido, el
+      índice/clave de búsqueda especificado está fuera de límites, o se ha excedido
+      el límite de 32 llamadas anidadas), la ejecución continúa con el programa eBPF actual.
+      Esto puede usarse como un caso por defecto (fall-through)</dd>.
+  <dt></dt>
+  <dd>Un mapa de array de programas es útil, por ejemplo, en trazado o redes, para
+      manejar llamadas al sistema individuales o protocolos en sus propios subprogramas </dd>y
+      usar sus identificadores como un índice de mapa individual. Este enfoque puede resultar
+      en beneficios de rendimiento, y también hace posible superar el</dl>
+      límite máximo de instrucciones de un solo programa eBPF. En entornos
+      dinámicos, un demonio en espacio de usuario podría reemplazar atómicamente subprogra</section>mas individuales en tiempo de ejecución con versiones más nuevas para alterar el comportamiento general del programa, por ejemplo, si cambian las políticas globales.
+<section class="Ss">
+<h2 class="Ss" id='eBPF_programs'><a class='permalink' href='#eBPF_programs'>eBPF   </a></h2>programs
+<p class="Pp">El <b>comando </b>BPF_PROG_LOAD se usa para cargar un programa eBPF
+    en el kernel. El valor de retorno para este comando es un nuevo descriptor de archivo
+    asociado con este programa </p>eBPF.
+<p class="Pp">
+  <br/>
+</p>
+<pre>char bpf_log_buf[LOG_BUF_SIZE];
+int
+bpf_prog_load(enum bpf_prog_type type,
+              const struct bpf_insn *insns, int insn_cnt,
+              const char *license)
+{
+    union bpf_attr attr = {
+        .prog_type = type,
+        .insns     = ptr_to_u64(insns),
+        .insn_cnt  = insn_cnt,
+        .license   = ptr_to_u64(license),
+        .log_buf   = ptr_to_u64(bpf_log_buf),
+        .log_size  = LOG_BUF_SIZE,
+        .log_level = 1,
+    };
+    return bpf(BPF_PROG_LOAD, &amp;attr, sizeof(attr));
+</pre>}
+<p class="Pp"><i>prog_type </i>es uno de los tipos de programa </p>disponibles:
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>enum bpf_prog_type {
+    BPF_PROG_TYPE_UNSPEC,        /* Reserve 0 as invalid
+                                    program type */
+    BPF_PROG_TYPE_SOCKET_FILTER,
+    BPF_PROG_TYPE_KPROBE,
+    BPF_PROG_TYPE_SCHED_CLS,
+    BPF_PROG_TYPE_SCHED_ACT,
+    BPF_PROG_TYPE_TRACEPOINT,
+    BPF_PROG_TYPE_XDP,
+    BPF_PROG_TYPE_PERF_EVENT,
+    BPF_PROG_TYPE_CGROUP_SKB,
+    BPF_PROG_TYPE_CGROUP_SOCK,
+    BPF_PROG_TYPE_LWT_IN,
+    BPF_PROG_TYPE_LWT_OUT,
+    BPF_PROG_TYPE_LWT_XMIT,
+    BPF_PROG_TYPE_SOCK_OPS,
+    BPF_PROG_TYPE_SK_SKB,
+    BPF_PROG_TYPE_CGROUP_DEVICE,
+    BPF_PROG_TYPE_SK_MSG,
+    BPF_PROG_TYPE_RAW_TRACEPOINT,
+    BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+    BPF_PROG_TYPE_LWT_SEG6LOCAL,
+    BPF_PROG_TYPE_LIRC_MODE2,
+    BPF_PROG_TYPE_SK_REUSEPORT,
+    BPF_PROG_TYPE_FLOW_DISSECTOR,
+    /* See /usr/include/linux/bpf.h for the full list.  </pre>*/
+};
+    <br/>
+  </dd>
+</dl>
+<p class="Pp">Para más detalles sobre los tipos de programa eBPF, ver más </p>abajo.
+<p class="Pp">Los campos restantes de <i>bpf_attr se </i>establecen de la siguiente </p>manera:
+<dl class="Bl-tag">
+  <dt></dt>•
+  <dd><i>insns </i>es un array de <i>instrucciones </i>struct </dd>bpf_insn.
+  <dt></dt>•
+  <dd><i>insn_cnt </i>es el número de instrucciones en el programa al que se refiere
+      por <i>ins</i>n</dd>s.
+  <dt></dt>•
+  <dd><i>license </i>es una cadena de licencia, que debe ser compatible con GPL para llamar
+      a funciones auxiliares marcadas <i>gpl_only.</i> (Las reglas de licencia son las mismas
+      que para los módulos del kernel, por lo que también se pueden usar licencias duales, como "Dual
+      BSD/GPL".</dd>)
+  <dt></dt>•
+  <dd><i>log_buf </i>es un puntero a un búfer asignado por el llamador en el que el
+      verificador en el kernel puede almacenar el registro de verificación. Este registro es una
+      cadena de varias líneas que puede ser revisada por el autor del programa para
+      entender cómo el verificador llegó a la conclusión de que el programa eBPF
+      es inseguro. El formato de la salida puede cambiar en cualquier momento a medida que el verificador
+      </dd>evoluciona.
+  <dt></dt>•
+  <dd><i>log_size </i>tamaño del búfer al que apunta <i>log_buf.</i> Si el
+      tamaño del búfer no es lo suficientemente grande para almacenar todos los mensajes del verificador, se devuelve -1
+      y <i>errno </i>se establece a <b>ENOS</b>P</dd>C.
+  <dt></dt>•
+  <dd><i>log_level </i>nivel de verbosidad del verificador. Un valor de cero significa
+      que el verificador no proporcionará un registro; en este caso, <i>log_buf
+</i>      debe ser un puntero nulo, y <i>log_si</i>ze deb</dd>e ser</dl> cero.
+<p class="Pp">Aplicar <a href='/man/close.2.en'>close(2)</a> al descriptor de archivo devuelto por
+    <b>BPF_PROG_LOAD </b>descargará el programa eBPF (pero ver NOTAS)</p>.
+<p class="Pp">Los mapas son accesibles desde los programas eBPF y se usan para intercambiar
+    datos entre programas eBPF y entre programas eBPF y programas en espacio de
+    usuario. Por ejemplo, los programas eBPF pueden proce</p>sar varios eventos (como
+    kprobe, paquetes) y almacenar sus datos en un mapa, y los programas en espacio de
+    usuario pueden luego obtener datos del mapa. A la inversa, los programas en espacio de usuario pueden</section> usar un
+    mapa como mecanismo de configuración, poblando el mapa con valores que son verificados por el
+    programa eBPF, el cual luego modifica su comportamiento sobre la marcha de acuerdo con
+    esos valores.
+<section class="Ss">
+<h2 class="Ss" id='eBPF_program_types'><a class='permalink' href='#eBPF_program_types'>eBPF   program </a></h2>types
+<p class="Pp">El tipo de programa eBPF (<i>prog_type)</i> determina el subconjunto de
+    funciones auxiliares del kernel que el programa puede llamar. El tipo de programa también
+    determina la entrada del programa (contexto)—el formato de <i>struct
+    bpf_context </i>(que es el blob de datos que se pasa al programa eBPF como el
+    primer argumento)</p>.
+<p class="Pp">Por ejemplo, un programa de trazado no tiene exactamente el mismo subconjunto
+    de funciones auxiliares que un programa de filtro de socket (aunque pueden tener algunas
+    funciones auxiliares en común). De manera similar, la entrada (contexto) para un programa de trazado es
+    un conjunto de valores de registro, mientras que para un filtro de socket es un paquete
+  de </p>red.
+<p class="Pp">El conjunto de funciones disponibles para los programas eBPF de un tipo
+    dado puede aumentar en el </p>futuro.
+<p class="Pp">Se soportan los siguientes tipos de </p>programa:
+<dl class="Bl-tag">
+  <dt id="BPF_PROG_TYPE_SOCKET_FILTER"><a class="permalink" href="#BPF_PROG_TYPE_SOCKET_FILTER"><b>BPF_PROG_TYPE_SOCKET_FILTER
+</b>    (desde Linux 3.</a></dt>19)
+  <dd>Actualmente, el conjunto de funciones para <b>BPF_PROG_</b>TYPE_SOCK</dd>ET_FILTE</dl>R
+    es:
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <br/>
+    <pre>bpf_map_lookup_elem(map_fd, void *key)
+                    /* look up key in a map_fd */
+bpf_map_update_elem(map_fd, void *key, void *value)
+                    /* update key/value */
+bpf_map_delete_elem(map_fd, void *key)
+                    /* delete key in a map_fd </pre>*/
+    <br/>
+  </dd>
+  <dt></dt>
+  <dd>El <i>argumento </i>bpf_context es un puntero a una <i>struc</i>t
+   </dd> __sk_</dl>buff.
+<dl class="Bl-tag">
+  <dt id="BPF_PROG_TYPE_KPROBE"><a class="permalink" href="#BPF_PROG_TYPE_KPROBE"><b>BPF_PROG_TYPE_KPROBE
+</b>    (desde Linux </a></dt>4.1)
+  <dd>[Por </dd>documentar]
+  <dt id="BPF_PROG_TYPE_SCHED_CLS"><a class="permalink" href="#BPF_PROG_TYPE_SCHED_CLS"><b>BPF_PROG_TYPE_SCHED_CLS
+</b>    (desde Linux </a></dt>4.1)
+  <dd>[Por </dd>documentar]
+  <dt id="BPF_PROG_TYPE_SCHED_ACT"><a class="permalink" href="#BPF_PROG_TYPE_SCHED_ACT"><b>BPF_PROG_TYPE_SCHED_ACT
+</b>    (desde Linux </a></dt>4.1)
+  <dd>[Por</dd> doc</dl>umen</section>tar]
+<section class="Ss">
+<h2 class="Ss" id='Events'><a class='permalink' href='#Events'>Evento</a></h2>s
+<p class="Pp">Una vez que un programa está cargado, puede adjuntarse a un evento. Varios
+    subsistemas del kernel tienen diferentes formas de </p>hacerlo.
+<p class="Pp">Desde Linux 3.19, la siguiente llamada adjuntará el programa
+    <i>prog_fd </i>al socket <i>sockfd,</i> que fue creado por una llamada anterior a <a href='/man/socket.2.en'>soc</a>ket(</p>2):
+<p class="Pp">
+  <br/>
+</p>
+<pre>setsockopt(sockfd, SOL_SOCKET, SO_ATTACH_BPF,
+           &amp;prog_fd, sizeof(prog_fd))</pre>;
+<p class="Pp">Desde Linux 4.1, la siguiente llamada puede usarse para adjuntar el programa eBPF
+    al que se refiere el descriptor de archivo <i>prog_fd </i>a un descriptor de archivo de evento perf, <i>event_fd,</i> que fue creado por una llamada previa a
+    <a href='/man/perf_event_open.2.en'>perf_e</a>vent_op</p>en(2):
+<p class="Pp">
+  <br/>
+</p>
+<pre>ioctl(event_</pre>fd, PERF_EVE</section>NT_IOC_SET_BP</section>F, prog_fd);
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUE'><a class='permalink' href='#RETURN_VALUE'>VALOR   DE </a></h1>RETORNO
+<p class="Pp">Para una llamada exitosa, el valor de retorno depende de la
+  </p>operación:
+<dl class="Bl-tag">
+  <dt id="BPF_MAP_CREATE~3"><a class="permalink" href="#BPF_MAP_CREATE~3"><b>BPF_MAP_CREA</b></a></dt>TE
+  <dd>El nuevo descriptor de archivo asociado con el mapa </dd>eBPF.
+  <dt id="BPF_PROG_LOAD~2"><a class="permalink" href="#BPF_PROG_LOAD~2"><b>BPF_PROG_LO</b></a></dt>AD
+  <dd>El nuevo descriptor de archivo asociado con el programa </dd>eBPF.
+  <dt id="All"><a class="permalink" href="#All">Todos los demás </a></dt>comandos
+  <dd>Ce</dd>r</dl>o.
+<p class="Pp">En caso de error, se devuelve -1, y <i>errno se es</i>tablece par</p>a indicar el</section>
+    error.
+<section class="Sh">
+<h1 class="Sh" id='ERRORS'><a class='permalink' href='#ERRORS'>ERRORE</a></h1>S
+<dl class="Bl-tag">
+  <dt id="E2BIG"><a class="permalink" href="#E2BIG"><b>E2B</b></a></dt>IG
+  <dd>El programa eBPF es demasiado grande o un mapa alcanzó el límite <i>max_entries
+</i>      (número máximo de elementos)</dd>.
+  <dt id="EACCES"><a class="permalink" href="#EACCES"><b>EACC</b></a></dt>ES
+  <dd>Para <b>BPF_PROG_LOAD,</b> aunque todas las instrucciones del programa son válidas,
+      el programa ha sido rechazado porque se consideró inseguro. Esto puede ser
+      porque puede haber accedido a una región de memoria no permitida o a una
+      pila/registro sin inicializar, o porque las restricciones de la función no
+      coinciden con los tipos reales, o porque hubo un acceso a memoria desalineado. En
+      este caso, se recomienda llamar a <b>bpf()</b> de nuevo con <i>log_level
+      = </i>1 y examinar <i>log_buf </i>para la razón específica proporcionada por el
+      </dd>verificador.
+  <dt id="EAGAIN"><a class="permalink" href="#EAGAIN"><b>EAGAIN</b></a></dt>
+  <dd>Pour <b>BPF_PROG_LOAD,</b> indique que les ressources nécessaires sont bloquées.
+      Cela se produit lorsque le vérificateur détecte des signaux en attente
+      pendant qu'il vérifie la validité du programme bpf. Dans ce
+      <b>cas,</b> il
+      suffit d'appeler
+bpf()</dd> à
+  <dt id="EBADF"><a class="permalink" href="#EBADF"><b>nouv</b></a></dt>eau
+  <dd><i>avec </i>les mêmes paramètres.
+EBADF
+fd </dd>n'est
+  <dt id="EFAULT"><a class="permalink" href="#EFAULT"><b>pas </b></a></dt>un
+  <dd>descripteur de fichier<i>ouv</i>ert. <i>EFA</i>ULT <i>L'un </i>des pointeurs
+      <i>(
+key </i>ou
+value ou
+log_buf ou
+insns) est en </dd>dehors
+  <dt id="EINVAL"><a class="permalink" href="#EINVAL"><b>de </b></a></dt>l'espace
+  <dd>d'adressage accessible. <i>EINVAL
+</i>La valeur spécifiée dans
+</dd>cmd
+  <dt id="EINVAL~2"><a class="permalink" href="#EINVAL~2"><b>n'est </b></a></dt>pas
+  <dd>r <b>econnue par </b>ce noyau. <i>EINVAL
+</i>Pour
+BPF_MAP_CREATE, soit
+map_type </dd>soit
+  <dt id="EINVAL~3"><a class="permalink" href="#EINVAL~3"><b>les </b></a></dt>attributs
+  <dd>s <b>ont
+      </b>invalides.
+EINVAL
+Pour les commandes <i>BPF_MAP_*_ELEM, </i>certains des champs de
+union
+      bpf_attr qui ne sont </dd>pas
+  <dt id="EINVAL~4"><a class="permalink" href="#EINVAL~4"><b>utili</b></a></dt>sés
+  <dd>par <b>cette commande </b>ne sont pas
+      initialisés à zéro.
+EINVAL
+Pour
+BPF_PROG_LOAD, indique une tentative de charger un programme
+      invalide. Les programmes eBPF peuvent être considérés comme invalides en
+      raison d'instructions non reconnues,</dd> de
+  <dt id="ENOENT"><a class="permalink" href="#ENOENT"><b>l'utilisa</b></a></dt>tion
+  <dd>de <b>champs </b>réservés, <b>de sauts hors </b>limites, de boucles infinies ou d'appels de fonctions <i>inconnues.</i>
+</dd>ENOENT
+  <dt id="ENOMEM"><a class="permalink" href="#ENOMEM"><b>Pou</b></a></dt>r
+  <dd>BPF_MAP_LOOKUP_ELEM ou
+BPF_MAP_DELETE_EL</dd>EM,
+  <dt id="EPERM"><a class="permalink" href="#EPERM"><b>EPE</b></a></dt>RM
+  <dd>indique
+      que l'élément avec la
+clé donnée n'a pas été trouvé.
+ENOMEM
+      <b>Impo</b>ssib</dd>le d</dl>'all</section>ouer
+<section class="Sh">
+<h1 class="Sh" id='STANDARDS'><a class='permalink' href='#STANDARDS'>suffisamment </a></h1>de
+<p class="Pp">mémoir</p>e</section>.
+<section class="Sh">
+<h1 class="Sh" id='HISTORY'><a class='permalink' href='#HISTORY'>EPER</a></h1>M
+<p class="Pp">L'ap</p>pel a</section> été
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>effectu</a></h1>é
+<p class="Pp">sans privilège suffisant <b>(sans </b>la
+capacité CAP_SYS_ADMIN).
+STANDARDS <b>Linux.
+HISTORY
+</b>Linux 3.18.
+NOTES
+Avant Linux 4.4, toutes les commandes
+bpf() exigeaient que l'appelant
+    possède la
+    <b>capacité CAP_SYS_ADMIN. À </b>partir de Linux 4.4, un
+    utilisateur non privilégié peut créer des programmes limités de type
+BPF_PROG_TYPE_SOCKET_FILTER et des cartes </p>associées.
+<dl class="Bl-tag">
+  <dt>Ce</dt>pendant,
+  <dd>il
+    </dd>ne
+  <dt>p</dt>eut
+  <dd>pas stocker de </dd>pointeurs
+  <dt>d</dt>u
+  <dd>noyau </dd>dans
+  <dt>l</dt>es
+  <dd>cart</dd>es et</dl> est
+<p class="Pp">actuellement
+    limité aux fonctions utilitaires suivantes :
+•
+get_random <i>•
+get_smp_proces</i>sor_id
+•
+tail_cal</p>l
+•
+ktime_get_ns
+<p class="Pp">L'accès non privilégié peut être bloqué en écrivant la valeur 1 dans le
+    fichier <a href='/man/fork.2.en'>/proc/s</a>ys/kernel/unprivileged_bpf_disabled.
+Les objets eBPF (cartes et programmes) peuvent être partagés entre
+    processus. Par exemple, après
+fork(2), l'enfant hérite des
+    descripteurs de fichier faisant référence aux mêmes objets eBPF. De plus,
+    les descripteurs de fichier <a href='/man/dup.2.en'>faisant </a>référence à des objets eBPF peuvent être
+    transférés via des sockets de domaine UNIX. Les descripteurs de fichier
+    </p>faisant
+<p class="Pp">référence à des objets eBPF peuvent être dupliqués de la manière
+    habituelle, <b>en </b>utilisant
+dup(2) et des appels similaires. Un objet eBPF n'est
+    libéré qu'après que tous les descripteurs de fichier faisant référence à
+    l'objet ont été fermés.
+Les programmes eBPF peuvent être écrits dans un C restreint qui est
+    compilé (à l'aide <i>du
+compilateur </i>clang) en code octet eBPF. </p>Diverses
+<p class="Pp">fonctionnalités sont omises de ce C restreint, telles que les boucles, les
+    variables globales, les fonctions variadiques, les nombres à virgule
+    flottante et le passage de structures comme arguments de fonction. Quelques
+    exemples peuvent être trouvés dans les fichiers
+samples/bpf/*_kern.c
+    de
+    <i>l'arborescen</i>ce des sourc</p>es du noyau.
+<dl class="Bl-tag">
+  <dt><b>L</b></dt>e
+  <dd>noyau contient un compilateur </dd>à la
+  <dt><b>v</b></dt>olée
+  <dd>(JIT) qui traduit </dd>le
+  <dt><b>c</b></dt>ode
+  <dd>octet eBPF en code machine natif pour de meilleures performances. Avant
+    Linux 4.15, le compilateur JIT est désactivé par défaut, mais son
+      <i>fonctionnement peu</i>t être contrôlé en</dd> écrivant l'une des</dl> chaînes d'entiers
+<p class="Pp">suivantes dans le fichier
+/proc/sys/net/core/bpf_jit_enable
+    <b>:
+0
+Désactiver la </b>compilation JIT (par défaut).
+1
+Compilation normale.
+2
+Mode débogage. <i>Les codes </i>d'opération générés sont écrits en hexadécimal
+      dans le journal du noyau. Ces codes d'opération peuvent ensuite être
+      désassemblés à l'aide du programme
+tools/net/bpf_jit_disasm</p>.
+<p class="Pp">c fourni dans l'arborescence des sources du
+    noyau.
+Depuis Linux 4.15, </p>le
+<dl class="Bl-tag">
+  <dt>n</dt>oyau
+  <dd>peut être configuré avec l'option
+CONFIG_BPF_JIT_ALWAYS_</dd>ON.
+  <dt></dt>•
+  <dd>Dans ce cas, le compilateur JIT est
+    </dd>toujours
+  <dt></dt>a
+  <dd>ctivé, et
+bpf_jit_enable est initialisé à 1 et </dd>est
+  <dt></dt>•
+  <dd>immuable. (Cette option </dd>de
+  <dt>con</dt>figuration
+  <dd>du noyau a été fournie comme
+    </dd>mesure
+  <dt>d'a</dt>tténuation
+  <dd>contre l'une des attaques Spectre </dd>contre
+  <dt>l'in</dt>terpréteur
+  <dd>BPF.)
+Le compilateur </dd>JIT
+  <dt>p</dt>our
+  <dd>eBPF est </dd>actuellement
+  <dt>di</dt>sponible
+  <dd>pour les
+    architectures suivantes :
+•
+</dd>x86-64
+  <dt>(d</dt>epuis
+  <dd>Linux </dd>3.18 ;</dl> cBPF </section>depuis
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>Linux 3.</a></h1>0)
+<pre>;
+•
+ARM32 (depuis Linux 3.18 ; cBPF depuis Linux 3.4) ;
+•
+SPARC 32 (depuis Linux 3.18 ; cBPF depuis Linux 3.5) ;
+•
+ARM-64 (depuis Linux 3.18) ;
+•
+s390 (depuis Linux 4.1 ; cBPF depuis Linux 3.7) ;
+•
+PowerPC 64 (depuis Linux 4.8 ; cBPF depuis Linux 3.1) ;
+•
+SPARC 64 (depuis Linux 4.12) ;
+•
+x86-32 (depuis Linux 4.18) ;
+•
+MIPS 64 (depuis Linux 4.18 ; cBPF depuis Linux 3.16) ;
+•
+riscv (depuis Linux 5.1).
+EXAMPLES
+#define NITEMS(a)  (sizeof(a) / sizeof(*(a)))
+/* Exemple bpf+sockets :
+ * 1.  créer une carte de tableau de 256 éléments
+ * 2.  charger un programme qui compte le nombre de paquets reçus
+ *    r0 = skb-&gt;data[ETH_HLEN + offsetof(struct iphdr, protocol)]
+ *    map[r0]++
+ * 3.  attacher prog_fd à un socket brut via setsockopt()
+ * 4.  afficher le nombre de paquets TCP/UDP reçus chaque seconde
+ */
+int
+main(int argc, char *argv[])
+{
+    int sock, map_fd, prog_fd, key;
+    long long value = 0, tcp_cnt, udp_cnt;
+    map_fd = bpf_create_map(BPF_MAP_TYPE_ARRAY, sizeof(key),
+                            sizeof(value), 256);
+    if (map_fd &lt; 0) {
+        printf("échec de la création de la carte '%s'\n", strerror(errno));
+        /* probablement pas exécuté en tant que root */
+        return 1;
+    }
+    struct bpf_insn prog[] = {
+        BPF_MOV64_REG(BPF_REG_6, BPF_REG_1),        /* r6 = r1 */
+        BPF_LD_ABS(BPF_B, ETH_HLEN + offsetof(struct iphdr, protocol)),
+                                /* r0 = ip-&gt;proto */
+        BPF_STX_MEM(BPF_W, BPF_REG_10, BPF_REG_0, -4),
+                                /* *(u32 *) (fp - 4) = r0 */
+        BPF_MOV64_REG(BPF_REG_2, BPF_REG_10),       /* r2 = fp */
+        BPF_ALU64_IMM(BPF_ADD, BPF_REG_2, -4),      /* r2 = r2 - 4 */
+        BPF_LD_MAP_FD(BPF_REG_1, map_fd),           /* r1 = map_fd */
+        BPF_CALL_FUNC(BPF_FUNC_map_lookup_elem),
+                                /* r0 = map_lookup(r1, r2) */
+        BPF_JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 2),
+                                /* if (r0 == 0) goto pc+2 */
+        BPF_MOV64_IMM(BPF_REG_1, 1),                /* r1 = 1 */
+        BPF_XADD(BPF_DW, BPF_REG_0, BPF_REG_1, 0, 0),
+                                /* lock *(u64 *) r0 += r1 */
+        BPF_MOV64_IMM(BPF_REG_0, 0),                /* r0 = 0 */
+        BPF_EXIT_INSN(),                            /* return r0 */
+    };
+    prog_fd = bpf_prog_load(BPF_PROG_TYPE_SOCKET_FILTER, prog,
+                            NITEMS(prog), "GPL")</pre>;
+<p class="Pp">sock = open_raw_sock("lo");
+    assert(setsockopt(sock, <i>SOL_SOCKE</i>T, SO_ATT</p>ACH_BPF, </section>&amp;prog_fd,
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VOIR </a></h1>AUSSI
+<p class="Pp"><a href='/man/seccomp.2.en'>sizeof(prog_</a>fd) <a href='/man/bpf-helpers.7.en'>) == 0)</a>; <a href='/man/socket.7.en'>for (;</a>;) {
+    <a href='/man/tc.8.en'>tc(8)</a>, <a href='/man/tc-bpf.8.en'>key </a></p>=
+<p class="Pp">IPPROTO_TCP;
+        assert(bpf_lookup_elem(map_fd, &amp;key, &amp;tcp_cnt) == 0); <i>key </i>= I</p>PPRO</section>TO_</div>UDP;
+<table class="foot">
+  <tr>
+    <td class="foot-date">assert(bpf_lookup_el</td>em(map_fd,
+    <td class="foot-os">&amp;key, &amp;u</td>dp_cnt) </tr>== 0);
+ </table>       </section>printf("</article>TCP %lld
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>UDP %lld </p>paquets\n",
+    <dl>
+        <dt>tcp_cnt, </dt>udp_cnt);
+        <dd><a href="https://www.archlinux.org/packages/core/any/man-pages/">sleep(1);</a></dd>
+    }
+        <dt>return 0;</dt>
+}
+Du code
+        <dd>complet </dd>et
+        <dt>fonctionnel </dt>peut être
+        <dd><a href="https://www.kernel.org/doc/man-pages/">trouvé dans le
+répertoire samples/bpf
+</a></dd>    de
+        <dt>l'arborescence </dt>des
+        <dd>sources du noyau.
+SEE   ALSO
+seccomp(2),
+bpf-helpers(7),
+socket(7),
+tc(8),
+tc-bpf(8)
+Les BPF classique et étendu sont expliqués dans le fichier source du
+    noyau
+Documentation/networking/filter.txt.
+2025-09-21
+Linux man-pages 6.16
+Informations sur le paquet :
+Nom du paquet :
+core/man-pages
+Version :
+6.16-1
+Amont :
+https://www.kernel.org/doc/man-pages/
+</dd>Licences :
+        <dt>BSD-2-</dt>Clause,
+        <dd><a href="/listing/core/man-pages/">BSD-3-Claus</a></dd>e, BSD-4.3T</dl>AHOE, BSD-4</section>-Clause-UC,
+
+<details>
+    <summary>GPL-1.</summary>0-or-later,
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">GPL-2.</a></li>0-only, GPL-2.
+        
+            <li><a href="#SYNOPSIS">0-or-later,</a></li> GPL-3.0-or-later, LGPL-3.
+        
+            <li><a href="#DESCRIPTION">0-or-later, </a></li>LGPL-3.0-linking-exception,
+        
+            <li><a href="#RETURN_VALUE">LicenseRe</a></li>f-Public-Domain,
+        
+            <li><a href="#ERRORS">Licens</a></li>eRef-UltraPermissive,
+        
+            <li><a href="#STANDARDS">Linux-m</a></li>an-pages-1-para,
+        
+            <li><a href="#HISTORY">Linux-</a></li>man-pages-copyleft,
+        
+            <li><a href="#NOTES">Linux-</a></li>man-pages-copyleft-2-para,
+        
+            <li><a href="#EXAMPLES">Linux-man</a></li>-pages-copyleft-var, MIT,
+        
+            <li><a href="#SEE_ALSO">Spencer-94
+</a></li>Manuels :
+</ul>/listing/core/man</nav>-</details>pages/
+
+
+
+
+<nav class="other-languages">
+    <p>Table des </p>matières
+    <ul>
+    
+        <li><a href="/man/bpf.2.fr">NAME
+</a></li>SYNOPSIS
+    
+        <li><a href="/man/bpf.2.ru">DESC</a></li>RIPTI</ul>ON
+RE</nav>TURN
+
+
+
+
+<nav class="other-formats">
+    <p>VALUE
+ERRORS
+STANDARDS
+HISTORY
+NOTES
+        
+            <a href="/man/bpf.2.en.txt">EXAMPLES
+</a>SEE ALSO
+Dans 
+        
+            <a href="/man/bpf.2.en.raw">d'autres </a>langues :</p>
+</nav>fr
+ru
+Autres </aside>formats :
+txt,
+raw
+            
+        </main>
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia
+               GPL-3.0</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> correspondiente de Arch Linux.

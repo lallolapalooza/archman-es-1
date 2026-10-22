@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Module::Runtime(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Module__Runtime(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Module::Runtime(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Module::Runtime(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Module::Runtime - manejo de módulos en tiempo de ejecución</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Module::Runtime qw(
+    $module_name_rx is_module_name check_module_name
+    module_notional_filename require_module);
+if($module_name =~ /\A$module_name_rx\z/o) { ...
+if(is_module_name($module_name)) { ...
+check_module_name($module_name);
+$notional_filename = module_notional_filename($module_name);
+require_module($module_name);
+use Module::Runtime qw(use_module use_package_optimistically);
+$bi = use_module(&quot;Math::BigInt&quot;, 1.31)-&gt;new(&quot;1_234&quot;);
+$widget = use_package_optimistically(&quot;Local::Widget&quot;)-&gt;new;
+use Module::Runtime qw(
+    $top_module_spec_rx $sub_module_spec_rx
+    is_module_spec check_module_spec
+    compose_module_name);
+if($spec =~ /\A$top_module_spec_rx\z/o) { ...
+if($spec =~ /\A$sub_module_spec_rx\z/o) { ...
+if(is_module_spec(&quot;Standard::Prefix&quot;, $spec)) { ...
+check_module_spec(&quot;Standard::Prefix&quot;, $spec);
+$module_name = compose_module_name(&quot;Standard::Prefix&quot;, $spec);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Las funciones exportadas por este módulo se ocupan del manejo en
+    tiempo de ejecución de módulos de Perl, que normalmente se manejan en tiempo
+    de compilación. Este módulo evita usar cualquier otro módulo, para que pueda
+    ser utilizado en infraestructura de bajo nivel.</p>
+<p class="Pp">Las partes de este módulo que trabajan con nombres de módulos aplican
+    la misma sintaxis que se utiliza para las palabras clave desnudas en el código
+    fuente de Perl. En principio, esta sintaxis puede variar entre versiones de
+    Perl, y este módulo aplica la sintaxis del Perl en el que se está ejecutando.
+    En la práctica, la sintaxis utilizable aún no ha cambiado. Hay cierta
+    intención de que los nombres de módulos Unicode sean compatibles en el futuro,
+    pero esto aún no ha resultado en ninguna instalación coherente.</p>
+<p class="Pp">Las funciones de este módulo cuyo propósito es cargar módulos
+    incluyen soluciones alternativas para tres errores antiguos del núcleo de
+    Perl relacionados con <span class="Li">&quot;require&quot;</span>. Estas
+    soluciones alternativas se aplican en cualquier versión de Perl donde existan
+    los errores, excepto en un caso donde uno de los errores no se puede solucionar
+    adecuadamente en Perl puro.</p>
+<section class="Ss">
+<h2 class="Ss" id="Module_name_syntax"><a class='permalink' href='#Module_name_syntax'>Sintaxis del nombre del módulo</a></h2>
+<p class="Pp">La sintaxis utilizable del nombre del módulo no ha cambiado desde
+    Perl 5.000 hasta Perl 5.19.8. La sintaxis está compuesta enteramente por
+    caracteres ASCII. Desde Perl 5.6 en adelante, ha habido un intento de permitir
+    el uso de caracteres Unicode no ASCII en el código fuente de Perl, pero estaba
+    fundamentalmente roto (como toda la manipulación de Unicode de Perl 5.6) y
+    permaneció prácticamente inutilizable hasta que recibió algo de atención en
+    la serie Perl 5.15. Aunque Unicode ahora es aceptado consistentemente por el
+    analizador en algunos lugares, sigue estando roto para los nombres de
+    módulos. Además, todavía no ha habido ningún trabajo sobre cómo mapear los
+    nombres de módulos Unicode a nombres de archivo, por lo que en ese aspecto
+    también los nombres de módulos Unicode son inutilizables.</p>
+<p class="Pp">La sintaxis del nombre del módulo es, precisamente: la cadena debe
+    consistir en uno o más segmentos separados por <span class="Li">&quot;::&quot;</span>;
+    cada segmento debe consistir en uno o más caracteres identificadores (alfanuméricos
+    ASCII más &quot;_&quot;); el primer carácter de la cadena no debe ser un
+    dígito. Por lo tanto,
+    &quot;<span class="Li">&quot;IO::File&quot;</span>&quot;,
+    &quot;<span class="Li">&quot;warnings&quot;</span>&quot;, y
+    &quot;<span class="Li">&quot;foo::123::x_0&quot;</span>&quot; son todos nombres de
+    módulos válidos, mientras que &quot;<span class="Li">&quot;IO::&quot;</span>&quot;
+    y &quot;<span class="Li">&quot;1foo::bar&quot;</span>&quot; no lo son. Los
+    separadores de <span class="Li">&quot;'&quot;</span> no son permitidos por
+    este módulo, aunque siguen siendo utilizables en el código fuente de Perl,
+    siendo traducidos a <span class="Li">&quot;::&quot;</span> en el analizador.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Core_bugs_worked_around"><a class='permalink' href='#Core_bugs_worked_around'>Errores del núcleo solucionados</a></h2>
+<p class="Pp">El primer error solucionado es el error central [perl #68590], que
+    provoca que el estado léxico en un archivo se filtre a otro que se carga/usa
+    desde él. Este error está presente desde Perl 5.6 hasta Perl 5.10, y se
+    soluciona en Perl 5.11.0. Desde Perl 5.9.4 hasta Perl 5.10.0 no es posible una
+    solución satisfactoria en Perl puro. La solución implica que los módulos
+    cargados a través de este módulo no sufren esta contaminación de su estado
+    léxico. Los módulos cargados de otras maneras, o a través de este módulo en
+    las versiones de Perl donde la solución en Perl puro es imposible, permanecen
+    vulnerables. El módulo Lexical::SealRequireHints proporciona una solución
+    completa para este error.</p>
+<p class="Pp">El segundo error solucionado provoca ciertos tipos de fallos en la
+    carga de módulos, principalmente errores de compilación en el módulo cargado,
+    que se registran en <span class="Li">%INC</span> como si hubieran tenido
+    éxito, por lo que los intentos posteriores de cargar el mismo módulo indican
+    inmediatamente éxito. Este error está presente hasta Perl 5.8.9 y se soluciona
+    en Perl 5.9.0. La solución implica que un error de compilación en un módulo
+    cargado a través de este módulo no se almacenará en caché como un éxito. Los
+    módulos cargados de otras maneras siguen siendo susceptibles de producir
+    entradas falsas en <span class="Li">%INC</span>, y si existe una entrada
+    falsa, engañará a este módulo si se utiliza para intentar cargar de nuevo.</p>
+<p class="Pp">El tercer error solucionado provoca que se vea el contexto
+    incorrecto en el ámbito del archivo de un módulo cargado, si
+    <span class="Li">&quot;require&quot;</span> se invoca en una ubicación que
+    hereda el contexto de un ámbito superior. Este error está presente hasta
+    Perl 5.11.2 y se soluciona en Perl 5.11.3. La solución implica que un módulo
+    cargado a través de este módulo siempre verá el contexto correcto. Los
+    módulos cargados de otras maneras permanecen vulnerables.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="REGULAR_EXPRESSIONS"><a class='permalink' href='#REGULAR_EXPRESSIONS'>EXPRESIONES REGULARES</a></h1>
+<p class="Pp">Estas expresiones regulares no incluyen anclajes, por lo que para
+    verificar si una cadena completa coincide con un elemento de sintaxis, debe
+    proporcionar los anclajes usted mismo.</p>
+<dl class="Bl-tag">
+  <dt>$module_name_rx</dt>
+  <dd>Coincide con un nombre de módulo de Perl válido en sintaxis de palabra clave
+      desnuda.</dd>
+  <dt>$top_module_spec_rx</dt>
+  <dd>Coincide con una especificación de módulo para usar con
+      &quot;compose_module_name&quot;, donde no se está utilizando ningún prefijo.</dd>
+  <dt>$sub_module_spec_rx</dt>
+  <dd>Coincide con una especificación de módulo para usar con
+      &quot;compose_module_name&quot;, donde se está utilizando un prefijo.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="FUNCTIONS"><a class='permalink' href='#FUNCTIONS'>FUNCIONES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="Basic_module_handling"><a class='permalink' href='#Basic_module_handling'>Manejo básico de módulos</a></h2>
+<dl class="Bl-tag">
+  <dt id="is_module_name(ARG)"><a class="permalink" href="#is_module_name(ARG)">is_module_name(ARG)</a></dt>
+  <dd>Devuelve un valor verdadero indicando si <i>ARG</i> es una cadena simple
+      que cumple con la sintaxis del nombre de módulo de Perl, como se describe
+      para &quot;$module_name_rx&quot;.</dd>
+  <dt id="is_valid_module_name(ARG)"><a class="permalink" href="#is_valid_module_name(ARG)">is_valid_module_name(ARG)</a></dt>
+  <dd>Alias obsoleto para &quot;is_module_name&quot;.</dd>
+  <dt id="check_module_name(ARG)"><a class="permalink" href="#check_module_name(ARG)">check_module_name(ARG)</a></dt>
+  <dd>Verifica si <i>ARG</i> es una cadena simple que cumple con la sintaxis del
+      nombre de módulo de Perl, como se describe para &quot;$module_name_rx&quot;.
+      Retorna normalmente si lo es, o ejecuta <span class="Li">&quot;die&quot;</span>
+      si no lo es.</dd>
+  <dt id="module_notional_filename(NAME)"><a class="permalink" href="#module_notional_filename(NAME)">module_notional_filename(NAME)</a></dt>
+  <dd>Genera un nombre de archivo relativo teórico para un módulo, que se utiliza
+      en algunas interfaces principales de Perl. <i>NAME</i> es una cadena, que
+      debería ser un nombre de módulo válido (uno o más segmentos separados por
+      <span class="Li">&quot;::&quot;</span>). Si no es un nombre válido, la
+      función ejecuta <span class="Li">&quot;die&quot;</span>.
+    <p class="Pp">Se genera y devuelve el nombre de archivo teórico para el módulo
+        nombrado. Este nombre de archivo está siempre en estilo Unix, con
+        separadores de directorio <span class="Li">&quot;/&quot;</span> y un
+        sufijo <span class="Li">&quot;.pm&quot;</span>. Este tipo de nombre de
+        archivo puede usarse como argumento para
+        <span class="Li">&quot;require&quot;</span>, y es la clave que aparece en
+        <span class="Li">%INC</span> para identificar un módulo, independientemente
+        de la sintaxis real del nombre de archivo local.</p>
+  </dd>
+  <dt id="require_module(NAME)"><a class="permalink" href="#require_module(NAME)">require_module(NAME)</a></dt>
+  <dd>Esencialmente, esta es la forma de palabra clave desnuda de
+      <span class="Li">&quot;require&quot;</span>, en forma de tiempo de ejecución.
+      <i>NAME</i> es una cadena, que debe ser un nombre de módulo válido (uno o
+      más segmentos separados por <span class="Li">&quot;::&quot;</span>). Si no
+      es un nombre válido, la función ejecuta
+      <span class="Li">&quot;die&quot;</span>.
+    <p class="Pp">El módulo especificado por <i>NAME</i> se carga, si aún no se ha
+        hecho, de la misma manera que la forma de palabra clave desnuda de
+        <span class="Li"
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Module::Runtime - runtime evaluation of Perl modules</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>
+    use Module::Runtime qw(require_module use_module);
+
+    # Load a module and possibly call a method on it
+    my $obj = use_module('Foo::Bar', '1.23')-&gt;new();
+
+    # Load a module, but don't do anything else with it
+    require_module('Baz::Quux');
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">This module provides functions for loading Perl modules at runtime.
+    It is primarily intended for use by other modules that need to load modules
+    dynamically, such as those that use the <span class="Li">base</span> pragma,
+    or that need to construct module names from user input.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REGULAR_EXPRESSIONS'><a class='permalink' href='#REGULAR_EXPRESSIONS'>REGULAR EXPRESSIONS</a></h1>
+<p class="Pp">This module provides no regular expressions.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS'><a class='permalink' href='#FUNCTIONS'>FUNCTIONS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Basic_module_loading'><a class='permalink' href='#Basic_module_loading'>Basic module loading</a></h2>
+<dl class="Bl-tag">
+  <dt id="require_module(NAME_[,VERSION])"><a class="permalink" href="#require_module(NAME_[,VERSION])">require_module(NAME[,VERSION])</a></dt>
+  <dd>This function loads a Perl module. The module name is given by
+      <i>NAME</i>, which should be a string like <span class="Li">&quot;Foo::Bar&quot;</span>.
+      It is handled exactly like a bareword module name in a <span class="Li">&quot;require&quot;</span>
+      statement. That is, a search through <span class="Li">@INC</span> is performed,
+      and a byte-compiled form of the module will be used if available.</p>
+    <p class="Pp">If a <i>VERSION</i> is specified, the
+        <span class="Li">&quot;VERSION&quot;</span> method of the loaded module
+        is called with the specified <i>VERSION</i> as an argument. This
+        normally serves to ensure that the version loaded is at least the
+        version required. This is the same functionality provided by the
+        <i>VERSION</i> parameter of <span class="Li">&quot;use&quot;</span>.</p>
+    <p class="Pp">The return value is as for
+        <span class="Li">&quot;require&quot;</span>. That is, it is the value
+        returned by the module itself if the module is loaded anew, or
+        <span class="Li">1</span> if the module was already loaded.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Structured_module_use'><a class='permalink' href='#Structured_module_use'>Structured module use</a></h2>
+<dl class="Bl-tag">
+  <dt id="use_module(NAME_[,VERSION])"><a class="permalink" href="#use_module(NAME_[,VERSION])">use_module(NAME[,
+    VERSION])</a></dt>
+  <dd>This is essentially <span class="Li">&quot;use&quot;</span> in runtime
+      form, but without the importing feature (which is fundamentally a
+      compile-time thing). The <i>NAME</i> is handled just like in
+      <span class="Li">&quot;require_module&quot;</span> above: it must be a
+      module name, and the named module is loaded as if by the bareword form of
+      <span class="Li">&quot;require&quot;</span>.
+    <p class="Pp">If a <i>VERSION</i> is specified, the
+        <span class="Li">&quot;VERSION&quot;</span> method of the loaded module
+        is called with the specified <i>VERSION</i> as an argument. This
+        normally serves to ensure that the version loaded is at least the
+        version required. This is the same functionality provided by the
+        <i>VERSION</i> parameter of <span class="Li">&quot;use&quot;</span>.</p>
+    <p class="Pp">On success, the name of the module is returned. This is unlike
+        &quot;require_module&quot;, and is done so that the entire call to
+        &quot;use_module&quot; can be used as a class name to call a
+        constructor, as in the example in the synopsis.</p>
+  </dd>
+  <dt id="use_package_optimistically(NAME_[,VERSION])"><a class="permalink" href="#use_package_optimistically(NAME_[,VERSION])">use_package_optimistically(NAME[,
+    VERSION])</a></dt>
+  <dd>This is an analogue of &quot;use_module&quot; for the situation where
+      there is uncertainty as to whether a package/class is defined in its own
+      module or by some other means. It attempts to arrange for the named
+      package to be available, either by loading a module or by doing nothing
+      and hoping.
+    <p class="Pp">An attempt is made to load the named module (as if by the
+        bareword form of <span class="Li">&quot;require&quot;</span>). If the
+        module cannot be found then it is assumed that the package was actually
+        already loaded by other means, and no error is signaled. That's the
+        optimistic bit.</p>
+    <p class="Pp"><i>Warning:</i> this optional module loading is liable to
+        cause unreliable behaviour, including security problems. It interacts
+        especially badly with having <span class="Li">&quot;.&quot;</span> in
+        <span class="Li">@INC</span>, which was the default state of affairs in
+        Perls prior to 5.25.11. If a package is actually defined by some means
+        other than a module, then applying this function to it causes a spurious
+        attempt to load a module that is expected to be non-existent. If a
+        module actually exists under that name then it will be unintentionally
+        loaded. If <span class="Li">&quot;.&quot;</span> is in
+        <span class="Li">@INC</span> and this code is ever run with the current
+        directory being one writable by a malicious user (such as <i>/tmp</i>),
+        then the malicious user can easily cause the victim to run arbitrary
+        code, by creating a module file under the predictable spuriously-loaded
+        name in the writable directory. Generally, optional module loading
+        should be avoided.</p>
+    <p class="Pp">This is mostly the same operation that is performed by the
+        base pragma to ensure that the specified base classes are available. The
+        behaviour of base was simplified in version 2.18, and later improved in
+        version 2.20, and on both occasions this function changed to match.</p>
+    <p class="Pp">If a <i>VERSION</i> is specified, the
+        <span class="Li">&quot;VERSION&quot;</span> method of the loaded package
+        is called with the specified <i>VERSION</i> as an argument. This
+        normally serves to ensure that the version loaded is at least the
+        version required. On success, the name of the package is returned. These
+        aspects of the function work just like &quot;use_module&quot;.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Module_name_composition'><a class='permalink' href='#Module_name_composition'>Module name composition</a></h2>
+<dl class="Bl-tag">
+  <dt id="is_module_spec(PREFIX,"><a class="permalink" href="#is_module_spec(PREFIX,">is_module_spec(PREFIX,
+    SPEC)</a></dt>
+  <dd>Returns a truth value indicating whether <i>SPEC</i> is valid input for
+      &quot;compose_module_name&quot;. See below for what that entails. Whether
+      a <i>PREFIX</i> is supplied affects the validity of <i>SPEC</i>, but the
+      exact value of the prefix is unimportant, so this function treats
+      <i>PREFIX</i> as a truth value.</dd>
+  <dt id="is_valid_module_spec(PREFIX,"><a class="permalink" href="#is_valid_module_spec(PREFIX,">is_valid_module_spec(PREFIX,
+    SPEC)</a></dt>
+  <dd>Deprecated alias for &quot;is_module_spec&quot;.</dd>
+  <dt id="check_module_spec(PREFIX,"><a class="permalink" href="#check_module_spec(PREFIX,">check_module_spec(PREFIX,
+    SPEC)</a></dt>
+  <dd>Check whether <i>SPEC</i> is valid input for
+      &quot;compose_module_name&quot;. Return normally if it is, or
+      <span class="Li">&quot;die&quot;</span> if it is not.</dd>
+  <dt id="compose_module_name(PREFIX,"><a class="permalink" href="#compose_module_name(PREFIX,">compose_module_name(PREFIX,
+    SPEC)</a></dt>
+  <dd>This function is intended to make it more convenient for a user to specify
+      a Perl module name at runtime. Users have greater need for abbreviations
+      and context-sensitivity than programmers, and Perl module names get a
+      little unwieldy. <i>SPEC</i> is what the user specifies, and this function
+      translates it into a module name in standard form, which it returns.
+    <p class="Pp"><i>SPEC</i> has syntax approximately that of a standard module
+        name: it should consist of one or more name segments, each of which
+        consists of one or more identifier characters. However,
+        <span class="Li">&quot;/&quot;</span> is permitted as a separator, in
+        addition to the standard <span class="Li">&quot;::&quot;</span>. The two
+        separators are entirely interchangeable.</p>
+    <p class="Pp">Additionally, if <i>PREFIX</i> is not
+        <span class="Li">&quot;undef&quot;</span> then it must be a module name
+        in standard form, and it is prefixed to the user-specified name. The
+        user can inhibit the prefix addition by starting <i>SPEC</i> with a
+        separator (either <span class="Li">&quot;/&quot;</span> or
+        <span class="Li">&quot;::&quot;</span>).</p>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">On Perl versions 5.7.2 to 5.8.8, if
+    <span class="Li">&quot;require&quot;</span> is overridden by the
+    <span class="Li">&quot;CORE::GLOBAL&quot;</span> mechanism, it is likely to
+    break the heuristics used by &quot;use_package_optimistically&quot;, making
+    it signal an error for a missing module rather than assume that it was
+    already loaded. From Perl 5.8.9 onward, and on 5.7.1 and earlier, this
+    module can avoid being confused by such an override. On the affected
+    versions, a <span class="Li">&quot;require&quot;</span> override might be
+    installed by Lexical::SealRequireHints, if something requires its bugfix but
+    for some reason its XS implementation isn't available.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+<ul class="Bl-bullet">
+  <li>Lexical::SealRequireHints</li>
+  <li>base</li>
+  <li>&quot;require&quot; in perlfunc</li>
+  <li>&quot;use&quot; in perlfunc</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Andrew Main (Zefram) &lt;zefram@fysh.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright (C) 2004, 2006, 2007, 2009, 2010, 2011, 2012, 2014, 2017
+    Andrew Main (Zefram) &lt;zefram@fysh.org&gt;</p>
+<p class="Pp">Copyright (C) 2025 Graham Knop &lt;haarg@haarg.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENSE</a></h1>
+<p class="Pp">This module is free software; you can redistribute it and/or
+    modify it under the same terms as Perl itself.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-04-24</td>
+    <td class="foot-os">perl v5.40.2</td>
+  </tr>
+</table>

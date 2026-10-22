@@ -1,0 +1,1531 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ferm(1) — Páginas manuales </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">ferm(1)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/ferm/">ferm</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">FERM</td>(1)
+    <td class="head-vol">REGLAS DE FIREWALL </td>FÁCILES
+    <td class="head-rtitle">FE</td>RM</tr>(</table>1)
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">ferm - un analizad</p>or de reglas de f</section>irewall para linux
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<p class="Pp"><b>fer</b>m <i>opcione</i>s <i>archivo_de_entr</i></p>a</section>da
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp"><b>ferm </b>es una interfaz para <b>iptables.</b> Lee las reglas desde un archivo de configuración estructurado y llama a <a href='/man/iptables.8.en'>iptables(8)</a> para insertarlas en el kernel en </p>ejecución.
+<p class="Pp"><b>El </b>objetivo de ferm es hacer que las reglas de firewall sean fáciles de escribir y fáciles de leer. Intenta reducir la tediosa tarea de escribir reglas, permitiendo así al administrador del firewall dedicar más tiempo a desarrollar buenas reglas que a la implementación correcta de la </p>regla.
+<p class="Pp">Para lograr esto, <b>ferm </b>utiliza un lenguaje de configuración simple pero potente, que permite variables, funciones, arreglos y bloques. También permite incluir otros archivos, lo que le permite crear bibliotecas de estructuras y funciones comúnmente </p>utilizadas.
+<p class="Pp"><b>ferm, pronunciado "fir</b>m", significa "For Easy</p> Rule Making" (Para Hac</section>er Reglas Fácilmente).
+<section class="Sh">
+<h1 class="Sh" id='CAUTION'><a class='permalink' href='#CAUTION'>PRECAUCIÓ</a></h1>N
+<p class="Pp">Esta página de manual no pretende <i>enseñarle cómo funciona el fir</i>ewalling ni cómo escribir buena</p>s reglas. Ya existe suficiente </section>documentación sobre este tema.
+<section class="Sh">
+<h1 class="Sh" id='INTRODUCTION'><a class='permalink' href='#INTRODUCTION'>INTRODUCCIÓ</a></h1>N
+<p class="Pp">Comencemos con un ejemplo </p>simple:
+<pre>chain INPUT {
+    proto tcp ACCEPT;
+</pre>}
+<p class="Pp">Esto añadirá una regla a la cadena de entrada predefinida, que coincide y acepta todos los paquetes TCP. Bien, hagámoslo más </p>complicado:
+<pre>chain (INPUT OUTPUT) {
+    proto (udp tcp) ACCEPT;
+</pre>}
+<p class="Pp">Esto insertará 4 reglas, a saber, 2 en la cadena input y 2 en la cadena output, que coinciden y aceptan tanto paquetes UDP como TCP. Normalmente escribirías </p>esto:
+<pre>iptables -A INPUT -p tcp -j ACCEPT
+iptables -A OUTPUT -p tcp -j ACCEPT
+iptables -A INPUT -p udp -j ACCEPT
+iptables -A OUTPUT -p udp -j </pre>ACCEPT
+<p class="Pp">Observa cuánto menos tecleo necesitamos hacer? :</p>-)
+<p class="Pp">Básicamente, esto es todo, aunque puedes hacerlo bastante más complejo. Algo para </p>ver:
+<pre>chain INPUT {
+    policy ACCEPT;
+    daddr 10.0.0.0/8 proto tcp dport ! ftp jump mychain sport :1023 TOS 4 settos 8 mark 2;
+    daddr 10.0.0.0/8 proto tcp dport ftp REJECT;
+</pre>}
+<p class="Pp">Mi punto aquí es que *tú* necesitas hacer reglas bonitas, mantenerlas legibles para ti y para los demás, y no convertirlas en un </p>desastre.
+<p class="Pp">Ayudaría al lector si las reglas de firewall resultantes se colocaran aquí para referencia. Además, podrías incluir la versión anidada con mejor </p>legibilidad.
+<p class="Pp">Intenta usar comentarios para mostrar lo que estás </p>haciendo:
+<pre># esta línea habilita el proxy http transparente para la red interna:
+proto tcp if eth0 daddr ! 192.168.0.0/255.255.255.0
+    dport http REDIRECT to-ports </pre>3128;
+<p class="Pp">¡Te lo agradecerás más </p>tarde!
+<pre>chain INPUT {
+    policy ACCEPT;
+    interface (eth0 ppp0) {
+        # denegar el acceso a notorios hackers, volver aquí si no se encontró
+        # ninguna coincidencia para reanudar el firewalling normal
+        jump badguys;
+        protocol tcp jump fw_tcp;
+        protocol udp jump fw_udp;
+    }
+</pre>}
+<p class="Pp">Cuanto más anides, mejor se verá. Asegúrate de que el orden que especificas es correcto, no querrías hacer </p>esto:
+<pre>chain FORWARD {
+    proto ! udp DROP;
+    proto tcp dport ftp ACCEPT;
+</pre>}
+<p class="Pp">porque la segunda regla nunca coincidirá. La mejor manera es primero especificar todo lo que está permitido, y luego denegar todo lo demás. Mira los ejemplos para ver más buenas instantáneas. La mayoría de la gente hace algo </p>así:
+<pre>proto tcp {
+    dport (
+        ssh http ftp
+    ) ACCEPT;
+    dport 1024:65535 ! syn ACCEPT;
+    DROP;</pre>
+</section>}
+<section class="Sh">
+<h1 class="Sh" id='STRUCTURE_OF_A_FIREWALL_FILE'><a class='permalink' href='#STRUCTURE_OF_A_FIREWALL_FILE'>ESTRUCTURA DE UN ARCHIVO DE </a></h1>FIREWALL
+<p class="Pp">La estructura de un archivo de firewall adecuado se parece a código C simplificado. Solo se utilizan unos pocos caracteres sintácticos en los archivos de configuración de ferm. Además de estos caracteres especiales, ferm usa 'claves' y 'valores', piensa en ellos como opciones y parámetros, o como variables y valores, lo que </p>sea.
+<p class="Pp">Con estas palabras, defines las características de tu firewall. Cada firewall consta de dos cosas: primero, ver si el tráfico de red coincide con ciertas condiciones, y segundo, qué hacer con ese </p>tráfico.
+<p class="Pp">Puedes especificar condiciones que sean válidas para el programa de interfaz del kernel que estás usando, probablemente <a href='/man/iptables.8.en'>iptables(8)</a>. Por ejemplo, en iptables, cuando intentas coincidir con paquetes TCP, </p>dirías:
+<pre>iptables --protocol </pre>tcp
+<p class="Pp">En ferm, esto se convertirá </p>en:
+<pre>protocol </pre>tcp;
+<p class="Pp">Simplemente escribiendo esto en ferm no hace nada, necesitas decirle a ferm (en realidad, necesitas decirle a <a href='/man/iptables.8.en'>iptables(8)</a> y al kernel) qué hacer con cualquier tráfico que coincida con esta </p>condición:
+<pre>iptables --protocol tcp -j </pre>ACCEPT
+<p class="Pp">O, traducido a <b>fer</b>m</p>:
+<pre>protocol tcp </pre>ACCEPT;
+<p class="Pp">El carácter <b>;</b> está al final de cada regla de ferm. Ferm ignora los saltos de línea, lo que significa que el ejemplo anterior es idéntico al </p>siguiente:
+<pre>protocol tcp
+  </pre>ACCEPT;
+<p class="Pp">Aquí hay una lista de los caracteres </p>especiales:
+<dl class="Bl-tag">
+  <dt><b></b></dt>;
+  <dd>Este carácter finaliza una regla.
+    <p class="Pp">Separados por punto y coma, puedes escribir múltiples reglas en una sola línea, aunque esto disminuye la </p>legibilidad:
+        <pre>protocol tcp </pre>ACCEPT; proto</dd>col udp DROP;
+  <dt><b>{</b></dt>}
+  <dd>El símbolo de anidamiento define un 'bloque' de reglas.
+    <p class="Pp">Las llaves contienen cualquier número de reglas anidadas. Todas las coincidencias antes del bloque se arrastran a </p>estas.
+    <p class="Pp">La llave de cierre finaliza el conjunto de reglas. No deberías escribir un ';' después de eso porque eso sería una regla </p>vacía.
+    <p class="Pp">Ejem</p>plo:
+        <pre>chain INPUT proto icmp {
+    icmp-type echo-request ACCEPT;
+    </pre>DROP;
+}
+    <p class="Pp">Este bloque muestra dos reglas dentro de un bloque, que ambas se fusionarán con cualquier cosa delante de ella, por lo que obtendrás </p>dos reglas:
+        <pre>iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+iptables -A INPUT -p icmp -j </pre>DROP
+    <p class="Pp">Puede haber múltiples niveles de </p>anidamiento:
+        <pre>chain INPUT {
+    proto icmp {
+        icmp-type echo-request ACCEPT;
+        DROP;
+    }
+    daddr 172.16.0.0/12 REJECT;</pre>
+}
+    <p class="Pp">Ten en cuenta que la regla 'REJECT' no se ve afectada por 'proto icmp', aunque no hay un ';' después de la llave de cierre. Traducido a </p>iptables:
+        <pre>iptables -A INPUT -p icmp --icmp-type echo-req</pre>uest -j ACCEPT
+iptables -A INPUT -p icmp -j DRO</dd>P
+iptables -A INPUT -d 172.16.0.0/12 -j REJECT
+  <dt><b></b></dt>$
+  <dd>Expansión de variable. Reemplaza '$FOO' por el valor de la variable. Ver la sección <i>VARIABLES </i>para más </dd>detalles.
+  <dt><b></b></dt>&amp;
+  <dd>Llamada a función. Ver la sección <i>FUNCIONES </i>para más </dd>detalles.
+  <dt><b>(</b></dt>)
+  <dd>El símbolo de arreglo. Usando los paréntesis, puedes definir una 'lista' de valores que deben aplicarse para la clave a su izquierda.
+    <p class="Pp">Ejem</p>plo:
+        <pre>protocol ( tcp udp </pre>icmp )
+    <p class="Pp">esto resultará en tres </p>reglas:
+        <pre>... -p tcp ...
+... -p udp ...
+... -p icmp </pre>...
+    <p class="Pp">Solo los valores pueden ser 'listados', así que no puedes hacer algo </p>como esto:
+        <pre>proto tcp ( ACCEPT </pre>LOG );
+    <p class="Pp">pero puedes hacer </p>esto:
+        <pre>chain (INPUT OUTPUT FORWARD) proto (icmp udp tcp) </pre>DROP;
+    <p class="Pp">(¡lo que resultará en nueve </p>reglas!)
+    <p class="Pp">Los valores están separados por espacios. El símbolo de arreglo es t</p>anto asociativo por la izquierda como por la derecha, en contraste co</dd>n el bloque de anidamiento, que es solo asociativo por la izquierda.
+  <dt>" </dt># "
+  <dd>El símbolo de comentario. Cualquier cosa que siga a este símbolo hasta el final de la línea se </dd>ignora.
+  <dt>`comand</dt>o`
+  <dd>Ejecuta el comando en un shell e inserta la salida del proceso. Ver la sección <i>comillas </i>invertidas para más </dd>detalles.
+  <dt>'caden</dt>a'
+  <dd>Cita una cadena que puede contener espacios en blanco, el signo de dólar, etc.
+        <pre>LOG log-prefix ' h</pre>ey, este es mi pref</dd>ijo de registro!';
+  <dt>"caden</dt>a"
+  <dd>Cita una cadena (ver arriba), pero las referencias de variables con el signo de dólar se evalúan:
+        <pre>DNAT t</pre>o "$myh</dd>ost:$my</dl>port";
+<section class="Ss">
+<h2 class="Ss" id='Keywords'><a class='permalink' href='#Keywords'>Palabras </a></h2>clave
+<p class="Pp">En la sección anterior, ya introdujimos algunas palabras clave básicas como "chain", "protocol" y "ACCEPT". Exploremos su </p>naturaleza.
+<p class="Pp">Hay tres tipos de palabras </p>clave:
+<ul class="Bl-bullet">
+  <li><b>las palabras </b>clave de ubicación definen dónde se creará una regla. Ejemplo: &amp;quo{
+  "title": "ferm.1.en",
+  "sections": [
+    {
+      "heading": "Description",
+      "content": [
+        {
+          "type": "text",
+          "text": "ferm is a tool to manage firewall rules. It uses a simple configuration syntax that is designed to be easier to read and write than the native iptables command line.  ferm rules are compiled into a plain text file of iptables commands."
+        },
+        {
+          "type": "text",
+          "text": "The configuration file is divided into several blocks. Each block consists of a keyword, followed by a list of zero or more parameter specifications, and ending with a block operator: { ... }. The most common block operators are:"
+        },
+        {
+          "type": "list",
+          "items": [
+            {
+              "type": "list_item",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<b>location</b> keywords define where the rules within the block will be applied. Example: \"table filter\", \"chain INPUT\"."
+                }
+              ]
+            },
+            {
+              "type": "list_item",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<b>match</b> keywords perform a test on all passing packets. The current rule is without effect if one (or more) of the matches does not pass. Example: \"proto\", \"daddr\"."
+                },
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Most matches are followed by a parameter: \"proto tcp\", \"daddr 172.16.0.0/12\"."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "list_item",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<b>target</b> keywords state what to do with a packet. Example: \"ACCEPT\", \"REJECT\", \"jump\"."
+                },
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Some targets define more keywords to specify details: \"REJECT reject-with icmp-net-unreachable\"."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Every rule consists of a <b>location</b> and a <b>target</b>, plus any number of <b>matches</b>:"
+        },
+        {
+          "type": "code",
+          "code": "table filter                  # location\nproto tcp dport (http https)  # match\nACCEPT;                       # target"
+        },
+        {
+          "type": "text",
+          "text": "Strictly speaking, there is a fourth kind: <b>ferm</b> keywords (which control ferm's internal behaviour), but they will be explained later."
+        }
+      ]
+    },
+    {
+      "heading": "Parameters",
+      "subsections": [
+        {
+          "heading": "Parameters",
+          "content": [
+            {
+              "type": "text",
+              "text": "Many keywords take parameters. These can be specified as literals, variable references or lists (arrays):"
+            },
+            {
+              "type": "code",
+              "code": "proto udp\nsaddr $TRUSTED_HOSTS;\nproto tcp dport (http https ssh);\nLOG log-prefix \"funky wardriver alert: \";"
+            },
+            {
+              "type": "text",
+              "text": "Some of them can be negated (lists cannot be negated):"
+            },
+            {
+              "type": "code",
+              "code": "proto !esp;\nproto udp dport !domain;"
+            },
+            {
+              "type": "text",
+              "text": "Keywords which take no parameters are negated by a prefixed '!':"
+            },
+            {
+              "type": "code",
+              "code": "proto tcp !syn;"
+            },
+            {
+              "type": "text",
+              "text": "Read iptables(8) to see where the ! can be used."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "BASIC KEYWORDS",
+      "subsections": [
+        {
+          "heading": "Location keywords",
+          "content": [
+            {
+              "type": "definition_list",
+              "items": [
+                {
+                  "term": "<b>domain [ip|ip6]</b>",
+                  "definition": "Set the domain. \"ip\" means \"IPv4\" (iptables) and \"ip6\" is for IPv6 support, using \"ip6tables\". The default is the one specified with --domain or \"ip\" if the option was not specified."
+                },
+                {
+                  "term": "<b>table [filter|nat|mangle]</b>",
+                  "definition": "Specifies which netfilter table this rule will be inserted into: \"filter\" (default), \"nat\" or \"mangle\"."
+                },
+                {
+                  "term": "<b>chain [chain-name]</b>",
+                  "definition": "Specifies the netfilter chain (within the current table) this rule will be inserted to. Common predefined chain names are \"INPUT\", \"OUTPUT\", \"FORWARD\", \"PREROUTING\", \"POSTROUTING\", depending on the table. See the netfilter documentation for details.\nIf you specify a non-existing chain here, ferm will add the rule to a custom chain with that name."
+                },
+                {
+                  "term": "<b>policy [ACCEPT|DROP|..]</b>",
+                  "definition": "Specifies the default policy for the current chain (built-in only). Can be one of the built-in targets (ACCEPT, DROP, REJECT, ...). A packet that matches no rules in a chain will be treated as specified by the policy.\nTo avoid ambiguity, always specify the policies of all predefined chains explicitly."
+                },
+                {
+                  "term": "<b>@subchain [\"CHAIN-NAME\"] { ... }</b>",
+                  "definition": "Works like the normal block operators (i.e. without the @subchain keyword), except that ferm moves rules within the curly braces into a new custom chain. The name for this chain is chosen automatically by ferm.\nIn many cases, this is faster than just a block, because the kernel may skip a huge block of rules when a precondition is false. Imagine the following example:\ntable filter chain INPUT {\n    saddr (1.2.3.4 2.3.4.5 3.4.5.6 4.5.6.7 5.6.7.8) {\n        proto tcp dport (http https ssh) ACCEPT;\n        proto udp dport domain ACCEPT;\n    }\n}\nThis generates 20 rules. When a packet arrives which does not pass the saddr match, it nonetheless checks all 20 rules. With @subchain, this check is done once, resulting in faster network filtering and less CPU load:\ntable filter chain INPUT {\n    saddr (1.2.3.4 2.3.4.5 3.4.5.6 4.5.6.7 5.6.7.8) @subchain {\n        proto tcp dport (http https ssh) ACCEPT;\n        proto udp dport domain ACCEPT;\n    }\n}\nOptionally, you may define the name of the sub chain:\nsaddr (1.2.3.4 2.3.4.5 3.4.5.6) @subchain \"foobar\" {\n    proto tcp dport (http https ssh) ACCEPT;\n    proto udp dport domain ACCEPT;\n}\nThe name can either be a quoted string literal, or an expanded ferm expression such as @cat(\"interface_\", $iface) or @substr($var,0,20).\nYou can achieve the same by explicitly declaring a custom chain, but you may feel that using @subchain requires less typing."
+                },
+                {
+                  "term": "@gotosubchain [\"CHAIN-NAME\"] { ... }",
+                  "definition": "Works like @subchain except that instead of using jump target it uses goto target. See discussion below for the difference between these two targets."
+                },
+                {
+                  "term": "@preserve",
+                  "definition": "Preserve existing rules of the current chain:\nchain (foo bar) @preserve;\nWith this option, ferm loads the previous rule set using iptables-save, extracts all \"preserved\" chains and inserts their data into the output.\n\"Preserved\" chains must not be modified with ferm: no rules and no policies.\nIf the chain name starts and ends with a slash, ferm will interpret it as as Perl regular expression and preserve all matching chains. For example, the following preserves all chains with the prefix KUBE-SEP-:\nchain \"/^KUBE-SEP-.*/\" @preserve;"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Basic iptables match keywords",
+          "content": [
+            {
+              "type": "definition_list",
+              "items": [
+                {
+                  "term": "<b>interface [interface-name]</b>",
+                  "definition": "Define the interface name, your outside network card, like eth0, or dialup like ppp1, or whatever device you want to match for passing packets. It is equivalent to the \"-i\" switch in iptables(8)."
+                },
+                {
+                  "term": "<b>outerface [interface-name]</b>",
+                  "definition": "Same as interface, only for matching the outgoing interface for a packet, as in iptables(8)."
+                },
+                {
+                  "term": "<b>protocol [protocol-name|protocol-number]</b>",
+                  "definition": "Currently supported by the kernel are TCP, UDP and ICMP, or their respective numbers.\nInstead of <b>protocol</b>, you can also use the shortcut <b>proto</b>."
+                },
+                {
+                  "term": "<b>saddr|daddr [address-spec]</b>",
+                  "definition": "Matches on packets originating from the specified address (saddr) or targeted at the address (daddr).\nExamples:\nsaddr 192.168.0.0/24 ACCEPT; # (identical to the next one:)\nsaddr 192.168.0.0/255.255.255.0 ACCEPT;\ndaddr my.domain.com ACCEPT;"
+                },
+                {
+                  "term": "<b>fragment</b>",
+                  "definition": "Specify that only fragmented IP packets should be matched. When packets are larger than the maximum packet size your system can handle (called Maximum Transmission Unit or MTU) they will be chopped into bits and sent one by one as single packets. See ifconfig(8) if you want to find the MTU for your system (the default is usually 1500 bytes).\nFragments are frequently used in DOS attacks because there is no way of finding out the origin of a fragment packet."
+                },
+                {
+                  "term": "<b>sport|dport [port-spec]</b>",
+                  "definition": "Matches on packets on the specified TCP or UDP port. \"sport\" matches the source port, and dport matches the destination port.\nThis match can be used only after you specified \"protocol tcp\" or \"protocol udp\" because only these two protocols actually have ports.\nAnd some examples of valid ports/ranges:\ndport 80 ACCEPT;\ndport http ACCEPT;\ndport ssh:http ACCEPT;\ndport 0:1023 ACCEPT; # equivalent to :1023\ndport 1023:65535 ACCEPT;"
+                },
+                {
+                  "term": "<b>syn</b>",
+                  "definition": "Specify that the SYN flag in a TCP package should be matched, which are used to build new TCP connections. You can identify incoming connections with this, and decide whether you want to allow it or not. Packets that do not have this flag are probably from an already established connection, so it's considered reasonably safe to let these through."
+                },
+                {
+                  "term": "<b>module [module-name]</b>",
+                  "definition": "Load an iptables module. Most modules provide more match keywords. We'll get to that later.\nInstead of <b>module</b>, you can also use the shortcut <b>mod</b>."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Basic target keywords",
+          "content": [
+            {
+              "type": "definition_list",
+              "items": [
+                {
+                  "term": "<b>jump [custom-chain-name]</b>",
+                  "definition": "Jumps to a custom chain. If no rule in the custom chain matched, netfilter returns to the next rule in the previous chain."
+                },
+                {
+                  "term": "<b>goto [custom-chain-name]</b>",
+                  "definition": "Go to a custom chain. Unlike the <b>jump</b> option, <b>RETURN</b> will not continue processing in this chain but instead in the chain that called us via <b>jump</b>."
+                },
+                {
+                  "term": "<b>ACCEPT</b>",
+                  "definition": "Accepts matching packets."
+                },
+                {
+                  "term": "<b>DROP</b>",
+                  "definition": "Drop matching packets without further notice."
+                },
+                {
+                  "term": "<b>REJECT</b>",
+                  "definition": "Rejects matching packets, i.e. send an ICMP packet to the sender, which is port-unreachable by default. You may specify another ICMP type.\nREJECT; # default to icmp-port-unreachable\nREJECT reject-with icmp-net-unreachable;\nType \"iptables -j REJECT -h\" for details."
+                },
+                {
+                  "term": "<b>RETURN</b>",
+                  "definition": "Finish the current chain and return to the calling chain (if \"jump [custom-chain-name]\" was used)."
+                },
+                {
+                  "term": "<b>NOP</b>"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+a class="permalink" href="#NOP"&gt;<b>NO</b></a></dt>P
+  <dd>Sin </dd>acc</dl>ión </section>alg</section>una.
+<section class="Sh">
+<h1 class="Sh" id='ADDITIONAL_KEYWORDS'><a class='permalink' href='#ADDITIONAL_KEYWORDS'>PALABRAS CLAVE   </a></h1>ADICIONALES
+<p class="Pp">Netfilter es modular. Los módulos pueden proporcionar objetivos y palabras clave de coincidencia adicionales. La lista de módulos de netfilter crece constantemente, y ferm intenta mantenerse al día con el soporte de todos ellos. Este capítulo describe los módulos que actualmente están </p>soportados.
+<section class="Ss">
+<h2 class="Ss" id='iptables_match_modules'><a class='permalink' href='#iptables_match_modules'>módulos de coincidencia   de </a></h2>iptables
+<dl class="Bl-tag">
+  <dt id="account"><a class="permalink" href="#account"><b>accou</b></a></dt>nt
+  <dd>Cuenta el tráfico de todos los hosts en la red/máscara de red definida. Este es uno de los módulos de coincidencia que se comportan como un objetivo, es decir, en su mayoría tendrá que usar el <b>objetivo </b>NOP.
+        <pre>mod account aname my</pre>network aaddr 192.16</dd>8.1.0/24 ashort NOP;
+  <dt id="addrtype"><a class="permalink" href="#addrtype"><b>addrty</b></a></dt>pe
+  <dd>Comprueba el tipo de dirección; ya sea la dirección de origen o la de destino.
+        <pre>mod addrtype src-type BROADCAST;
+mod addrtype dst-type </pre>LOCAL;
+    <p class="Pp">Escriba "iptables</p> -m addrtype -h" p</dd>ara más detalles.
+  <dt id="ah"><a class="permalink" href="#ah"><b>a</b></a></dt>h
+  <dd>Comprueba la cabecera SPI en un paquete AH.
+        <pre>mod ah ahspi 0x101;
+mod ah ahspi ! 0x200:</pre>0x2ff;
+    <p class="Pp">Argumentos adicionales </p>para IPv6:
+        <pre>mod ah ahlen 32 ACCEPT;</pre>
+mod ah ahlen !32 ACCEP</dd>T;
+mod ah ahres ACCEPT;
+  <dt id="bpf"><a class="permalink" href="#bpf"><b>bp</b></a></dt>f
+  <dd>Coincide usando Linux Socket Filter.
+        <pre>mod bpf bytecode "4,48 0 0 9,21 0 1 6,6 0 0 1,6 0 </pre>0 </dd>0";
+  <dt id="cgroup"><a class="permalink" href="#cgroup"><b>cgro</b></a></dt>up
+  <dd>Coincide usando la jerarquía cgroupsv2 o el cgroup net_cls heredado.
+        <pre>mod cgroup path ! example/path </pre>ACCEPT;
+    <p class="Pp">La ruta es relativa a la raíz de la jerarquía cgroupsv2 y se compara contra la porción inicial de la ruta de un proceso en la </p>jerarquía.
+        <pre>mod cgroup cgroup 10:10 DROP;
+mod cgroup cgroup 1048592 </pre>DROP;
+    <p class="Pp">Coincide contra el valor de
+        <span class="Li">"net_cls.classid" </span>establecido en el cgroup net_cls heredado del proceso. La clase puede especificarse como un par hexadecimal mayor:menor (ver <a href='/man/tc.8.en'>tc(8)), o como un </a>decimal, por lo qu</p>e estas dos reglas</dd> son equivalentes.
+  <dt id="comment"><a class="permalink" href="#comment"><b>comme</b></a></dt>nt
+  <dd>Añade un comentario de hasta 256 caracteres a una regla, sin ningún efecto. Tenga en cuenta que, a diferencia de los comentarios de ferm ('#'), este aparecerá en "iptables -L".
+        <pre>mod comment comment "This is my comment." </pre>ACCEPT;
+    <p class="Pp">El "mod comment" puede o</p>mitirse, porque ferm lo </dd>inserta automáticamente.
+  <dt id="condition"><a class="permalink" href="#condition"><b>conditi</b></a></dt>on
+  <dd>Coincide si un valor en /proc/net/ipt_condition/NAME es 1 (la ruta es /proc/net/ip6t_condition/NAME para el dominio ip6).
+        <pre>mod condition condition (a</pre>bc def) ACCEPT;
+mod condit</dd>ion condition !foo ACCEPT;
+  <dt id="connbytes"><a class="permalink" href="#connbytes"><b>connbyt</b></a></dt>es
+  <dd>Coincide por cuántos bytes o paquetes una conexión (o uno de los dos flujos que la constituyen) ha transferido hasta ahora, o por el promedio de bytes por paquete.
+        <pre>mod connbytes connbytes 65536: connbytes-dir both connbytes-mode bytes ACCEPT;
+mod connbytes connbytes !1024:2048 connbytes-dir reply connbytes-mode packets </pre>ACCEPT;
+    <p class="Pp">Valores válidos para <i>connbytes-di</i>r: <i>orig</i>inal,
+        <i>repl</i>y, <i>both;</i> para <i>connbytes-mod</i>e: <i>pac</i>kets,
+        <i>byte</i>s, <i>avg</i>p</p>k</dd>t.
+  <dt id="connlabel"><a class="permalink" href="#connlabel"><b>connlab</b></a></dt>el
+  <dd>El módulo coincide o añade connlabels a una conexión.
+        <pre>mod connlabel label </pre>"name";
+mod connlab</dd>el label "name" set;
+  <dt id="connlimit"><a class="permalink" href="#connlimit"><b>connlim</b></a></dt>it
+  <dd>Le permite restringir el número de conexiones TCP paralelas a un servidor por dirección IP del cliente (o bloque de direcciones).
+        <pre>mod connlimit connlimit-above 4 REJECT;
+mod connlimit connlimit-above !4 ACCEPT;
+mo</pre>d connlimit connlimit-above 4 connlimit-mask 24 REJECT;
+mod connlimit connlimit-upt</dd>o 4 connlimit-saddr REJECT;
+mod connlimit connlimit-above 4 connlimit-daddr REJECT;
+  <dt id="connmark"><a class="permalink" href="#connmark"><b>connma</b></a></dt>rk
+  <dd>Comprueba el campo de marca asociado con la conexión, establecido por el objetivo CONNMARK.
+        <pre>mod connmark ma</pre>rk 64;
+mod con</dd>nmark mark 6/7;
+  <dt id="conntrack"><a class="permalink" href="#conntrack"><b>conntra</b></a></dt>ck
+  <dd>Comprueba la información de seguimiento de conexión.
+        <pre>mod conntrack ctstate (ESTABLISHED RELATED);
+mod conntrack ctproto tcp;
+mod conntrack ctorigsrc 192.168.0.2;
+mod conntrack ctorigdst 1.2.3.0/24;
+mod conntrack ctorigsrcport 67;
+mod conntrack ctorigdstport 22;
+mod conntrack ctreplsrc 2.3.4.5;
+mod conntrack ctrepldst ! 3.4.5.6;
+mod conntrack ctstatus ASSURED;
+mod conntrack ctexpire 60;
+mod conntrack ctexpire 180:</pre>240;
+    <p class="Pp">Escriba "iptables </p>-m conntrack -h" </dd>para más detalles.
+  <dt id="cpu"><a class="permalink" href="#cpu"><b>cp</b></a></dt>u
+  <dd>Coincide con la CPU que maneja este paquete.
+        <pre>mod cpu </pre>cpu </dd>0;
+  <dt id="dccp"><a class="permalink" href="#dccp"><b>dc</b></a></dt>cp
+  <dd>Comprueba atributos específicos de DCCP (Protocolo de Control de Congestión de Datagramas). Este módulo se carga automáticamente cuando usa "protocol dccp".
+        <pre>proto dccp sport 1234 dport 2345 ACCEPT;
+proto dccp</pre> dccp-types (SYNCACK ACK) ACCEPT;
+proto dccp dccp-ty</dd>pes !REQUEST DROP;
+proto dccp dccp-option 2 ACCEPT;
+  <dt id="dscp"><a class="permalink" href="#dscp"><b>ds</b></a></dt>cp
+  <dd>Coincide con el campo DSCP de 6 bits dentro del campo TOS.
+        <pre>mod dscp dscp </pre>11;
+mod dscp ds</dd>cp-class AF41;
+  <dt id="dst"><a class="permalink" href="#dst"><b>ds</b></a></dt>t
+  <dd>Coincide con los parámetros en la cabecera de Opciones de Destino (IPv6).
+        <pre>mod dst dst-len 10;
+mod dst dst-opts (type1 type2 </pre>..</dd>.);
+  <dt id="ecn"><a class="permalink" href="#ecn"><b>ec</b></a></dt>n
+  <dd>Coincide con los bits ECN de una cabecera TCP IPv4.
+        <pre>mod ecn ecn-tcp-cwr;
+mod ecn ecn-tcp-ece;
+mod ecn ecn-ip-ect </pre>2;
+    <p class="Pp">Escriba "iptable</p>s -m ecn -h" pa</dd>ra más detalles.
+  <dt id="esp"><a class="permalink" href="#esp"><b>es</b></a></dt>p
+  <dd>Comprueba la cabecera SPI en un paquete ESP.
+        <pre>mod esp espspi 0x</pre>101;
+mod esp esps</dd>pi ! 0x200:0x2ff;
+  <dt id="eui64"><a class="permalink" href="#eui64"><b>eui</b></a></dt>64
+  <dd>"Este módulo coincide con la parte EUI-64 de una dirección IPv6 autoconfigurada sin estado. Compara el EUI-64 derivado de la dirección MAC de origen en el trama Ethernet con los 64 bits inferiores de la dirección de origen IPv6. Pero el bit "Universal/Local" no se compara. Este módulo no coincide con otros tramas de capa de enlace, y solo es válido en las cadenas PREROUTING, INPUT y FORWARD."
+        <pre>mod eu</pre>i64 A</dd>CCEPT;
+  <dt id="fuzzy"><a class="permalink" href="#fuzzy"><b>fuz</b></a></dt>zy
+  <dd>"Este módulo coincide con un límite de tasa basado en un controlador de lógica difusa [FLC]."
+        <pre>mod fuzzy lower-</pre>limit 10 upper-</dd>limit 20 ACCEPT;
+  <dt id="geoip"><a class="permalink" href="#geoip"><b>geo</b></a></dt>ip
+  <dd>Coincide con paquetes basándose en su ubicación geográfica. (Necesita una GeoDB instalada.)
+        <pre>mod geoip src-cc "CN,VN,KR,BH,B</pre>R,AR,TR,IN,HK" REJECT;
+mod geo</dd>ip dst-cc "DE,FR,CH,AT" ACCEPT;
+  <dt id="hbh"><a class="permalink" href="#hbh"><b>hb</b></a></dt>h
+  <dd>Coincide con la cabecera de Opciones Hop-by-Hop (ip6).
+        <pre>mod hbh hbh-len 8 ACCEPT;
+mod</pre> hbh hbh-len !8 ACCEPT;
+mod h</dd>bh hbh-opts (1:4 2:8) ACCEPT;
+  <dt id="hl"><a class="permalink" href="#hl"><b>h</b></a></dt>l
+  <dd>Coincide con el campo Hop Limit (ip6).
+        <pre>mod hl hl-eq (8 10) ACCEPT;
+mod h</pre>l hl-eq !5 ACCEPT;
+mod hl hl-gt </dd>15 ACCEPT;
+mod hl hl-lt 2 ACCEPT;
+  <dt id="helper"><a class="permalink" href="#helper"><b>help</b></a></dt>er
+  <dd>Comprueba qué módulo de asistente de conntrack rastrea esta conexión. El puerto puede especificarse con "-portnr".
+        <pre>mod helper helper irc</pre> ACCEPT;
+mod helper </dd>helper ftp-21 ACCEPT;
+  <dt id="icmp"><a class="permalink" href="#icmp"><b>ic</b></a></dt>mp
+  <dd>Comprueba atributos específicos de ICMP. Este módulo se carga automáticamente cuando usa "protocol icmp".
+        <pre>proto icmp icmp-type echo-request </pre>ACCEPT;
+    <p class="Pp">Esta opción también se puede usar en el <i>dominio </i>ip6, aunque
+        aquí se llama <b>icmpv6 </b>en <i>ip6tab</i>l</p>es.
+    <p class="Pp">Use "iptables -p icmp
+        <span class="Li">"-h"" para ob</span>tener una lis</p>ta de tipos </dd>ICMP válidos.
+  <dt id="iprange"><a class="permalink" href="#iprange"><b>ipran</b></a></dt>ge
+  <dd>Coincide con un rango de direcciones IPv4.
+        <pre>mod iprange src-range 192.168.2.0-192.168.3.255;
+mod iprange dst-range ! 192.168.6.0-192.168.</pre>6.</dd>255;
+  <dt id="ipv4options"><a class="permalink" href="#ipv4options"><b>ipv4optio</b></a></dt>ns
+  <dd>Coincide con las opciones de la cabecera IPv4 como enrutamiento de origen, registro de ruta, marca de tiempo y alerta de enrutador.
+        <pre>mod ipv4options ssrr ACCEPT;
+mod ipv4options lsrr ACCEPT;
+mod ipv4op</pre>tions no-srr ACCEPT;
+mod ipv4options !rr ACCEPT;
+mod ipv4options !ts </dd>ACCEPT;
+mod ipv4options !ra ACCEPT;
+mod ipv4options !any-opt ACCEPT;
+  <dt id="ipv6header"><a class="permalink" href="#ipv6header"><b>ipv6head</b></a></dt>er
+  <dd>Coincide con la cabecera de extensión IPv6 (ip6).
+        <pre>mod ipv6header header !(hop</pre> frag) ACCEPT;
+mod ipv6heade</dd>r header (auth dst) ACCEPT;
+  <dt id="hashlimit"><a class="permalink" href="#hashlimit"><b>hashlim</b></a></dt>it
+  <dd>Similar a 'mod limit', pero añade la capacidad de añadir límites por destino o por puerto gestionados en una tabla hash.
+        <pre>mod hashlimit  hashlimit 10/minute  hashlimit-burst 30/minute
+  hashlimit-mode dstip  hashlimit-name foobar  </pre>ACCEPT;
+    <p class="Pp">Valores posibles para hashlimit-mode: dstip dstport srcip srcport (o una lista con más de uno de </p>estos).
+    <p class="Pp">Hay más ajustes posibles, es</p>criba "iptables -m hashlimi</dd>t -h" para la documentación.
+  <dt id="ipvs"><a class="permalink" href="#ipvs"><b>ip</b></a></dt>vs
+  <dd>Coincide con las propiedades de la conexión IPVS.
+        <pre>mod ipvs ipvs ACCEPT; # el paquete pertenece a una conexión IPVS
+mod ipvs vproto tcp ACCEPT; # protocolo VIP a coincidir; por número o nombre, por ejemplo "tcp</pre>"
+mod ipvs vaddr 1.2.3.4/24 ACCEPT; # dirección VIP a coincidir
+mod ipvs vport http ACCEPT; # puerto VIP a coincidir
+mod ipvs vdir ORIGINAL ACCEPT; # dirección</dd> de flujo del paquete
+mod ipvs vmethod GATE ACCEPT; # método de reenvío IPVS utilizado
+mod ipvs vportctl 80; # puerto VIP de la conexión de control a coincidir
+  <dt id="length"><a class="permalink" href="#length"><b>leng</b></a></dt>th
+  <dd>Comprueba la longitud del paquete.
+        <pre>mod length length 128; # exactamente 1</pre>28 bytes
+mod length length 512:768; # r</dd>ango
+mod length length ! 256; # negado
+  <dt id="limit"><a class="permalink" href="#limit"&gt;<b>lim</b></a></dt>it
+  <dd>Limita la tasa de paquetes.
+        <pre>mod limit limit 1/second;
+mod limit limit 15/minute limit-burst </pre>10;
+    <p class="Pp">Escriba "iptable</p>s -m limit -h" pa</dd>ra más detalles.
+  <dt id="mac"><a class="permalink" href="#mac"><b>ma</b></a></dt>c
+  <dd>Coincide con la dirección MAC de origen.
+        <pre>mod mac mac-source 01:23:45:</pre>67:</dd>89;
+  <dt id="mark"><a class="permalink" href="#mark"><b>ma</b></a></dt>rk
+  <dd>Coincide con paquetes basándose en su campo de marca de netfilter. Este puede ser un entero de 32 bits entre 0 y 4294967295.
+        <pre>mod ma</pre>rk ma</dd>rk 42;
+  <dt id="mh"><a class="permalink" href="#mh"><b>m</b></a></dt>h
+  <dd>Coincide con la cabecera de movilidad (dominio <i>ip6)</i>.
+        <pre>proto mh mh-t</pre>ype binding-u</dd>pdate ACCEPT;
+  <dt id="multiport"><a class="permalink" href="#multiport"><b>multipo</b></a></dt>rt
+  <dd>Coincide con un conjunto de puertos de origen o destino (solo UDP y TCP).
+        <pre>mod multiport source-ports (https ftp);
+mod multiport destination-ports (mysql </pre>domain);
+    <p class="Pp">Esta regla tiene una gran ventaja sobre "dport" y "sport": genera solo una regla para hasta 15 puertos en lugar de una regla por cada </p>puerto.
+    <p class="Pp">Como atajo, puede usar "sports" y "dports" (sin "mod multiport")</p>:
+        <pre>sports (https ftp);
+dports (mysql </pre>domain)</dd>;
+  <dt id="nfacct"><a class="permalink" href="#nfacct"><b>nfac</b></a></dt>ct
+  <dd>Añade contabilidad de paquetes (bytes + paquetes). Véase también la herramienta de espacio de usuario "nfacct".
+        <pre>mod nfacct nf</pre>acct-name my-n</dd>facct-object;
+  <dt id="nth"><a class="permalink" href="#nth"><b>nt</b></a></dt>h
+  <dd>Coincide con cada paquete 'n'.
+        <pre>mod nth every 3;
+mod nth counter 5 every 2;
+mod nth start 2 every 3;
+mod nth start 5 packet 2 </pre>every 6;
+    <p class="Pp">Escriba "iptable</p>s -m nth -h" pa</dd>ra más detalles.
+  <dt id="osf"><a class="permalink" href="#osf"><b>os</b></a></dt>f
+  <dd>Coincide con paquetes dependiendo del sistema operativo del remitente.
+        <pre>mod osf genre Linux;
+mod osf ! genre FreeBSD ttl 1 </pre>log 1;
+    <p class="Pp">Escriba "iptable</p>s -m osf -h" pa</dd>ra más detalles.
+  <dt id="owner"><a class="permalink" href="#owner"><b>own</b></a></dt>er
+  <dd>Comprueba información sobre el creador del paquete, a saber, id de usuario, id de grupo, id de proceso, id de sesión y nombre de comando.
+        <pre>mod owner uid-owner 0;
+mod owner gid-owner 1000;
+mod owner pid-owner 5432;
+mod owner sid-owner 6543;
+mod owner cmd-owner </pre>"sendmail";
+    <p class="Pp">("cmd-owner", "pid-owner" y "sid-owner" </p>requieren parches especiales del kernel n</dd>o incluidos en el kernel Linux estándar)
+  <dt id="physdev"><a class="permalink" href="#physdev"><b>physd</b></a></dt>ev
+  <dd>Coincide con el dispositivo físico en el que un paquete entró o está a punto de salir de la máquina. Esto es útil para interfaces en puente.
+        <pre>mod physdev physdev-in ppp1;
+mod physdev physdev-out eth2;
+mod physdev physdev-is-in;
+mod physdev physdev-is-out;
+mod physdev </pre>physdev-is-bridg</dd>ed;
+  <dt id="pkttype"><a class="permalink" href="#pkttype"><b>pktty</b></a></dt>pe
+  <dd>Comprueba el tipo de paquete de la capa de enlace.
+        <pre>mod pkttype pkt-type unicast;
+m</pre>od pkttype pkt-type broadcast;
+</dd>mod pkttype pkt-type multicast;
+  <dt id="policy~2"><a class="permalink" href="#policy~2"><b>poli</b></a></dt>cy
+  <dd>Coincide con la política IPsec que se aplica a este paquete.
+        <pre>mod policy dir out pol ipsec ACCEPT;
+mod policy strict reqid 23 spi 0x10 proto ah ACCEPT;
+mod policy mode tunnel tunnel-src 192.168.1.2 ACCEPT;
+mod policy mode tunnel tunnel-dst 192.168.2.1 ACCEPT;
+mod policy strict next reqid 24 spi 0x11 </pre>ACCEPT;
+    <p class="Pp">Tenga en cuenta que la palabra clave <i>proto </i>también se usa como versión abreviada de <i>protocol </i>(módulo de coincidencia integrado). Puede solucionar este conflicto usando siempre la palabra clave larga <i>pr</i>ot</p>oco</dd>l.
+  <dt id="psd"><a class="permalink" href="#psd"><b>ps</b></a></dt>d
+  <dd>Detecta escaneos de puertos TCP/UDP.
+        <pre>mod psd psd-weight-threshold 21 psd-delay-threshold 300
+  psd-lo-ports-weight 3 psd-hi-ports-weight </pre>1 </dd>DROP;
+  <dt id="quota"><a class="permalink" href="#quota"><b>quo</b></a></dt>ta
+  <dd>Implementa cuotas de red decrementando un contador de bytes con cada paquete.
+        <pre>mod quota </pre>quota 655</dd>36 ACCEPT;
+  <dt id="random"><a class="permalink" href="#random"><b>rand</b></a></dt>om
+  <dd>Coincide con un porcentaje aleatorio de todos los paquetes.
+        <pre>mod ran</pre>dom aver</dd>age 70;
+  <dt id="realm"><a class="permalink" href="#realm"><b>rea</b></a></dt>lm
+  <dd>Coincide con el ámbito de enrutamiento. Útil en entornos que utilizan BGP.
+        <pre>mod re</pre>alm re</dd>alm 3;
+  <dt id="recent"><a class="permalink" href="#recent"><b>rece</b></a></dt>nt
+  <dd>Marca temporalmente las direcciones IP de origen.
+        <pre>mod recent set;
+mod recent rcheck seconds 60;
+mod recent set rsource name "badguy";
+mod recent set rdest;
+mod recent rcheck rsource name "badguy" seconds 60;
+mod recent update seconds 120 hitcount 3 rttl;
+mod recent mask 255.255.255.0 </pre>reap;
+    <p class="Pp">Este módulo de netfilter tiene un defecto de diseño: aunque está implementado como un módulo de coincidencia, tiene un comportamiento similar al de un destino cuando se usa la palabra clave </p>"set".
+    <p class="Pp"><a href='http://snowman.net/projects/ipt_recent/'>http://snowman.net/projects/ipt_re</a></p>ce</dd>nt/
+  <dt id="rpfilter"><a class="permalink" href="#rpfilter"><b>rpfilt</b></a></dt>er
+  <dd>Comprueba que una respuesta al paquete se enviaría a través de la misma interfaz por la que llegó. Los paquetes de la interfaz de bucle siempre están permitidos.
+        <pre>mod rpfilter proto tcp loose RETURN;
+mod rpfilter validmark accept-local RETURN;
+mod rpfilter invert </pre>DROP;
+    <p class="Pp">Este módulo de netfilter es la forma preferida de realizar el filtrado de ruta inversa para IPv6, y una alternativa poderosa a las comprobaciones controladas por sysctl <i>net.ip</i>v4.conf</p>.*.rp_f</dd>ilter.
+  <dt id="rt"><a class="permalink" href="#rt"><b>r</b></a></dt>t
+  <dd>Coincide con la cabecera de enrutamiento IPv6 (solo ip6).
+        <pre>mod rt rt-type 2 rt-len 20 ACCEPT;
+mod rt rt-type !2 rt-len !20 A</pre>CCEPT;
+mod rt rt-segsleft 2:3 ACCEPT;
+mod rt rt-segsleft !4:5 ACC</dd>EPT;
+mod rt rt-0-res rt-0-addrs (::1 ::2) rt-0-not-strict ACCEPT;
+  <dt id="sctp"><a class="permalink" href="#sctp"><b>sc</b></a></dt>tp
+  <dd>Comprueba atributos específicos de SCTP (Protocolo de Transmisión de Control de Flujo). Este módulo se carga automáticamente cuando usa "protocol sctp".
+        <pre>proto sctp sport 1234 dport 2345 ACCEPT;
+proto sctp chunk-types only DATA:Be ACCEPT;
+proto sctp chunk-types any (INIT INIT_ACK) ACCEPT;
+proto sctp chunk-types !all (HEARTBEAT) </pre>ACCEPT;
+    <p class="Pp">Use "iptables -p sctp
+        <span class="Li">"-h"" para obte</span>ner una lista d</p>e tipos de frag</dd>mentos válidos.
+  <dt id="set"><a class="permalink" href="#set"><b>se</b></a></dt>t
+  <dd>Comprueba la IP/Puerto/MAC de origen o destino contra un conjunto.
+        <pre>mod set set badguys src </pre>DROP;
+    <p class="Pp">Véase <a href='http://ipset.netfilter.org/'>http://ipset</a>.netfilter.o</p>rg/ para más </dd>información.
+  <dt id="state"><a class="permalink" href="#state"><b>sta</b></a></dt>te
+  <dd>Comprueba el estado de seguimiento de la conexión.
+        <pre>mod state state INVALID DROP;
+mod state state (ESTABLISHED RELATED) </pre>ACCEPT;
+    <p class="Pp">Escriba "iptable</p>s -m state -h" pa</dd>ra más detalles.
+  <dt id="statistic"><a class="permalink" href="#statistic"><b>statist</b></a></dt>ic
+  <dd>Sucesor de <b>nth </b>y <b>random, </b>actualmente sin documentar en la página del manual
+      <a href='/man/iptables.8.en'>iptables(8)</a>.
+        <pre>mod statistic mode random probability 0.8 ACCEPT;
+mod statistic mode nth every 5 packet </pre>0 </dd>DROP;
+  <dt id="string"><a class="permalink" href="#string"><b>stri</b></a></dt>ng
+  <dd>Coincide con una cadena de texto.
+        <pre>mod string string "foo bar" ACCEP</pre>T;
+mod string algo kmp from 64 to </dd>128 hex-string "deadbeef" ACCEPT;
+  <dt id="tcp"><a class="permalink" href="#tcp"><b>tc</b></a></dt>p
+  <dd>Comprueba atributos específicos de TCP. Este módulo se carga automáticamente cuando usa "protocol tcp".
+        <pre>proto tcp sport 1234;
+proto tcp dport 2345;
+proto tcp tcp-flags (SYN ACK) SYN;
+proto tcp tcp-flags ! (SYN ACK) SYN;
+proto tcp tcp-flags ALL (RST ACK);
+proto tcp syn;
+proto tcp tcp-option 2;
+proto tcp mss </pre>512;
+    <p class="Pp">Escriba "iptable</p>s -p tcp -h" pa</dd>ra más detalles.
+  <dt id="tcpmss"><a class="permalink" href="#tcpmss"><b>tcpm</b></a></dt>ss
+  <dd>Comprueba el campo MSS de TCP de un paquete SYN o SYN/ACK.
+        <pre>mod tcpmss mss 123 </pre>ACCEPT;
+mod tcpmss </dd>mss 234:567 ACCEPT;
+  <dt id="time"><a class="permalink" href="#time"><b>ti</b></a></dt>me
+  <dd>Comprueba si la hora en que llega un paquete está en el rango dado.
+        <pre>mod time timestart 12:00;
+mod time timestop 13:30;
+mod time timestart 22:00 timestop 07:00 contiguous;
+mod time days (Mon Wed Fri);
+mod time datestart 2005:01:01;
+mod time datestart 2005:01:01:23:59:59;
+mod time datestop 2005:04:01;
+mod time monthday (30 31);
+mod time weekdays (Wed Thu);
+mod time timestart 12:00;
+mod time timestart 12:00 </pre>kerneltz;
+    <p class="Pp">Escriba "iptable</p>s -m time -h" pa</dd>ra más detalles.
+  <dt id="tos"><a class="permalink" href="#tos"><b>to</b></a></dt>s
+  <dd>Coincide con un paquete en el valor TOS especificado.
+        <pre>mod tos tos Minimize-Cost ACCEPT;
+mod tos tos !Normal-Service </pre>ACCEPT;
+    <p class="Pp">Escriba "iptable</p>s -m tos -h" pa</dd>ra más detalles.
+  <dt id="ttl"><a class="permalink" href="#ttl"><b>tt</b></a></dt>l
+  <dd>Coincide con el campo TTL (tiempo de vida) en la cabecera IP.
+        <pre>mod ttl ttl-eq 12; # ttl igual a
+mod ttl ttl-gt 10; # ttl mayor que
+mod ttl ttl-lt 16; # ttl </pre>menor </dd>que
+  <dt id="u32"><a class="permalink" href="#u32"><b>u3</b></a></dt>2
+  <dd>Compara datos sin procesar del paquete. Puede especificar más de un filtro en una lista de ferm; estos no se expanden en múltiples reglas.
+        <pre>mod u32 u32 '6&amp;0xFF=1' ACCEPT;
+mod u32 u32 ('27&amp;0x8f=7' '31=0x527c4833')</pre> </dd>DROP;
+  <dt id="unclean"><a class="permalink" href="#unclean"><b>uncle</b></a></dt>an
+  <dd>Coincide con paquetes que</dd> parecen malformados o in</dl>usuales. Esta coincidencia</section> no tiene más parámetros.
+<section class="Ss">
+<h2 class="Ss" id='iptables_target_modules'><a class='permalink' href='#iptables_target_modules'>iptables   módulos de </a></h2>destino
+<p class="Pp">Los siguientes destinos adicionales están disponibles en ferm, siempre que los haya habilitado en su </p>kernel:
+<dl class="Bl-tag">
+  <dt id="CHECKSUM"><a class="permalink" href="#CHECKSUM"><b>CHECKS</b></a></dt>UM
+  <dd>Calcula la suma de comprobación del paquete.
+        <pre>CHECKSUM</pre> checks</dd>um-fill;
+  <dt id="CLASSIFY"><a class="permalink" href="#CLASSIFY"><b>CLASSI</b></a></dt>FY
+  <dd>Establece la clase CBQ.
+        <pre>CLASSIFY set-class </pre>3:</dd>50;
+  <dt id="CLUSTERIP"><a class="permalink" href="#CLUSTERIP"><b>CLUSTER</b></a></dt>IP
+  <dd>Configura un clúster simple de nodos que comparten una cierta dirección IP y MAC. Las conexiones se distribuyen estáticamente entre los nodos.
+        <pre>CLUSTERIP new hashmode sourceip clu</pre>stermac 00:12:34:45:67:89
+  total-no</dd>des 4 local-node 2 hash-init 12345;
+  <dt id="CONNMARK"><a class="permalink" href="#CONNMARK"><b>CONNMA</b></a></dt>RK
+  <dd>Establece el valor de marca de netfilter asociado con una conexión.
+        <pre>CONNMARK set-xmark 42/0xff;
+CONNMARK s{
+  "et-mark": "et-mark 42;",
+  "CONNMARK": [
+    "CONNMARK save-mark;",
+    "CONNMARK restore-mark;",
+    "CONNMARK save-mark nfmask 0xff ctmask 0xff;",
+    "CONNMARK save-mark mask 0x7fff;",
+    "CONNMARK restore-mark mask 0x8000;",
+    "CONNMARK and-mark 0x7;",
+    "CONNMARK or-mark 0x4;",
+    "CONNMARK xor-mark 0x7;",
+    "CONNMARK and-mark 0x7;"
+  ],
+  "CONNSECMARK": [
+    "CONNSECMARK save;",
+    "CONNSECMARK restore;"
+  ],
+  "CT": [
+    "CT notrack;",
+    "CT helper ftp;",
+    "CT ctevents new,related;",
+    "CT expevents new;",
+    "CT zone 1;",
+    "CT zone mark;",
+    "CT zone-orig mark;",
+    "CT zone-reply mark;",
+    "CT timeout 180;"
+  ],
+  "DNAT": [
+    "DNAT to 10.0.0.4;",
+    "DNAT to 10.0.0.4:80;",
+    "DNAT to 10.0.0.4:1024-2048;",
+    "DNAT to 10.0.1.1-10.0.1.20;"
+  ],
+  "DNPT": [
+    "DNPT src-pfx 2001:42::/16 dst-pfx 2002:42::/16;"
+  ],
+  "ECN": [
+    "ECN ecn-tcp-remove;"
+  ],
+  "HL": [
+    "HL hl-set 5;",
+    "HL hl-dec 2;",
+    "HL hl-inc 1;"
+  ],
+  "HMARK": [
+    "HMARK hmark-tuple \"src\" hmark-mod \"1\" hmark-offset \"1\"\n  hmark-src-prefix 192.168.1.0/24 hmark-dst-prefix 192.168.2.0/24\n  hmark-sport-mask 0x1234 hmark-dport-mask 0x2345\n  hmark-spi-mask 0xdeadbeef hmark-proto-mask 0x42 hmark-rnd 0xcoffee;"
+  ],
+  "IDLETIMER": [
+    "IDLETIMER timeout 60 label \"foo\";"
+  ],
+  "IPV4OPTSSTRIP": [
+    "IPV4OPTSSTRIP;"
+  ],
+  "JOOL": [
+    "JOOL instance \"foo\";"
+  ],
+  "JOOL_SIIT": [
+    "JOOL_SIIT instance \"foo\";"
+  ],
+  "LED": [
+    "LED led-trigger-id \"foo\" led-delay 100 led-always-blink;"
+  ],
+  "LOG": [
+    "LOG log-level warning log-prefix \"Look at this: \";",
+    "LOG log-tcp-sequence log-tcp-options;",
+    "LOG log-ip-options;"
+  ],
+  "MARK": [
+    "MARK set-mark 42;",
+    "MARK set-xmark 7/3;",
+    "MARK and-mark 31;",
+    "MARK or-mark 1;",
+    "MARK xor-mark 12;"
+  ],
+  "MASQUERADE": [
+    "MASQUERADE;",
+    "MASQUERADE to-ports 1234:2345;",
+    "MASQUERADE to-ports 1234:2345 random;",
+    "MASQUERADE to-ports 1234:2345 random-fully;"
+  ],
+  "MIRROR": [
+    "MIRROR;"
+  ],
+  "NETMAP": [
+    "NETMAP to 192.168.2.0/24;"
+  ],
+  "NOTRACK": [
+    "proto tcp dport (135:139 445) NOTRACK;"
+  ],
+  "RATEEST": [
+    "RATEEST rateest-name \"foo\" rateest-interval 60s rateest-ewmalog 100;",
+    "proto tcp dport (135:139 445) NOTRACK;"
+  ],
+  "NFLOG": [
+    "NFLOG nflog-group 5 nflog-prefix \"Look at this: \";",
+    "NFLOG nflog-range 256;",
+    "NFLOG nflog-threshold 10;"
+  ],
+  "NFQUEUE": [
+    "proto tcp dport ftp NFQUEUE queue-num 20;"
+  ],
+  "QUEUE": [
+    "proto tcp dport ftp QUEUE;"
+  ],
+  "REDIRECT": [
+    "proto tcp dport http REDIRECT to-ports 3128;",
+    "proto tcp dport http REDIRECT to-ports 3128 random;"
+  ],
+  "SAME": [
+    "SAME to 1.2.3.4-1.2.3.7;",
+    "SAME to 1.2.3.8-1.2.3.15 nodst;",
+    "SAME to 1.2.3.16-1.2.3.31 random;"
+  ],
+  "SECMARK": [
+    "SECMARK selctx \"system_u:object_r:httpd_packet_t:s0\";"
+  ],
+  "SET": [
+    "proto icmp icmp-type echo-request SET add-set badguys src;",
+    "SET add-set \"foo\" timeout 60 exist;"
+  ],
+  "SNAT": [
+    "SNAT to 1.2.3.4;",
+    "SNAT to 1.2.3.4:20000-30000;",
+    "SNAT to 1.2.3.4 random;"
+  ],
+  "SNPT": [
+    "SNPT src-pfx 2001:42::/16 dst-pfx 2002:42::/16;"
+  ],
+  "SYNPROXY": [
+    "SYNPROXY wscale 7 mss 1460 timestamp sack-perm"
+  ],
+  "TCPMSS": [
+    "TCPMSS set-mss 1400;",
+    "TCPMSS clamp-mss-to-pmtu;"
+  ],
+  "TCPOPTSTRIP": [
+    "TCPOPTSTRIP strip-options (option1 option2 ...);"
+  ],
+  "TOS": [
+    "TOS set-tos Maximize-Throughput;",
+    "TOS and-tos 7;",
+    "TOS or-tos 1;",
+    "TOS xor-tos 4;"
+  ],
+  "TTL": [
+    "TTL ttl-set 16;",
+    "TTL ttl-dec 1; # decrease by 1",
+    "TTL ttl-inc 4; # increase by 4"
+  ],
+  "ULOG": [
+    "ULOG ulog-nlgroup 5 ulog-prefix \"Look at this: \";",
+    "ULOG ulog-cprange 256;",
+    "ULOG ulog-qthreshold 10;"
+  ],
+  "OTHER_DOMAINS": {
+    "description": "Since version 2.0, ferm supports not only ip and ip6, but also arp (ARP tables) and eb (ethernet bridging tables). The concepts are similar to iptables.",
+    "arptables_keywords": {
+      "source-ip": "Matches the source or destination IPv4 address. Same as saddr and daddr in the ip domain.",
+      "source-mac": "Matches the source or destination MAC address.",
+      "interface": "Input and output interface.",
+      "h-length": "Hardware length of the packet.\n        chain INPUT h-length 64 ACCEPT;",
+      "opcode": "Operation code, for details, see iptables(8).\n        opcode 9 ACCEPT;",
+      "h-type": "Hardware type.\n        h-type 1 ACCEPT;",
+      "proto-type": "Protocol type.\n        proto-type 0x800 ACCEPT;"
+    }
+  }
+}
+
+  <dt id="Mangling"><a class="permalink" href="#Mangling"><b>Manipulac</b></a></dt>ión
+  <dd>Las palabras clave <b>mangle-ip-</b>s, <b>mangle-ip-</b>d, <b>mangle-m</b>ac-s,
+      <b>mangle-mac-</b>d, <b>mangle-target </b>pueden usarse para la manipulación de ARP.
+      Vea <a href='/man/iptables.8.en'>iptabl</a>es(8) </dd>para m</dl>ás det</section>alles.
+<section class="Ss">
+<h2 class="Ss" id='ebtables_keywords'><a class='permalink' href='#ebtables_keywords'>Palabras clave de </a></h2>ebtables
+<dl class="Bl-tag">
+  <dt id="proto~2"><a class="permalink" href="#proto~2"><b>pro</b></a></dt>to
+  <dd>Coincide con el protocolo que creó el trama, por ejemplo <i>IPv4 </i>o
+      <b>PPP.</b> Para una lista, vea <i>/etc/</i>ethert</dd>ypes.
+  <dt id="interface~3"><a class="permalink" href="#interface~3"><b>interf</b>ace,
+    <b>outerfa</b></a></dt>ce
+  <dd>Interfaz física de entrada y </dd>salida.
+  <dt id="logical"><a class="permalink" href="#logical"><b>logical</b>-in,
+    <b>logical-o</b></a></dt>ut
+  <dd>La interfaz lógica del </dd>puente.
+  <dt id="saddr"><a class="permalink" href="#saddr"><b>sad</b>dr,
+    <b>dad</b></a></dt>dr
+  <dd>Coincide con la dirección MAC de origen o de </dd>destino.
+  <dt id="Match"><a class="permalink" href="#Match"><b>Módulos de </b></a></dt>coincidencia
+  <dd>Se admiten los siguientes módulos de coincidencia: 802.3, arp, ip, mark_m,
+      pkttype, stp, vlan, </dd>log.
+  <dt id="Target"><a class="permalink" href="#Target"><b>Extensiones de </b></a></dt>destino
+  <dd>Se admiten las siguientes extensiones de destino: arpreply, dnat, mark,
+      redirect, snat.
+    <p class="Pp">Tenga en cuenta que existe un conflicto entre <i>--mark
+   </i>     del módulo de coincidencia <i>mark_m </i>y <i>-j mark.</i> Dado que ambos se implementarían con la palabra clave de ferm <b>mark,</b> decidimos resolver esto escribiendo el nombre del destino en mayúsculas, como en los otros
+        dominios. El siguiente ejemplo reescribe la </p>marca 1 a 2:
+        <pre>ma</pre>rk </dd>1 </dl>MA</section>RK </section>2;
+<section class="Sh">
+<h1 class="Sh" id='ADVANCED_FEATURES'><a class='permalink' href='#ADVANCED_FEATURES'>FUNCIONES </a></h1>AVANZADAS
+<section class="Ss">
+<h2 class="Ss" id='Variables'><a class='permalink' href='#Variables'>Variable</a></h2>s
+<p class="Pp">En archivos de firewall complejos, es útil usar variables, por ejemplo, para
+    dar a una interfaz de red un nombre </p>significativo.
+<p class="Pp">Para definir variables, </p>escriba:
+<pre>@def $DEV_INTERNET = eth0;
+@def $PORTS = (http ftp);
+@def $MORE_PORTS = ($PORTS 8080)</pre>;
+<p class="Pp">En el código real de ferm, las variables se usan como cualquier otro parámetro de palabra </p>clave:
+<pre>chain INPUT interface $DEV_INTERNET proto tcp dport $MORE_PORTS </pre>ACCEPT;
+<p class="Pp">Tenga en cuenta que las variables solo pueden usarse en parámetros de palabras clave
+    ("192.168.1.1", "http"); no pueden contener palabras clave de ferm
+    como "proto" o </p>"interface".
+<p class="Pp">Las variables solo son válidas en el bloque </p>actual:
+<pre>@def $DEV_INTERNET = eth1;
+chain INPUT {
+    proto tcp {
+        @def $DEV_INTERNET = ppp0;
+        interface $DEV_INTERNET dport http ACCEPT;
+    }
+    interface $DEV_INTERNET DROP;
+</pre>}
+<p class="Pp">se expandirá </p>a:
+<pre>chain INPUT {
+    proto tcp {
+        interface ppp0 dport http ACCEPT;
+    }
+    interface eth1 DROP;
+</pre>}
+<p class="Pp">El "def <span class="Li">$DEV_INTERNET </span>= ppp0"
+    solo es válido en el bloque "proto tcp"; el bloque padre todavía
+    conoce "set <span class="Li">$DEV_INTERNET </span>= </p>eth1".
+<p class="Pp">Los archivos incluidos son especiales: las variables declaradas en un ar</p>chivo incluido
+    siguen estando disponibles en el bloque que lo llama</section>. Esto es útil cuando incluye un
+    archivo que solo declara variables.
+<section class="Ss">
+<h2 class="Ss" id='Automatic_variables'><a class='permalink' href='#Automatic_variables'>Variables </a></h2>automáticas
+<p class="Pp">Algunas variables se establecen internamente por ferm. Los scripts de ferm pueden usarlas
+    como cualquier otra </p>variable.
+<dl class="Bl-tag">
+  <dt><b>$FILENAME</b><b></b></dt>
+  <dd>El nombre del archivo de configuración relativo al directorio desde el que se inició </dd>ferm.
+  <dt><b>$FILEBNAME</b><b></b></dt>
+  <dd>El nombre base del archivo de </dd>configuración.
+  <dt><b>$DIRNAME</b><b></b></dt>
+  <dd>El directorio del archivo de </dd>configuración.
+  <dt><b>$DOMAIN</b><b></b></dt>
+  <dd>El dominio actual. Uno de <i>ip</i>, <i>ip</i>6, <i>a</i>rp,
+    <i>e</i>b</dd>.
+  <dt><b>$TABLE</b><b></b></dt>
+  <dd>La tabla de netfilter </dd>actual.
+  <dt><b>$CHAIN</b><b></b></dt>
+  <dd>La cadena de netfilter </dd>actual.
+  <dt><b>$LINE</b><b></b></dt>
+  <dd>La línea del script actual. Puede usarse así:
+        <pre>@def &amp;log($msg) = </pre>{
+         LOG log-</dd>prefix "rule=$msg:</dl>$LINE ";
+}
+.
+.
+.
+&amp;l</section>og("log message");
+<section class="Ss">
+<h2 class="Ss" id='Functions'><a class='permalink' href='#Functions'>Funcione</a></h2>s
+<p class="Pp">Las funciones son similares a las variables, excepto que pueden tener
+    parámetros, y proporcionan comandos de ferm, no </p>valores.
+<pre>@def &amp;FOO() = proto (tcp udp) dport domain;
+&amp;FOO() ACCEPT;
+@def &amp;TCP_TUNNEL($port, $dest) = {
+    table filter chain FORWARD interface ppp0 proto tcp dport $port daddr $dest outerface eth0 ACCEPT;
+    table nat chain PREROUTING interface ppp0 proto tcp dport $port daddr 1.2.3.4 DNAT to $dest;
+}
+&amp;TCP_TUNNEL(http, 192.168.1.33);
+&amp;TCP_TUNNEL(ftp, 192.168.1.30);
+&amp;TCP_TUNNEL((ssh smtp), 192.168.1.2)</pre>;
+<p class="Pp">Una llamada a función que contiene un bloque (como '{...}') debe ser el
+    último comando en una regla de ferm, es decir, debe ir seguida de ';'. La
+    llamada<b>'&amp;FOO()</b>' no contiene un bloque, por lo que puede escribir
+    'ACCEPT' después de la llamada. Para evitar esto, puede reordenar las
+  palabras </p>clave:
+<pre>@def &amp;IPSEC() = { proto (esp</pre> ah); proto udp dport 500; }
+</section>chain INPUT ACCEPT &amp;IPSEC();
+<section class="Ss">
+<h2 class="Ss" id='Backticks'><a class='permalink' href='#Backticks'>Backtick</a></h2>s
+<p class="Pp">Con backticks, puede usar la salida de un comando </p>externo:
+<pre>@def $DNSSERVERS = `grep nameserver /etc/resolv.conf | awk '{print $2}'`;
+chain INPUT proto tcp saddr $DNSSERVERS </pre>ACCEPT;
+<p class="Pp">El comando se ejecuta con el shell (<i>/bin/sh)</i>, igual que
+    los backticks en Perl. ferm no realiza ninguna expansión de variables </p>aquí.
+<p class="Pp">La salida se tokeniza y se guarda como una lista (array) de ferm.
+    L</p>as líneas que comienzan con '#' se ignoran; las demás líneas pueden cont</section>ener cualquier número
+    de valores, separados por espacios en blanco.
+<section class="Ss">
+<h2 class="Ss" id='Includes'><a class='permalink' href='#Includes'>Inclusione</a></h2>s
+<p class="Pp">La palabra clave <span class="Li"><b>@include</b></span><b></b> le permite incluir archivos </p>externos:
+<pre>@include 'vars.</pre>ferm';
+<p class="Pp">El nombre del archivo es relativo al archivo que lo llama, por ejemplo, al incluir
+    desde <i>/etc/ferm/ferm.conf,</i> la instrucción anterior incluye
+    <i>/etc/ferm/vars.ferm. </i>Las variables y funciones declaradas en un archivo incluido
+    siguen estando disponibles en el archivo que lo </p>llama.
+<p class="Pp"><b>include </b>funciona dentro de un </p>bloque:
+<pre>chain INPUT {
+    @include 'input.ferm';
+</pre>}
+<p class="Pp">Si especifica un directorio (con una '/' al final), todos los archivos de
+    este directorio se incluyen, ordenados alfabéticamente</p>:
+<pre>@include 'ferm.</pre>d/';
+<p class="Pp">La función <span class="Li">@glob </span>puede usarse para expandir
+    </p>comodines:
+<pre>@include @glob('*.include')</pre>;
+<p class="Pp">Con un símbolo de tubería (pipe) al final, <b>ferm </b>ejecuta un comando de shell
+    y analiza su </p>salida:
+<pre>@include "/root/generate_ferm_rules.sh </pre>$HOSTNAME|"
+<p class="Pp"><b>ferm se abor</b>ta si el cód</p>igo de reto</section>rno no es 0.
+<section class="Ss">
+<h2 class="Ss" id='Conditionals'><a class='permalink' href='#Conditionals'>Condicionale</a></h2>s
+<p class="Pp">La palabra clave <span class="Li"><b>@if</b></span><b></b> introduce una
+    expresión </p>condicional:
+<pre>@if $condition </pre>DROP;
+<p class="Pp">Un valor se evalúa como verdadero igual que en Perl: cero, lista vacía,
+    cadena vacía son falsos, todo lo demás es verdadero. Ejemplos de valores
+  </p>verdaderos:
+<pre>(a b); 1; 'foo'; (0 </pre>0)
+<p class="Pp">Ejemplos de valores </p>falsos:
+<pre>(); 0; '0'; </pre>''
+<p class="Pp">También hay <span class="Li"><b>@else</b></span><b></b></p>:
+<pre>@if $condition DROP; @else </pre>REJECT;
+<p class="Pp">Tenga en cuenta el punto y coma antes de
+    <span class="Li"><b>@else</b></span><b></b></p>.
+<p class="Pp">Es posible usar llaves después de
+    <span class="Li"><b>@if</b></span><b></b> o
+    <b></b><span class="Li"><b>@else</b></span><b></b></p>:
+<pre>@if $condition {
+    MARK set-mark 2;
+    RETURN;
+} @else {
+    MARK set-mark 3;
+</pre>}
+<p class="Pp">Dado que la llave de cierre también finaliza el comando, no es
+    necesario un punto y </p>coma.
+<p class="Pp">No hay <span class="Li"><b>@elsif</b></span><b></b>, use
+    <b></b><span class="Li"><b>@else</b></span><b>
+    </b><span class="Li"><b>@if</b></span><b></b> en su </p>lugar.
+<p class="Pp">Ejemplo</p>:
+<pre>@def $have_ipv6 = `test -f /proc/net/ip6_tables_names &amp;&amp; echo 1 || echo`;
+@if $have_ipv6 {
+    domain ip6 {
+        # ....
+    }</pre>
+</section>}
+<section class="Ss">
+<h2 class="Ss" id='Hooks'><a class='permalink' href='#Hooks'>Hook</a></h2>s
+<p class="Pp">Para ejecutar comandos personalizados, puede instalar </p>hooks:
+<pre>@hook pre "echo 0 &gt;/proc/sys/net/ipv4/conf/eth0/forwarding";
+@hook post "echo 1 &gt;/proc/sys/net/ipv4/conf/eth0/forwarding";
+@hook flush "echo 0 &gt;/proc/sys/net/ipv4/conf/eth0/forwarding"</pre>;
+<p class="Pp">El comando especificado se ejecuta usando el shell. "pre"
+    significa ejecutar el</p> comando antes de aplicar las reglas del firewall, y
+    "post" significa ejecutarl</section>o después. Los hooks "flush"
+    se ejecutan después de que ferm haya limpiado las </section>reglas del firewall (opción --flush). Puede
+    instalar cualquier número de hooks.
+<section class="Sh">
+<h1 class="Sh" id='BUILT-IN_FUNCTIONS'><a class='permalink' href='#BUILT-IN_FUNCTIONS'>FUNCIONES </a></h1>INTEGRADAS
+<p class="Pp">Hay varias funciones integradas que podría encontrar
+  </p>útiles.
+<section class="Ss">
+<h2 class="Ss" id='@defined($name),_@defined(&amp;amp;name)'><a class='permalink' href='#@defined($name),_@defined(&amp;amp;name)'>@defined($name),   </a></h2>@defined(&amp;name)
+<p class="Pp">Prueba si la variable o función está </p>definida.
+<pre>@def $a = 'foo';
+@if @defined($a</pre>) good;
+@if @not(@defined($a)) ba</section>d;
+@if @defined(&amp;funcname) good;
+<section class="Ss">
+<h2 class="Ss" id='@eq(a,b)'><a class='permalink' href='#@eq(a,b)'>@eq(a,</a></h2>b)
+<p class="Pp">Prueba dos valores para igualdad. </p>Ejemplo:
+<pre>@if @eq($</pre>DOMAIN, i</section>p6) DROP;
+<section class="Ss">
+<h2 class="Ss" id='@ne(a,b)'><a class='permalink' href='#@ne(a,b)'>@ne(a,</a></h2>b)
+<p class="Pp">Similar a <span class="Li">@eq, esto </span>prueba pa</p>ra
+    de</section>sigualdad.
+<section class="Ss">
+<h2 class="Ss" id='@not(x)'><a class='permalink' href='#@not(x)'>@not(x</a></h2>)
+<p class="Pp">Niega un</p> valor b</section>ooleano.
+<section class="Ss">
+<h2 class="Ss" id='@resolve((hostname1_hostname2_...),_[type])'><a class='permalink' href='#@resolve((hostname1_hostname2_...),_%5Btype%5D)'>@resolve((hostname1   hostname2 ...), [type]</a></h2>)
+<p class="Pp">Normalmente, los nombres de host los resuelve iptables. Para que ferm resuelva
+    los nombres de host, use la función <span class="Li">@resolve</span></p>:
+<pre>saddr @resolve(my.host.foo) proto tcp dport ssh ACCEPT;
+saddr @resolve((another.host.foo third.host.foo)) proto tcp dport openvpn ACCEPT;
+daddr @resolve(ipv6.google.com, AAAA) proto tcp dport http </pre>ACCEPT;
+<p class="Pp">Tenga en cuenta los paréntesis dobles en la segunda línea: el par interior para
+    crear una lista de ferm, y el par exterior como delimitadores de parámetros de </p>función.
+<p class="Pp">El segundo parámetro es opcional y especifica el tipo de registro DNS. El valor predeterminado es "A" para domain ip y "AAAA" para domain </p>ip6.
+<p class="Pp">Tenga cuidado con los nombres de host resueltos en la configuración del </p>firewall. Las solicitudes DNS pueden bloquear la configuración del firewa</section>ll durante mucho tiempo, dejando la máquina vulnerable, o pueden fallar.
+<section class="Ss">
+<h2 class="Ss" id='@cat(a,_b,_...)'><a class='permalink' href='#@cat(a,_b,_...)'>@cat(a,   b, ...</a></h2>)
+<p class="Pp">Concatena todos l</p>os parámetros en</section> una sola cadena.
+<section class="Ss">
+<h2 class="Ss" id='@join(separator,_a,_b,_...)'><a class='permalink' href='#@join(separator,_a,_b,_...)'>@join(separador,   a, b, ...</a></h2>)
+<p class="Pp">Une todos los parámetros en </p>una sola cadena, separados po</section>r la cadena separadora dada.
+<section class="Ss">
+<h2 class="Ss" id='@substr(expression,_offset,_length)'><a class='permalink' href='#@substr(expression,_offset,_length)'>@substr(expresión,   desplazamiento, </a></h2>longitud)
+<p class="Pp">Extrae una subcadena de la expresión y la devuelve. El primer</p> carácter está en el desplazamiento 0. Si DESPLAZAMIENTO es </section>negativo, comienza esa distancia desde el final de la cadena.
+<section class="Ss">
+<h2 class="Ss" id='@length(expression)'><a class='permalink' href='#@length(expression)'>@length(expresión</a></h2>)
+<p class="Pp">Devuelve la longit</p>ud en caracteres </section>del valor de EXPR.
+<section class="Ss">
+<h2 class="Ss" id='@basename(path)'><a class='permalink' href='#@basename(path)'>@basename(ruta</a></h2>)
+<p class="Pp">Devuelve el nombre base de</p>l archivo para una ruta dad</section>a (File::Spec::splitpath).
+<section class="Ss">
+<h2 class="Ss" id='@dirname(path)'><a class='permalink' href='#@dirname(path)'>@dirname(ruta</a></h2>)
+<p class="Pp">Devuelve el nombre del último directorio para un</p>a ruta dada, asumiendo que el último componente </section>es un nombre de archivo (File::Spec::splitpath).
+<section class="Ss">
+<h2 class="Ss" id='@glob(path)'><a class='permalink' href='#@glob(path)'>@glob(ruta</a></h2>)
+<p class="Pp">Expande los comodines de shell en las rutas dadas (se asume que son relativas al script actual). Devuelve una lista de archivos coincidentes. Esta función es útil como parámetro de <span class="Li">@i</span>nc</p>lud</section>e.
+<section class="Ss">
+<h2 class="Ss" id='@ipfilter(list)'><a class='permalink' href='#@ipfilter(list)'>@ipfilter(lista</a></h2>)
+<p class="Pp">Filtra las direcciones IP que obviamente no coinciden con el dominio actual. Esto es útil para crear variables y reglas comunes para IPv4 e </p>IPv6:
+<pre>@def $TRUSTED_HOSTS = (192.168.0.40 20</pre>01:abcd:ef::40);
+domain (ip ip6) chai</section>n INPUT {
+    saddr @ipfilter($TRUSTE</section>D_HOSTS) proto tcp dport ssh ACCEPT;
+}
+<section class="Sh">
+<h1 class="Sh" id='RECIPES'><a class='permalink' href='#RECIPES'>RECETA</a></h1>S
+<p class="Pp">El <i>directorio </i>./examples/ contiene numerosas configuraciones de ferm que se pueden usar para comenzar un nuevo firewall. Esta sección contiene más ejemplos, recetas y </p>trucos.
+<section class="Ss">
+<h2 class="Ss" id='Easy_port_forwarding'><a class='permalink' href='#Easy_port_forwarding'>Reenvío   de puertos </a></h2>fácil
+<p class="Pp">Las funciones de ferm hacen que las tareas rutinarias sean rápidas y </p>fáciles:
+<pre>@def &amp;FORWARD_TCP($proto, $port, $dest) = {
+    table filter chain FORWARD interface $DEV_WORLD outerface $DEV_DMZ daddr $dest proto $proto dport $port ACCEPT;
+    table nat chain PREROUTING interface $DEV_WORLD daddr $HOST_STATIC proto $proto dport $port DNAT to $dest;
+}
+&amp;FORWARD_TCP(tcp, http, 192.168.1.2);
+&amp;FORWARD_TCP(tcp, smtp, 192.168.1.3);
+&amp;FORWARD_TCP((tcp udp), domain, 192.168.1.</pre>4)</section>;
+<section class="Ss">
+<h2 class="Ss" id='Remote_&lt;b&gt;ferm&lt;/b&gt;'><a class='permalink' href='#Remote_&lt;b&gt;ferm&lt;/b&gt;'>Remoto   <b>fer</b></a></h2>m
+<p class="Pp">Si la máquina de destino no puede ejecutar <b>ferm </b>por alguna razón (quizás un dispositivo integrado sin Perl), puede editar el <b>archivo </b>de configuración de ferm en otro ordenador y dejar que <b>ferm </b>genere un script de shell </p>allí.
+<p class="Pp">Ejemplo para </p>OpenWRT:
+<pre>ferm --remote --shell mywrt/ferm.conf &gt;mywr</pre>t/firewall.user
+chmod +x mywrt/firewall.use</section>r
+scp mywrt/firewall.user mywrt.local.net:/</section>etc/
+ssh mywrt.local.net /etc/firewall.user
+<section class="Sh">
+<h1 class="Sh" id='OPTIONS'><a class='permalink' href='#OPTIONS'>OPCIONE</a></h1>S
+<dl class="Bl-tag">
+  <dt id="noexec"><a class="permalink" href="#noexec"><b>--noex</b></a></dt>ec
+  <dd>No ejecute los comandos <a href='/man/iptables.8.en'>iptables(8)</a>, sino que los omita. De esta manera puede analizar sus datos y usar <b>--lines </b>para ver la </dd>salida.
+  <dt id="flush"><a class="permalink" href="#flush"><b>--flu</b></a></dt>sh
+  <dd>Borra las reglas de firewall y establece la política de todas las cadenas en ACCEPT.
+      <b>ferm </b>necesita un archivo de configuración para eso para determinar qué dominios y tablas se ven </dd>afectados.
+  <dt id="lines"><a class="permalink" href="#lines"><b>--lin</b></a></dt>es
+  <dd>Muestra las líneas de firewall que se generaron a partir de las reglas. Se mostrarán justo antes de que se ejecuten, de modo que si recibe mensajes de error de
+      <a href='/man/iptables.8.en'>iptables(8)</a> etc., puede ver qué regla causó el </dd>error.
+  <dt id="interactive"><a class="permalink" href="#interactive"><b>--interacti</b></a></dt>ve
+  <dd>Aplica las reglas de firewall y pide confirmación al usuario. Revierte al conjunto de reglas anterior si no hay una respuesta válida del usuario dentro de 30 segundos (véase
+      <b>--timeout)</b>. Esto es útil para la administración remota de firewalls: puede probar las reglas sin temor a bloquearse a sí </dd>mismo.
+  <dt id="timeout"><a class="permalink" href="#timeout"><b>--timeout
+  </b></a></dt>  S
+  <dd>Si <b>--interactive </b>se usa, entonces se revierte si no hay una respuesta válida del usuario después de este número de segundos. El valor predeterminado es </dd>30.
+  <dt id="help"><a class="permalink" href="#help"><b>--he</b></a></dt>lp
+  <dd>Muestra una lista breve de las opciones de línea de comandos </dd>disponibles.
+  <dt id="version"><a class="permalink" href="#version"><b>--versi</b></a></dt>on
+  <dd>Muestra el número de versión del </dd>programa.
+  <dt id="fast"><a class="permalink" href="#fast"><b>--fa</b></a></dt>st
+  <dd>Habilita el modo rápido: ferm genera un archivo <a href='/man/iptables-save.8.en'>iptables-save(8)</a> y lo instala con <a href='/man/iptables-restore.8.en'>iptables-restore(8)</a>. Esto es mucho más rápido porque <a href='/man/iptables.8.en'>ferm </a>llama a
+    <p class="Pp">iptables(8) una vez por cada regla de forma predeterminada. <b>El modo rápi</b>do está habi</p>litado por d</dd>efecto desde
+  <dt id="slow"><a class="permalink" href="#slow"><b>ferm 2.0,
+        deprecando </b></a></dt>esta opción.
+  <dd>--slow <a href='/man/iptables.8.en'>Deshabilita </a>el modo rápido, es decir, ejecuta <a href='/man/iptables-restore.8.en'>iptables(8) </a>para cada reg</dd>la, y no usa
+  <dt id="shell"><a class="permalink" href="#shell"><b>iptables-restore(8)</b></a></dt>.
+  <dd>--shell <a href='/man/iptables-restore.8.en'>Genera un </a>script de shell que llama </dd>a
+  <dt id="remote"><a class="permalink" href="#remote"><b>iptables-restore(8) y lo imprime. Implica </b></a></dt>--fast --lines.
+  <dd>--remote <b>Genera reglas para </b>una máquina remota. Implica
+      <b>--noexec </b>y <b>--lines. S</b>e puede co</dd>mbinar con
+  <dt id="domain~2"><a class="permalink" href="#domain~2"><b>--shell</b></a></dt>.
+  <dd>--domain
+    {ip|ip6} <b>Maneja </b>solo el dominio especificado y lo elige como dominio predeterminado para las reglas donde no se especifica </dd>ninguno.
+  <dt id="def"><a class="permalink" href="#def"><b>La salida de ferm puede estar vacía si el dominio no está configurado en el archivo </b></a></dt>de entrada.
+  <dd>--def
+</dd>    '$</dl>name=</section>value'
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>Sobrescribe una variable definida en el archivo de </a></h1>configuración.
+<p class="Pp"><a href='/man/iptables.8.en'>VÉASE</a></p>   TA</section>MBIÉN
+<section class="Sh">
+<h1 class="Sh" id='REQUIREMENTS'><a class='permalink' href='#REQUIREMENTS'>iptables(8</a></h1>)
+<section class="Ss">
+<h2 class="Ss" id='Operating_system'><a class='permalink' href='#Operating_system'>REQUISITO</a></h2>S
+<p class="Pp">Sistem</p>a   ope</section>rativo
+<section class="Ss">
+<h2 class="Ss" id='Software'><a class='permalink' href='#Software'>Linux 2.4 o más reciente, con soporte netfilter y todos los módulos netfilter utilizados por su script </a></h2>de firewall
+<p class="Pp">So</p>ft</section>wa</section>re
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>iptables y perl </a></h1>5.6
+<p class="Pp">ERRORE</p>S
+<p class="Pp">¿Errores? ¿Qué errores?
+    <a href='https://github.com/MaxKellermann/ferm/issues'>Si encuentra un er</a></p>ror, por favor re</section>pórtelo en GitHub:
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>https://github.com/MaxKellermann/ferm/is</a></h1>sues
+<p class="Pp">DERECHOS   DE </p>AUTOR
+<p class="Pp">Copyright 2001-2021 Max Kellermann
+    &lt;max.kellermann@gmail.com&gt;, Auke Kok &lt;sofar@foo-projects.org&gt;
+    y varios otros </p>colaboradores.
+<p class="Pp">Este programa es software libre; puede redistribuirlo y/o modificarlo bajo los términos de la Licencia Pública General de GNU publicada por la Free Software Foundation; ya sea la versión 2 de la Licencia, o (a su elección) cualquier versión </p>posterior.
+<p class="Pp">Este programa se distribuye con la esperanza de que sea útil, pero SIN NINGUNA GARA</p>NTÍA; sin siquiera la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN PR</section>OPÓSITO PARTICULAR. Consulte la Licencia Pública General para obtener más detalles.
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>Debería haber recibido una copia de la Licencia Pública General junto con este programa; si no, escriba a la Free Software Foundation,
+    Inc., 51 Franklin Street, Fifth Floor,</a></h1> Boston, MA 02110-1301 USA.
+<p class="Pp">A</p>U</section>TO</div>R
+<table class="foot">
+  <tr>
+    <td class="foot-date">Max Kellermann &lt;max.kellermann@gmail.com&gt;, Auke Kok
+ </td>   &lt;sofar@foo-projects.org&gt;
+    <td class="foot-os">20</td>2</tr>5-</table>07</section>-</article>17
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>ferm </p>2.7
+    <dl>
+        <dt>Información </dt>del paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/any/ferm/">Nombre del </a></dd>paquete:
+        <dt>extra</dt>/ferm
+        <dd>Ver</dd>sión:
+        <dt>2.</dt>7-3
+        <dd><a href="http://ferm.foo-projects.org/">Upstrea</a></dd>m:
+        <dt>http://ferm.</dt>foo-projects.org/
+        <dd>Licenc</dd>ias:
+        <dt>GPL-2.</dt>0-only
+        <dd><a href="/listing/extra/ferm/">Ma</a></dd>nu</dl>ale</section>s:
+
+<details>
+    <summary>/listing/extra/</summary>ferm/
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">Í</a></li>ndice
+        
+            <li><a href="#SYNOPSIS">NO</a></li>MBRE
+        
+            <li><a href="#DESCRIPTION">SIN</a></li>OPSIS
+        
+            <li><a href="#CAUTION">DES</a></li>CRIPCIÓN
+        
+            <li><a href="#INTRODUCTION">PREC</a></li>AUCIÓN
+        
+            <li><a href="#STRUCTURE_OF_A_FIREWALL_FILE">INTRODUCCIÓN ESTRUCTURA DE </a></li>UN ARCHIVO DE FIREWALL
+        
+            <li><a href="#BASIC_KEYWORDS">PALABRAS </a></li>CLAVE BÁSICAS
+        
+            <li><a href="#ADDITIONAL_KEYWORDS">ADICI<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ferm(1) - Páginas del manual de Arch Linux</title>
+        <link rel="stylesheet" href="/assets/style.css">
+    </head>
+    <body>
+        
+        <main>
+            <aside>
+                
+<details>
+    <summary>Tabla de Contenidos</summary>
+    <nav>
+        <ul>
+            
+                <li><a href="#NAME">NOMBRE</a></li>
+            
+                <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+            
+                <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+            
+                <li><a href="#COMMANDS">COMANDOS</a></li>
+            
+                <li><a href="#FILTER_RULES">REGLAS DE FILTRO</a></li>
+            
+                <li><a href="#TARGETS">OBJETIVOS</a></li>
+            
+                <li><a href="#ACTIONS">ACCIONES</a></li>
+            
+                <li><a href="#COMMON_OPTIONS">OPCIONES COMUNES</a></li>
+            
+                <li><a href="#EXTENDED_OPTIONS">OPCIONES EXTENDIDAS</a></li>
+            
+                <li><a href="#SPECIAL_CHARACTERS">CARACTERES ESPECIALES</a></li>
+            
+                <li><a href="#KEYWORD_OPTIONS">OPCIONES DE PALABRAS CLAVE</a></li>
+            
+                <li><a href="#OTHER_DOMAINS">OTROS DOMINIOS</a></li>
+            
+                <li><a href="#ADVANCED_FEATURES">CARACTERÍSTICAS AVANZADAS</a></li>
+            
+                <li><a href="#BUILT-IN_FUNCTIONS">FUNCIONES INCORPORADAS</a></li>
+            
+                <li><a href="#RECIPES">RECETAS</a></li>
+            
+                <li><a href="#OPTIONS">OPCIONES</a></li>
+            
+                <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+            
+                <li><a href="#REQUIREMENTS">REQUISITOS</a></li>
+            
+                <li><a href="#BUGS">ERRORES</a></li>
+            
+                <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+            
+                <li><a href="#AUTHOR">AUTOR</a></li>
+            
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/ferm.1.es.txt">txt</a>, 
+        
+            <a href="/man/ferm.1.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            <article>
+                <h1>ferm(1) - Páginas del manual de Arch Linux</h1>
+                
+<h2 id="NAME">NOMBRE</h2>
+<p>ferm - Interfaz de línea de comandos fácil de usar para iptables</p>
+
+<h2 id="SYNOPSIS">SINOPSIS</h2>
+<p><code>ferm &lt;command&gt; [-v] [-o] [-f &lt;file&gt;] [-c &lt;chain&gt;] [-s &lt;target&gt;] ...</code></p>
+
+<h2 id="DESCRIPTION">DESCRIPCIÓN</h2>
+<p><code>ferm</code> es una herramienta de gestión de firewall que simplifica la configuración de <code>iptables</code>. Permite definir reglas de firewall en un archivo de configuración más legible y estructurado, y luego aplicarlas usando el comando <code>ferm</code>.</p>
+
+<h2 id="COMMANDS">COMANDOS</h2>
+<p>Los siguientes comandos están disponibles:</p>
+<ul>
+    <li><code>apply</code>: Aplica las reglas definidas en el archivo de configuración.</li>
+    <li><code>list</code>: Lista las reglas de firewall actualmente activas.</li>
+    <li><code>flush</code>: Elimina todas las reglas de firewall.</li>
+    <li><code>restore</code>: Restaura las reglas de firewall desde un archivo guardado.</li>
+    <li><code>save</code>: Guarda las reglas de firewall actuales en un archivo.</li>
+    <li><code>check</code>: Verifica la sintaxis del archivo de configuración sin aplicarlo.</li>
+</ul>
+
+<h2 id="FILTER_RULES">REGLAS DE FILTRO</h2>
+<p>Las reglas de filtro definen cómo se deben tratar los paquetes de red. Se componen de una o más condiciones y una acción.</p>
+<p>Ejemplo: <code>port 22 accept;</code></p>
+
+<h2 id="TARGETS">OBJETIVOS</h2>
+<p>Los objetivos especifican la acción a realizar con un paquete que coincide con una regla.</p>
+<ul>
+    <li><code>accept</code>: Permite que el paquete continúe.</li>
+    <li><code>reject</code>: Rechaza el paquete y envía un mensaje de error ICMP.</li>
+    <li><code>drop</code>: Descarta silenciosamente el paquete.</li>
+    <li><code>return</code>: Sale de la cadena actual y vuelve a la cadena que la llamó.</li>
+    <li><code>jump &lt;chain_name&gt;</code>: Salta a otra cadena de reglas.</li>
+</ul>
+
+<h2 id="ACTIONS">ACCIONES</h2>
+<p>Las acciones son las operaciones que se pueden realizar con <code>ferm</code>.</p>
+<ul>
+    <li><code>port &lt;port_number&gt;</code>: Coincide con un puerto específico.</li>
+    <li><code>protocol &lt;protocol_name&gt;</code>: Coincide con un protocolo específico (tcp, udp, icmp, etc.).</li>
+    <li><code>source address &lt;ip_address&gt;</code>: Coincide con una dirección IP de origen.</li>
+    <li><code>destination address &lt;ip_address&gt;</code>: Coincide con una dirección IP de destino.</li>
+</ul>
+
+<h2 id="COMMON_OPTIONS">OPCIONES COMUNES</h2>
+<ul>
+    <li><code>-v</code>, <code>--verbose</code>: Muestra información detallada durante la ejecución.</li>
+    <li><code>-o</code>, <code>--overwrite</code>: Sobrescribe las reglas existentes.</li>
+    <li><code>-f &lt;file&gt;</code>, <code>--file=&lt;file&gt;</code>: Especifica el archivo de configuración de <code>ferm</code>.</li>
+    <li><code>-c &lt;chain&gt;</code>, <code>--chain=&lt;chain&gt;</code>: Especifica la cadena de iptables a la que se aplicarán las reglas.</li>
+    <li><code>-s &lt;target&gt;</code>, <code>--set-target=&lt;target&gt;</code>: Establece el objetivo predeterminado para una cadena.</li>
+</ul>
+
+<h2 id="EXTENDED_OPTIONS">OPCIONES EXTENDIDAS</h2>
+<p><code>ferm</code> admite una amplia gama de opciones extendidas para una configuración más detallada, incluyendo el manejo de interfaces de red, estados de conexión, etc.</p>
+
+<h2 id="SPECIAL_CHARACTERS">CARACTERES ESPECIALES</h2>
+<p>Se pueden utilizar caracteres especiales como <code>!</code> (negación), <code>&amp;&amp;</code> (AND lógico), <code>||</code> (OR lógico) para construir condiciones complejas.</p>
+
+<h2 id="KEYWORD_OPTIONS">OPCIONES DE PALABRAS CLAVE</h2>
+<p><code>ferm</code> utiliza palabras clave como <code>accept</code>, <code>drop</code>, <code>reject</code>, <code>port</code>, <code>protocol</code>, <code>source</code>, <code>destination</code> para definir reglas.</p>
+
+<h2 id="OTHER_DOMAINS">OTROS DOMINIOS</h2>
+<p><code>ferm</code> puede gestionar reglas para diferentes dominios o servicios, permitiendo una organización clara de la configuración.</p>
+
+<h2 id="ADVANCED_FEATURES">CARACTERÍSTICAS AVANZADAS</h2>
+<p>Incluye soporte para tablas personalizadas, cadenas personalizadas, módulos de <code>iptables</code> (como <code>conntrack</code>, <code>limit</code>, etc.) y políticas de firewall.</p>
+
+<h2 id="BUILT-IN_FUNCTIONS">FUNCIONES INCORPORADAS</h2>
+<p><code>ferm</code> proporciona funciones integradas para simplificar tareas comunes, como la definición de rangos de puertos o la importación de direcciones IP desde archivos.</p>
+
+<h2 id="RECIPES">RECETAS</h2>
+<p>La documentación de <code>ferm</code> a menudo incluye "recetas" o ejemplos de configuración para casos de uso comunes, como la configuración de un servidor web o un servidor SSH.</p>
+
+<h2 id="OPTIONS">OPCIONES</h2>
+<p>El comando <code>ferm</code> en sí mismo tiene varias opciones que modifican su comportamiento general, como se describe en la sección <code>COMMON_OPTIONS</code>.</p>
+
+<h2 id="SEE_ALSO">VER TAMBIÉN</h2>
+<p><code>iptables(8)</code></p>
+
+<h2 id="REQUIREMENTS">REQUISITOS</h2>
+<p><code>ferm</code> requiere <code>iptables</code> instalado en el sistema.</p>
+
+<h2 id="BUGS">ERRORES</h2>
+<p>Los informes de errores deben enviarse a la lista de correo de <code>ferm</code> o al sistema de seguimiento de errores del proyecto.</p>
+
+<h2 id="COPYRIGHT">COPYRIGHT</h2>
+<p>Copyright (c) 2006-2009 by Florian M. Adler &lt;florian@netzgesta.de&gt;</p>
+<p>Este es un programa de software libre; puede redistribuirlo y/o modificarlo bajo los términos de la Licencia Pública General de GNU, versión 2, publicada por la Free Software Foundation.</p>
+
+<h2 id="AUTHOR">AUTOR</h2>
+<p>Florian M. Adler &lt;florian@netzgesta.de&gt;</p>
+
+            </article>
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

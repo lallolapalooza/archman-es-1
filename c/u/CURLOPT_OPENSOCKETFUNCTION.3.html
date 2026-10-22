@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CURLOPT_OPENSOCKETFUNCTION(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">CURLOPT_OPENSOCKETFUNCTION(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/curl/">curl</a></p>
+<p class="lic">Licencias: MIT</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">CURLOPT_OPENSOCKETFUNCTION(3)</td>
+    <td class="head-vol">Manual de funciones de biblioteca</td>
+    <td class="head-rtitle">CURLOPT_OPENSOCKETFUNCTION(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">CURLOPT_OPENSOCKETFUNCTION - callback para abrir socket</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;curl/curl.h&gt;
+typedef enum  {
+  CURLSOCKTYPE_IPCXN,  /* socket creado para una conexión IP específica */
+} curlsocktype;
+struct curl_sockaddr {
+  int family;
+  int socktype;
+  int protocol;
+  unsigned int addrlen;
+  struct sockaddr addr;
+};
+curl_socket_t opensocket_callback(void *clientp,
+                                  curlsocktype purpose,
+                                  struct curl_sockaddr *address);
+CURLcode curl_easy_setopt(CURL *handle, CURLOPT_OPENSOCKETFUNCTION, opensocket_callback);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Pase un puntero a su función de callback, que debe coincidir con el
+    prototipo mostrado anteriormente.</p>
+<p class="Pp">Esta función de callback es llamada por libcurl en lugar de la
+    llamada a <a href='/man/socket.2.en'>socket(2)</a>. El argumento <i>purpose</i> de la callback identifica
+    el propósito exacto de este socket en particular. <i>CURLSOCKTYPE_IPCXN</i>
+    es para conexiones basadas en IP y es el único propósito utilizado actualmente
+    en libcurl. Versiones futuras de libcurl pueden soportar más propósitos.</p>
+<p class="Pp">El puntero <i>clientp</i> contiene cualquier valor definido por el
+    usuario establecido usando la función <a href='/man/CURLOPT_OPENSOCKETDATA.3.en'>CURLOPT_OPENSOCKETDATA(3)</a>.</p>
+<p class="Pp">La callback recibe la dirección del par resuelta como argumento
+    <i>address</i> y tiene permitido modificar la dirección o negarse a conectar
+    completamente. La función de callback debe devolver el socket recién creado o
+    <i>CURL_SOCKET_BAD</i> en caso de que no se haya podido establecer ninguna
+    conexión o se haya detectado otro error. Cualquier llamada adicional a <a href='/man/setsockopt.2.en'>setsockopt(2)</a>
+    puede, por supuesto, hacerse sobre el socket a discreción del usuario.</p>
+<p class="Pp">Si la callback devuelve <i>CURL_SOCKET_BAD</i>, libcurl lo trata como
+    una conexión fallida e intenta abrir un socket para conectarse a otra
+    dirección IP asociada con la transferencia. Si no quedan más direcciones para
+    intentar, libcurl falla la transferencia con el código de error
+    <i>CURLE_COULDNT_CONNECT</i>.</p>
+<p class="Pp">Puede obtener la dirección IP para la que curl está abriendo el socket
+    convirtiendo <i>address-&gt;addr</i> a <i>sockaddr_in</i> si
+    <i>address-&gt;family</i> es <i>AF_INET</i>, o a <i>sockaddr_in6</i> si
+    <i>address-&gt;family</i> es <i>AF_INET6</i>. Para un ejemplo de cómo se pueden
+    comparar esos datos, consulte <i>docs/examples/block_ip.c</i>.</p>
+<p class="Pp">Si desea pasar un socket con una conexión ya establecida, devuelva el
+    socket con esta callback y luego use <a href='/man/CURLOPT_SOCKOPTFUNCTION.3.en'>CURLOPT_SOCKOPTFUNCTION(3)</a> para indicar que ya está
+  conectado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEFAULT'><a class='permalink' href='#DEFAULT'>POR DEFECTO</a></h1>
+<p class="Pp">El equivalente de esto:</p>
+<pre>   return socket(addr-&gt;family, addr-&gt;socktype, addr-&gt;protocol);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROTOCOLS'><a class='permalink' href='#PROTOCOLS'>PROTOCOLOS</a></h1>
+<p class="Pp">Esta funcionalidad afecta a todos los protocolos compatibles</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE'><a class='permalink' href='#EXAMPLE'>EJEMPLO</a></h1>
+<pre>/* hacer que libcurl use el socket ya establecido 'sockfd' */
+static curl_socket_t opensocket(void *clientp,
+                                curlsocktype purpose,
+                                struct curl_sockaddr *address)
+{
+  curl_socket_t sockfd;
+  sockfd = *(curl_socket_t *)clientp;
+  /* el socket externamente establecido se pasa a través de la opción
+     OPENSOCKETDATA */
+  return sockfd;
+}
+static int sockopt_callback(void *clientp, curl_socket_t curlfd,
+                            curlsocktype purpose)
+{
+  return CURL_SOCKOPT_ALREADY_CONNECTED;
+}
+int main(void)
+{
+  CURL *curl = curl_easy_init();
+  if(curl) {
+    CURLcode res;
+    extern int sockfd; /* el ya conectado */
+    /* libcurl piensa que te conectas al host
+     * y puerto que especificas en la opción URL. */
+    curl_easy_setopt(curl, CURLOPT_URL, &quot;http://99.99.99.99:9999&quot;);
+    /* llamar a esta función para obtener un socket */
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, opensocket);
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, &amp;sockfd);
+    /* llamar a esta función para establecer opciones en el socket */
+    curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+    res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+  }
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AVAILABILITY'><a class='permalink' href='#AVAILABILITY'>DISPONIBILIDAD</a></h1>
+<p class="Pp">Añadido en curl 7.17.1</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUE'><a class='permalink' href='#RETURN_VALUE'>VALOR DE RETORNO</a></h1>
+<p class="Pp"><a href='/man/curl_easy_setopt.3.en'>curl_easy_setopt(3)</a> devuelve un CURLcode indicando éxito
+    o error.</p>
+<p class="Pp">CURLE_OK (0) significa que todo estuvo bien, un valor distinto de cero indica un
+    error, consulte <a href='/man/libcurl-errors.3.en'>libcurl-errors(3)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/CURLOPT_CLOSESOCKETFUNCTION.3.en'>CURLOPT_CLOSESOCKETFUNCTION(3)</a>,
+    <a href='/man/CURLOPT_OPENSOCKETFUNCTION.3.en'>CURLOPT_OPENSOCKETFUNCTION(3)</a>, <a href='/man/CURLOPT_SOCKOPTFUNCTION.3.en'>CURLOPT_SOCKOPTFUNCTION(3)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-11-13</td>
+    <td class="foot-os">libcurl</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/curl/">core/curl</a></dd>
+        <dt>Versión:</dt>
+        <dd>8.17.0-2</dd>
+        <dt>Anterior:</dt>
+        <dd><a href="https://curl.se/">https://curl.se/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>MIT</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/curl/">/listing/core/curl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#DEFAULT">POR DEFECTO</a></li>
+        
+            <li><a href="#PROTOCOLS">PROTOCOLOS</a></li>
+        
+            <li><a href="#EXAMPLE">EJEMPLO</a></li>
+        
+            <li><a href="#AVAILABILITY">DISPONIBILIDAD</a></li>
+        
+            <li><a href="#RETURN_VALUE">VALOR DE RETORNO</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/CURLOPT_OPENSOCKETFUNCTION.3.en.txt">txt</a>, 
+        
+            <a href="/man/CURLOPT_OPENSOCKETFUNCTION.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

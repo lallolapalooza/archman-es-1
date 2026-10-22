@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tcl_AsyncCreate(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Tcl_AsyncInvoke(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/tcl/">tcl</a></p>
+<p class="lic">Licencias: TCL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Tcl_AsyncCreate(3)</td>
+    <td class="head-vol">Procedimientos de la biblioteca Tcl</td>
+    <td class="head-rtitle">Tcl_AsyncCreate(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Tcl_AsyncCreate, Tcl_AsyncMark, Tcl_AsyncInvoke, Tcl_AsyncDelete,
+    Tcl_AsyncReady - manejo de eventos asíncronos</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINTAXIS</a></h1>
+<pre><b>#include &lt;tcl.h&gt;</b>
+
+Tcl_AsyncHandler
+<b>Tcl_AsyncCreate</b>(<i>proc, clientData</i>)
+
+void
+<b>Tcl_AsyncMark</b>(<i>async</i>)
+
+int
+<b>Tcl_AsyncInvoke</b>(<i>interp, code</i>)
+
+void
+<b>Tcl_AsyncDelete</b>(<i>async</i>)
+
+int
+<b>Tcl_AsyncReady</b>()</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTS'><a class='permalink' href='#ARGUMENTS'>ARGUMENTOS</a></h1>
+<dl class="Bl-tag">
+  <dt>Tcl_AsyncProc <i>*proc</i> (entrada)</dt>
+  <dd>Procedimiento a invocar para manejar un evento asíncrono.</dd>
+  <dt>ClientData <i>clientData</i> (entrada)</dt>
+  <dd>Valor de datos del cliente para pasar a <i>proc</i>.</dd>
+  <dt>Tcl_AsyncHandler <i>async</i> (entrada)</dt>
+  <dd>Token para el manejador de evento asíncrono.</dd>
+  <dt>Tcl_Interp <i>*interp</i> (entrada)</dt>
+  <dd>Intérprete Tcl en el cual se estaba evaluando el comando cuando el manejador fue invocado, o NULL si el manejador fue invocado cuando no había intérprete activo.</dd>
+  <dt>int <i>code</i> (entrada)</dt>
+  <dd>Código de finalización del comando que terminó en <i>interp</i>, o 0 si <i>interp</i> es NULL.
+          </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Estas funciones proporcionan un mecanismo seguro para manejar eventos asíncronos como señales. Si un evento como una señal ocurre mientras se está evaluando un script Tcl, no es seguro tomar ninguna acción significativa para procesarlo. Por ejemplo, no es seguro evaluar un script Tcl ya que el intérprete podría estar en medio de la evaluación de un script; podría no ser seguro incluso asignar memoria, ya que una asignación de memoria podría haber estado en progreso cuando ocurrió el evento. La única forma segura es marcar un indicador de que el evento ocurrió, luego manejar el evento cuando el mundo esté en un estado limpio, como después de que el comando actual termine.</p>
+<p class="Pp"><b>Tcl_AsyncCreate</b>, <b>Tcl_AsyncDelete</b> y <b>Tcl_AsyncReady</b> son conscientes de los hilos. Acceden y/o establecen una estructura de datos específica del hilo en caso de que el core esté construido con <i>--enable-threads</i>. El token creado por <b>Tcl_AsyncCreate</b> contiene la información necesaria de dónde se llamó para que al llamar a <b>Tcl_AsyncMark</b>(<i>token</i>) solo se devuelva el hilo de origen en el manejador asíncrono.</p>
+<p class="Pp"><b>Tcl_AsyncCreate</b> crea un manejador asíncrono y devuelve un token para él. El manejador asíncrono debe crearse antes de cualquier ocurrencia de eventos asíncronos que se espere manejar (no es seguro crear un manejador en el momento de una ocurrencia). Cuando ocurre un evento asíncrono, el código que detecta el evento (como un manejador de señal) debe llamar a <b>Tcl_AsyncMark</b> con el token del manejador. <b>Tcl_AsyncMark</b> marcará el manejador como listo para ejecutarse, pero no lo invocará inmediatamente. Tcl invocará a <i>proc</i> asociado con el manejador más tarde, cuando el mundo esté en un estado seguro, y <i>proc</i> podrá realizar las acciones asociadas con el evento asíncrono. <i>Proc</i> debe tener los argumentos y resultados que coincidan con el tipo <b>Tcl_AsyncProc</b>:</p>
+<div class="Bd-indent">
+<pre>typedef int <b>Tcl_AsyncProc</b>(
+        ClientData <i>clientData</i>,
+        Tcl_Interp *<i>interp</i>,
+        int <i>code</i>);</pre>
+</div>
+<p class="Pp">El <i>clientData</i> será el mismo que el <i>clientData</i> pasado a <b>Tcl_AsyncCreate</b> cuando se creó el manejador. Si <i>proc</i> es invocado justo después de que un comando complete en un intérprete, entonces <i>interp</i> identificará el intérprete en el que se evaluó el comando y <i>code</i> será el código de finalización devuelto por ese comando. El resultado del comando se presentará en el resultado del intérprete. Cuando <i>proc</i> devuelve, el valor que deja en el resultado del intérprete se devolverá como el resultado del comando y el valor devuelto por <i>proc</i> se usará como el nuevo código de finalización para el comando.</p>
+<p class="Pp">También es posible que <i>proc</i> sea invocado cuando no hay un intérprete activo. Esto puede ocurrir, por ejemplo, si un evento asíncrono ocurre mientras la aplicación está esperando entrada interactiva o un evento X. En este caso, <i>interp</i> será NULL y <i>code</i> será 0, y el valor devuelto por <i>proc</i> se ignorará.</p>
+<p class="Pp">La función <b>Tcl_AsyncInvoke</b> se llama para invocar a todos los manejadores que estén listos. La función <b>Tcl_AsyncReady</b> devolverá un valor distinto de cero cuando haya manejadores asíncronos listos; se puede verificar para evitar llamadas a <b>Tcl_AsyncInvoke</b> cuando no hay manejadores listos. Tcl llama a <b>Tcl_AsyncReady</b> después de cada comando evaluada y llama a <b>Tcl_AsyncInvoke</b> si es necesario. Las aplicaciones también pueden llamar a <b>Tcl_AsyncInvoke</b> en momentos interesantes para esa aplicación. Por ejemplo, el manejador de eventos de Tcl llama a <b>Tcl_AsyncReady</b> después de cada evento y llama a <b>Tcl_AsyncInvoke</b> si es necesario. Los argumentos <i>interp</i> y <i>code</i> de <b>Tcl_AsyncInvoke</b> tienen el mismo significado que para <i>proc</i>: identifican el intérprete activo, si lo hay, y el código de finalización del comando que terminó.</p>
+<p class="Pp"><b>Tcl_AsyncDelete</b> elimina un manejador asíncrono de manera que su <i>proc</i> nunca sea invocado de nuevo. Un manejador puede ser eliminado incluso cuando esté listo y aun así no será invocado.</p>
+<p class="Pp">Si múltiples manejadores se activan simultáneamente, los manejadores se invocan en el orden en que fueron creados (el manejador más antiguo primero). Los valores de <i>code</i> y el resultado del intérprete para los manejadores posteriores reflejan los valores devueltos por los manejadores anteriores, lo que permite que el manejador más reciente tenga la última palabra sobre el resultado del intérprete y el código de finalización. Si nuevos manejadores se vuelven listos mientras los manejadores se están ejecutando, <b>Tcl_AsyncInvoke</b> los invocará a todos; en cada punto, invoca el manejador de mayor prioridad (el más antiguo) y repite este proceso hasta que no haya más manejadores listos.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='WARNING'><a class='permalink' href='#WARNING'>ADVERTENCIA</a></h1>
+<p class="Pp">Es casi siempre una mala idea que un manejador de evento asíncrono modifique el resultado del intérprete o devuelva un código diferente al argumento <i>code</i>. Este tipo de comportamiento puede romper la ejecución de scripts de forma sutil y resultar en errores difíciles de encontrar. Si un manejador de evento asíncrono necesita evaluar scripts Tcl, debe primero guardar el estado del intérprete llamando a <b>Tcl_SaveInterpState</b>, pasando el argumento <i>code</i>. Al terminar el manejador asíncrono, debe restaurar el estado del intérprete llamando a <b>Tcl_RestoreInterpState</b>, y luego devolver el argumento <i>code</i>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='KEYWORDS'><a class='permalink' href='#KEYWORDS'>PALABRAS CLAVE</a></h1>
+<p class="Pp">evento asíncrono, manejador, señal, Tcl_SaveInterpState, hilos</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">7.0</td>
+    <td class="foot-os">Tcl</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manuales" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir a" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/tcl/">extra/tcl</a></dd>
+        <dt>Versión:</dt>
+        <dd>8.6.16-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://tcl.sourceforge.net/">http://tcl.sourceforge.net/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>TCL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/tcl/">/listing/extra/tcl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINTAXIS</a></li>
+        
+            <li><a href="#ARGUMENTS">ARGUMENTOS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#WARNING">ADVERTENCIA</a></li>
+        
+            <li><a href="#KEYWORDS">PALABRAS CLAVE</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Tcl_AsyncInvoke.3.es.txt">txt</a>, 
+        
+            <a href="/man/Tcl_AsyncInvoke.3.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.h">GNU GPL versión 3</a>.</p>
+        </footer>
+    </body>
+</html><!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <title>Ejemplo de página web</title>
+    </head>
+    <body>
+        <main>
+            <p>
+                Este es un ejemplo simple de una página web.
+            </p>
+            <p>
+                El contenido de esta página web está licenciado bajo la
+                <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+                excepto el contenido de las páginas de manual, que tienen su propia licencia
+                especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </main>
+        <footer>
+            <p>
+                Licencia:
+                <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto para el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

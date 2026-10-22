@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Locale::Maketext(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Locale__Maketext.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Locale::Maketext(3perl)</td>
+    <td class="head-vol">Guía de referencia para programadores Perl</td>
+    <td class="head-rtitle">Locale::Maketext(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Locale::Maketext - marco de trabajo para la localización</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>package MiPrograma;
+use strict;
+use MiPrograma::L10N;
+ # ...que hereda de Locale::Maketext
+my $lh = MiPrograma::L10N-&gt;get_handle() || die &quot;¿Qué idioma?&quot;;
+...
+# Y luego cualquier mensaje que emita tu programa, como:
+warn $lh-&gt;maketext( &quot;No se puede abrir el archivo [_1]: [_2]\n&quot;, $f, $! );
+...</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Es una característica común de aplicaciones (ya sean ejecutadas directamente o a través de la Web) que sean "localizadas"—es decir, que presenten una interfaz en inglés para un hablante de inglés, una interfaz alemana para un hablante de alemán, y así sucesivamente para todos los idiomas que la aplicación está programada con.
+Locale::Maketext es un marco de trabajo para la localización de software; proporciona las herramientas para organizar y acceder a los fragmentos de texto y código de procesamiento de texto que necesitas para producir aplicaciones localizadas.</p>
+<p class="Pp">Para comprender mejor el concepto de Maketext y cómo encajan todos sus componentes, es posible que desees leer Locale::Maketext::TPJ13, y luego leer la documentación siguiente.</p>
+<p class="Pp">También podrías querer leer sobre el código fuente de <span class="Li">&quot;File::Findgrep&quot;</span> y sus módulos constituyentes —son un ejemplo completo (aunque pequeño) que utiliza Maketext.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='QUICK_OVERVIEW'><a class='permalink' href='#QUICK_OVERVIEW'>RESUMEN RÁPIDO</a></h1>
+<p class="Pp">El diseño básico de Locale::Maketext está orientado a objetos, y Locale::Maketext es una clase abstracta, desde la cual se derivan las clases de proyecto, que se usan en tus módulos. La clase de proyecto (con un nombre como <span class="Li">&quot;TkBocciBall::Localize&quot;</span>, que luego se usa en tu módulo) es la clase base para todas las clases de idioma de tu proyecto (con nombres como <span class="Li">&quot;TkBocciBall::Localize::it&quot;</span>, <span class="Li">&quot;TkBocciBall::Localize::en&quot;</span>, <span class="Li">&quot;TkBocciBall::Localize::fr&quot;</span>, etc.).</p>
+<p class="Pp">Una clase de idioma es una clase que contiene un diccionario de frases como datos de clase, y posiblemente también algunos métodos que son útiles para interpretar frases en el diccionario o para manejar texto en ese idioma.</p>
+<p class="Pp">Un objeto perteneciente a una clase de idioma se denomina "manejador de idioma"; es típicamente un objeto ligero.</p>
+<p class="Pp">La norma de acción es llamar:</p>
+<pre>use TkBocciBall::Localize;  # la clase de proyecto de localización
+$lh = TkBocciBall::Localize-&gt;get_handle();
+ # Dependiendo del idioma del usuario, etc., esto genera un manejador de idioma a partir de las clases disponibles,
+ # y cualquier valor predeterminado que declares.
+die &quot;No se pudo crear un manejador de idioma??&quot; unless $lh;</pre>
+<p class="Pp">Desde entonces, se utiliza la función <span class="Li">&quot;maketext&quot;</span> para acceder a entradas de cualquier diccionario de idioma (que pertenece al manejador de idioma que obtuviste). Así, esto:</p>
+<pre>print $lh-&gt;maketext(&quot;You won!&quot;), &quot;\n&quot;;</pre>
+<p class="Pp">...emite el texto correcto para este idioma. Si el objeto en <span class="Li">$lh</span> pertenece a la clase <span class="Li">&quot;TkBocciBall::Localize::fr&quot;</span> y <span class="Li">%TkBocciBall::Localize::fr::Lexicon</span> contiene <span class="Li">&quot;You won!&quot; =&gt; &quot;Tu as gagné!&quot;</span>, entonces el código anterior felizmente le dirá al usuario "Tu as gagné!".</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<p class="Pp">Locale::Maketext ofrece una variedad de métodos, que se dividen en tres categorías:</p>
+<ul class="Bl-bullet">
+  <li>Métodos para construir manejadores de idioma.</li>
+  <li><span class="Li">&quot;maketext&quot;</span> y otros métodos para acceder a los datos de <span class="Li">%Lexicon</span> de un manejador de idioma.</li>
+  <li>Métodos que podrías encontrar útil usar, de rutinas de tus propias que se colocan en entradas de <span class="Li">%Lexicon</span>.</li>
+</ul>
+<p class="Pp">Estos se cubren en la siguiente sección.</p>
+<section class="Ss">
+<h2 class="Ss" id='Construction_Methods'><a class='permalink' href='#Construction_Methods'>Métodos de Construcción</a></h2>
+<p class="Pp">Estos están relacionados con la construcción de un manejador de idioma:</p>
+<ul class="Bl-bullet">
+  <li><span class="Li">$lh</span> = TuClaseProyecto-&gt;get_handle( ...etiquetas_idioma... ) || die &quot;¿Cómo es el idioma?&quot;;
+    <p class="Pp">Esto intenta cargar clases basadas en las etiquetas de idioma que le proporcionas (como <span class="Li">&quot;(&quot;en-US&quot;, &quot;sk&quot;, &quot;kon&quot;, &quot;es-MX&quot;, &quot;ja&quot;, &quot;i-klingon&quot;&quot;</span>, y para la primera clase que se resuelve, devuelve TuClaseProyecto::<i>idioma</i>-&gt;<b>new()</b>.</p>
+    <p class="Pp">Si se recorre completamente la lista de etiquetas de idioma proporcionadas y no se encuentran clases para esas etiquetas exactas, entonces se intentan las clases "superordinadas" de idioma. Así, si no existe la clase <span class="Li">&quot;en-US&quot;</span> (es decir, TuClaseProyecto::en_us), ni clases para otros elementos de esa lista, intentamos la clase superordinada, <span class="Li">&quot;en&quot;</span> (es decir, TuClaseProyecto::en), y así sucesivamente para las otras etiquetas de idioma en la lista proporcionada: <span class="Li">&quot;es&quot;</span> (las otras etiquetas en nuestro ejemplo de lista que no tienen superordinados).</p>
+    <p class="Pp">Si ninguna de estas etiquetas de idioma conduce a una clase cargable, intentamos clases derivadas de TuClaseProyecto-&gt;<b>fallback_languages()</b> y, si no hay resultados, usamos clases nombradas por TuClaseProyecto-&gt;<b>fallback_language_classes()</b>. Entonces, en el caso (probablemente muy poco común) de que esto falle, devolveremos <span class="Li">undef</span>.</p>
+  </li>
+  <li><span class="Li">$lh</span> = TuClaseProyecto-&gt;get_handle() || die &quot;¿Cómo es el idioma?&quot;;
+    <p class="Pp">Cuando <span class="Li">&quot;get_handle&quot;</span> se llama con un argumento vacío, ocurre magia:</p>
+    <p class="Pp">Si <span class="Li">&quot;get_handle&quot;</span> detecta que está ejecutando un programa invocado como CGI, intenta obtener etiquetas de idioma de la variable de entorno <span class="Li">&quot;HTTP_ACCEPT_LANGUAGE&quot;</span>, y finge que esos fueron los que se pasaron a <span class="Li">&quot;get_handle&quot;</span>.</p>
+    <p class="Pp">De lo contrario (es decir, si no es CGI), intenta varias formas específicas del sistema operativo para obtener las etiquetas de idioma del entorno actual, y luego finge que esos fueron los valores que se pasaron a <span class="Li">&quot;get_handle&quot;</span>.</p>
+    <p class="Pp">Actualmente, esta detección del sistema operativo consiste en mirar las variables de entorno <span class="Li">&quot;LANG&quot;</span> y <span class="Li">&quot;LANGUAGE&quot;</span>; y en el caso de los sistemas Windows (donde estas variables generalmente no se utilizan), también intenta usar el módulo Win32::Locale para obtener una etiqueta de idioma para el idioma/área del sistema actual en la pestaña "Regiones y Preferencias" (¿o "Intercontinental"?) del panel de control. Me gustaría que se le sugieran más ideas sobre cómo hacer que esto haga lo correcto en otros sistemas operativos que admiten localización.</p>
+    <p class="Pp">Si está utilizando la localización en un proyecto que mantiene un archivo de configuración, podría considerar algo como esto en su clase de proyecto:</p>
+        <pre>sub get_handle_via_config {
+  my $class = $_[0];
+  my $chosen_language = $Config_settings{'language'};
+  my $lh;
+  if($chosen_language) {
+    $lh = $class-&gt;get_handle($chosen_language)
+     || die &quot;No se puede encontrar un manejador de idioma para \&quot;$chosen_language\&quot;&quot;
+          . &quot; o tipo similar&quot;;
+  } else {
+    # Archivo de configuración faltante, ¿tal vez?
+    $lh = $class-&gt;get_handle()
+     || die &quot;No se puede obtener un manejador de idioma&quot;;
+  }
+  return $lh;
+}
+</pre>
+  </li>
+  <li><span class="Li">$lh</span> = TuClaseProyecto::nombreidioma-&gt;<b>new()</b>;
+    <p class="Pp">Esto construye un manejador de idioma. Generalmente no lo llamas directamente, pero sí permite que <span class="Li">&quot;get_handle&quot;</span> encuentre una clase de idioma para usar y luego llame <span class="Li">&quot;new()</span> en ella.</p>
+  </li>
+  <li><span class="Li">$lh</span>-&gt;<b>init()</b>;
+    <p class="Pp">Esto es llamado por <span class="Li">&quot;new()</span> para inicializar nuevos manejadores de idioma. Si defines un método init en tu clase, recuerda que suele ser una buena idea llamar <span class="Li">$lh</span>-&gt;SUPER::init en él (probablemente al principio), para que todas las clases puedan inicializar un objeto nuevo de forma independiente.</p>
+  </li>
+  <li>TuClaseProyecto-&gt;<b>fallback_languages()</b>
+    <p class="Pp">El <span class="Li">&quot;get_handle&quot;</span> adjunta el valor devuelto de esta función a la lista de idiomas que se le pasa a <span class="Li">&quot;get_handle&quot;</span>. Excepto si anulas esta función, tu clase de proyecto heredará <span class="Li">&quot;fallback_languages&quot;</span> de Locale::Maketext, que actualmente devuelve <span class="Li">&quot;('i-default', 'en', 'en-US')&quot;</span> (donde <span class="Li">&quot;i-default&quot;</span> está definido en RFC 2277).</p>
+</section>
+</section>
+</article>
+</main>
+</body>
+</html>
+<p class="Pp">Este método (al hacerlo devolver el nombre de una etiqueta de idioma que tenga una clase de idioma existente) puede ser utilizado para garantizar que <span class="Li">&quot;get_handle&quot;</span> siempre construya un handle de idioma (asumiendo que tus clases de idioma estén en una carpeta de <span class="Li">@INC</span> adecuada). O puedes usar el siguiente método:</p>
+  </li>
+  <li>YourProjClass-&gt;<b>fallback_language_classes()</b>
+    <p class="Pp"><span class="Li">&quot;get_handle&quot;</span> añade el valor devuelto de este método al final de la lista de clases que usará. Excepto si overrides este método, tu clase de proyecto heredaría <span class="Li">&quot;Locale::Maketext&quot;</span> <span class="Li">&quot;fallback_language_classes&quot;</span>, que actualmente devuelve una lista vacía, <span class="Li">&quot;()&quot;</span>. Al establecer este a algún valor (por ejemplo, el nombre de una clase de idioma cargable), puedes asegurarte de que <span class="Li">&quot;get_handle&quot;</span> siempre construya un handle de idioma.</p>
+  </li>
+</ul>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='The_&amp;quot;maketext&amp;quot;_Method'><a class='permalink' href='#The_&amp;quot;maketext&amp;quot;_Method'>El método &quot;maketext&quot;</a></h2>
+<p class="Pp">Este es el método más importante de <span class="Li">Locale::Maketext</span>:</p>
+<pre>$text = $lh-&gt;maketext(I&lt;key&gt;, ...parámetros para esta frase...);</pre>
+<p class="Pp">Este busca en la <span class="Li">%Lexicon</span> del handle de idioma <span class="Li">$lh</span> y todos sus superclases, buscando una entrada cuyo clave sea el string <i>key</i>. Suponiendo que se encuentra tal entrada, se producen diversos efectos según el valor encontrado:</p>
+<p class="Pp">Si el valor es un ref a un escalar, el escalar se desreferencia y se devuelve (y cualquier parámetro se ignora).</p>
+<p class="Pp">Si el valor es un ref a una función codificada, devolvemos &amp;$value($lh, ...parámetros...).</p>
+<p class="Pp">Si el valor no parece estar en notación de corchetes, devolvemos el valor (reemplazándolo por un ref a un escalar en su <span class="Li">%Lexicon</span>).</p>
+<p class="Pp">Si el valor sí parece estar en notación de corchetes, compilamos el texto en un sub, reemplazamos la cadena en el <span class="Li">%Lexicon</span> con la nueva ref a la función codificada, y luego devolvemos &amp;$new_sub($lh, ...parámetros...).</p>
+<p class="Pp">La notación de corchetes se discute en una sección posterior. Nota que intentar compilar un texto en notación de corchetes puede lanza una excepción si el texto no es sintácticamente válido (por ejemplo, si no se equilibran los corchetes).</p>
+<p class="Pp">También, llamar a &amp;$coderef($lh, ...parámetros...) puede lanza cualquier tipo de excepción (por ejemplo, si el código en esa sub funciona para dividir por cero). Sin embargo, una excepción común ocurre cuando el texto con notación de corchetes dice "llamar a un método llamado 'foo'", pero no existe tal método. (Ejemplo, &quot;You have [qua<b>tn</b>,_1,ball].&quot; lanzará una excepción al intentar llamar a <span class="Li">$lh</span>-&gt;qua<b>tn</b>($_[1],'ball') -- probablemente pretendías &quot;quant&quot;.)
+    <span class="Li">&quot;maketext&quot;</span> captura estas excepciones, pero solo para hacer más legible el mensaje de error, y luego reloca la excepción.</p>
+<p class="Pp">Una excepción <i>podría</i> ser lanzada si <i>key</i> no se encuentra en ninguna de las <span class="Li">%Lexicon</span> de <span class="Li">$lh</span></i> de las hashes. ¿Qué pasa si un key no se encuentra, se discute en una sección posterior, &quot;Controlling Lookup Failure&quot;.</p>
+<p class="Pp">Nota que podrías encontrar útil sobrescribir el método <span class="Li">&quot;maketext&quot;</span> con un método <span class="Li">&quot;after&quot;</span>, si quieres traducir codificaciones o incluso scripts:</p>
+<pre>package YrProj::zh_cn; # Chino con caracteres de PRC
+use base ('YrProj::zh_tw');  # Taiwan
+sub maketext {
+  my $self = shift(@_);
+  my $value = $self-&gt;maketext(@_);
+  return Chineeze::taiwan2mainland($value);
+}</pre>
+<p class="Pp">O podrías querer sobrescribirlo con algo que capture cualquier excepción, si eso es crítico para tu programa:</p>
+<pre>sub maketext {
+  my($lh, @stuff) = @_;
+  my $out;
+  eval { $out = $lh-&gt;SUPER::maketext(@stuff) };
+  return $out unless $@;
+  ...de lo contrario maneja la excepción...
+}</pre>
+<p class="Pp">Otras que no son estas dos situaciones, no imagino que sea útil sobrescribir el método <span class="Li">&quot;maketext&quot;</span>. (Si te encuentras una situación útil, estaría encantado de escuchar sobre ello.)</p>
+<dl class="Bl-tag">
+  <dt>$lh-&gt;fail_with <i>o</i> $lh-&gt;fail_with(<i>PARAM</i>)</dt>
+  <dd></dd>
+  <dt>$lh-&gt;failure_handler_auto</dt>
+  <dd>Estas dos métodos se discuten en la sección &quot;Controlling Lookup Failure&quot;.</dd>
+  <dt>$lh-&gt;denylist(@list) &lt;or&gt; $lh-&gt;blacklist(@list)</dt>
+  <dd></dd>
+  <dt>$lh-&gt;allowlist(@list) &lt;or&gt; $lh-&gt;whitelist(@list)</dt>
+  <dd>Estos métodos se discuten en la sección &quot;Bracket Notation Security&quot;.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Utility_Methods'><a class='permalink' href='#Utility_Methods'>Métodos de Utilidad</a></h2>
+<p class="Pp">Estos son métodos que puedes encontrar útil utilizar, generalmente desde rutinas de <span class="Li">%Lexicon</span> de tus (sin importar si se expresan como notación de corchetes o no).</p>
+<dl class="Bl-tag">
+  <dt>$language-&gt;quant($number, $singular)</dt>
+  <dd></dd>
+  <dt>$language-&gt;quant($number, $singular, $plural)</dt>
+  <dd></dd>
+  <dt>$language-&gt;quant($number, $singular, $plural, $negative)</dt>
+  <dd>Este es generalmente para llamar desde notación de corchetes (que se discute más adelante), como en
+        <pre>&quot;Your search matched [quant,_1,document]!&quot;
+</pre>
+    <p class="Pp">Es para <i>quantificar</i> un sustantivo (es decir, decir cuánto de él hay, mientras que da la forma correcta). El comportamiento de este método es útil para inglés y un par de idiomas occidentales, y deberías sobrescribirlo para los idiomas donde no es adecuado. Puedes leer el código fuente, pero la implementación actual es básicamente como se describe en este pseudocódigo:</p>
+        <pre>if $number is 0 and there's a $negative,
+   return $negative;
+elsif $number is 1,
+   return &quot;1 $singular&quot;;
+elsif there's a $plural,
+   return &quot;$number $plural&quot;;
+else
+   return &quot;$number &quot; . $singular . &quot;s&quot;;
+#
+# ...except that we actually call numf to
+#  stringify $number before returning it.
+</pre>
+    <p class="Pp">Así, para inglés (con notación de corchetes)
+        <span class="Li">&quot;...[quant,_1,file]...&quot;</span> es correcto (para 0 devuelve &quot;0 files&quot;, para 1 &quot;1 file&quot;, y para más &quot;2 files&quot;, etc.).</p>
+    <p class="Pp">Sin embargo, para &quot;directory&quot;, quieres <span class="Li">&quot;[quant,_1,directory,directories]&quot;</span> para que nuestro método básico de <span class="Li">&quot;quant&quot;</span> no cree que el plural de &quot;directory&quot; es &quot;directorys&quot;. Y podrías notar que el resultado puede sonar mejor si especificas un formulario negativo, como:</p>
+        <pre>&quot;[quant,_1,file,files,No files] matched your query.\n&quot;
+</pre>
+    <p class="Pp">Recuerda mantener en mente el acuerdo de verbos (o adjetivos, en otros idiomas), como en:</p>
+        <pre>&quot;[quant,_1,document] were matched.\n&quot;
+</pre>
+    <p class="Pp">Porque si _1 es 1, obtienes &quot;1 document <b>were</b> matched&quot;. Una forma aceptable de hackearlo es hacer algo como:</p>
+        <pre>&quot;[quant,_1,document was, documents were] matched.\n&quot;
+</pre>
+  </dd>
+  <dt>$language-&gt;numf($number)</dt>
+  <dd>Devuelve el número dado bien formateado según las convenciones de este idioma. El método default de <span class="Li">&quot;maketext&quot;</span> es principalmente tomar el formato normal de la cadena del número (aplicando sprintf &quot;%G&quot; solo para números muy grandes), y luego agregar comas cuando sea necesario. (Aunque, en realidad, aplicamos <span class="Li">&quot;tr/,./.,/&quot;</span> si <span class="Li">$language</span>-&gt;{'numf_comma'} es verdadero; eso es un poco de un hack útil para idiomas que expresan dos millones como &quot;2.000.000&quot; y no como &quot;2,000,000&quot;).
+    <p class="Pp">Si quieres algo más creativo, considera sobrescribirlo con algo que use Number::Format, o hacer algo completamente diferente.</p>
+    <p class="Pp">Nota: numf se llama por quant para serializar todos los números de quantificación.</p>
+  </dd>
+  <dt>$language-&gt;numerate($number, $singular, $plural, $negative)</dt>
+  <dd>Devuelve la forma del sustantivo adecuada para la cantidad <span class="Li">$number</span> según las convenciones de este idioma. <span class="Li">&quot;numerate&quot;</span> se usa internamente por <span class="Li">&quot;quant&quot;</span> para quantificar sustantivos. Usa directamente — a menudo desde notación de corchetes — para evitar el llamado implícito de <span class="Li">&quot;numf&quot;</span> de <span class="Li">&quot;quant&quot;</span> y la salida de una cantidad numérica.</dd>
+  <dt>$language-&gt;sprintf($format, @items)</dt>
+  <dd>Es simplemente una capa de wrapper sobre la función normal de <span class="Li">&quot;sprintf&quot;</span> de Perl. Se proporciona para que puedas usar &quot;sprintf&quot; en notación de corchetes:
+        <pre>&quot;Couldn't access datanode [sprintf,%10x=~[%s~],_1,_2]!\n&quot;
+</pre>
+    <p class="Pp">devuelve...</p>
+        <pre>Couldn't access datanode      Stuff=[thangamabob]!
+</pre>
+  </dd>
+  <dt>$language-&gt;<b>language_tag()</b></dt>
+  <dd>Actúa actualmente como si tomara el último fragmento de <span class="Li">ref($language)</span>, lo transforma en un guion y devuelve. Así, si <span class="Li">$language</span> es un objeto de la clase Hee::HOO::Haw::en_us,
+      <span class="Li">$language</span>-&gt;<b>language_tag()</b> devuelve &quot;en-us&quot;. (Sí, la representación usual para esa etiqueta de idioma es &quot;en-US&quot;, pero el caso no es significativo en comparaciones de etiquetas de idioma.)
+    <p class="Pp">Puedes sobrescribirlo como quieras; Maketext no lo usa para nada.</p>
+  </dd>
+  <dt>$language-&gt;<b>encoding()</b></dt>
+  <dd>Actualmente no se usa para nada, pero se proporciona (con valor por defecto de <span class="Li">&quot;(ref($language) &amp;&amp; $language-&gt;{'encoding'}) || &quot;iso-8859-1&quot;&quot;</span>) como un sugerido para asociar codificaciones con tus handles de idioma (aunque sea por clase o incluso por handle).</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Language_Handle_Attributes_and_Internals'><a class='permalink' href='#Language_Handle_Attributes_and_Internals'>Propiedades de los Handles de Idioma y Estructuras Internas</a></h2>
+<p class="Pp">Un handle de idioma es un objeto ligero — es decir, no (necesariamente) lleva datos de interés, más allá de ser un miembro del clase a la que pertenece.</p>
+<p class="Pp">Un handle de idioma se implementa como un hash bendecido. Las subclases de tus pueden almacenar cualquier dato que quieras en el hash. Actualmente, la única entrada de hash utilizada por cualquier método crítico de <span class="Li">Maketext</span> es <span class="Li">&quot;fail&quot;</span>, así que puedes usar lo que quieras en cualquier lugar.</p>
+<p class="Pp">¿Recuerdas: no te preocupes por leer el código fuente si hay algún punto en el que este documento sea incierto. Este documento es mucho más largo que el código fuente del módulo.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LANGUAGE_CLASS_HIERARCHIES'><a class='permalink' href='#LANGUAGE_CLASS_HIERARCHIES'>Jerarquías de Clases de Idioma</a></h1>
+<h1><a class='permalink' href='#LANGUAGE_CLASS_HIERARCHIES'>JERARQUÍAS DE CLASES DE IDIOMAS</a></h1>
+<p class="Pp">Estas son las suposiciones de Locale::Maketext sobre la jerarquía de clases formada por todas tus clases de idiomas:</p>
+<ul class="Bl-bullet">
+  <li>Debes tener una clase base del proyecto, que cargas y luego usas como primer argumento en la llamada a <code class="Nm">YourProjClass-&gt;get_handle(...)</code>. Debe derivar (directa o indirectamente) de <code class="Nm">Locale::Maketext</code>. **No importa** cómo nombres esta clase, aunque asumiendo que este es el componente de localización de tu Súper Mega Programa, buenos nombres para tu clase de proyecto podrían ser <code class="Nm">SuperMegaProgram::Localization</code>, <code class="Nm">SuperMegaProgram::L10N</code>, <code class="Nm">SuperMegaProgram::I18N</code>, <code class="Nm">SuperMegaProgram::International</code>, o incluso <code class="Nm">SuperMegaProgram::Languages</code> o <code class="Nm">SuperMegaProgram::Messages</code>.</li>
+  <li>Las clases de idioma son lo que <code class="Nm">YourProjClass-&gt;get_handle</code> intentará cargar. Las buscará tomando cada etiqueta de idioma ( **omitíendola** si no parece una etiqueta de idioma o de localización), convirtiéndola a minúsculas, reemplazando los guiones por guiones bajos y añadiéndola a <code class="Nm">YourProjClass</code>. &quot;::&quot;. Entonces esto:
+        <pre>$lh = YourProjClass-&gt;get_handle(
+  'en-US', 'fr', 'kon', 'i-klingon', 'i-klingon-romanized'
+);
+</pre>
+    <p class="Pp">intentará cargar las clases <code class="Nm">YourProjClass::en_us</code> (¡nota las minúsculas!), <code class="Nm">YourProjClass::fr</code>, <code class="Nm">YourProjClass::kon</code>, <code class="Nm">YourProjClass::i_klingon</code> y <code class="Nm">YourProjClass::i_klingon_romanized</code>. (Y se detendrá en la primera que realmente se cargue).</p>
+  </li>
+  <li>Supongo que cada clase de idioma deriva (directa o indirectamente) de tu clase de proyecto, y también define su <code class="Li">%Lexicon</code>, o ambas cosas. Pero no preveo consecuencias graves si estas suposiciones no se cumplen.</li>
+  <li>Las clases de idioma pueden derivar de otras clases de idioma (aunque deberían tener &quot;use <i>Thatclassname</i>&quot; o &quot;use base qw(<i>...classes...</i>)&quot;). Pueden derivar de la clase del proyecto. Pueden derivar de alguna otra clase. O a través de herencia múltiple, pueden derivar de cualquier mezcla de estas.</li>
+  <li>No preveo problemas con tener herencia múltiple en tu jerarquía de clases de idioma. (Como de costumbre, sin embargo, Perl se quejará amargamente si tienes un ciclo en la jerarquía: es decir, si alguna clase es su propio antecesor).</p>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENTRIES_IN_EACH_LEXICON'><a class='permalink' href='#ENTRIES_IN_EACH_LEXICON'>ENTRADAS EN CADA LÉXICO</a></h1>
+<p class="Pp">Una entrada típica de <code class="Li">%Lexicon</code> está destinada a significar una frase, que toma un número (0 o más) de parámetros. Una entrada está destinada a ser accedida por una clave de cadena en <code class="Li">$lh-&gt;maketext(<i>key</i>, ...parameters...)</code>, que debería devolver una cadena que generalmente está destinada a ser utilizada para la &quot;salida&quot; al usuario, independientemente de si esto significa imprimir en STDOUT, escribir en un archivo o colocarlo en un widget GUI.</p>
+<p class="Pp">Mientras que la clave debe ser un valor de cadena (ya que esa es una restricción básica que Perl impone a las claves de hash), el valor en el léxico puede ser actualmente de varios tipos: un escalar definido, un escalarseferencia o un coderef. El uso de estos se explica anteriormente, en la sección 'El método "maketext"', y la notación de corchetes para cadenas se discute en la siguiente sección.</p>
+<p class="Pp">Si bien puedes usar identificadores únicos arbitrarios para las claves del léxico (como &quot;_min_larger_max_error&quot;), a menudo es útil si la clave de una entrada es en sí misma un valor válido, como este mensaje de error de ejemplo:</p>
+<pre>"Minimum ([_1]) is larger than maximum ([_2])!\n"</pre>
+<p class="Pp">Compara este código que usa una ID arbitraria...</p>
+<pre>die $lh-&gt;maketext( "_min_larger_max_error", $min, $max )
+ if $min &gt; $max;</pre>
+<p class="Pp">...con este código que usa una clave como valor:</p>
+<pre>die $lh-&gt;maketext(
+"Minimum ([_1]) is larger than maximum ([_2])!\n",
+$min, $max
+) if $min &gt; $max;</pre>
+<p class="Pp">El segundo es, en resumen, más legible. En particular, es obvio que el número de parámetros que estás proporcionando a esa frase (dos) es el número de parámetros que *quiere* recibir. (Ya que ves _1 y un _2 usándose en la clave allí).</p>
+<p class="Pp">Además, una vez que un proyecto está completo y comienzas a localizarlo, puedes recopilar todas las claves que usas y pasárselas a un traductor; y entonces el trabajo del traductor irá más rápido si lo que se le presenta es esto:</p>
+<pre>"Minimum ([_1]) is larger than maximum ([_2])!\n",
+ =&gt; "",   # ¡rellena algo aquí, Jacques!</pre>
+<p class="Pp">en lugar de este más críptico desorden:</p>
+<pre>"_min_larger_max_error"
+ =&gt; "",   # ¡rellena algo aquí, Jacques!</pre>
+<p class="Pp">Creo que las claves como valores del léxico hacen que las entradas completas del léxico sean más legibles:</p>
+<pre>"Minimum ([_1]) is larger than maximum ([_2])!\n",
+ =&gt; "Le minimum ([_1]) est plus grand que le maximum ([_2])!\n"</pre>
+<p class="Pp">Además, tener valores válidos como claves resulta muy útil si configuras un léxico _AUTO. Los léxicos _AUTO se discuten en una sección posterior.</p>
+<p class="Pp">Casi siempre uso claves que son en sí mismas valores de léxico válidos. Una excepción notable es cuando el valor es bastante largo. Por ejemplo, para obtener la pantalla de datos que un programa de línea de comandos podría devolver cuando se le da un interruptor desconocido, a menudo solo uso una clave breve y autoexplicativa como &quot;_USAGE_MESSAGE&quot;. En ese momento, voy y defino inmediatamente esa entrada del léxico en el léxico <code class="Nm">ProjectClass::L10N::en</code> (ya que el inglés siempre es mi &quot;idioma del proyecto&quot;):</p>
+<pre>'_USAGE_MESSAGE' =&gt; &lt;&lt;'EOSTUFF',
+...mensaje largo largo...
+EOSTUFF</pre>
+<p class="Pp">y luego puedo usarlo como:</p>
+<pre>getopt('oDI', \%opts) or die $lh-&gt;maketext('_USAGE_MESSAGE');</pre>
+<p class="Pp">Incidentalmente, ten en cuenta que el <code class="Li">%Lexicon</code> de cada clase hereda y extiende los léxicos de sus superclases. Esto no es porque estos sean hashes especiales *per se*, sino porque se accede a ellos a través del método <code class="Nm">maketext</code>, que busca entradas en todos los hashes <code class="Li">%Lexicon</code> en una clase de idioma *y* en todas sus clases ancestras. (Esto se debe a que la idea de &quot;datos de clase&quot; no se implementa directamente en Perl, sino que se deja a los sistemas de clases individuales implementarlos como mejor les parezca).</p>
+<p class="Pp">Ten en cuenta que puedes tener cosas almacenadas en un léxico además de frases para la salida: por ejemplo, si tu programa toma entrada del teclado, haciendo una pregunta de &quot;(S/N)&quot;, probablemente necesites saber cuáles son los equivalentes de &quot;S[í]/N[o]&quot; en el idioma que sea. Probablemente también necesites saber cuáles son los equivalentes de las respuestas &quot;s&quot; y &quot;n&quot;. Puedes almacenar esa información en el léxico (por ejemplo, bajo las claves &quot;~answer_y&quot; y &quot;~answer_n&quot;, y las formas largas como &quot;~answer_yes&quot; y &quot;~answer_no&quot;, donde &quot;~&quot; es solo un carácter ad hoc destinado a indicar a programadores/traductores que estas no son frases para la salida).</p>
+<p class="Pp">O en lugar de almacenar esto en el léxico de la clase de idioma, puedes (y, en algunos casos, realmente deberías) representar la misma información como código en un método de la clase de idioma. (Eso deja una distinción clara entre el léxico como las cosas que sabemos *decir*, y el resto de las cosas en la clase de léxico como las cosas que sabemos *hacer*). Considera este ejemplo de un procesador de respuestas a preguntas francesas &quot;oui/non&quot;:</p>
+<pre>sub y_or_n {
+  return undef unless defined $_[1] and length $_[1];
+  my $answer = lc $_[1];  # poner en minúsculas
+  return 1 if $answer eq 'o' or $answer eq 'oui';
+  return 0 if $answer eq 'n' or $answer eq 'non';
+  return undef;
+}</pre>
+<p class="Pp">...que luego llamarías en una construcción como esta:</p>
+<pre>my $response;
+until(defined $response) {
+  print $lh-&gt;maketext("Open the pod bay door (y/n)? ");
+  $response = $lh-&gt;y_or_n( get_input_from_keyboard_somehow() );
+}
+if($response) { $pod_bay_door-&gt;open()         }
+else          { $pod_bay_door-&gt;leave_closed() }</pre>
+<p class="Pp">Otros datos que vale la pena almacenar en un léxico podrían ser cosas como nombres de archivo para recursos dirigidos al idioma:</p>
+<pre>...
+"_main_splash_png"
+  =&gt; "/styles/en_us/main_splash.png",
+"_main_splash_imagemap"
+  =&gt; "/styles/en_us/main_splash.incl",
+"_general_graphics_path"
+  =&gt; "/styles/en_us/",
+"_alert_sound"
+  =&gt; "/styles/en_us/hey_there.wav",
+"_forward_icon"
+ =&gt; "left_arrow.png",
+"_backward_icon"
+ =&gt; "right_arrow.png",
+# En algunos otros idiomas, izquierda significa
+#  ATRÁS, y derecha es ADELANTE.
+...</pre>
+<p class="Pp">Es posible que desees hacer lo mismo para expresar combinaciones de teclas o cosas similares (¡ya que codificar &quot;q&quot; como la combinación para la función que sale de una pantalla/menú/programa solo es útil si tu idioma asocia &quot;q&quot; con &quot;quit&quot;!).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BRACKET_NOTATION'><a class='permalink' href='#BRACKET_NOTATION'>NOTACIÓN DE CORCHETES</a></h1>
+<p class="Pp">La Notación de Corchetes es una característica crucial de <code class="Nm">Locale::Maketext</code>. Entiendo que la Notación de Corchetes proporciona un reemplazo para el uso del formato <code class="Nm">sprintf</code>. Todo lo que haces con la Notación de Corchetes podría hacerse con un bloque <code class="Sy">sub</code>, pero la notación de corchetes está destinada a ser mucho más concisa.</p>
+<p class="Pp">La Notación de Corchetes es como un sistema de &quot;plantilla&quot; en miniatura (en el sentido de Text::Template, no en el sentido de plantillas C++), donde el texto normal se pasa tal cual, pero el texto en regiones especiales se interpreta de manera especial. En la Notación de Corchetes, usas corchetes (&quot;[...]&quot;), no llaves (&quot;{...}&quot;) para indicar las secciones que se interpretan especialmente.</p>
+<p class="Pp">Por ejemplo, aquí todas las áreas que se toman literalmente están subrayadas con un &quot;^&quot;, y todas las regiones especiales entre corchetes están subrayadas con una X:</p>
+<pre>"Minimum ([_1]) is larger than maximum ([_2])!\n"
+ ^^^^^^^^^ XX ^^^^^^^^^^^^^^^^^^^^^^^^^^ XX ^^^^</pre>
+<p class="Pp">Cuando esa cadena se compila de notación de corchetes a una subrutina Perl real, básicamente se convierte en:</p>
+<pre>sub {
+  my $lh = $_[0];
+  my @params = @_;
+  return join '',
+    "Minimum (",
+    ...algún código aquí...
+    ") is larger than maximum (",
+    ...algún código aquí...
+    ")!\n",
+}
+# para ser llamado por $lh-&gt;maketext(KEY, params...)</pre>
+<p class="Pp">En otras palabras, el texto fuera de los grupos de corchetes se convierte en literales de cadena. El texto entre corchetes es bastante más complejo y actualmente sigue estas reglas:</p>
+<ul class="Bl-bullet">
+  <li>Los grupos de corchetes que están vacíos, o que consisten solo en espacios en blanco, se ignoran. (Ejemplos: &quot;[]&quot;, &quot;[ ]&quot;, o un [ y un ] con retornos de carro y/o tabulaciones y/o espacios entre ellos).
+    <p class="Pp">De lo contrario, cada grupo se toma como un grupo de elementos separados por comas, y cada elemento se interpreta de la siguiente manera:</p>
+  </li>
+  <li>Un elemento que es &quot;_<i>dígitos</i>&quot; o &quot;_-<i>dígitos</i>&quot; se interpreta como <code class="Li">$_</code>[<i>valor</i>]. Es decir, &quot;_1&quot; se convierte en <code class="Li">$_</code>[1], y &quot;_-3&quot; se interpreta como <code class="Li">$_</code>[-3] (en w</li>
+</ul>
+<section class="Sh">
+<h1 class="Sh" id="NOTATION_DESCRIPTIONS"><a class="permalink" href="#NOTATION_DESCRIPTIONS">DESCRIPCIONES DE NOTACIÓN</a></h1>
+<p class="Pp">Las entradas de texto definidas en un <span class="Li">%Lexicon</span>
+    se componen de una cadena clave y una cadena de sustitución (o una subrutina).
+    El código de traducción se genera para esa cadena de sustitución, basándose
+    en una notación especial de cadenas que llamo <q>Notación de Corchetes</q>.</p>
+<p class="Pp">Por ejemplo, aquí hay una definición típica en <span class="Li">%Lexicon</span>:</p>
+<pre>    _ = {
+        ...
+        &quot;Hello, world&quot; =&gt; &quot;Hello, world!&quot;,
+        &quot;Hello, [_1]!&quot; =&gt; &quot;Hello, [_1]!&quot;,
+        &quot;Greetings (%s)&quot; =&gt; &quot;Greetings (%s)&quot;,
+        &quot;quant&quot; =&gt; q{
+            Use this instead of the default 'quant' method.
+            It takes 3 arguments: count, singular, plural.
+            It returns the right form for the count.
+        },
+        &quot;item%1.0f&quot; =&gt; &quot;There %s %d item%s\n&quot;,
+        ...
+    };
+</pre>
+<p class="Pp">Cuando <span class="Li">maketext()</span> se llama con una clave que
+    no se encuentra directamente en el <span class="Li">%Lexicon</span>, sino
+    que se puede generar a partir de una cadena dada (por ejemplo,
+    <span class="Li">&quot;Hello, [_1]!&quot;</span>),
+    <span class="Li">maketext()</span> se transforma en una subrutina Perl que se
+    ejecuta de inmediato.</p>
+<p class="Pp">La <q>Notación de Corchetes</q> es la forma en que se pueden
+    insertar variables en una cadena de salida. Las variables se insertan como
+    argumentos posicionales (como <span class="Li">$1</span>,
+    <span class="Li">$2</span>, etc. en Perl), y se indican mediante
+    <span class="Li">[_1]</span>, <span class="Li">[_2]</span>, etc.</p>
+<p class="Pp">La notación de corchetes tiene dos usos:</p>
+<ul class="Bl-bullet">
+    <li>Para referirse a argumentos pasados a la llamada <span class="Li">maketext()</span>.</li>
+    <li>Para llamar a métodos de la clase <span class="Li">Locale::Maketext</span> (o
+        clases derivadas), como <span class="Li">quant()</span>,
+        <span class="Li">numf()</span>, etc.</li>
+</ul>
+<p class="Pp">Una cadena que contiene <q>Notación de Corchetes</q> se divide en
+    una serie de elementos. Cada elemento se procesa de forma diferente, según
+    si está o no entre corchetes:</p>
+<ul class="Bl-bullet">
+    <li>Los elementos que no están entre corchetes se tratan como cadenas literales.</li>
+    <li>Los elementos que sí están entre corchetes se procesan de forma especial.
+        La interpretación de dichos elementos depende del primer elemento del grupo
+        de corchetes.</li>
+</ul>
+<p class="Pp">Para entender cómo se procesan los elementos dentro de un grupo de
+    corchetes, primero debemos entender el significado de las referencias a
+    variables dentro de un grupo de corchetes.</p>
+<p class="Pp">Un grupo de corchetes puede contener una mezcla de lo siguiente:</p>
+<ul class="Bl-bullet">
+    <li>Una referencia a un argumento pasado a <span class="Li">maketext()</span>. Estas
+        se expresan como <span class="Li">$_[0]</span>, <span class="Li">$_[1]</span>, etc.
+        (donde <span class="Li">$_[0]</span> es el manejador de idioma y, por lo
+        tanto, normalmente no se nombra directamente).</li>
+    <li>Una referencia a <span class="Li">$_</span>, que se interpreta como una
+        referencia a todos los argumentos pasados a <span class="Li">maketext()</span>
+        excepto el primer argumento (el manejador de idioma). En otras palabras,
+        <span class="Li">@_[1..$#_]</span>. Tenga en cuenta que esta es una lista
+        vacía en el caso de llamadas como <span class="Li">$lh</span>-&gt;maketext(<i>key</i>)
+        donde no hay parámetros (excepto <span class="Li">$_</span>[0], el manejador
+        de idioma).</li>
+    <li>Una referencia a un argumento específico, por ejemplo,
+        <span class="Li">$_[1]</span>, <span class="Li">$_[2]</span>, etc.</li>
+    <li>Una referencia a un subconjunto de argumentos pasados a <span class="Li">maketext()</span>.
+        Por ejemplo, <span class="Li">$_[1,3]</span> se refiere a los argumentos
+        <span class="Li">$_[1]</span> y <span class="Li">$_[3]</span>.
+        <span class="Li">$_[1..3]</span> se refiere a los argumentos
+        <span class="Li">$_[1]</span>, <span class="Li">$_[2]</span> y
+        <span class="Li">$_[3]</span>.</li>
+    <li>Una subcadena literal.</li>
+</ul>
+<p class="Pp">Los elementos individuales dentro de un grupo de corchetes se
+    separan mediante comas:</p>
+<ul class="Bl-bullet">
+    <li>Un elemento que empieza con <span class="Li">$_</span> se interpreta como
+        una referencia a un argumento de la llamada <span class="Li">maketext()</span>.
+        Por ejemplo, <span class="Li">$_[1]</span> se refiere al primer argumento
+        pasado a <span class="Li">maketext()</span> (después del manejador de
+        idioma). <span class="Li">$_[1,3]</span> se refiere al primer y tercer
+        argumento. <span class="Li">$_[1..3]</span> se refiere al primer, segundo
+        y tercer argumento. Tenga en cuenta que cada uno de estos elementos
+        debería tener al menos tres elementos en
+        él). Tenga en cuenta que <span class="Li">$_</span>[0] es el manejador de
+        idioma y, por lo general, no se nombra directamente.</li>
+    <li>Un elemento <q>_*</q> se interpreta como <q>todo <span class="Li">@_</span>
+        excepto <span class="Li">$_</span>[0]</q>. Es decir,
+        <span class="Li">@_[1..$#_]</span>. Tenga en cuenta que esta es una lista
+        vacía en el caso de llamadas como
+        <span class="Li">$lh</span>-&gt;maketext(<i>key</i>) donde no hay parámetros
+        (excepto <span class="Li">$_</span>[0], el manejador de
+        idioma).</li>
+    <li>De lo contrario, cada elemento se interpreta como una cadena literal.</li>
+</ul>
+<p class="Pp">El grupo en su conjunto se interpreta de la siguiente manera:</p>
+<ul class="Bl-bullet">
+    <li>Si el primer elemento de un grupo de corchetes parece un nombre de método,
+        entonces ese grupo se interpreta de la siguiente manera:
+        <pre>$lh-&gt;that_method_name(
+  ...resto de elementos en este grupo...
+),
+</pre>
+    </li>
+    <li>Si el primer elemento de un grupo de corchetes es <q>*</q>, se toma como
+        taquigrafía para el método <q>quant</q> llamado tan comúnmente. Del mismo
+        modo, si el primer elemento de un grupo de corchetes es <q>#</q>, se toma
+        como taquigrafía para <q>numf</q>.</li>
+    <li>Si el primer elemento de un grupo de corchetes es la cadena vacía, o
+        <q>_*</q> o <q>_<i>dígitos</i></q> o
+        <q>_-<i>dígitos</i></q>, entonces ese grupo se interpreta como la simple
+        interpolación de todos sus elementos:
+        <pre>join('',
+  ...resto de elementos en este grupo...
+),
+</pre>
+        <p class="Pp">Ejemplos: <q>[_1]</q> y <q>[,_1]</q>, que son
+            sinónimos; y
+            <q><span class="Li">&quot;[,ID-(,_4,-,_2,)]&quot;</span></q>, que
+            se compila como <span class="Li">&quot;join &quot;&quot;, &quot;ID-(&quot;,
+            $_[4], &quot;-&quot;, $_[2], &quot;)&quot;&quot;</span>.</p>
+    </li>
+    <li>De lo contrario, este grupo de corchetes es inválido. Por ejemplo, en el
+        grupo <q>[!@#,whatever]</q>, el primer elemento
+        <span class="Li">&quot;!@#&quot;</span> no es ni la cadena vacía,
+        <q>_<i>número</i></q>, <q>_-<i>número</i></q>, <q>_*</q>,
+        ni un nombre de método válido; por lo tanto, Locale::Maketext lanzará una
+        excepción si intenta compilar una expresión que contenga este grupo de
+        corchetes.</li>
+</ul>
+<p class="Pp">Tenga en cuenta, incidentalmente, que los elementos de cada grupo
+    están separados por comas, no por <span class="Li">&quot;/\s*,\s*/&quot;</span>.
+    Es decir, podría esperar que este grupo de corchetes:</p>
+<pre>&quot;Hoohah [foo, _1 , bar ,baz]!&quot;</pre>
+<p class="Pp">se compile en esto:</p>
+<pre>sub {
+  my $lh = $_[0];
+  return join '',
+    &quot;Hoohah &quot;,
+    $lh-&gt;foo( $_[1], &quot;bar&quot;, &quot;baz&quot;),
+    &quot;!&quot;,
+}</pre>
+<p class="Pp">Pero en realidad se compila así:</p>
+<pre>sub {
+  my $lh = $_[0];
+  return join '',
+    &quot;Hoohah &quot;,
+    $lh-&gt;foo(&quot; _1 &quot;, &quot; bar &quot;, &quot;baz&quot;),  # note el &lt;espacio&gt; en &quot; bar &quot;
+    &quot;!&quot;,
+}</pre>
+<p class="Pp">En la notación discutida hasta ahora, los caracteres <q>[</q> y
+    <q>]</q> tienen un significado especial, para abrir y cerrar grupos de
+    corchetes, y <q>,</q> tiene un significado especial dentro de los grupos de
+    corchetes, donde separa los elementos del grupo. Esto plantea la pregunta de
+    cómo se expresaría un <q>[</q> o <q>]</q> literal en una cadena de Notación de
+    Corchetes, y cómo se expresaría una coma literal dentro de un grupo de
+    corchetes. Para este propósito, he adoptado <q>~</q> (tilde) como carácter de
+    escape: <q>~[</q> significa un carácter '[' literal en cualquier lugar de la
+    Notación de Corchetes (es decir, independientemente de si se encuentra o no
+    dentro de un grupo de corchetes), y lo mismo para <q>~]</q> que significa un
+    carácter ']', y <q>~,</q> que significa una coma literal. (Aunque <q>,</q>
+    significa una coma literal fuera de los grupos de corchetes: es solo dentro de
+    los grupos de corchetes que las comas son especiales).</p>
+<p class="Pp">Y en el improbable caso de que necesite una tilde literal en una
+    expresión de corchetes, la obtiene con <q>~~</q>.</p>
+<p class="Pp">Actualmente, una <q>~</q> sin escapar antes de un carácter que no
+    sea un corchete o una coma se toma como una <q>~</q> literal y ese carácter. Es
+    decir, <q>~X</q> significa lo mismo que <q>~~X</q> -- es decir, una tilde literal
+    y luego una <q>X</q> literal. Sin embargo, al usar <q>~X</q>, usted asume que
+    ninguna versión futura de Maketext utilizará <q>~X</q> como una secuencia de
+    escape mágica. En la práctica, esto no es un gran problema, ya que en primer
+    lugar puede simplemente escribir <q>~~X</q> y no preocuparse por ello; en
+    segundo lugar, dudo que añada muchos caracteres mágicos nuevos a la notación
+    de corchetes; y en tercer lugar, es poco probable que desee caracteres de
+    tilde literales en sus mensajes de todos modos, ya que no es un carácter con
+    amplio uso en el texto del lenguaje natural.</p>
+<p class="Pp">Los corchetes deben estar equilibrados: cada corchete de apertura
+    debe tener un corchete de cierre coincidente, y viceversa. Por lo tanto, todos
+    estos son <b>inválidos</b>:</p>
+<pre>&quot;I ate [quant,_1,rhubarb pie.&quot;
+&quot;I ate [quant,_1,rhubarb pie[.&quot;
+&quot;I ate quant,_1,rhubarb pie].&quot;
+&quot;I ate quant,_1,rhubarb pie[.&quot;</pre>
+<p class="Pp">Actualmente, los grupos de corchetes no se anidan. Es decir, <b>no
+    puede</b> decir:</p>
+<pre>&quot;Foo [bar,baz,[quux,quuux]]\n&quot;;</pre>
+<p class="Pp">Si necesita una notación que sea tan potente, use Perl normal:</p>
+<pre>%Lexicon = (
+  ...
+  &quot;some_key&quot; =&gt; sub {
+    my $lh = $_[0];
+    join '',
+      &quot;Foo &quot;,
+      $lh-&gt;bar('baz', $lh-&gt;quux('quuux')),
+      &quot;\n&quot;,
+  },
+  ...
+);</pre>
+<p class="Pp">O escriba el método <q>bar</q> para que no necesite pasarle la salida
+    de llamar a quux.</p>
+<p class="Pp">No anticipo que necesite (o que desee particularmente) anidar
+    grupos de corchetes, pero le invitamos a enviarme un correo electrónico con
+    argumentos convincentes (en la vida real) en contrario.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="BRACKET_NOTATION_SECURITY"><a class="permalink" href="#BRACKET_NOTATION_SECURITY">SEGURIDAD DE LA NOTACIÓN DE CORCHETES</a></h1>
+<p class="Pp">Locale::Maketext no utiliza ninguna sintaxis especial para
+    diferenciar los métodos de notación de corchetes de los métodos de clase u
+    objeto normales. Este diseño lo hace vulnerable a ataques de cadenas de
+    formato siempre que se utilice para procesar cadenas proporcionadas por
+    usuarios no confiables.</p>
+<p class="Pp">Locale::Maketext admite funcionalidad de lista negra y lista blanca
+    para limitar qué métodos pueden ser llamados como métodos de notación de
+    corchetes.</p>
+<p class="Pp">Por defecto, Locale::Maketext deniega todos los métodos en el
+    espacio de nombres Locale::Maketext que comienzan con el carácter <q>_</q>, y
+    todos los métodos que incluyen los caracteres separadores de espacio de nombres
+    de Perl.</p>
+<p class="Pp">La lista negra predeterminada para Locale::Maketext también evita el
+    uso de los siguientes métodos en la notación de corchetes:</p>
+<pre>denylist
+encoding
+fail_with
+failure_handler_auto
+fallback_language_classes
+fallback_languages
+get_handle
+init
+language_tag
+maketext
+new
+allowlist
+whitelist
+blacklist</pre>
+<p class="Pp">Esta lista se puede ampliar añadiendo más métodos <q>conocidamente
+    malos</q> a la lista negra, o incluyendo solo métodos <q>conocidamente buenos</q>
+    en la lista blanca.</p>
+<p class="Pp">Para evitar que métodos específicos se llamen en la notación de
+    corchetes, utilice el método <b>denylist()</b>:</p>
+<pre>my $lh = MyProgram::L10N-&gt;get_handle();
+$lh-&gt;denylist(qw{my_internal_method my_other_method});
+$lh-&gt;maketext('[my_internal_method]'); # muere</pre>
+<p class="Pp">Para limitar los métodos permitidos de notación de corchetes a una
+    lista específica, utilice el método <b>allowlist()</b>:</p>
+<pre>my $lh = MyProgram::L10N-&gt;get_handle();
+$lh-&gt;allowlist('numerate', 'numf');
+$lh-&gt;maketext('[_1] [numerate, _1,shoe,shoes]', 12); # funciona
+$lh-&gt;maketext('[my_internal_method]'); # muere</pre>
+<p class="Pp">Los métodos <b>denylist()</b> y <b>allowlist()</b> amplían sus listas
+    internas cada vez que se llaman. Para restablecer la lista negra o la lista
+    blanca, cree un nuevo objeto maketext.</p>
+<pre>my $lh = MyProgram::L10N-&gt;get_handle();
+$lh-&gt;denylist('numerate');
+$lh-&gt;denylist('numf');
+$lh-&gt;maketext('[_1] [numerate,_1,shoe,shoes]', 12); # muere</pre>
+<p class="Pp">Para léxicos que utilizan una caché interna, las traducciones que
+    ya se han cacheados en su forma compilada no se ven afectadas por cambios
+    posteriores en la configuración de la lista blanca o negra. Los léxicos que
+    utilizan una caché externa verán su caché borrada cada vez que cambien la
+    configuración de la lista blanca o negra. La diferencia entre los dos tipos de
+    caché se explica en la sección <q>Léxicos de Solo Lectura</q>.</p>
+<p class="Pp">Los métodos prohibidos por la lista negra no pueden ser permitidos
+    por la lista blanca.</p>
+<p class="Pp">NOTA: <b>denylist()</b> es el nombre de método preferido a usar en
+    lugar del método histórico y no inclusivo <b>blacklist()</b>.
+    <b>blacklist()</b> puede ser eliminado en una futura versión de este paquete y,
+    por lo tanto, su uso debe ser eliminado.</p>
+<p class="Pp">NOTA: <b>allowlist()</b> es el nombre de método preferido a usar en
+    lugar del método histórico y no inclusivo <b>whitelist()</b>.
+    <b>whitelist()</b> puede ser eliminado en una futura versión de este paquete y,
+    por lo tanto, su uso debe ser eliminado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTO_LEXICONS"><a class="permalink" href="#AUTO_LEXICONS">LÉXICOS AUTOMÁTICOS</a></h1>
+<p class="Pp">Si maketext va a buscar en un <span class="Li">%Lexicon</span>
+    individual una entrada para <i>key</i> (donde <i>key</i> no comienza con un
+    guion bajo), y no la encuentra, <b>pero sí ve</b> una entrada de
+    <q>_AUTO</q> =&gt; <i>algún_valor_verdadero</i>, entonces definimos
+    efectivamente <span class="Li">$Lexicon</span>{<i>key</i>} = <i>key</i> en
+    ese mismo instante, y luego usamos ese valor como si hubiera estado allí
+    todo el tiempo. Esto sucede antes de que siquiera busquemos en los
+    <span class="Li">%Lexicons</span> de superclases.</p>
+<p class="Pp">(Esto está pensado para ser algo parecido al mecanismo AUTOLOAD en
+    el sistema de llamadas a funciones de Perl -- o, visto de otra manera, como el
+    módulo AutoLoader.)</p>
+<p class="Pp">Puedo imaginar todo tipo de circunstancias en las que simplemente
+    no desea que la búsqueda falle (ya que el fallo normalmente significa que
+    maketext lanza un <span class="Li">&quot;die&quot;</span>, aunque vea la
+    siguiente sección para un mayor control sobre eso). Pero aquí hay una
+    circunstancia en la que los léxicos _AUTO están pensados para ser
+    <i>especialmente</i> útiles:</p>
+<p class="Pp">Mientras escribe una aplicación, decide sobre la marcha los
+    mensajes que necesita emitir. Normalmente escribiría esto:</p>
+<pre>if(-e $filename) {
+  go_process_file($filename)
+} else {
+  print qq{Couldn't find file &quot;$filename&quot;!\n};
+}</pre>
+<p class="Pp">pero como anticipa la localización de esto, escribe:</p>
+<pre>use ThisProject::I18N;
+my $lh = ThisProject::I18N-&gt;get_handle();
+ # Por el momento, asuma que las cosas están configuradas para que
+ # carguemos la clase ThisProject::I18N::en
+ # y que esa es la clase a la que pertenece $lh.
+...
+if(-e $filename) {
+  go_process_file($filename)
+} else {
+  print $lh-&gt;maketext(
+    qq{Couldn't find file &quot;[_1]&quot;!\n}, $filename
+  );
+}</pre>
+<p class="Pp">Ahora bien, justo después de haber escrito las líneas anteriores,
+    normalmente tendría que abrir el archivo ThisProject/I18N/en.pm e
+    inmediatamente añadir una entrada:</p>
+<pre>&quot;Couldn't find file \&quot;[_1]\&quot;!\n&quot;
+=&gt; &quot;Couldn't find file \&quot;[_1]\&quot;!\n&quot;,</pre>
+<p class="Pp">Pero considero que eso es una distracción del trabajo de hacer que
+    el código principal funcione -- por no mencionar el hecho de que a menudo
+    tengo que probar el programa unas cuantas veces antes de poder decidir
+    exactamente qué redacción quiero en los mensajes (lo que en este caso requeriría
+    que cambiara tres líneas de código: la llamada a maketext con esa clave, y
+    luego</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='READONLY_LEXICONS'><a class='permalink' href='#READONLY_LEXICONS'>LECTURAS DE SOLO LÉXICAS</a></h1>
+<p class="Pp">Si tu léxico es una tabla asociada (hash), el simple acto de cachear el valor compilado puede ser catastrófico. Por ejemplo, un hash atado de GDBM_File GDBM_READER colapsará con algo como:</p>
+<pre>gdbm store returned -1, errno 2, key "..." at ...</pre>
+<p class="Pp">Simplemente necesitas activar el caché externo fuera del hash léxico mismo así:</p>
+<pre>sub init {
+    my ($lh) = @_;
+    ...
+    $lh-&gt;{'use_external_lex_cache'} = 1;
+    ...
+}</pre>
+<p class="Pp">Y luego, en lugar de almacenar el valor compilado en el hash léxico, lo almacenará en <span class="Li">$lh</span>-&gt;{'_external_lex_cache'}.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONTROLLING_LOOKUP_FAILURE'><a class='permalink' href='#CONTROLLING_LOOKUP_FAILURE'>CONTROL DE FALLOS DE BÚSQUEDA</a></h1>
+<p class="Pp">Si llamas a <span class="Li">$lh</span>-&gt;maketext(<i>key</i>, ...params...), y no hay una entrada <i>key</i> en el hash <span class="Li">%Lexicon</span> de la clase <span class="Li">$lh</span>, ni en el hash <span class="Li">%Lexicon</span> de la superclase, y si no puedes auto-crear <i>key</i> (porque empieza con "_" o porque ninguno de tus léxicos tiene <span class="Li">&quot;_AUTO =&gt; 1&quot;</span>), entonces has fallado en encontrar una forma normal de crear <i>key</i> para maketext. Lo que sucede bajo estas condiciones de fallo depende del atributo "fail" del objeto <span class="Li">$lh</span>.</p>
+<p class="Pp">Si el manejador de lenguaje no tiene un atributo "fail", maketext lanzará una excepción (es decir, llamará a <span class="Li">&quot;die&quot;</span>, mencionando la <i>key</i> cuya búsqueda falló, y el número de línea donde se llamó a <span class="Li">$lh</span>-&gt;maketext(<i>key</i>,...).</p>
+<p class="Pp">Si el manejador de lenguaje tiene un atributo "fail" cuyo valor es un coderef, entonces <span class="Li">$lh</span>-&gt;maketext(<i>key</i>,...params...) se aborta y llama:</p>
+<pre>return $that_subref-&gt;($lh, $key, @params);</pre>
+<p class="Pp">De lo contrario, el valor del atributo "fail" debe ser un string que nombre un método, de modo que <span class="Li">$lh</span>-&gt;maketext(<i>key</i>,...params...) se detenga con:</p>
+<pre>return $lh-&gt;$that_method_name($phrase, @params);</pre>
+<p class="Pp">El atributo "fail" puede ser accionado con el método <span class="Li">&quot;fail_with&quot;</span>:</p>
+<pre># Establecer a un coderef:
+$lh-&gt;fail_with( \&amp;failure_handler );
+# Establecer a un nombre de método:
+$lh-&gt;fail_with( 'failure_method' );
+# Establecer a nada (es decir, para que el fallo lance una excepción simple)
+$lh-&gt;fail_with( undef );
+# Obtener el valor actual
+$handler = $lh-&gt;fail_with();</pre>
+<p class="Pp">Ahora, ¿qué quieres hacer con estos manejadores? Tal vez quieras registrar qué clave falló para qué clase y luego lanzar una excepción. Tal vez no te guste <span class="Li">&quot;die&quot;</span> y prefieras enviar el mensaje de error a STDOUT (o donde quieras) y solo llamar a <span class="Li">exit()</span>. Tal vez no quieras lanzar <span class="Li">&quot;die&quot;</span> en absoluto! Tal vez puedas usar un manejador como este:</p>
+<pre># Hacer que todas las búsquedas recurran a un valor en inglés,
+#  pero solo después de registrarlo para posterior identificación.
+my $lh_backup = ThisProject-&gt;get_handle('en');
+open(LEX_FAIL_LOG, "&gt;&gt;wherever/lex.log") || die "GNAARGH $!";
+sub lex_fail {
+  my($failing_lh, $key, $params) = @_;
+  print LEX_FAIL_LOG scalar(localtime), "\t",
+     ref($failing_lh), "\t", $key, "\n";
+  return $lh_backup-&gt;maketext($key,@params);
+}</pre>
+<p class="Pp">Algunos usuarios han expresado que la idea de tener un atributo "fail" parece una complicación de más. Sin embargo, quiero que Locale::Maketext sea utilizable en proyectos de software de cualquier escala y tipo; y diferentes proyectos de software tienen diferentes ideas sobre qué hacer en condiciones de fallo. Podría simplemente decir que el fallo siempre lanza una excepción, y que si quieres ser precavido, simplemente envías cada llamada a <span class="Li">$lh</span>-&gt;maketext a un eval { }.</p>
+<p class="Pp">Sin embargo, quiero que los programadores se reserven el derecho (a través del atributo "fail") de tratar el fallo como algo distinto de una excepción de igual gravedad que una configuración no legible o un recurso esencial inaccesible.</p>
+<p class="Pp">Un valor potencialmente útil para el atributo "fail" es el nombre de un método "failure_handler_auto". Este es un método definido en la clase Locale::Maketext misma. Puedes establecerlo con:</p>
+<pre>$lh-&gt;fail_with('failure_handler_auto');</pre>
+<p class="Pp">Luego, cuando llames a <span class="Li">$lh</span>-&gt;maketext(<i>key</i>, ...params...) y no haya una entrada <i>key</i> en ninguno de esos léxicos, maketext devuelve:</p>
+<pre>return $lh-&gt;failure_handler_auto($key, @params);</pre>
+<p class="Pp">Pero failure_handler_auto, en lugar de morir o no hacer nada, compila <span class="Li">$key</span>, lo cachea en:</p>
+<pre>$lh-&gt;{'failure_lex'}{$key} = $compiled</pre>
+<p class="Pp">y luego llama al valor cacheado, y lo devuelve. (Es decir, si <span class="Li">$key</span> se parece a notación de corchetes, <span class="Li">$compiled</span> es un sub, y devolvemos &amp;{$compiled}(@params); pero si <span class="Li">$key</span> es solo un string normal, simplemente lo devolvemos.)</p>
+<p class="Pp">El efecto de usar "failure_auto_handler" es como un léxico AUTO, excepto que 1) compila <span class="Li">$key</span> incluso si empieza con "_", y 2) tienes un registro en el nuevo hashref <span class="Li">$lh</span>-&gt;{'failure_lex'} de todas las claves que han fallado para este objeto. Esto debe evitar que tu programa colapse, siempre que tus claves no sean realmente inválidas como código de corchetes, y siempre que no intenten llamar a métodos que no existen.</p>
+<p class="Pp">"failure_auto_handler" no es necesariamente lo que quieres, pero espero que al menos te muestre que el fallo de maketext puede ser mitigado de muchas formas flexibles. Si puedes formalizar exactamente lo que quieres, deberías poder expresarlo como un manejador de fallo. Puedes incluso hacerlo por defecto para todos los objetos de una clase específica, estableciendo este atributo en esa clase:</p>
+<pre>sub init {
+  my $lh = $_[0];  # un nuevo manejador
+  $lh-&gt;SUPER::init();
+  $lh-&gt;fail_with('my_clever_failure_handler');
+  return;
+}
+sub my_clever_failure_handler {
+  ...haz lo que quieras...</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HOW_TO_USE_MAKETEXT'><a class='permalink' href='#HOW_TO_USE_MAKETEXT'>CÓMO USAR MAKETEXT</a></h1>
+<p class="Pp">Aquí tienes una lista de verificación breve sobre cómo usar Maketext para localizar aplicaciones:</p>
+<ul class="Bl-bullet">
+  <li>Decide qué sistema usarás para tus claves léxicas. Si prefieres, puedes usar identificadores opacos (si eres nostálgico para <span class="Li">&quot;catgets&quot;</span>), pero tengo mejores sugerencias en la sección "Entries in Each Lexicon". Asumiendo que eliges claves significativas que también son valores (como "¡Mínimo ([_1]) es mayor que máximo ([_2])!\n"), tendrás que decidir en qué idioma deben estar. A efectos de argumentación, llamaré a este idioma inglés, específicamente inglés estadounidense, "en-US".</li>
+  <li>Crea una clase para la localización de tu proyecto. Este es el nombre de la clase que usarás en el estilo:
+<pre>use Projname::L10N;
+my $lh = Projname::L10N-&gt;get_handle(...) || die "Idioma?";
+</pre>
+Asumiendo que llamas a tu clase Projname::L10N, crea una clase mínimamente consistente:
+<pre>package Projname::L10N;
+use base qw(Locale::Maketext);
+...cualquier método que tu clase quiera compartir entre todos los idiomas...
+# y, asumiendo que quieres que la clase base sea un léxico _AUTO, como se discute en varias secciones anteriores:
+1;
+</pre>
+  </li>
+  <li>Crea una clase para las claves internas de tu proyecto. Nombra la clase después del tag de idioma en minúsculas, con guiones cambiados a guiones bajos. Asumiendo que tu primer idioma es inglés estadounidense, deberías llamar a esta clase Projname::L10N::en_us. Ella debe ser mínimamente consistente:
+<pre>package Projname::L10N::en_us;
+use base qw(Projname::L10N);
+%Lexicon = (
+  '_AUTO' =&gt; 1,
+);
+1;
+</pre>
+(Para el resto de esta sección, asumiré que la clase "primera clase de idioma" de Projname::L10N::en_us tiene un léxico _AUTO.)
+  </li>
+  <li>Ve el código de tu programa. En cada lugar donde escribirías:
+<pre>print "Foobar $thing stuff\n";
+</pre>
+reemplázalo con un uso de maketext, sin interpolación de variables en la clave:
+<pre>print $lh-&gt;maketext("Foobar [_1] stuff\n", $thing);</pre>
+Si te aburres de decir constantemente "print $lh-&gt;maketext", considera hacer una función envolvente, como:
+<pre>use Projname::L10N;
+our $lh;
+$lh = Projname::L10N-&gt;get_handle(...) || die "Idioma?";
+sub pmt (@) { print( $lh-&gt;maketext(@_) }
+ # "pmt" es una abreviatura de "Print MakeText"
+$Carp::Verbose = 1;
+ # para que, si maketext falla, veas la llamada a pmt
+</pre>
+Además de frases completas para la salida, cualquier cosa dependiente del idioma debe estar en la clase Projname::L10N::en_us, ya sea como métodos o como entradas de léxico — esto se discute en la sección "Entries in Each Lexicon".
+  </li>
+  <li>Una vez que el programa esté en su mayor parte terminado, y una vez que la localización del primer idioma funcione correctamente (a través de los datos y métodos de Projname::L10N::en_us), puedes preparar los datos para la traducción. Si tu primer idioma no es un léxico _AUTO, entonces ya tienes todos los mensajes explícitamente en el léxico (o de lo contrario lanzarás una excepción al llamar a <span class="Li">$lh</span>-&gt;maketext para mensajes que no estén allí). Pero si usaste (siguiendo el consejo) un léxico _AUTO, entonces tendrás que hacer una lista de todas las frases que hasta ahora has permitido a _AUTO generar para ti. Hay muchas formas de hacer esto. La forma más sencilla es simplemente buscar en el código cada ocurrencia:
+<pre>grep -e '$_AUTO' ...</pre>
+</li>
+</ul>
+</section><section class="Sh">
+<h1 class="Sh" id='LOCALIZING'>LOCALIZING</h1>
+<p class="Pp">Once you've decided on your strategy for handling missing messages,
+    and have finished writing code that uses the <span class="Li">&quot;maketext&quot;</span>
+    (o llamadas a envoltorios alrededor de ella, como la función
+    <span class="Li">&quot;pmt&quot;</span> anterior), y a registrar la
+    siguiente frase.</p>
+</li>
+<li>Es posible que en este punto desee considerar si su clase base
+    (Projname::L10N), de la cual heredan todos los léxicos
+    (Projname::L10N::en, Projname::L10N::es, etc.), debería ser un léxico _AUTO.
+    Puede ser cierto que en teoría, todos los mensajes necesarios estarán en
+    cada clase de idioma; pero en el caso presumiblemente improbable o
+    "imposible" de fallo de búsqueda, debería considerar si su programa debe
+    lanzar una excepción, emitir texto en inglés (o cualquier idioma principal
+    de su proyecto), o alguna solución más compleja, como se describe en la
+    sección "Controlar el fallo de búsqueda",
+    anterior.</li>
+<li>Envíe todos los mensajes/frases/etc. a los traductores.
+    <p class="Pp">(De hecho, es posible que desee comenzar por localizar en
+        *un* solo idioma más al principio, si no está seguro de haber
+        abstraído correctamente las partes del código dependientes del idioma).
+    </p>
+    <p class="Pp">Los traductores pueden solicitar aclaraciones sobre la situación
+        en la que se encuentra una frase determinada. Por ejemplo, en inglés estamos
+        completamente contentos diciendo "se encontraron <i>n</i> archivos", sin
+        importar si queremos decir "busqué archivos y encontré <i>n</i> de
+        ellos" o la situación bastante distinta de "busqué otra cosa (como
+        líneas en archivos) y, de paso, vi <i>n</i> archivos". Esto puede implicar
+        repensar cosas que creía bastante claras: ¿debería "Editar" en una barra
+        de herramientas ser un sustantivo ("edición") o un verbo ("editar")? ¿Ya
+        existe una forma convencionalizada de expresar esa opción de menú,
+        separada de la palabra normal en el idioma de destino para "editar"?</p>
+    <p class="Pp">En todos los casos en que se involucre el fenómeno muy común
+        de la cuantificación (decir "<i>N</i> archivos", para **cualquier** valor de
+        N), cada traductor debe aclarar qué dependencias causa el número en la
+        oración. En muchos casos, la dependencia se limita a las palabras adyacentes
+        al número, en lugares donde podría esperarlas ("Encontré el-?PLURAL
+        <i>N</i> vacío-?PLURAL directorio-?PLURAL"), pero en algunos casos hay
+        dependencias inesperadas ("¡Encontré-?PLURAL ...!") así como
+        dependencias a larga distancia ("¡El directorio-?PLURAL <i>N</i> no pudo ser
+        eliminado-?PLURAL!").</p>
+    <p class="Pp">Recuerde a los traductores que consideren el caso en que N es
+        0: "0 archivos encontrados" no suena exactamente natural en ningún idioma,
+        pero puede ser inaceptable en muchos, o puede condicionar tipos especiales
+        de concordancia (similar al inglés "No encontré NINGÚN archivo").</p>
+    <p class="Pp">Recuerde preguntar a sus traductores sobre el formato de los
+        numerales en su idioma, para que pueda anular el método
+        <span class="Li">&quot;numf&quot;</span> según corresponda. Las variables
+        típicas en el formato de números son: qué usar como punto decimal
+        (¿coma? ¿punto?); qué usar como separador de miles (¿espacio? ¿espacio
+        de no separación? ¿coma? ¿punto? ¿punto medio pequeño? ¿comilla? ¿apóstrofo?);
+        e incluso si el llamado "separador de miles" es en realidad para cada
+        tercer dígito - he oído informes de doscientos mil expresados como
+        "2,00,000" para algunos idiomas indios (subcontinentales), además de los
+        menos sorprendentes "200&#x00A0;000", "200.000", "200,000" y
+        "200'000". Además, el uso de un conjunto de glifos numéricos distintos
+        de los "0"-"9" ASCII habituales podría ser apreciado, como a través de
+        <span class="Li">&quot;tr/0-9/\x{0966}-\x{096F}/&quot;</span> para
+        obtener dígitos en escritura devanagari (para hindi, konkani, otros).</p>
+    <p class="Pp">El método básico <span class="Li">&quot;quant&quot;</span> que
+        proporciona Locale::Maketext debería ser bueno para muchos idiomas. Para
+        algunos idiomas, podría ser útil modificarlo (o su método constituyente
+        <span class="Li">&quot;numerate&quot;</span>) para que acepte una forma
+        plural en la llamada de dos argumentos a
+        <span class="Li">&quot;quant&quot;</span> (como en "[quant,_1,archivos]") si
+        es en general más fácil inferir la forma singular de la plural, que
+        inferir la forma plural de la singular.</p>
+    <p class="Pp">Pero para otros idiomas (como se discute ampliamente en
+        Locale::Maketext::TPJ13), el simple <span class="Li">&quot;quant&quot;</span>/<span class="Li">&quot;numf&quot;</span>
+        no es suficiente. Para los idiomas eslavos particularmente problemáticos, lo
+        que podría necesitar es un método al que proporcione el número, la forma
+        de cita del sustantivo a cuantificar, y el caso y género que la sintaxis
+        de la oración proyecta sobre esa ranura de sustantivo. El método sería
+        entonces responsable de determinar en qué número gramatical se proyecta
+        ese numeral en su frase nominal, y con qué caso y género puede anular el
+        caso y género normales; y luego buscaría el sustantivo en un léxico que
+        proporcione todas las formas flexionadas necesarias.</p>
+  </li>
+  <li>También puede desear discutir con los traductores la cuestión de cómo
+      relacionar diferentes subformas de la misma etiqueta de idioma, considerando
+      cómo esto reacciona con el tratamiento de estas por parte de
+      <span class="Li">&quot;get_handle&quot;</span>. Por ejemplo, si un usuario acepta
+      interfaces en "en, fr", y usted tiene interfaces disponibles en
+      "en-US" y "fr", ¿qué debería obtener? Puede desear resolver esto estableciendo
+      que "en" y "en-US" son efectivamente sinónimos, haciendo que una clase
+      herede de la otra.
+    <p class="Pp">Para algunos idiomas, este problema puede no surgir nunca (el
+        danés rara vez se expresa como "da-DK", sino simplemente como
+        "da"). Y para otros idiomas, todo el concepto de una forma
+        "genérica" puede rozar lo inútilmente vago, particularmente para
+        interfaces que involucran medios de voz en formas de árabe o chino.</p>
+  </li>
+  <li>Una vez que haya localizado su programa/sitio/etc. para todos los idiomas
+      deseados, asegúrese de mostrar el resultado (ya sea en vivo o mediante
+      capturas de pantalla) a los traductores. Una vez que aprueben, haga todo lo
+      posible para que sea revisado por al menos otro hablante de ese idioma. Esto
+      sigue siendo cierto incluso cuando (o especialmente cuando) la traducción la
+      realiza uno de sus propios programadores. Algunos tipos de sistemas pueden
+      ser más difíciles de probar que otros, dependiendo de la cantidad de jerga y
+      conceptos específicos del dominio involucrados - es más fácil encontrar
+      personas que puedan decirle si aprueban su traducción de "eliminar este
+      mensaje" en una interfaz de correo electrónico a través de la web, que
+      encontrar personas que puedan darle una opinión informada sobre su
+      traducción de "valor de atributo" en la interfaz de una herramienta de
+      consulta XML.</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'>VER_TAMBIÉN</h1>
+<p class="Pp">Recomiendo leer todos estos:</p>
+<p class="Pp">Locale::Maketext::TPJ13 -- mi artículo de <i>The Perl</i>
+    <i>Journal</i> sobre Maketext. Explica muchos conceptos importantes que subyacen
+    al diseño de Locale::Maketext, y una visión de por qué Maketext es mejor que
+    el enfoque antiguo de tener catálogos de mensajes que son solo bases de datos
+    de formatos sprintf.</p>
+<p class="Pp">File::Findgrep es una aplicación/módulo de ejemplo que utiliza
+    Locale::Maketext para localizar sus mensajes. Para un sistema
+    internacionalizado más grande, consulte también Apache::MP3.</p>
+<p class="Pp">I18N::LangTags.</p>
+<p class="Pp">Win32::Locale.</p>
+<p class="Pp">RFC 3066, <i>Tags for the Identification of Languages</i>, en
+    <a href='http://sunsite.dk/RFC/rfc/rfc3066.html'>http://sunsite.dk/RFC/rfc/rfc3066.html</a></p>
+<p class="Pp">RFC 2277, <i>IETF Policy on Character Sets and Languages</i> está
+    en <a href='http://sunsite.dk/RFC/rfc/rfc2277.html'>http://sunsite.dk/RFC/rfc/rfc2277.html</a>
+    - gran parte son solo cosas de interés para los diseñadores de protocolos,
+    pero explica algunos conceptos básicos, como la distinción entre
+    localizaciones y etiquetas de idioma.</p>
+<p class="Pp">El manual de GNU <span class="Li">&quot;gettext&quot;</span>. La
+    distribución gettext está disponible en
+    <span class="Li">&quot;&lt;ftp://prep.ai.mit.edu/pub/gnu/&gt;&quot;</span>
+    - obtenga un tarball reciente de gettext y mire en su directorio
+    "doc/", hay una versión HTML fácilmente navegable allí. La documentación de
+    gettext plantea muchas preguntas que vale la pena considerar, incluso si algunas
+    de sus respuestas son a veces dudosas, particularmente donde empiezan a hablar
+    de pluralización.</p>
+<p class="Pp">El código fuente de Locale/Maketext.pm. Observe que el módulo es
+    mucho más corto que su documentación.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_DISCLAIMER'>DERECHOS_DE_AUTOR_Y_DESCARGO_DE_RESPONSABILIDAD</h1>
+<p class="Pp">Copyright (c) 1999-2004 Sean M. Burke. Todos los derechos
+    reservados.</p>
+<p class="Pp">Esta biblioteca es software libre; puede redistribuirla y/o
+    modificarla bajo los mismos términos que Perl.</p>
+<p class="Pp">Este programa se distribuye con la esperanza de que sea útil,
+    pero sin ninguna garantía; sin siquiera la garantía implícita de
+    comerciabilidad o idoneidad para un propósito particular.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'>AUTOR</h1>
+<p class="Pp">Sean M. Burke
+    <span class="Li">&quot;sburke@cpan.org&quot;</span></p>
+</section>
+</div>
+<table class="foot">
+<tr>
+<td class="foot-date">2025-07-13</td>
+<td class="foot-os">perl v5.42.0</td>
+</tr>
+</table>
+
+</section>
+
+</article>
+<aside id="sidebar">
+
+<section class="search">
+<form action="/search" class="search direct-search" role="search">
+<input type="search" placeholder="Buscar página del manual" name="q" value="" />
+<input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+<p>Información del paquete:</p>
+<dl>
+<dt>Nombre del paquete:</dt>
+<dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+<dt>Versión:</dt>
+<dd>5.42.0-1</dd>
+<dt>Upstream:</dt>
+<dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+<dt>Licencias:</dt>
+<dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+<dt>Manuales:</dt>
+<dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+</dl>
+</section>
+
+<details>
+<summary>Tabla de contenidos</summary>
+<nav class="toc">
+<ul>
+
+<li><a href="#NAME">NOMBRE</a></li>
+
+<li><a href="#SYNOPSIS">SINOPSIS</a></li>
+
+<li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+
+<li><a href="#QUICK_OVERVIEW">VISIÓN GENERAL RÁPIDA</a></li>
+
+<li><a href="#METHODS">MÉTODOS</a></li>
+
+<li><a href="#LANGUAGE_CLASS_HIERARCHIES">JERARQUÍAS DE CLASES DE IDIOMAS</a></li>
+
+<li><a href="#ENTRIES_IN_EACH_LEXICON">ENTRADAS EN CADA LÉXICO</a></li>
+
+<li><a href="#BRACKET_NOTATION">NOTACIÓN DE CORCHETES</a></li>
+
+<li><a href="#BRACKET_NOTATION_SECURITY">SEGURIDAD DE LA NOTACIÓN DE CORCHETES</a></li>
+
+<li><a href="#AUTO_LEXICONS">LÉXICOS AUTO</a></li>
+
+<li><a href="#READONLY_LEXICONS">LÉXICOS DE SOLO LECTURA</a></li>
+
+</ul>
+</nav>
+</details>
+ <li><a href="#CONTROLLING_LOOKUP_FAILURE">CONTROL DE FALLOS DE BÚSQUEDA</a></li>
+        
+            <li><a href="#HOW_TO_USE_MAKETEXT">CÓMO USAR MAKETEXT</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_DISCLAIMER">COPYRIGHT Y RENUNCIA</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Locale::Maketext.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Locale::Maketext.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

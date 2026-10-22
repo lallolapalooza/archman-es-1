@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ckpasswd(8) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">ckpasswd(8)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/inn/">inn</a></p>
+<p class="lic">Licencias: custom:INN</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">CKPASSWD(8)</td>
+    <td class="head-vol">Documentación de InterNetNews</td>
+    <td class="head-rtitle">CKPASSWD(8)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">ckpasswd - autenticador de contraseñas de nnrpd</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<p class="Pp"><b>ckpasswd</b> [<b>-gs</b>] [<b>-d</b> <i>base de datos</i>]
+    [<b>-f</b> <i>nombre de archivo</i>] [<b>-u</b> <i>nombre de usuario</i> <b>-p</b>
+    <i>contraseña</i>]</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>ckpasswd</b> es el autenticador de contraseñas básico para
+    <b>nnrpd</b>, adecuado para ser ejecutado desde una sección auth en
+    <i>readers.conf</i>. Vea <a href='/man/readers.conf.5.en'>readers.conf(5)</a> para más información sobre cómo
+    configurar un autenticador de <b>nnrpd</b>.</p>
+<p class="Pp"><b>ckpasswd</b> acepta un nombre de usuario y una contraseña de
+    <b>nnrpd</b> y le dice a <a href='/man/nnrpd.8.en'>nnrpd(8)</a> si esa es la contraseña correcta para ese
+    nombre de usuario. Por defecto, cuando no se le dan argumentos, intenta verificar la
+    contraseña usando PAM si se encontró soporte para PAM cuando se compiló INN. En caso contrario, intenta verificar la
+    contraseña contra el campo de contraseña devuelto por
+    <a href='/man/getpwnam.3.en'>getpwnam(3)</a>. Tenga en cuenta que hoy en día la mayoría de los sistemas ya no hacen que las contraseñas reales estén disponibles a través de
+    <a href='/man/getpwnam.3.en'>getpwnam(3)</a> (algunos todavía lo hacen si y solo si el
+    programa que llama a <a href='/man/getpwnam.3.en'>getpwnam(3)</a> se está ejecutando como root).</p>
+<p class="Pp">Al usar PAM, <b>ckpasswd</b> se identifica como
+    <span class="Li">&quot;nnrpd&quot;</span>, no como
+    <span class="Li">&quot;ckpasswd&quot;</span>, y la configuración de PAM debe
+    configurarse en consecuencia. Los detalles de la configuración de PAM son diferentes en
+    diferentes sistemas operativos (e incluso diferentes distribuciones de Linux); consulte
+    "EJEMPLOS" a continuación para obtener ayuda para comenzar, y busque una
+    página de manual de <a href='/man/pam.7.en'>pam(7)</a> o <a href='/man/pam.conf.4.en'>pam.conf(4)</a> en su sistema.</p>
+<p class="Pp">Al usar cualquier método que no sea PAM, <b>ckpasswd</b> espera que todas
+    las contraseñas se almacenen cifradas por la función del sistema <a href='/man/crypt.3.en'>crypt(3)</a> y
+    llama a <a href='/man/crypt.3.en'>crypt(3)</a> en la contraseña proporcionada antes de compararla con la
+    contraseña esperada. Se puede usar cualquier algoritmo de hash de contraseñas compatible con su libc o
+    libcrypt.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OPCIONES'><a class='permalink' href='#OPCIONES'>OPCIONES</a></h1>
+<dl class="Bl-tag">
+  <dt id="d"><a class="permalink" href="#d"><b>-d</b> <i>base de datos</i></a></dt>
+  <dd>Leer contraseñas de una base de datos (formato ndbm, gdbm o dbm según lo
+      que tenga su sistema) en lugar de usar <a href='/man/getpwnam.3.en'>getpwnam(3)</a>. <b>ckpasswd</b>
+      espera que existan <i>base de datos</i>.dir y <i>base de datos</i>.pag y que sea una
+      base de datos indexada por nombre de usuario con las contraseñas cifradas como valores.
+    <p class="Pp">Aunque INN no viene con un programa diseñado específicamente para
+        crear tales bases de datos, en la mayoría de los sistemas es bastante fácil escribir un script de Perl
+        para hacerlo. Algo como:</p>
+        <pre>#!/usr/bin/perl
+use NDBM_File;
+use Fcntl;
+tie (%db, 'NDBM_File', '/ruta/a/la/base/de/datos', O_RDWR|O_CREAT, 0640)
+    or die &quot;No se puede abrir /ruta/a/la/base/de/datos: $!\n&quot;;
+$| = 1;
+print &quot;Nombre de usuario: &quot;;
+my $user = &lt;STDIN&gt;;
+chomp $user;
+print &quot;Contraseña: &quot;;
+my $passwd = &lt;STDIN&gt;;
+chomp $passwd;
+my @alphabet = ('.', '/', 0..9, 'A'..'Z', 'a'..'z');
+my $salt = join '', @alphabet[rand 64, rand 64];
+$db{$user} = crypt ($passwd, $salt);
+untie %db;
+</pre>
+    <p class="Pp">Tenga en cuenta que esto repetirá la contraseña al escribirla; hay mejoras obvias que se podrían hacer a esto, pero debería ser un punto de partida razonable. A veces, un programa como este estará disponible con el nombre
+        <b>dbmpasswd</b>.</p>
+    <p class="Pp">Esta opción no estará disponible en sistemas sin bibliotecas ndbm,
+        gdbm o dbm.</p>
+  </dd>
+  <dt id="f"><a class="permalink" href="#f"><b>-f</b> <i>nombre de archivo</i></a></dt>
+  <dd>Leer contraseñas del archivo dado en lugar de usar <a href='/man/getpwnam.3.en'>getpwnam(3)</a>.
+      Cada línea del archivo debería parecerse a:
+        <pre>nombredeusuario:$5$Hlb2yXPd$2nOO/QR9P1mnRFr/i6L9ybxbgSDXd4UlatKqbcY4eoB
+joe:FCjOJnpOo50IE:Se utilizó un algoritmo de hash débil antiguo para Joe
+</pre>
+    <p class="Pp">Cada línea tiene al menos dos campos separados por dos puntos. El primer campo contiene el nombre de usuario; el segundo campo contiene una contraseña cifrada con la función <a href='/man/crypt.3.en'>crypt(3)</a>. Pueden aparecer dos puntos y datos adicionales después de la contraseña cifrada; esos datos serán ignorados por
+        <b>ckpasswd</b>. Las líneas que comienzan con un signo de almohadilla
+        (<span class="Li">&quot;#&quot;</span>) se ignoran.</p>
+    <p class="Pp">INN no viene con una utilidad para crear las contraseñas cifradas,
+        pero OpenSSL puede hacerlo y también es un trabajo rápido con Perl
+        (vea el script de una línea a continuación).</p>
+    <p class="Pp">Una línea en <i>nombre de archivo</i> para el usuario
+        <span class="Li">&quot;usuario&quot;</span> con la contraseña
+        <span class="Li">&quot;contraseña&quot;</span> sería
+        <span class="Li">&quot;usuario:&quot;</span> seguido de la salida del
+        siguiente comando usando SHA-256 como esquema de hash:</p>
+        <pre>% openssl passwd -5 contraseña
+$5$UIhtJSBOaC0Ap3Vk$nbKgmykshoQ2HmvA3s/nI.X4uhhNHBKTYhBS3pYLjJ6
+</pre>
+    <p class="Pp">Vea la página de manual de <a href='/man/openssl-passwd.1.en'>openssl-passwd(1)</a> para la lista de
+        esquemas de hash que puede generar. Debe elegir uno que su función
+        <a href='/man/crypt.3.en'>crypt(3)</a> del sistema maneje (escriba <span class="Li">&quot;man 3
+        crypt&quot;</span> o <span class="Li">&quot;man 5 crypt&quot;</span> para
+        encontrar los esquemas de hash compatibles).</p>
+    <p class="Pp">En caso de que OpenSSL no esté instalado en su servidor, también
+        puede usar el siguiente comando Perl que hace el mismo trabajo con SHA-256 (vea los detalles a continuación para configurar
+        <span class="Li">&quot;SuSal&quot;</span> en un valor apropiado;
+        <span class="Li">5</span> es el prefijo para SHA-256,
+        que no espera ningún parámetro):</p>
+        <pre>% perl -le 'print crypt(&quot;contraseña&quot;, q{$5$SuSal$})'
+$5$SuSal$V5hqwFg1nhKb5as6md9KTe5b2NyavsMS6dBYVKfp5W7
+</pre>
+    <p class="Pp">Como Perl utiliza <a href='/man/crypt.3.en'>crypt(3)</a>, tiene acceso a todos
+        los esquemas de hash disponibles en sus sistemas. Por ejemplo, si yescript es compatible, puede generar una contraseña cifrada con un argumento como
+        <span class="Li">&quot;$y$j9T$SuSal$&quot;</span> a la función crypt de Perl
+        , donde <span class="Li">&quot;y&quot;</span> es el prefijo para
+        yescript, <span class="Li">&quot;j9T&quot;</span> los parámetros pasados
+        a <a href='/man/crypt_gensalt.3.en'>crypt_gensalt(3)</a> para generar la contraseña cifrada (estos
+        parámetros controlan la configuración de yescript, y corresponden en este
+        ejemplo a la bandera
+        <span class="Li">&quot;YESCRYPT_DEFAULTS&quot;</span>,
+        el sabor recomendado que tiene
+        el valor <span class="Li">&quot;j&quot;</span> en 2023, con un factor de coste de
+        4096 como recuento de bloques y 32 como tamaño de bloque) y
+        <span class="Li">&quot;SuSal&quot;</span> una cadena que debe elegirse al azar y ser diferente para cada usuario. La sintaxis y la longitud óptima de la sal dependen del esquema de hash (por ejemplo, una longitud múltiplo de 4 para yescript) y de las recomendaciones criptográficas (por ejemplo, al menos 32 bits aleatorios de longitud, siguiendo las recomendaciones de NIST SP 800-63B en 2023).</p>
+    <p class="Pp">En resumen, en el siguiente comando, solo tiene que cambiar la contraseña <span class="Li">&quot;contraseña&quot;</span> y
+        la cadena aleatoria <span class="Li">&quot;SuSal&quot;</span>, diferente para
+      **cada** usuario, y dejar el resto del comando tal cual:</p>
+        <pre>% perl -le 'print crypt(&quot;contraseña&quot;, q{$y$j9T$SuSal$})'
+$y$j9T$SuSal$X4tB48vKNDT6mK0vNOc7ppKPWvEsyMg5LwoQfO50r2A
+</pre>
+    <p class="Pp">Una sal aleatoria de 12 caracteres se puede obtener con el
+        siguiente comando (el resultado corresponde a 72 bits aleatorios ya que cada carácter se selecciona en un rango de 6 bits de 64 caracteres posibles):</p>
+        <pre>% perl -le 'print join(&quot;&quot;,
+      (&quot;.&quot;, &quot;/&quot;, 0..9, A..Z, a..z)[map {rand 64} (1..12)])'
+k2W/17eJu58r
+</pre>
+  </dd>
+  <dt id="g"><a class="permalink" href="#g"><b>-g</b></a></dt>
+  <dd>Intentar buscar el grupo del sistema correspondiente al nombre de usuario y devolver una cadena como
+      <span class="Li">&quot;usuario@grupo&quot;</span> para que coincida en
+      <i>readers.conf</i>. Esta opción es incompatible con las
+      opciones <b>-d</b> y <b>-f</b>.</dd>
+  <dt id="p"><a class="permalink" href="#p"><b>-p</b> <i>contraseña</i></a></dt>
+  <dd>Usar <i>contraseña</i> como contraseña para la autenticación en lugar de leer una
+      contraseña usando el protocolo de autenticación de <b>nnrpd</b>. Esta opción es útil solo para probar su sistema de autenticación (particularmente ya que implica poner una contraseña en la línea de comandos), y no funciona cuando
+      <b>ckpasswd</b> es ejecutado por <b>nnrpd</b>. Si se proporciona esta opción, también se debe proporcionar <b>-u</b>.</dd>
+  <dt id="s"><a class="permalink" href="#s"><b>-s</b></a></dt>
+  <dd>Verificar las contraseñas contra el resultado de <a href='/man/getspnam.3.en'>getspnam(3)</a> en lugar de
+      <a href='/man/getpwnam.3.en'>getpwnam(3)</a>. Esta función, en aquellos sistemas que la soportan, lee de
+      <i
+</dd>
+</dl>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+        <footer>
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>ckpasswd(8) - Arch Linux Man Pages</title>
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="stylesheet" href="/css/man-page.css">
+        <link rel="icon" href="/favicon.ico">
+    </head>
+    <body>
+        <main>
+            <article>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+<p class="Nd">ckpasswd - check a password against a password file</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+<p class="Pp"><a class="Xr" href="#ckpasswd">ckpasswd</a> [<a class="Ic">options</a>]
+    &lt; <i>input-file</i></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+<p class="Pp"><b>ckpasswd</b> is a helper program intended to be used by
+    servers that need to authenticate users, such as <b><a href="/man/nnrpd.8.en">nnrpd(8)</a></b>.
+    It reads a username and password from its standard input and checks them
+    against a password file, printing an error message to standard error and
+    exiting with a non-zero status on failure, or printing the username to
+    standard output and exiting with status 0 on success.</p>
+<p class="Pp"><b>ckpasswd</b> can be configured to use various authentication
+    methods. By default, it uses the standard C library functions to look up
+    users and check passwords. This typically means checking against the system's
+    user database (often managed by <b><a href="/man/passwd.5.en">passwd(5)</a></b>
+    and <b><a href="/man/shadow.5.en">shadow(5)</a></b>).</p>
+<p class="Pp">It can also be configured to use PAM (Pluggable Authentication
+    Modules) for authentication, allowing more flexible authentication methods.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="OPTIONS"><a class="permalink" href="#OPTIONS">OPTIONS</a></h1>
+<dl class="Bl-tag">
+  <dt id="f"><a class="permalink" href="#f"><b>-f</b> <i>passwd-file</i></a></dt>
+  <dd>Use <i>passwd-file</i> instead of the system's default password and
+      shadow files. This file should be in the format used by <b><a href="/man/passwd.5.en">passwd(5)</a></b>.
+      This option is primarily useful for testing or for servers that maintain
+      their own password files.</dd>
+  <dt id="p"><a class="permalink" href="#p"><b>-p</b></a></dt>
+  <dd>Check passwords against the system's password database, including the
+      password information stored in the <span class="Li"><b>/etc/shadow</b></span>
+      or similar more restricted files. If you want to check passwords supplied to
+      <a href="/man/nnrpd.8.en">nnrpd(8)</a> against system account
+      passwords, you will probably have to use this option on most systems.
+    <p class="Pp">Most systems require special privileges to call
+        <a href="/man/getspnam.3.en">getspnam(3)</a>, so in order to use this option you may need to make
+        <b>ckpasswd</b> setgid to some group (like group
+        <span class="Li">&quot;shadow&quot;</span>) or even setuid root.
+        <b>ckpasswd</b> has not been specifically audited for such uses! It is,
+        however, a very small program that you should be able to check by hand
+        for security.</p>
+    <p class="Pp">This configuration is not recommended if it can be avoided,
+        for serious security reasons. See &quot;SECURITY CONSIDERATIONS&quot; in
+        <a href="/man/readers.conf.5.en">readers.conf(5)</a> for discussion.</p>
+  </dd>
+  <dt id="u"><a class="permalink" href="#u"><b>-u</b> <i>username</i></a></dt>
+  <dd>Authenticate as <i>username</i>. This option is useful only for testing
+      (so that you can test your authentication system easily) and does not work
+      when <b>ckpasswd</b> is run by <b>nnrpd</b>. If this option is given,
+      <b>-p</b> must also be given.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="EXAMPLES"><a class="permalink" href="#EXAMPLES">EXAMPLES</a></h1>
+<p class="Pp">See <a href="/man/readers.conf.5.en">readers.conf(5)</a> for examples of <a href="/man/nnrpd.8.en">nnrpd(8)</a>
+    authentication configuration that uses <b>ckpasswd</b> to check
+    passwords.</p>
+<p class="Pp">An example PAM configuration for <i>/etc/pam.conf</i> that tells
+    <b>ckpasswd</b> to check usernames and passwords against system accounts
+    is:</p>
+<pre>nnrpd auth    required pam_unix.so
+nnrpd account required pam_unix.so</pre>
+<p class="Pp">Your system may want you to instead create a file named
+    <i>nnrpd</i> in <i>/etc/pam.d</i> with lines like:</p>
+<pre>auth    required pam_unix.so
+account required pam_unix.so</pre>
+<p class="Pp">This is only the simplest configuration. You may be able to
+    include common shared files, and you may want to stack other modules, either
+    to allow different authentication methods or to apply restrictions like
+    lists of users who can't authenticate using <b>ckpasswd</b>. The best guide
+    is the documentation for your system and the other PAM configurations you're
+    already using.</p>
+<p class="Pp">To test to make sure that <b>ckpasswd</b> is working correctly,
+    you can run it manually and then give it the username (prefixed with
+    <span class="Li">&quot;ClientAuthname:&quot;</span>) and password (prefixed
+    with <span class="Li">&quot;ClientPassword:&quot;</span>) on standard input.
+    For example:</p>
+<pre>(echo 'ClientAuthname: test' ; echo 'ClientPassword: testing') \
+    | ckpasswd -f /path/to/passwd/file</pre>
+<p class="Pp">will check a username of <span class="Li">&quot;test&quot;</span>
+    and a password of <span class="Li">&quot;testing&quot;</span> against the
+    username and passwords stored in <i>/path/to/passwd/file</i>. On success,
+    <b>ckpasswd</b> will print <span class="Li">&quot;User:test&quot;</span> and
+    exit with status <span class="Li">0</span>. On failure, it will print some
+    sort of error message and exit a non-zero status.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="HISTORY"><a class="permalink" href="#HISTORY">HISTORY</a></h1>
+<p class="Pp">Written by Russ Allbery &lt;eagle@eyrie.org&gt; for
+    InterNetNews.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE   ALSO</a></h1>
+<p class="Pp"><a class="Xr" href="/man/crypt.3.en">crypt(3)</a>, <a class="Xr" href="/man/nnrpd.8.en">nnrpd(8)</a>, <a class="Xr" href="/man/pam.7.en">pam(7)</a>,
+    <a class="Xr" href="/man/readers.conf.5.en">readers.conf(5)</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2023-03-07</td>
+    <td class="foot-os">INN 2.7.3</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/inn/">extra/inn</a></dd>
+        <dt>Version:</dt>
+        <dd>2.7.3-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.isc.org/othersoftware/">https://www.isc.org/othersoftware/</a></dd>
+        <dt>Licenses:</dt>
+        <dd>custom:INN</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/inn/">/listing/extra/inn/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#OPTIONS">OPTIONS</a></li>
+        
+            <li><a href="#EXAMPLES">EXAMPLES</a></li>
+        
+            <li><a href="#HISTORY">HISTORY</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/ckpasswd.8.en.txt">txt</a>, 
+        
+            <a href="/man/ckpasswd.8.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

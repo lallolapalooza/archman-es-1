@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Pegex::API(3pm) — Manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Pegex__API(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-pegex/">perl-pegex</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Pegex::API(3)</td>
+    <td class="head-vol">Documentación aportada por el usuario de Perl</td>
+    <td class="head-rtitle">Pegex::API(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='La_API_de_Pegex'><a class='permalink' href='#La_API_de_Pegex'>La API de Pegex</a></h1>
+<p class="Pp">Pegex se puede usar de muchas maneras: dentro de scripts, desde la línea de comandos o como base de un marco de trabajo de análisis modular. Este documento detalla las diversas formas de usar Pegex.</p>
+<p class="Pp">En el nivel más abstracto, Pegex funciona así:</p>
+<pre>$resultado = $parser-&gt;new($gramatica, $receptor)-&gt;parse($entrada);</pre>
+<p class="Pp">Es decir, abstractamente: un analizador Pegex, bajo la dirección de una gramática Pegex, analiza un flujo de entrada y reporta las coincidencias a un receptor Pegex, que produce un resultado.</p>
+<p class="Pp">El analizador, la gramática, el receptor e incluso la entrada, son objetos Pegex. Estos 4 objetos están involucrados en cada operación de análisis de Pegex, así que revisémoslos brevemente:</p>
+<dl class="Bl-tag">
+  <dt id="Pegex::Parser"><a class="permalink" href="#Pegex::Parser">Pegex::Parser</a></dt>
+  <dd>El motor de análisis de Pegex. Este motor aplica la lógica de la gramática a un texto de entrada. Un objeto <span class="Li">parser</span> contiene un objeto <span class="Li">grammar</span> y un objeto <span class="Li">receiver</span>. Su método principal se llama <span class="Li">&quot;parse&quot;</span>. El motor de análisis predeterminado es de tipo descenso recursivo y sin retroceso. Sin embargo, existen subclases de analizador para varios tipos alternativos de análisis.</dd>
+  <dt id="Pegex::Grammar"><a class="permalink" href="#Pegex::Grammar">Pegex::Grammar</a></dt>
+  <dd>Una gramática Pegex comienza como un archivo/cadena de texto compuesta en la sintaxis de **Pegex**. Antes de que pueda ser utilizada por un Analizador, debe ser compilada. Después de la compilación, se convierte en un árbol de datos que consiste en reglas y expresiones regulares. En módulos basados en una gramática Pegex, la gramática se compilará en un archivo de clase. Pegex en sí mismo utiliza una clase de gramática Pegex llamada Pegex::Pegex::Grammar para analizar varias gramáticas Pegex.</dd>
+  <dt id="Pegex::Receiver"><a class="permalink" href="#Pegex::Receiver">Pegex::Receiver</a></dt>
+  <dd>Un analizador por sí solo no tiene idea de qué hacer con el texto que coincide. Un <span class="Li">receptor</span> de Pegex es una clase que contiene métodos que corresponden a las reglas de una gramática. A medida que una regla en la gramática coincide, se llama a su método receptor correspondiente (si existe) con los datos que han coincidido. Es trabajo del receptor tomar acción sobre los datos, a menudo construyéndolos en alguna nueva estructura. Pegex usará Pegex::Tree::Wrap como receptor predeterminado; produce un árbol razonablemente legible de los datos coincidentes/capturados.</dd>
+  <dt id="Pegex::Input"><a class="permalink" href="#Pegex::Input">Pegex::Input</a></dt>
+  <dd>Pegex también abstrae sus flujos de entrada en una interfaz de objeto. Cualquier operación que pueda tomar una cadena de entrada, también puede tomar un objeto de entrada. Pegex convertirá cadenas regulares en estos objetos. Este es probablemente el concepto de API que encontrará con menos frecuencia, pero se cubre aquí para completitud.</dd>
+</dl>
+<p class="Pp">Todas estas clases de objetos pueden ser subclasificadas para lograr varios resultados. Normalmente, escribirá su propia gramática Pegex y un receptor Pegex para lograr una tarea.</p>
+<section class="Ss">
+<h2 class="Ss" id='Comenzando_de_forma_sencilla_-_La_función_&amp;quot;pegex&amp;quot;'><a class='permalink' href='#Comenzando_de_forma_sencilla_-_La_función_&amp;quot;pegex&amp;quot;'>Comenzando de forma sencilla - La función "pegex"</a></h2>
+<p class="Pp">El módulo Pegex exporta una función llamada <span class="Li">&quot;pegex&quot;</span> que puede usar para tareas más pequeñas. Aquí hay un ejemplo:</p>
+<pre>use Pegex;
+use YAML;
+$gramatica = &quot;
+expr: num PLUS num
+num: /( DIGIT+ )/
+&quot;;
+print Dump pegex($gramatica)-&gt;parse('2+2');</pre>
+<p class="Pp">Este programa produciría:</p>
+<pre>expr:
+- num: 2
+- num: 2</pre>
+<p class="Pp">Repasemos qué está sucediendo aquí. El módulo Pegex está exportando una función <span class="Li">&quot;pegex&quot;</span>. Esta función toma una cadena de gramática Pegex como entrada. Internamente, esta función compila la cadena de gramática en un objeto de gramática. Luego crea un objeto analizador que contiene el objeto de gramática y lo devuelve.</p>
+<p class="Pp">Se llama al método parse en la cadena de entrada: <span class="Li">'2+2'</span>. La cadena coincide y se devuelve una estructura de datos agradable.</p>
+<p class="Pp">Entonces, ¿cómo se creó la estructura de datos? ¡Por el objeto receptor, por supuesto! Pero no especificamos uno, ¿verdad? No. Usó el receptor predeterminado, Pegex::Tree::Wrap. Podríamos haber dicho:</p>
+<pre>print Dump pegex($gramatica, 'Pegex::Tree::Wrap')-&gt;parse('2+2');</pre>
+<p class="Pp">Este receptor básicamente genera un mapeo, donde los nombres de las reglas de las coincidencias son las claves y los valores hoja son las capturas de expresiones regulares.</p>
+<p class="Pp">El receptor más básico llamado Pegex::Tree genera un árbol de secuencias que contienen solo los datos (sin los nombres de las reglas). Este código:</p>
+<pre>print Dump pegex($gramatica, 'Pegex::Tree')-&gt;parse('2+2');</pre>
+<p class="Pp">produciría:</p>
+<pre>- 2
+- 2</pre>
+<p class="Pp">Si escribiéramos nuestra propia clase receptora llamada <span class="Li">&quot;Calculator&quot;</span> como esta:</p>
+<pre>package Calculator;
+use base 'Pegex::Tree';
+sub got_expr {
+    my ($receptor, $data) = @_;
+    my ($a, $b) = @$data;
+    return $a + $b;
+}</pre>
+<p class="Pp">Entonces, esto:</p>
+<pre>print pegex(gramatica, 'Calculator')-&gt;parse('2+2');</pre>
+<p class="Pp">imprimiría:</p>
+<pre>4</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Uso_más_explícito'><a class='permalink' href='#Uso_más_explícito'>Uso más explícito</a></h2>
+<p class="Pp">Continuando con el ejemplo anterior, veamos cómo hacerlo un poco más formalmente.</p>
+<pre>use Pegex::Parser;
+use Pegex::Grammar;
+use Pegex::Tree;
+use Pegex::Input;
+use YAML;
+$cadena_gramatica = &quot;
+expr: num PLUS num
+num: /( DIGIT+ )/
+&quot;;
+$gramatica = Pegex::Grammar-&gt;new(text =&gt; $cadena_gramatica);
+$receptor = Pegex::Tree-&gt;new();
+$parser = Pegex::Parser-&gt;new(
+    grammar =&gt; $gramatica,
+    receiver =&gt; $receptor,
+);
+$input = Pegex::Input-&gt;new(string =&gt; '2+2');
+print Dump $parser-&gt;parse($input);</pre>
+<p class="Pp">Este código hace lo mismo que el primer ejemplo, pero esta vez hemos creado todos los objetos nosotros mismos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Gramáticas_precompiladas'><a class='permalink' href='#Gramáticas_precompiladas'>Gramáticas precompiladas</a></h2>
+<p class="Pp">Si distribuyes una gramática Pegex como parte de una distribución CPAN, querrás que esté precompilada en un módulo. Pegex lo facilita.</p>
+<p class="Pp">Digamos que la cadena de gramática se almacena en un archivo llamado <span class="Li">&quot;share/expr.pgx&quot;</span>. Si creas un módulo llamado <span class="Li">&quot;lib/MyThing/Grammar.pm&quot;</span> con contenido como este:</p>
+<pre>package MyThing::Grammar;
+use base 'Pegex::Grammar';
+use constant file =&gt; './share/expr.pgx';
+sub make_tree {
+}
+1;</pre>
+<p class="Pp">Luego ejecuta este comando:</p>
+<pre>perl -Ilib -MMyThing::Grammar=compile</pre>
+<p class="Pp">Reescribirá tu módulo para que se parezca a esto:</p>
+<pre>package MyThing::Grammar;
+use base 'Pegex::Grammar';
+use constant file =&gt; './share/expr.pgx';
+sub make_tree {
+  { '+toprule' =&gt; 'expr',
+    'PLUS' =&gt; { '.rgx' =&gt; qr/\G\+/ },
+    'expr' =&gt; {
+      '.all' =&gt; [
+        { '.ref' =&gt; 'num' },
+        { '.ref' =&gt; 'PLUS' },
+        { '.ref' =&gt; 'num' }
+      ]
+    },
+    'num' =&gt; { '.rgx' =&gt; qr/\G([0-9]+)/ }
+  }
+}
+1;</pre>
+<p class="Pp">Este comando encontró el archivo donde está tu gramática, la compiló y usó Data::Dumper para volcarla de nuevo en el método <span class="Li">&quot;make_tree&quot;</span> de tu módulo.</p>
+<p class="Pp">Así es como se ve una gramática Pegex compilada. Tan pronto como este módulo se carga, la gramática está lista para ser utilizada por Pegex.</p>
+<p class="Pp"><i>Recompilación automática durante el desarrollo con variable de entorno</i></p>
+<p class="Pp">Si te encuentras necesitando compilar tu módulo de gramática muchas veces durante el desarrollo, simplemente establece esta variable de entorno así:</p>
+<pre>export PERL_PEGEX_AUTO_COMPILE=MyThing::Grammar</pre>
+<p class="Pp">Ahora, cada vez que se cargue el módulo de gramática, comprobará si necesita ser recompilado y lo hará sobre la marcha.</p>
+<p class="Pp">Si tienes más de una gramática que recompilar, simplemente lista todos los nombres separados por comas.</p>
+<p class="Pp"><i>Recompilación automática durante el desarrollo usando</i> <span class="Li"><i>&quot;make&quot;</i></span></p>
+<p class="Pp">Alternativamente, si tu módulo utiliza <span class="Li">&quot;ExtUtils::MakeMaker&quot;</span>, puedes hacer que <span class="Li">&quot;make&quot;</span> reconstruya automáticamente tu clase <span class="Li">&quot;Grammar&quot;</span> si tu archivo <span class="Li">&quot;.pgx&quot;</span> se actualiza.</p>
+<p class="Pp">Simplemente agrega esto al final de tu <span class="Li">&quot;Makefile.PL&quot;</span>:</p>
+<pre>sub MY::postamble {
+  &lt;&lt;EOF;
+lib/MyThing/Grammar.pm : share/expr.pgx
+	\$(PERL) -Ilib -MMyThing::Grammar=compile
+EOF
+}</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Ver_también'><a class='permalink' href='#Ver_también'>Ver también</a></h1>
+<ul class="Bl-bullet">
+  <li>Pegex::Parser</li>
+  <li>Pegex::Grammar</li>
+  <li>Pegex::Receiver</li>
+  <li>Pegex::Tree</li>
+  <li>Pegex::Tree::Wrap</li>
+  <li>Pegex::Input</li>
+</ul>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" method="get">
+        <input type="text" name="q" placeholder="Buscar en los manuales..." />
+        <button type="submit">Buscar</button>
+    </form>
+</section>
+
+            </aside>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-pegex/">extra/perl-pegex</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.75-7</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Pegex">https://metacpan.org/release/Pegex</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-pegex/">/listing/extra/perl-pegex/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#La_API_de_Pegex">La API de Pegex</a></li>
+        
+            <li><a href="#Ver_Tambien">Ver También</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Pegex::API.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/Pegex::API.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

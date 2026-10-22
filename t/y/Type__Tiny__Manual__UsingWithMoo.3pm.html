@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Type::Tiny::Manual::UsingWithMoo(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Type__Tiny__Manual__UsingWithMoo(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Type::Tiny::Manual::UsingWithMoo(3)</td>
+    <td class="head-vol">Documentación aportada por el usuario de Perl</td>
+    <td class="head-rtitle">Type::Tiny::Manual::UsingWithMoo(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Type::Tiny::Manual::UsingWithMoo - uso básico de Type::Tiny con Moo</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MANUAL'><a class='permalink' href='#MANUAL'> MANUAL</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Restricciones_de_tipo'><a class='permalink' href='#Restricciones_de_tipo'> Restricciones de tipo</a></h2>
+<p class="Pp">Considera la siguiente clase Moo básica:</p>
+<pre>package Horse {
+  use Moo;
+  use namespace::autoclean;
+
+  has name       => ( is => 'ro' );
+  has gender     => ( is => 'ro' );
+  has age        => ( is => 'rw' );
+  has children   => ( is => 'ro', default => sub { [] } );
+}</pre>
+<p class="Pp">Código como este parece bastante simple:</p>
+<pre>my $br = Horse-&gt;new(name =&gt; "Bold Ruler", gender =&gt; 'm', age =&gt; 16);
+push @{ $br-&gt;children },
+  Horse-&gt;new(name =&gt; 'Secretariat', gender =&gt; 'm', age =&gt; 0);</pre>
+<p class="Pp">Sin embargo, una vez que te alejas del uso muy simple de la clase,
+    las cosas pueden empezar a salir mal. Cuando insertamos un nuevo caballo en
+    <span class="Li">"@{ $br-&gt;children }"</span>, asumimos que
+    <span class="Li">"$br-&gt;children"</span> devolvió un arrayref.</p>
+<p class="Pp">¿Qué pasa si el código que creó el caballo <span class="Li">$br</span>
+    lo instanció de esta manera?</p>
+<pre>my $br = Horse-&gt;new(name =&gt; "Bold Ruler", children =&gt; 'no');</pre>
+<p class="Pp">Es por esta razón que es útil que la clase Horse realice algunas
+    comprobaciones básicas de cordura en sus propios atributos.</p>
+<pre>package Horse {
+  use Moo;
+  use Types::Standard qw( Str Num ArrayRef );
+  use namespace::autoclean;
+
+  has name       => ( is => 'ro', isa => Str );
+  has gender     => ( is => 'ro', isa => Str );
+  has age        => ( is => 'rw', isa => Num );
+  has children   => (
+    is      => 'ro',
+    isa     => ArrayRef,
+    default => sub { return  [] },
+  );
+}</pre>
+<p class="Pp">Ahora, si instanciaras un caballo de esta manera, lanzará un
+    error:</p>
+<pre>my $br = Horse-&gt;new(name =&gt; "Bold Ruler", children =&gt; 'no');</pre>
+<p class="Pp">La primera restricción de tipo que usamos aquí fue <b>Str</b>.
+    Esta es una restricción de tipo que requiere que los valores sean cadenas
+    de texto.</p>
+<p class="Pp">Ten en cuenta que aunque <span class="Li">"undef"</span> no es
+    una cadena de texto, la cadena de texto vacía sigue siendo una cadena de
+    texto y a menudo querrás comprobar que una cadena de texto no esté vacía.
+    Podríamos haber hecho esto:</p>
+<pre>use Types::Common::String qw( NonEmptyStr );
+has name =&gt; ( is =&gt; 'ro', isa =&gt; NonEmptyStr );</pre>
+<p class="Pp">Mientras que la mayoría de las restricciones de tipo que usaremos en
+    este manual se definen en Types::Standard, la biblioteca de tipos
+    Types::Common::String también define muchas restricciones de tipo
+    útiles.</p>
+<p class="Pp">Hemos requerido que la edad del caballo sea un número. Esta es
+    también una restricción de tipo común y útil. Si queremos asegurarnos de
+    que sea un número entero, podríamos usar:</p>
+<pre>use Types::Standard qw( Int );
+has age =&gt; ( is =&gt; 'rw', isa =&gt; Int );</pre>
+<p class="Pp">O, dado que los números negativos tienen poco sentido como edad:</p>
+<pre>use Types::Common::Numeric qw( PositiveOrZeroInt );
+has age =&gt; ( is =&gt; 'rw', isa =&gt; PositiveOrZeroInt );</pre>
+<p class="Pp">La biblioteca Types::Common::Numeric define muchos subtipos útiles de
+    <b>Int</b> y <b>Num</b>, como <b>PositiveInt</b> y
+    <b>PositiveOrZeroInt</b>.</p>
+<p class="Pp">La última restricción de tipo que hemos usado en este ejemplo es
+    <b>ArrayRef</b>. Esto requiere que el valor sea una referencia a un array.</p>
+<p class="Pp">Types::Standard también proporciona las restricciones de tipo
+    <b>HashRef</b> y <b>CodeRef</b>. Un ejemplo de uso de esta última:</p>
+<pre>package Task {
+  use Moo;
+  use Types::Standard qw( CodeRef Bool );
+  has on_success =&gt; ( is =&gt; 'ro', isa =&gt; CodeRef );
+  has on_failure =&gt; ( is =&gt; 'ro', isa =&gt; CodeRef );
+  has finished   =&gt; ( is =&gt; 'ro', isa =&gt; Bool, default =&gt; 0 );
+  ...;
+}
+
+my $task = Task-&gt;new(
+  on_success =&gt; sub { ... },
+  on_failure =&gt; sub { ... },
+  ...,
+);</pre>
+<p class="Pp">La restricción de tipo <b>Bool</b> acepta "1" como valor verdadero y
+    "0", "" o undef como valores falsos. No se aceptan otros valores.</p>
+<p class="Pp">Existe una restricción de tipo <b>Object</b> que acepta cualquier
+    objeto bendecido.</p>
+<pre>package Horse {
+  use Moo;
+  use Types::Standard qw( Object );
+  use namespace::autoclean;
+
+  ...;  # name, gender, age, children
+  has father =&gt; ( is =&gt; 'ro', isa =&gt; Object );
+  has mother =&gt; ( is =&gt; 'ro', isa =&gt; Object );
+}</pre>
+<p class="Pp">Finalmente, otra restricción de tipo útil a tener en cuenta es
+    <b>Any</b>:</p>
+<pre>use Types::Standard qw( Any );
+has stuff =&gt; ( is =&gt; 'rw', isa =&gt; Any );</pre>
+<p class="Pp">Esta restricción de tipo permite cualquier valor; es esencialmente
+    lo mismo que no hacer ninguna comprobación de tipo, pero aclara tu
+    intención. Siempre que sea posible, Type::Tiny optimizará esta comprobación
+    de tipo, por lo que debería tener poco (si es que alguno) impacto en el
+    rendimiento.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Tipos_paramétricos'><a class='permalink' href='#Tipos_paramétricos'> Tipos paramétricos</a></h2>
+<p class="Pp">Imaginemos que queremos llevar la cuenta de las victorias de carreras
+    de nuestro caballo:</p>
+<pre>package Horse {
+  use Moo;
+  use Types::Standard qw( Str Num ArrayRef );
+  use namespace::autoclean;
+
+  ...;  # name, gender, age, children
+  has wins =&gt; (
+    is      =&gt; 'ro',
+    isa     =&gt; ArrayRef,
+    default =&gt; sub { return [] },
+  );
+}</pre>
+<p class="Pp">Podemos crear un caballo así:</p>
+<pre>my $br = Horse-&gt;new(
+  name    =&gt; "Bold Ruler",
+  gender  =&gt; 'm',
+  age     =&gt; 4,
+  wins    =&gt; ["Futurity Stakes 1956", "Juvenile Stakes 1956"],
+);</pre>
+<p class="Pp">La lista de victorias es un arrayref de cadenas. La restricción de
+    tipo <b>ArrayRef</b> evita que se establezca como un hashref, por ejemplo,
+    pero no asegura que todo en el arrayref sea una cadena. Para hacer eso,
+    necesitamos parametrizar la restricción de tipo:</p>
+<pre>has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[Str],
+  default =&gt; sub { return [] },
+);</pre>
+<p class="Pp">Gracias al tipo paramétrico <b>ArrayRef[Str]</b>, el constructor
+    lanzará un error si el arrayref que le pasas contiene algo que no sea una
+    cadena.</p>
+<p class="Pp">Una forma alternativa de escribir esto es:</p>
+<pre>has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef-&gt;of(Str),
+  default =&gt; sub { return [] },
+);</pre>
+<p class="Pp">Qué forma elijas es en gran medida una preferencia de estilo. ¡TIMTOWTDI!
+    (Hay más de una manera de hacerlo).</p>
+<p class="Pp">Ten en cuenta que aunque el constructor y cualquier método setter/accessor
+    realizarán comprobaciones de tipo, es posible eludirlas usando:</p>
+<pre>push @{ $br-&gt;wins }, $not_a_string;</pre>
+<p class="Pp">Aquí no se llama al constructor, y aunque sí se llama al accessor,
+    se llama como lector, no como escritor, por lo que nunca tiene la oportunidad
+    de inspeccionar el valor que se está añadiendo. (Es posible usar
+    <span class="Li">"tie"</span> para resolver esto, pero eso se cubrirá más
+    adelante).</p>
+<p class="Pp">Y, por supuesto, si manipulas directamente el hashref subyacente del
+    objeto, todas las apuestas están perdidas:</p>
+<pre>$br-&gt;{wins} = $not_an_arrayref;</pre>
+<p class="Pp">Así que las restricciones de tipo tienen limitaciones. Un diseño de API
+    cuidadoso (y no eludir la API adecuada) puede ayudar.</p>
+<p class="Pp">La restricción de tipo <b>HashRef</b> también se puede parametrizar:</p>
+<pre>package Design {
+  use Moo;
+  use Types::Standard qw( HashRef Str );
+  has colours =&gt; ( is =&gt; 'ro', isa =&gt; HashRef[Str] );
+}
+
+my $eiffel65 = Design-&gt;new(
+  colours =&gt; { house =&gt; "blue", little_window =&gt; "blue" },
+);</pre>
+<p class="Pp">La restricción de tipo <b>HashRef[Str]</b> asegura que los
+    *valores* del hashref sean cadenas; no comprueba las claves del hashref
+    porque las claves en los hashes de Perl ¡siempre son cadenas!</p>
+<p class="Pp">Si necesitas restringir las claves, es posible usar una restricción
+    paramétrica <b>Map</b>:</p>
+<pre>use Types::Common::String qw( NonEmptyStr );
+use Types::Standard qw( Map );
+has colours =&gt; ( is =&gt; 'ro', isa =&gt; Map[NonEmptyStr, NonEmptyStr] );</pre>
+<p class="Pp"><b>Map</b> toma dos parámetros; el primero es un tipo para comprobar
+    las claves y el segundo es un tipo para comprobar los valores.</p>
+<p class="Pp">Otra restricción de tipo útil es la restricción de tipo
+    <b>Tuple</b>.</p>
+<pre>use Types::Standard qw( ArrayRef Tuple );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[ Tuple[PositiveInt, NonEmptyStr] ],
+  default =&gt; sub { return [] },
+);</pre>
+<p class="Pp">La restricción de tipo <b>Tuple[PositiveInt, NonEmptyStr]</b>
+    comprueba que un valor sea un arrayref de dos elementos donde el primer
+    elemento sea un entero positivo y el segundo elemento sea una cadena no
+    vacía. Por ejemplo:</p>
+<pre>my $br = Horse-&gt;new(
+  name    =&gt; "Bold Ruler",
+  wins    =&gt; [
+    [ 1956, "Futurity Stakes" ],
+    [ 1956, "Juvenile Stakes" ],
+  ],
+);</pre>
+<p class="Pp">Como puedes ver, las restricciones de tipo paramétricas pueden anidarse
+    hasta cualquier profundidad, aunque por supuesto, cuanto más detalladas sean
+    tus comprobaciones, más lentas serán.</p>
+<p class="Pp">Es posible tener tuplas de longitud variable. Por ejemplo, podemos
+    w</p>
+</div>
+</section>
+
+            </article>
+        
+        </main>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='Type_Constraints'><a class="permalink" href="#Type_Constraints">Type Constraints</a></h1>
+<p class="Pp">Type constraints are used to specify what kind of value an attribute
+  can hold. They are defined using the <code class="Nm">isa</code> parameter
+  when defining an attribute.</p>
+<pre>
+package Horse {
+  use Moo;
+  use Types::Standard qw( Str Num );
+  use namespace::autoclean;
+
+  has name =&gt; ( is =&gt; 'ro', isa =&gt; Str );
+  has age  =&gt; ( is =&gt; 'rw', isa =&gt; Num );
+}
+</pre>
+<p class="Pp">This defines two attributes:</p>
+<ul class="Bl-item">
+  <li><p class="Pp"><code class="Nm">name</code>: Must be a string. This is a
+    read-only attribute.</p></li>
+  <li><p class="Pp"><code class="Nm">age</code>: Must be a number (integer or
+    float). This is a read-write attribute.</p></li>
+</ul>
+<p class="Pp">If you try to assign a value of the wrong type, you'll get an
+  error:</p>
+<pre>
+my $h = Horse-&gt;new( name =&gt; &quot;Secretariat&quot;, age =&gt; 3 );
+$h-&gt;age( &quot;3 years old&quot; ); # dies with error
+</pre>
+<p class="Pp">There are many predefined types in modules like
+    <span class="Li">&quot;Types::Standard&quot;</span>,
+    <span class="Li">&quot;Types::Common::Numeric&quot;</span>, and
+    <span class="Li">&quot;Types::Common::String&quot;</span>.</p>
+<p class="Pp">Some types are parameterizable, meaning you can pass arguments to
+  them to further refine the constraint. For example,
+    <span class="Li">&quot;ArrayRef&quot;</span> can be parameterized to specify
+  what kind of elements the arrayref should contain:</p>
+<pre>
+use Types::Standard qw( ArrayRef Num );
+has prices =&gt; (
+  is =&gt; 'ro',
+  isa =&gt; ArrayRef[ Num ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">This means that the <code class="Nm">prices</code> attribute must
+  be an arrayref, and *every* element within that arrayref must be a number.
+  Attempting to assign <code class="Nm">[1, 2, &quot;three&quot;]</code> would fail.</p>
+<p class="Pp"><code class="Nm">Tuple</code> is another parameterizable type that
+  allows you to specify the types of elements in a fixed-size array:</p>
+<pre>
+use Types::Standard qw( Tuple );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[
+    Tuple[ PositiveInt, NonEmptyStr ]
+  ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">This defines <code class="Nm">wins</code> as an arrayref of tuples.
+  Each tuple must contain exactly two elements: a positive integer followed by a
+  non-empty string. This is useful for representing data like (year, race
+  name).</p>
+<p class="Pp">We can make elements optional:</p>
+<pre>
+use Types::Standard qw( ArrayRef Tuple Optional );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[
+    Tuple[ PositiveInt, NonEmptyStr, Optional[NonEmptyStr] ]
+  ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">The third element will be checked if it is present, but forgiven
+  if it is absent.</p>
+<p class="Pp">Or we could just allow tuples to contain an arbitrary list of
+  strings after the year and race name:</p>
+<pre>
+use Types::Standard qw( ArrayRef Tuple Str Slurpy );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[
+    Tuple[ PositiveInt, NonEmptyStr, Slurpy[ ArrayRef[Str] ] ]
+  ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">The <b>Slurpy[ ArrayRef[Str] ]</b> type will &quot;slurp&quot; all
+  the remaining items in the tuple into an arrayref and check it against
+    <b>ArrayRef[Str]</b>.</p>
+<p class="Pp">It's even possible to do this:</p>
+<pre>
+use Types::Standard qw( ArrayRef Tuple Any Slurpy );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[
+    Tuple[ PositiveInt, NonEmptyStr, Slurpy[Any] ]
+  ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">With this type constraint, any elements after the first two will
+  be slurped into an arrayref and we don't check that arrayref at all. (In
+  fact, the implementation of the <b>Tuple</b> type is smart enough to not
+  bother creating the temporary arrayref to check.)</p>
+<p class="Pp"><b>Dict</b> is the equivalent of <b>Tuple</b> for checking values
+  of hashrefs.</p>
+<pre>
+use Types::Standard qw( ArrayRef Dict Optional );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[
+    Dict[
+      year    =&gt; PositiveInt,
+      race    =&gt; NonEmptyStr,
+      jockey  =&gt; Optional[NonEmptyStr],
+    ],
+  ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">An example of using it:</p>
+<pre>
+my $br = Horse-&gt;new(
+  name    =&gt; &quot;Bold Ruler&quot;,
+  wins    =&gt; [
+    { year =&gt; 1956, race =&gt; &quot;Futurity Stakes&quot;, jockey =&gt; &quot;Eddie&quot; },
+    { year =&gt; 1956, race =&gt; &quot;Juvenile Stakes&quot; },
+  ],
+);
+</pre>
+<p class="Pp">The <b>Slurpy</b> type does work for <b>Dict</b> too:</p>
+<pre>
+Dict[
+  year    =&gt; PositiveInt,
+  race    =&gt; NonEmptyStr,
+  jockey  =&gt; Optional[NonEmptyStr],
+  ()      =&gt; Slurpy[ HashRef[Str] ],  # other Str values allowed
+]
+</pre>
+<p class="Pp">And <span class="Li">&quot;Slurpy[Any]&quot;</span> means what you
+  probably think it means:</p>
+<pre>
+Dict[
+  year    =&gt; PositiveInt,
+  race    =&gt; NonEmptyStr,
+  jockey  =&gt; Optional[NonEmptyStr],
+  ()      =&gt; Slurpy[Any], # allow hashref to contain absolutely anything else
+]
+</pre>
+<p class="Pp">Going back to our first example, there's an opportunity to refine
+  our <b>ArrayRef</b> constraint:</p>
+<pre>
+package Horse {
+  use Moo;
+  use Types::Standard qw( Str Num ArrayRef );
+  use namespace::autoclean;
+
+  has name       =&gt; ( is =&gt; 'ro', isa =&gt; Str );
+  has gender     =&gt; ( is =&gt; 'ro', isa =&gt; Str );
+  has age        =&gt; ( is =&gt; 'rw', isa =&gt; Num );
+  has children   =&gt; (
+    is      =&gt; 'ro',
+    isa     =&gt; ArrayRef[ InstanceOf[&quot;Horse&quot;] ],
+    default =&gt; sub { return [] },
+  );
+}
+</pre>
+<p class="Pp">The <b>InstanceOf[&quot;Horse&quot;]</b> type constraint checks
+  that a value is a blessed object in the Horse class. So the horse's children
+  should be an arrayref of other Horse objects.</p>
+<p class="Pp">Internally it just checks <span class="Li">&quot;$_-&gt;isa(&quot;Horse&quot;)&quot;</span>
+  on each item in the arrayref.</p>
+<p class="Pp">It is sometimes useful to instead check
+    <span class="Li">&quot;$_-&gt;DOES($role)&quot;</span> or
+    <span class="Li">&quot;$_-&gt;can($method)&quot;</span> on an object. For
+  example:</p>
+<pre>
+package MyAPI::Client {
+  use Moo;
+  use Types::Standard qw( HasMethods );
+
+  has ua =&gt; (is =&gt; 'ro', isa =&gt; HasMethods[&quot;get&quot;, &quot;post&quot;] );
+}
+</pre>
+<p class="Pp">The <b>ConsumerOf</b> and <b>HasMethods</b> parameterizable types
+  allow you to easily check roles and methods of objects.</p>
+<p class="Pp">The <b>Enum</b> parameterizable type allows you to accept a more
+  limited set of string values. For example:</p>
+<pre>
+use Types::Standard qw( Enum );
+has gender =&gt; ( is =&gt; 'ro', isa =&gt; Enum[&quot;m&quot;,&quot;f&quot;] );
+</pre>
+<p class="Pp">Or if you want a little more flexibility, you can use
+    <b>StrMatch</b> which allows you to test strings against a regular
+  expression:</p>
+<pre>
+use Types::Standard qw( StrMatch );
+has gender =&gt; ( is =&gt; 'ro', isa =&gt; StrMatch[qr/^[MF]/i] );
+</pre>
+<p class="Pp">Or <b>StrLength</b> to check the maximum and minimum length of a
+  string:</p>
+<pre>
+use Types::Common::String qw( StrLength );
+has name =&gt; ( is =&gt; 'ro', isa =&gt; StrLength[3, 100] );
+</pre>
+<p class="Pp">The maximum can be omitted.</p>
+<p class="Pp">Similarly, the maximum and minimum values for a numeric type can
+  be expressed using <b>IntRange</b> and <b>NumRange</b>:</p>
+<pre>
+use Types::Common::Numeric qw( IntRange );
+# values over 200 are probably an input error
+has age =&gt; ( is =&gt; 'ro', isa =&gt; IntRange[0, 200] );
+</pre>
+<p class="Pp">Parameterized type constraints are one of the most powerful
+  features of Type::Tiny, allowing a small set of constraints to be combined
+  in useful ways.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Type_Coercions'><a class="permalink" href="#Type_Coercions">Type Coercions</a></h2>
+<p class="Pp">It is often good practice to be liberal in what you accept.</p>
+<pre>
+package Horse {
+  use Moo;
+  use Types::Standard qw( Str Num ArrayRef Bool );
+  use namespace::autoclean;
+
+  ...;  # name, gender, age, children, wins
+  has is_alive =&gt; ( is =&gt; 'rw', isa =&gt; Bool, coerce =&gt; 1 );
+}
+</pre>
+<p class="Pp">The <span class="Li">&quot;coerce&quot;</span> option indicates
+  that if a value is given which *does not* pass the <b>Bool</b> type
+  constraint, then it should be coerced (converted) into something that
+  does.</p>
+<p class="Pp">The definition of <b>Bool</b> says that to convert a non-boolean
+  to a bool, you just do <span class="Li">&quot;!! $non_bool&quot;</span>. So
+  all of the following will be living horses:</p>
+<pre>
+Horse-&gt;new(is_alive =&gt; 42)
+Horse-&gt;new(is_alive =&gt; [])
+Horse-&gt;new(is_alive =&gt; &quot;false&quot;) # in Perl, string &quot;false&quot; is true!
+</pre>
+<p class="Pp"><b>Bool</b> is the only type constraint in Types::Standard that
+  has a coercion defined for it. The <b>NumericCode</b>, <b>UpperCaseStr</b>,
+    <b>LowerCaseStr</b>, <b>UpperCaseSimpleStr</b>, and
+    <b>LowerCaseSimpleStr</b> types from Types::Common::String also have
+  conversions defined.</p>
+<p class="Pp">The other built-in constraints do not define any coercions because
+  it would be hard to agree on what it means to coerce from, say, a
+    <b>HashRef</b> to an <b>ArrayRef</b>. Do we keep the keys? The values?
+  Both?</p>
+<p class="Pp">But it is pretty simple to add your own coercions!</p>
+<pre>
+use Types::Standard qw( ArrayRef HashRef Str );
+has things =&gt; (
+  is     =&gt; 'rw',
+  isa    =&gt; ArrayRef-&gt;plus_coercions(
+    HashRef,     sub { [ values %$_ ] },
+    Str,         sub { [ split /;/, $_ ] },
+  ),
+  coerce =&gt; 1,
+);
+</pre>
+<p class="Pp">(Don't ever forget the <span class="Li">&quot;coerce =&gt;
+  1&quot;</span>!)</p>
+<p class="Pp">If a hashref is provided, the values will be used, and if a string
+  is provided, it will be split on the semicolon. Of course, if an arrayref if
+  provided, it already passes the type constraint, so no conversion is
+  necessary.</p>
+<p class="Pp">The coercions should be pairs of &quot;from types&quot; and code
+  to coerce the value. The code can be a coderef (as above) or just string of
+  Perl code (as below). Strings of Perl code can usually be optimized better
+  by Type::Tiny's internals, so are generally preferred. Thanks to Perl's
+    <span class="Li">&quot;q{...}&quot;</span> operator, they can look just as
+  clean and pretty as coderefs.</p>
+<pre>
+use Types::Standard qw( ArrayRef HashRef Str );
+has things =&gt; (
+  is     =&gt; 'rw',
+  isa    =&gt; ArrayRef-&gt;plus_coercions(
+    HashRef,     q{ [ values %$_ ] },
+    Str,         q{ [ split /;/, $_ ] },
+  ),
+  coerce =&gt; 1,
+);
+</pre>
+<p class="Pp">Coercions are deeply applied automatically, so the following will
+  do what you expect.</p>
+<pre>
+has inputs =&gt; (
+  is     =&gt; 'ro',
+  isa    =&gt; ArrayRef-&gt;of(Bool),
+  coerce =&gt; 1
+);
+</pre>
+<p class="Pp">I am, of course, assuming you expect something like:</p>
+<pre>
+my $coerced = [ map { !!$_ } @$orig ];
+</pre>
+<p class="Pp">If you were assuming that, congratulations! We are on the same
+  wavelength.</p>
+<p class="Pp">And of course you can still add more coercions to the inherited
+  ones...</p>
+<pre>
+has inputs =&gt; (
+  is     =&gt; 'ro',
+  isa    =&gt; ArrayRef-&gt;of(Bool)-&gt;plus_coercions(Str, sub {...}),
+  coerce =&gt; 1
+);
+</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Type_Defaults'><a class="permalink" href="#Type_Defaults">Type Defaults</a></h2>
+<p class="Pp">A previous example included:</p>
+<pre>
+has children =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef,
+  default =&gt; sub { return [] },
+);
+</pre>
+<p class="Pp">It's actually pretty common that you'll want an arrayref attribute
+  to default to being an empty arrayref, a numeric attribute to default to
+  zero, etc. Type::Tiny provides a method for that:</p>
+<pre>
+has children =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef,
+  default =&gt; ArrayRef-&gt;type_default,
+);
+</pre>
+<p class="Pp">Many of the types in Types::Standard have sensible type defaults
+  defined.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Method_Parameters'><a class="permalink" href="#Method_Parameters">Method Parameters</a></h2>
+<p class="Pp">So far we have just concentrated on the definition of object
+  attributes, but type constraints are also useful to validate method
+  parameters.</p>
+<p class="Pp">Let's remember our attribute for keeping track of a horse's race
+  wins:</p>
+<pre>
+use Types::Standard qw( ArrayRef Tuple Optional );
+use Types::Common::Numeric qw( PositiveInt );
+use Types::Common::String qw( NonEmptyStr );
+
+has wins =&gt; (
+  is      =&gt; 'ro',
+  isa     =&gt; ArrayRef[
+    Tuple[ PositiveInt, NonEmptyStr, Optional[NonEmptyStr] ]
+  ],
+  default =&gt; sub { [] },
+);
+</pre>
+<p class="Pp">Because we don't trust outside code to push new entries onto this
+  array, let's define a method in our class to do it.</p>
+<pre>
+package Horse {
+  ...;
+
+  sub add_win ( $self, $year, $race, $jockey ) {
+    my $win = [
+      $year,
+      $race,
+      $jockey ? $jockey : (),
+    ];
+    push $self-&gt;wins-&gt;@*, $win;
+    return $self;
+  }
+}
+</pre>
+<p class="Pp">This works pretty well, but we're still not actually checking the
+  values of <span class="Li">$year</span>, <span class="Li">$race</span>, and
+    <span class="Li">$jockey</span>. Let's use Type::Params for that:</p>
+<pre>
+package Horse {
+  use Types::Common::Numeric qw( PositiveInt );
+  use Types::Common::String qw( NonEmptyStr );
+  use Type::Params qw( signature_for );
+  use constant { true =&gt; !!1, false =&gt; !!0 };
+  ...;
+
+  signature_for add_win =&gt; (
+    method     =&gt; true,    # it's a method, so has $self
+    positional =&gt; [
+      PositiveInt,
+      NonEmptyStr,
+      NonEmptyStr, { optional =&gt; tru
+</pre>
+</body>
+</html>
+[
+  {
+    "title": "signature_for add_win => ( method => true, positional => [ PositiveInt, NonEmptyStr, NonEmptyStr, { default => sub { \"Eddie\" } }, ], );",
+    "content": "El método <span class=\"Li\">\"add_win\"</span> se envolverá con código que verifica los argumentos entrantes, lanzando una excepción si no cumplen con los requisitos. También realizará coerciones si los tipos las tienen (y ni siquiera necesita recordar <span class=\"Li\">\"coerce =&gt; 1\"</span>; es automático) e incluso puede agregar valores predeterminados:"
+  },
+  {
+    "title": "signature_for add_win => ( method => true, positional => [ PositiveInt, NonEmptyStr, Optional[NonEmptyStr], ], );",
+    "content": "Como atajo para la opción <span class=\"Li\">\"{ optional =&gt; true }\"</span>, puedes usar <span class=\"Li\">Optional</span> al igual que en <span class=\"Li\">Tuple</span>."
+  },
+  {
+    "title": "signature_for thingy => ( positional => [ PositiveInt, 1, 0 ] );",
+    "content": "También puedes usar <span class=\"Li\">0</span> (o <span class=\"Li\">\"builtin::false\"</span> si tu Perl es lo suficientemente nuevo) y <span class=\"Li\">1</span> (o <span class=\"Li\">\"builtin::true\"</span>) como atajos para <span class=\"Li\">Optional[Any]</span> y <span class=\"Li\">Any</span>. Lo siguiente verifica que el primer parámetro sea un entero positivo, el segundo parámetro sea requerido (pero no importa su valor) y un tercer parámetro sea permitido pero no requerido."
+  },
+  {
+    "title": "signature_for add_wins_for_year => ( method => true, positional => [ PositiveInt, Slurpy[ ArrayRef[NonEmptyStr] ], ], );",
+    "content": "Es posible aceptar un número variable de valores usando <span class=\"Li\">Slurpy</span>:"
+  },
+  {
+    "title": "El llamado sería así:",
+    "content": "Sería llamado así:"
+  },
+  {
+    "title": "Los parámetros adicionales se agrupan en un arrayref y se verifican contra ArrayRef[NonEmptyStr]. Tenga en cuenta que con un arrayref \"slurpy\" como este, el método recibe los valores como un arrayref, aunque se hayan pasado como una lista.",
+    "content": "Los parámetros adicionales se agrupan en un arrayref y se verifican contra <span class=\"Li\">ArrayRef[NonEmptyStr]</span>. Tenga en cuenta que con un arrayref \"slurpy\" como este, el método recibe los valores como un arrayref, aunque se hayan pasado como una lista."
+  },
+  {
+    "title": "Los parámetros opcionales solo se permiten después de los parámetros requeridos, y los parámetros Slurpy solo se permiten al final. (¡Y solo puede haber como máximo un parámetro Slurpy!)",
+    "content": "Los parámetros opcionales solo se permiten después de los parámetros requeridos, y los parámetros <span class=\"Li\">Slurpy</span> solo se permiten al final. (¡Y solo puede haber como máximo un parámetro <span class=\"Li\">Slurpy</span>!)"
+  },
+  {
+    "title": "$horse->add_win( year => 1956, race => \"Futurity Stakes\", jockey => \"Eddie\", );",
+    "content": "Para métodos que aceptan más de uno o dos parámetros, a menudo es una buena idea proporcionarlos como un hash. Por ejemplo:"
+  },
+  {
+    "title": "Esto puede hacer que su código sea más legible.",
+    "content": "Esto puede hacer que su código sea más legible."
+  },
+  {
+    "title": "signature_for add_win => ( method => true, named => [ year => PositiveInt, race => NonEmptyStr, jockey => NonEmptyStr, { optional => true }, ], );",
+    "content": "Para aceptar parámetros con nombre, use la opción <span class=\"Li\">\"named\"</span> en lugar de <span class=\"Li\">\"positional\"</span>."
+  },
+  {
+    "title": "La opción \"named\" agrupará todos sus argumentos con nombre en un objeto $arg. Permite que su método se llame con una lista de pares nombre-valor o un hashref:",
+    "content": "La opción <span class=\"Li\">\"named\"</span> agrupará todos sus argumentos con nombre en un objeto <span class=\"Li\">$arg</span>. Permite que su método se llame con una lista de pares nombre-valor o un hashref:"
+  },
+  {
+    "title": "También es posible que su verificación \"acepte\" parámetros con nombre pero \"reciba\" una lista posicional de parámetros, utilizando \"named_to_list\".",
+    "content": "También es posible que su verificación \"acepte\" parámetros con nombre pero \"reciba\" una lista posicional de parámetros, utilizando <span class=\"Li\">\"named_to_list\"</span>."
+  },
+  {
+    "title": "signature_for add_win => ( method => true, named => [ year => PositiveInt, race => NonEmptyStr, jockey => NonEmptyStr, { optional => true }, ], named_to_list => true, );",
+    "content": ""
+  },
+  {
+    "title": "Los parámetros opcionales y Slurpy con nombre son compatibles como se espera.",
+    "content": "Los parámetros opcionales y <span class=\"Li\">Slurpy</span> con nombre son compatibles como se espera."
+  },
+  {
+    "title": "Para obtener más información sobre Type::Params y alternativas de terceros, consulte Type::Tiny::Manual::Params.",
+    "content": "Para obtener más información sobre <span class=\"Li\">Type::Params</span> y alternativas de terceros, consulte <span class=\"Li\">Type::Tiny::Manual::Params</span>."
+  },
+  {
+    "title": "PASOS SIGUIENTES",
+    "content": "¡Felicitaciones! Sé que esto fue probablemente mucho para asimilar, pero has cubierto todos los elementos esenciales."
+  },
+  {
+    "title": "Ahora puede establecer restricciones de tipo y coerciones para atributos y parámetros de métodos en Moo. Está familiarizado con muchas de las restricciones de tipo más importantes y útiles y comprende la parametrización y cómo se puede utilizar para crear restricciones de tipo más específicas.",
+    "content": "Ahora puede establecer restricciones de tipo y coerciones para atributos y parámetros de métodos en Moo. Está familiarizado con muchas de las restricciones de tipo más importantes y útiles y comprende la parametrización y cómo se puede utilizar para crear restricciones de tipo más específicas."
+  },
+  {
+    "title": "(Y te contaré un secreto. Usar Type::Tiny con Moose o Mouse en lugar de Moo es exactamente lo mismo. Simplemente puedes reemplazar \"use Moo\" con \"use Moose\" en cualquiera de estos ejemplos y deberían funcionar bien!)",
+    "content": "(Y te contaré un secreto. Usar <span class=\"Li\">Type::Tiny</span> con <span class=\"Li\">Moose</span> o <span class=\"Li\">Mouse</span> en lugar de <span class=\"Li\">Moo</span> es exactamente lo mismo. Simplemente puedes reemplazar <span class=\"Li\">\"use Moo\"</span> con <span class=\"Li\">\"use Moose\"</span> en cualquiera de estos ejemplos y deberían funcionar bien!)"
+  },
+  {
+    "title": "Aquí tienes tu próximo paso:",
+    "content": "Aquí tienes tu próximo paso:"
+  },
+  {
+    "title": "Type::Tiny::Manual::UsingWithMoo2",
+    "content": "*   Type::Tiny::Manual::UsingWithMoo2\n    Uso avanzado de Type::Tiny con Moo, incluidas uniones e intersecciones, <span class=\"Li\">\"stringifies_to\"</span>, <span class=\"Li\">\"numifies_to\"</span>, <span class=\"Li\">\"with_attribute_values\"</span> y <span class=\"Li\">\"where\"</span>."
+  },
+  {
+    "title": "NOTAS",
+    "content": "NOTAS"
+  },
+  {
+    "title": "En versiones muy antiguas de Moo, \"coerce => 1\" no es compatible. En su lugar, deberá proporcionar una coderef o una sobrecarga de objetos \"&amp;{}\" para hacer la coerción. Type::Tiny puede proporcionarle un objeto sobrecargado.",
+    "content": "En versiones muy antiguas de Moo, <span class=\"Li\">\"coerce =&gt; 1\"</span> no es compatible. En su lugar, deberá proporcionar una coderef o una sobrecarga de objetos <span class=\"Li\">\"&amp;{} \"</span> para hacer la coerción. <span class=\"Li\">Type::Tiny</span> puede proporcionarle un objeto sobrecargado."
+  },
+  {
+    "title": "Si tiene una versión muy antigua de Moo, actualícela al menos a Moo 1.006000, que fue la versión que agregó soporte para \"coerce => 1\".",
+    "content": "Si tiene una versión muy antigua de Moo, actualícela al menos a Moo 1.006000, que fue la versión que agregó soporte para <span class=\"Li\">\"coerce =&gt; 1\"</span>."
+  },
+  {
+    "title": "AUTOR",
+    "content": "AUTOR"
+  },
+  {
+    "title": "COPYRIGHT Y LICENCIA",
+    "content": "COPYRIGHT Y LICENCIA"
+  },
+  {
+    "title": "DESCARGO DE RESPONSABILIDAD DE GARANTÍAS",
+    "content": "DESCARGO DE RESPONSABILIDAD DE GARANTÍAS"
+  }
+]
+<html>
+    <head>
+        <title>Respondiendo a un paquete de Arch Linux.</title>
+    </head>
+    <body>
+        <main>
+            <p>
+                Respondiendo a un paquete de Arch Linux.
+            </p>
+        </main>
+        <footer>
+            <p>
+                Respondiendo a un paquete de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

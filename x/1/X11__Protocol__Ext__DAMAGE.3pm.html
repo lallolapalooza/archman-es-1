@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>X11::Protocol::Ext::DAMAGE(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">X11__Protocol__Ext__DAMAGE(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-x11-protocol-other/">perl-x11-protocol-other</a></p>
+<p class="lic">Licencias: GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">X11::Protocol::Ext::DAMAGE(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">X11::Protocol::Ext::DAMAGE(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">X11::Protocol::Ext::DAMAGE - notificaciones de dibujo</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use X11::Protocol;
+my $X = X11::Protocol-&gt;new;
+$X-&gt;init_extension('DAMAGE')
+  or print &quot;La extensión DAMAGE no está disponible&quot;;
+my $damage = $X-&gt;new_rsrc;
+$X-&gt;DamageCreate ($damage, $drawable, 'NonEmpty');
+sub my_event_handler {
+  my %h = @_;
+  if ($h{'name'} eq 'DamageNotify') {
+    my $drawable = $h{'drawable'};
+    $X-&gt;DamageSubtract ($damage, 'None', $parts_region);
+    # hacer algo para $parts_region modificado en $drawable
+  }
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCI\u00d3N"><a class='permalink' href='#DESCRIPCI\u00d3N'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La extensión DAMAGE permite a un cliente escuchar cambios en los
+    objetos de dibujo (ventanas, pixmaps, etc.) debido a operaciones de dibujo,
+    incluido el dibujo en subventanas que aparece en la ventana principal.</p>
+<p class="Pp">Esto se puede utilizar para varios tipos de copia o replicación
+    eficiente del contenido de las ventanas, como la clonación a otra pantalla,
+    la visualización de una vista ampliada, etc. Se puede monitorizar la ventana
+    raíz para obtener cambios en toda la pantalla.</p>
+<p class="Pp">Los cambios de contenido debidos al dibujo se conciben como
+    &quot;daño&quot;. Un objeto de daño en el lado del servidor acumula áreas como
+    rectángulos para formar una &quot;región&quot; en el lado del servidor, según
+    la extensión XFIXES 2.0 (ver X11::Protocol::Ext::XFIXES).</p>
+<p class="Pp">Un evento DamageNotify se envía desde un objeto de daño. Un nivel
+    de notificación controla el nivel de detalle, que va desde un solo evento al
+    pasar a no estar vacío, hasta un evento por cada operación de dibujo que
+    afecta al objeto de dibujo relevante.</p>
+<p class="Pp">La obtención de una región de daño acumulada (o parte de ella) se
+    considera una &quot;reparación&quot;. No cambia ningún objeto de dibujo de
+    ninguna manera, solo obtiene la región del objeto de daño. Esta obtención es
+    atómica, por lo que no se pierde nada si el cliente que escucha está un poco
+    retrasado, etc.</p>
+<p class="Pp">Ver <i>examples/damage-duplicate.pl</i> para una forma de usar
+    damage para duplicar una ventana en tiempo real.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SOLICITUDES"><a class='permalink' href='#SOLICITUDES'>SOLICITUDES</a></h1>
+<p class="Pp">Las siguientes solicitudes se ponen a disposición con una
+    llamada a <span class="Li">init_extension()</span>, según &quot;EXTENSIONS&quot;
+    en X11::Protocol.</p>
+<pre>my $is_available = $X-&gt;init_extension('DAMAGE');</pre>
+<section class="Ss">
+<h2 class="Ss" id="DAMAGE_1.0"><a class='permalink' href='#DAMAGE_1.0'>DAMAGE   1.0</a></h2>
+<dl class="Bl-tag">
+  <dt>&quot;($server_major, $server_minor) = $X-&gt;DamageQueryVersion
+    ($client_major, $client_minor)&quot;</dt>
+  <dd>Negocia una versión de protocolo con el servidor.
+      <span class="Li">$client_major</span> y
+      <span class="Li">$client_minor</span> son lo que el cliente desearía,
+      <span class="Li">$server_major</span> y
+      <span class="Li">$server_minor</span> devueltos son lo que hará el
+      servidor, que puede ser menor de lo solicitado (pero no mayor).
+    <p class="Pp">El código actual soporta hasta 1.1. Si se solicita uno superior,
+        tenga cuidado ya que es compatible hacia atrás. El código del módulo
+        negocia una versión en <span class="Li">init_extension()</span>, por
+        lo que normalmente no es necesaria una llamada explícita a
+        <span class="Li">DamageQueryVersion()</span>.</p>
+  </dd>
+  <dt>&quot;$X-&gt;DamageCreate ($damage, $drawable, $level)&quot;</dt>
+  <dd>Crea un nuevo objeto de daño en <span class="Li">$damage</span> (un nuevo XID)
+      que monitoriza los cambios en <span class="Li">$drawable</span>. Si
+      <span class="Li">$drawable</span> es una ventana, los cambios en sus
+      subventanas también se incluyen.
+        <pre># monitorizando cada cambio en toda la pantalla
+my $damage = $X-&gt;new_rsrc;
+$X-&gt;DamageCreate ($damage, $X-&gt;root, 'RawRectangles');
+</pre>
+    <p class="Pp"><span class="Li">$level</span> es una cadena de enumeración que
+        controla la frecuencia con la que se emiten los eventos
+        <span class="Li">&quot;DamageNotify&quot;</span> (ver &quot;EVENTOS&quot;
+        más abajo).</p>
+        <pre>RawRectangles      cada cambio
+DeltaRectangles    cuando la región de daño se expande
+BoundingBox        cuando el cuadro delimitador de daño se expande
+NonEmpty           cuando el daño pasa de estar vacío a no estarlo
+</pre>
+  </dd>
+  <dt>&quot;$X-&gt;DamageDestroy ($damage)&quot;</dt>
+  <dd>Destruye <span class="Li">$damage</span>.</dd>
+  <dt>&quot;$X-&gt;DamageSubtract ($damage, $repair_region,
+    $parts_region)&quot;</dt>
+  <dd>Mueve la región acumulada en <span class="Li">$damage</span> a
+      <span class="Li">$parts_region</span> (un XID de región) y la borra de
+      <span class="Li">$damage</span>.
+    <p class="Pp">Si <span class="Li">$parts_region</span> es &quot;None&quot;
+        entonces <span class="Li">$damage</span> se borra y la región se
+        descarta. Esto se puede usar si, por ejemplo, se copiará o se volverá a
+        examinar toda la <span class="Li">$drawable</span>, por lo que no se
+        necesitan las partes exactas.</p>
+    <p class="Pp"><span class="Li">$repair_region</span> es qué porción de
+        <span class="Li">$damage</span> se va a considerar. &quot;None&quot;
+        significa mover y borrar todo en <span class="Li">$damage</span>. De lo
+        contrario, <span class="Li">$repair_region</span> es un XID de región y
+        la porción de la región de daño dentro de
+        <span class="Li">$repair_region</span> se mueve y se borra. Cualquier
+        cosa que quede se deja en
+        <span class="Li">$damage</span>.</p>
+    <p class="Pp">Si queda algo en <span class="Li">$damage</span>, se envía
+        inmediatamente un nuevo evento
+        <span class="Li">&quot;DamageNotify&quot;</span>. Esto puede ser bueno,
+        por ejemplo, si seleccionó un
+        <span class="Li">$repair_region</span> correspondiente a lo que pensó
+        que era el tamaño de la ventana (quizás del campo
+        <span class="Li">&quot;geometry&quot;</span> de un evento
+        <span class="Li">&quot;DamageNotify&quot;</span>), pero ha crecido
+        entretanto.</p>
+    <p class="Pp">Los objetos de región aquí se pueden crear con la extensión
+        XFIXES 2.0 (ver X11::Protocol::Ext::XFIXES). Debería estar disponible
+        siempre que lo esté DAMAGE. Si se usa &quot;None&quot; y &quot;None&quot;
+        para borrar y descartar, no se requieren objetos de región y no hay
+        necesidad de un <span class="Li">init_extension('XFIXES')</span>.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="DAMAGE_1.1"><a class='permalink' href='#DAMAGE_1.1'>DAMAGE   1.1</a></h2>
+<dl class="Bl-tag">
+  <dt>&quot;$X-&gt;DamageAdd ($drawable, $region)&quot;</dt>
+  <dd>Informa a cualquier objeto de daño interesado que han ocurrido cambios en
+      <span class="Li">$region</span> (un XID de región) de
+      <span class="Li">$drawable</span>.
+    <p class="Pp">Esto es utilizado por clientes que modifican un objeto de
+        dibujo de maneras que las operaciones de dibujo normales del protocolo
+        no ven. Por ejemplo, un pixmap de memoria compartida MIT-SHM modificado
+        escribiendo en la memoria (ver X11::Protocol::Ext::MIT_SHM), o el
+        variante &quot;renderizado directo&quot; a hardware gráfico o GL, etc.</p>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="EVENTOS"><a class='permalink' href='#EVENTOS'>EVENTOS</a></h1>
+<p class="Pp">Los eventos <span class="Li">&quot;DamageNotify&quot;</span> se
+    envían al cliente que creó el objeto de daño. Estos eventos se generan siempre,
+    no hay nada que hacer para seleccionarlos o deseleccionarlos. El evento tiene
+    los campos habituales</p>
+<pre>name             &quot;DamageNotify&quot;
+synthetic        true si es de un SendEvent
+code             código de operación entero
+sequence_number  número entero</pre>
+<p class="Pp">y campos específicos del evento</p>
+<pre>damage        XID, objeto de daño
+drawable      XID, como de DamageCreate
+level         enumeración, como de DamageCreate
+more          booleano, si hay más DamageNotify en camino
+time          entero, marca de tiempo del servidor
+area          arrayref [$x,$y,$width,$height]
+geometry      arrayref [$rootx,$rooty,$width,$height]</pre>
+<p class="Pp"><span class="Li">&quot;drawable&quot;</span> y
+    <span class="Li">&quot;level&quot;</span> son como los de la llamada a
+    <span class="Li">DamageCreate()</span> que creó el objeto
+    <span class="Li">&quot;damage&quot;</span>.</p>
+<p class="Pp"><span class="Li">&quot;more&quot;</span> es verdadero si hay más
+    eventos <span class="Li">&quot;DamageNotify&quot;</span> en camino para este
+    objeto de daño. Esto puede suceder cuando el &quot;level&quot; significa que
+    hay un conjunto de rectángulos
+    <span class="Li">&quot;area&quot;</span> para reportar.</p>
+<p class="Pp"><span class="Li">&quot;area&quot;</span> es un rectángulo dentro de
+    <span class="Li">&quot;drawable&quot;</span>, como un arrayref de 4 elementos,</p>
+<pre>[ $x, $y, $width, $height ]</pre>
+<p class="Pp">Lo que cubre depende del nivel de notificación solicitado,</p>
+<ul class="Bl-bullet">
+  <li><span class="Li">&quot;RawRectangles&quot;</span> -- un rectángulo alrededor
+      de una operación de dibujo de arco, línea, etc., que cambió
+      <span class="Li">&quot;drawable&quot;</span>.</li>
+  <li><span class="Li">&quot;DeltaRectangles&quot;</span> -- un rectángulo adicional
+      que expande la región de daño. Solo se reportan los rectángulos nuevos,
+      no ninguna parte de la región de daño existente. La notificación de una
+      adición de región puede requerir múltiples eventos
+      <span class="Li">&quot;DamageNotify&quot;</span>.</li>
+  <li><span class="Li">&quot;BoundingBox&quot;</span> -- un cuadro delimitador
+      alrededor de la región de daño acumulada, más grande que lo reportado
+      anteriormente.</li>
+  <li><span class="Li">&quot;NonEmpty&quot;</span></li>
+</ul>
+</div>
+</section>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+</span> -- umm, algo, tal vez el
+      drawable completo.</li>
+</ul>
+<p class="Pp"><span class="Li">&quot;geometry&quot;</span> es el tamaño
+    y la posición actuales del drawable como una matriz de 4 elementos en las
+    coordenadas de la ventana raíz. Para un pixmap, <span class="Li">$root_x</span>
+    y <span class="Li">$root_y</span> son 0.</p>
+<pre>[ $root_x, $root_y, $width, $height ]</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TIPOS_ENUM'><a class='permalink' href='#TIPOS_ENUM'>TIPOS ENUM</a></h1>
+<p class="Pp">El nivel de reporte anterior es de tipo &quot;DamageReportLevel&quot;.
+    Por ejemplo (después de una llamada exitosa a
+    <span class="Li">&quot;$X-&gt;init_extension('DAMAGE')&quot;</span>),</p>
+<pre>$number = $X-&gt;num('DamageReportLevel', 'RawRectangles');
+$string = $X-&gt;interp('DamageReportLevel', 3);</pre>
+<p class="Pp">Ver &quot;CONSTANTES SIMBÓLICAS&quot; en X11::Protocol.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES'><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<p class="Pp">El tipo de error &quot;Damage&quot; es un recurso XID de
+    <span class="Li">$damage</span> incorrecto en una solicitud.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">El número de versión de la extensión del servidor se consulta en
+    <span class="Li">init_extension()</span>, pero aún no está disponible como tal.
+    La versión determina si <span class="Li">DamageAdd()</span> debería funcionar.
+    Actualmente, esa solicitud siempre se configura, pero presumiblemente genera un
+    error de Opcode si el servidor no la tiene.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIEN'><a class='permalink' href='#VER_TAMBIEN'>VER TAMBIÉN</a></h1>
+<p class="Pp">X11::Protocol, X11::Protocol::Ext::XFIXES</p>
+<p class="Pp"><i>/usr/share/doc/x11proto-damage-dev/damageproto.txt.gz</i>,
+    <a href='http://cgit.freedesktop.org/xorg/proto/damageproto/tree/damageproto.txt'>http://cgit.freedesktop.org/xorg/proto/damageproto/tree/damageproto.txt</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PAGINA_PRINCIPAL'><a class='permalink' href='#PAGINA_PRINCIPAL'>PÁGINA PRINCIPAL</a></h1>
+<p class="Pp"><a href='http://user42.tuxfamily.org/x11-protocol-other/index.html'>http://user42.tuxfamily.org/x11-protocol-other/index.html</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENCIA'><a class='permalink' href='#LICENCIA'>LICENCIA</a></h1>
+<p class="Pp">Copyright 2011, 2012, 2013, 2014, 2017 Kevin Ryde</p>
+<p class="Pp">X11-Protocol-Other es software libre; puede redistribuirlo y/o
+    modificarlo bajo los términos de la Licencia Pública General de GNU, tal como
+    fue publicada por la Free Software Foundation; ya sea la versión 3, o (a su
+    elección) cualquier versión posterior.</p>
+<p class="Pp">X11-Protocol-Other se distribuye con la esperanza de que sea útil,
+    pero SIN NINGUNA GARANTÍA; sin siquiera la garantía implícita de
+    COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulte la
+    Licencia Pública General de GNU para obtener más detalles.</p>
+<p class="Pp">Debería haber recibido una copia de la Licencia Pública General de
+    GNU junto con X11-Protocol-Other. Si no es así, consulte
+    <a href='http://www.gnu.org/licenses/'>http://www.gnu.org/licenses/</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-x11-protocol-other/">extra/perl-x11-protocol-other</a></dd>
+        <dt>Versión:</dt>
+        <dd>31-5</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/X11-Protocol-Other/">https://search.cpan.org/dist/X11-Protocol-Other/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-x11-protocol-other/">/listing/extra/perl-x11-protocol-other/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#SOLICITUDES">SOLICITUDES</a></li>
+        
+            <li><a href="#EVENTOS">EVENTOS</a></li>
+        
+            <li><a href="#TIPOS_ENUM">TIPOS ENUM</a></li>
+        
+            <li><a href="#ERRORES">ERRORES</a></li>
+        
+            <li><a href="#BUGS">BUGS</a></li>
+        
+            <li><a href="#VER_TAMBIEN">VER TAMBIÉN</a></li>
+        
+            <li><a href="#PAGINA_PRINCIPAL">PÁGINA PRINCIPAL</a></li>
+        
+            <li><a href="#LICENCIA">LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/X11::Protocol::Ext::DAMAGE.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/X11::Protocol::Ext::DAMAGE.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

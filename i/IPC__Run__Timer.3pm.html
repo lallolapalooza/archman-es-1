@@ -1,0 +1,333 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>IPC::Run::Timer(3pm) — Páginas manuales </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">IPC__Run__Timer(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-ipc-run/">perl-ipc-run</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">IPC::Run::</td>Timer(3)
+    <td class="head-vol">Documentación de Perl aportada por el </td>usuario
+    <td class="head-rtitle">IPC:</td>:Run:</tr>:Time</table>r(3)
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">IPC::Run::Timer -- </p>Canales de temporiz</section>ador para IPC::Run.
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<pre>use IPC::Run qw( run  timer timeout );
+## o IPC::Run::Timer ( timer timeout );
+## o IPC::Run::Timer ( :all );
+## Un temporizador no fatal:
+$t = timer( 5 ); # o...
+$t = IO::Run::Timer-&gt;new( 5 );
+run $t, ...;
+## Un tiempo de espera (que es un temporizador que muere al expirar):
+$t = timeout( 5 ); # o...
+$t = IO::Run::Timer-&gt;new( 5, exception =&gt; "harness timed out" </pre>)</section>;
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp">Esta clase y módulo permiten crear temporizadores y tiempos de espera para su uso por IPC::Run. Un temporizador simplemente expira cuando se acaba su tiempo. Un tiempo de espera es un temporizador que lanza una excepción cuando </p>expira.
+<p class="Pp">Los tiempos de espera suelen ser un poco más sencillos de usar que los temporizadores: lanzan una excepción al expirar, por lo que no necesita </p>comprobarlos:
+<pre>## Dar a @cmd 10 segundos para iniciarse, luego 5 segundos para responder
+my $t = timeout( 10 );
+$h = start(
+   \@cmd, \$in, \$out,
+   $t,
+);
+pump $h until $out =~ /prompt/;
+$in = "some stimulus";
+$out = '';
+$t-&gt;time( 5 )
+pump $h until $out =~ /expected </pre>response/;
+<p class="Pp">Sí necesita comprobar los </p>temporizadores:
+<pre>## Dar a @cmd 10 segundos para iniciarse, luego 5 segundos para responder
+my $t = timer( 10 );
+$h = start(
+   \@cmd, \$in, \$out,
+   $t,
+);
+pump $h until $t-&gt;is_expired || $out =~ /prompt/;
+$in = "some stimulus";
+$out = '';
+$t-&gt;time( 5 )
+pump $h until $out =~ /expected response/ || $t-&gt;</pre>is_expired;
+<p class="Pp">Los temporizadores y tiempos de espera que se restablecen son iniciados por <b>start()</b>
+    y <b>pump(). </b>Los temporizadores cambian de estado solo en <b>pump()</b>. Dado que
+    <b>run()</b> y <b>finish() </b>ambos llaman a <b>pump()</b>, se comportan como
+    <b>pump() </b>con respecto a los </p>temporizadores.
+<p class="Pp">Los temporizadores y tiempos de espera tienen tres estados: restablecido, en ejecución y expirado. Establecer el valor del tiempo de espera restablece el temporizador, al igual que llamar al método
+    <b>reset()</b>. El método <b>start() </b>inicia (o reinicia) un temporizador con el valor de tiempo establecido más recientemente, sin importar en qué estado se </p>encuentre.
+<section class="Ss">
+<h2 class="Ss" id='Time_values'><a class='permalink' href='#Time_values'>Valores de </a></h2>tiempo
+<p class="Pp">Todos los valores de tiempo están en segundos. Los tiempos pueden ser cualquier tipo de número de perl, por ejemplo, segundos como enteros o de punto flotante, opcionalmente precedidos por días, horas y minutos separados por </p>puntuación.
+<p class="Pp">Ejemplos</p>:
+<pre>1           1 segundo
+1.1         1.1 segundos
+60          60 segundos
+1:0         1 minuto
+1:1         1 minuto, 1 segundo
+1:90        2 minutos, 30 segundos
+1:2:3:4.5   1 día, 2 horas, 3 minutos, 4.5 segundos
+'inf'       el número especial de infinito de perl (el temporizador nunca </pre>termina)
+<p class="Pp">¡No se aceptan cadenas de fecha/hora absolutas!: el análisis de año, mes y día del mes no está disponible (los parches son bienvenidos :</p>-)</section>.
+<section class="Ss">
+<h2 class="Ss" id='Interval_fudging'><a class='permalink' href='#Interval_fudging'>Ajuste de </a></h2>intervalos
+<p class="Pp">Al calcular una hora de finalización a partir de una hora de inicio y un intervalo, las instancias de IPC::Run::Timer añaden un pequeño factor de ajuste. Esto es para asegurar que ningún tiempo expire antes de que se cumpla el </p>intervalo.
+<p class="Pp">Primero un poco de contexto. El tiempo se muestrea en incrementos discretos. Llamaremos al momento exacto en el que el tiempo informado incrementa de un intervalo al siguiente un "tick" (pulso), y al intervalo entre ticks como el período de tiempo. Aquí hay un diagrama de tres ticks y los períodos entre </p>ellos:
+<pre>  -0-0-0-0-0-0-0-0-0-0-1-1-1-1-1-1-1-1-1-1-2-...
+  ^                   ^                   ^
+  |&lt;--- período 0 ---&gt;|&lt;--- período 1 ---&gt;|
+  |                   |                   |
+tick 0              tick 1              tick </pre>2
+<p class="Pp">Para ver por qué el factor de ajuste es necesario, considere lo que sucedería cuando se inicia un temporizador con un intervalo de 1 segundo justo al final del período </p>0:
+<pre>  -0-0-0-0-0-0-0-0-0-0-1-1-1-1-1-1-1-1-1-1-2-...
+  ^                ^  ^                   ^
+  |                |  |                   |
+  |                |  |                   |
+tick 0             |tick 1              tick 2
+                   |
+               start </pre>$t
+<p class="Pp">Asumiendo que <b>check()</b> se llama muchas veces por período, entonces el temporizador probablemente expirará justo después del tick 1, ya que el tiempo informado habrá saltado del valor '0' al valor </p>'1':
+<pre>  -0-0-0-0-0-0-0-0-0-0-1-1-1-1-1-1-1-1-1-1-2-...
+  ^                ^  ^   ^               ^
+  |                |  |   |               |
+  |                |  |   |               |
+tick 0             |tick 1|             tick 2
+                   |      |
+               start $t   |
+                          |
+                      check </pre>$t
+<p class="Pp">Añadir un ajuste de '1' en este ejemplo significa que se garantiza que el temporizador no expirará antes del tick </p>2.
+<p class="Pp">El ajuste no se añade a un intervalo de </p>'0'.
+<p class="Pp">Esto significa que los intervalos garantizan un intervalo mínimo. Dado </p>que el proceso que ejecuta perl puede ser suspendido durante algún perí</section>odo de tiempo, o que se ocupa haciendo algo que consume tiempo, no hay </section>otras garantías sobre cuánto tiempo tardará un temporizador en expirar.
+<section class="Sh">
+<h1 class="Sh" id='SUBCLASSING'><a class='permalink' href='#SUBCLASSING'>SUBCLASEAD</a></h1>O
+<p class="Pp">CAMBIO INCOMPATIBLE: Debido a la torpeza introducida al eliminar los pseudohashes de Perl, esta clase <i>ya no us</i>a la dire</p>ctiva
+   </section> fields.
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS_&amp;amp;_METHODS'><a class='permalink' href='#FUNCTIONS_&amp;amp;_METHODS'>FUNCIONES   Y   </a></h1>MÉTODOS
+<dl class="Bl-tag">
+  <dt id="timer"><a class="permalink" href="#timer">tim</a></dt>er
+  <dd>Una función constructora (no método) de instancias de IPC::Run::Timer:
+        <pre>$t = timer( 5 );
+$t = timer( 5, name =&gt; 'stall timer', debug =&gt; 1 );
+$t = timer;
+$t-&gt;interval( 5 );
+run ..., $t;
+run ..., $t = timer( </pre>5 );
+    <p class="Pp">Esta función de conveniencia es una forma </p>abreviada de
+        <pre>IPC::Run::Timer-&gt;new( ..</pre>. );
+    <p class="Pp">. Devuelve un temporizador en el estado restablecido con un intervalo </p>dado.
+    <p class="Pp">Si se proporciona una excepción, se lanzará cuando el temporizador note que ha expirado (en <b>check()). El nombre es para uso de depura</b>ción, si planea tener múltiples temporiza</p>dores. Si no se proporciona un nombre, se</dd> proporcionará un nombre como "timer #1".
+  <dt id="timeout"><a class="permalink" href="#timeout">timeo</a></dt>ut
+  <dd>Una función constructora (no método) de instancias de IPC::Run::Timer:
+        <pre>$t = timeout( 5 );
+$t = timeout( 5, exception =&gt; "kablooey" );
+$t = timeout( 5, name =&gt; "stall", exception =&gt; "kablooey" );
+$t = timeout;
+$t-&gt;interval( 5 );
+run ..., $t;
+run ..., $t = timeout( </pre>5 );
+    <p class="Pp">Esta función de conveniencia es una forma </p>abreviada de
+        <pre>IPC::Run::Timer-&gt;new( exception =&gt; "IPC::Run: timeout ...", .</pre>.. );
+    <p class="Pp">. Devuelve un temporizador en el estado restablecido que lanzará una excepción cuando </p>expire.
+    <p class="Pp">Acepta los mismos parámetros que "</p>timer", cualquier excepción pasada </dd>anula la excepción predeterminada.
+  <dt id="new"><a class="permalink" href="#new">ne</a></dt>w
+  <dd>
+    <pre>IPC::Run::Timer-&gt;new()  ;
+IPC::Run::Timer-&gt;new( 5 )  ;
+IPC::Run::Timer-&gt;new( 5, exception =&gt; 'kablooey' </pre>)  ;
+    <p class="Pp">Constructor. V</p>ea "timer" para</dd> más detalles.
+  <dt id="check"><a class="permalink" href="#check">che</a></dt>ck
+  <dd>
+    <pre>check $t;
+check $t, $now;
+$t-&gt;</pre>check;
+    <p class="Pp">Comprueba si un temporizador ha expirado desde la última comprobación. No tiene efecto en temporizadores que no estén en ejecución. Esto lanzará una excepción si una está </p>definida.
+    <p class="Pp"><b>IPC::Run::pump()</b> llama a esta rutina para cualquier temporizador en el </p>arnés.
+    <p class="Pp">Puede pasar una versión de "ahora", lo cual es útil en caso de que la tenga a mano o quiera comprobar varios temporizadores con un concepto consistente de la hora </p>actual.
+    <p class="Pp">Devuelve el tiempo restante antes de end_time o 0 si end_time ya no está en el futuro o el temporizador no está en ejecución (a menos que, por supuesto,
+        <b>check(</b>) <b>expire()</b> el temporizador y esto resulte en una excepción lanzada)</p>.
+    <p class="Pp">Devuelve undef si el temporizador no está en ejecución al entrar, 0 si
+        <b>check() lo expir</b>a, y el tiempo </p>restante si sig</dd>ue en ejecución.
+  <dt id="debug"><a class="permalink" href="#debug">deb</a></dt>ug
+  <dd>Establece/obtiene la configuración actual del indicador de depuración para este temporizador. Esto no tiene efecto si la depuración no está habilitada para el arnés </dd>actual.
+  <dt id="end_time"><a class="permalink" href="#end_time">end_ti</a></dt>me
+  <dd>
+    <pre>$et = $t-&gt;end_time;
+$et = end_time $t;
+$t-&gt;end_time( time + </pre>10 );
+    <p class="Pp">Devuelve la hora en la que este temporizador expirará o expiró. Incluso si esta hora está en el pasado, el temporizador puede no estar expirado, ya que
+        <b>check()</b> puede no haber sido llamado </p>todavía.
+    <p class="Pp">Tenga en cuenta que este end_time no es start_time($t) + interval($t), ya queSe añade una cantidad extra de tiempo para asegurar que el
+        temporizador no expire antes de que <b>interval()</b> haya transcurrido. Si no fuera así, </p>entonces
+    <p class="Pp">Cambiar <b>end_time() </b>mientras un temporizador está en ejecución establecerá
+        el tiempo de expiración. Cambiarlo mientras está expirado no tiene efecto, ya que <b>reset()</b>ear un temporizador siempre limpia el <b>end</b>_ti</p>me</dd>().
+  <dt id="exception"><a class="permalink" href="#exception">excepci</a></dt>ón
+  <dd>
+    <pre>$x = $t-&gt;exception;
+$t-&gt;exception( $x );
+$t-&gt;exception( </pre>undef );
+    <p class="Pp">Establece/obtiene la excepción a lanzar, si la hay. 'undef' signific</p>a que
+        no se lanzará ninguna excepción. La excepción no nece</dd>sita ser un escalar: puedes
+        pedir que se lancen referencias.
+  <dt id="interval"><a class="permalink" href="#interval">interva</a></dt>lo
+  <dd>
+    <pre>$i = interval $t;
+$i = $t-&gt;interval;
+$t-&gt;interval( </pre>$i );
+    <p class="Pp">Establece el intervalo. Establece la hora de finalización basándose en la
+        <b>start_time() y el interv</b>alo (y un poco de margen</p>) si el temporizador
+  </dd>      está en ejecución.
+  <dt id="expire"><a class="permalink" href="#expire">expir</a></dt>ar
+  <dd>
+    <pre>expire $t;
+$t-&gt;</pre>expire;
+    <p class="Pp">Establece el estado como expirado (undef). Lanzará una excepción s</p>i
+        una está definida y el temporizador no estaba ya expirado</dd>. Puedes expirar un
+        temporizador reiniciado sin iniciarlo.
+  <dt id="is_running"><a class="permalink" href="#is_running">is_runni</a></dt>ng
+  <dd></dd>
+  <dt id="is_reset"><a class="permalink" href="#is_reset">is_res</a></dt>et
+  <dd></dd>
+  <dt id="is_expired"><a class="permalink" href="#is_expired">is_expir</a></dt>ed
+  <dd></dd>
+  <dt id="name"><a class="permalink" href="#name">nom</a></dt>bre
+  <dd>Establece/obtiene el nombre de este temporizador. El nombre solo se usa con fines de depuración
+      para que puedas decir qué maldito temporizador está haciendo </dd>qué.
+  <dt id="reset"><a class="permalink" href="#reset">res</a></dt>et
+  <dd>
+    <pre>reset $t;
+$t-&gt;</pre>reset;
+    <p class="Pp">Reinicia el temporizador al estado no en ejecución, no expirado y
+        limpia el <b>end</b>_ti</p>me</dd>().
+  <dt id="start"><a class="permalink" href="#start">sta</a></dt>rt
+  <dd>
+    <pre>start $t;
+$t-&gt;start;
+start $t, $interval;
+start $t, $interval, </pre>$now;
+    <p class="Pp">Inicia o reinicia un temporizador. Esto siempre establece la start_time.
+        Establece la end_time basándose en el intervalo si el temporizador está en ejecución o si
+        no se ha establecido una hora de </p>finalización.
+    <p class="Pp">Puedes pasar un intervalo o un valor de hora actual </p>opcional.
+    <p class="Pp">No pasar un intervalo definido hace que se reutilice la configuración de intervalo
+        anterior a menos que el temporizador se reinicie y se haya establecido una end_time (se lanza
+        una excepción si no se ha establecido ningún </p>intervalo).
+    <p class="Pp">No pasar un valor de hora actual definido hace que se utilice la hora
+        </p>actual.
+    <p class="Pp">Pasar un valor de hora actual es útil si resulta que tienes un
+        valor de hora a mano o </p>si quieres asegurarte de que varios temporizadores
+        se inicien con el mismo concepto de</dd> hora de inicio. Puedas incluso necesitar mentir
+        a un IPC::Run::Timer, ocasionalmente.
+  <dt id="start_time"><a class="permalink" href="#start_time">start_ti</a></dt>me
+  <dd>Establece/obtiene la hora de inicio, en segundos desde la época. Establecer esto
+      manualmente es una mala idea, es mejor llamar a "start"() en el
+      momento </dd>correcto.
+  <dt id="state"><a class="permalink" href="#state">esta</a></dt>do
+  <dd>
+    <pre>$s = state $t;
+$t-&gt;state( </pre>$s );
+    <p class="Pp">Obtener/Establecer el estado actual. Usa esto solo si realmente necesitas
+        transferir el estado a/desde alguna variable. Usa "expire",
+        "start", "reset", "is_expired",
+        "is_running", </p>"is_reset".
+    <p class="Pp">Nota: Establecer el </p>estado en 'undef' pa</dd>ra expirar un tempor</dl>izador no
+        la</section>nzará una excepción.
+<section class="Sh">
+<h1 class="Sh" id='TODO'><a class='permalink' href='#TODO'>TOD</a></h1>O
+<p class="Pp">usar Time::HiRes; si está </p>presente.
+<p class="Pp">Añadir detección y análisi</p>s de tiempos e intervalos c</section>on formato [[[HH:]MM:]SS].
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTO</a></h1>R
+<p class="Pp">Barrie Sla</p>ymaker &lt;b</section>arries@sl</div>aysys.com&gt;
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-08</td>-29
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-ipc-run/">extra/perl-i</a></dd>pc-run
+        <dt>Vers</dt>ión:
+        <dd>20250809.</dd>0-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://search.cpan.org/dist/IPC-Run">https://search.cpan.</a></dd>org/dist/IPC-Run
+        <dt>Licen</dt>cias:
+        <dd>GPL, </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-ipc-run/">/listin</a></dd>g/extra</dl>/perl-i</section>pc-run/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#SUBCLASSING">SUBC</a></li>LASEADO
+        
+            <li><a href="#FUNCTIONS_&amp;amp;_METHODS">FUNCIONES </a></li>Y MÉTODOS
+        
+            <li><a href="#TODO">T</a></li>ODO
+        
+            <li><a href="#AUTHOR">A</a></li>U</ul>T</nav>O</details>R
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/IPC::Run::Timer.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/IPC::Run::Timer.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia GPL-3.0
+              </a> , excepto por el contenido de </p>las páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> correspondiente de Arch Linux.

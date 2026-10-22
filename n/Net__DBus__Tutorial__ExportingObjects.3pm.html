@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::DBus::Tutorial::ExportingObjects(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__DBus__Tutorial__ExportingObjects(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-net-dbus/">perl-net-dbus</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Net::DBus::Tutorial::ExportingObjects(3)</td>
+    <td class="head-vol">Documentación Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Net::DBus::Tutorial::ExportingObjects(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Net::DBus::Tutorial::ExportingObjects - tutoriales sobre cómo proporcionar un servicio DBus</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este documento proporciona un tutorial sobre cómo proporcionar un servicio DBus utilizando los enlaces de aplicación Perl Net::DBus. Los ejemplos en este documento se basarán en el código de la distribución Music::Player, que es un servicio DBus simple que proporciona un reproductor de pistas de música.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CREATING_AN_OBJECT'><a class='permalink' href='#CREATING_AN_OBJECT'>CREANDO   UN OBJETO</a></h1>
+<p class="Pp">El primer paso para crear un objeto es crear un nuevo paquete que herede de Net::DBus::Object. El objeto Music::Player::Manager proporciona una API para gestionar la colección de backends de reproductores de música para diferentes tipos de pistas. Para empezar, creemos el esqueleto del paquete y su constructor. El constructor del supertipo, Net::DBus::Object, espera recibir dos parámetros: un manejador del servicio Net::DBus que posee el objeto y una ruta bajo la cual se exportará el objeto. Dado que la clase manager está pensada para ser un objeto singleton, podemos codificar su ruta en el constructor:</p>
+<pre>package Music::Player::Manager;
+use base qw(Net::DBus::Object);
+sub new {
+    my $class = shift;
+    my $service = shift;
+    my $self = $class-&gt;SUPER::new($service, &quot;/music/player/manager&quot;);
+    bless $self, $class;
+    return $self;
+}
+1;</pre>
+<p class="Pp">Ahora, como se mencionó, el gestor manejará un número de diferentes backends de reproductor. Así que necesitamos proporcionar métodos para registrar nuevos backends y consultar por backends capaces de reproducir un tipo de archivo particular. Así que modificando el código anterior agregamos una tabla hash en el constructor para almacenar los backends:</p>
+<pre>sub new {
+    my $class = shift;
+    my $service = shift;
+    my $self = $class-&gt;SUPER::new($service, &quot;/music/player/manager&quot;);
+    $self-&gt;{backends} = {};
+    bless $self, $class;
+    return $self;
+}</pre>
+<p class="Pp">Y ahora un método para registrar un nuevo backend. Este toma un nombre de módulo Perl y lo usa para instanciar un backend. Dado que los backends también serán objetos DBus, necesitamos pasar una referencia al servicio al que estamos adjuntos, junto con una ruta bajo la cual registrar el backend. Usamos el método <span class="Li">&quot;get_service&quot;</span> para recuperar una referencia al servicio al que está adjunto el gestor y adjuntamos el backend del reproductor a este mismo servicio: Cuando se invoca un método en un objeto DBus, el primer parámetro es la referencia al objeto (<span class="Li">$self</span>), y el resto son los parámetros proporcionados a la llamada del método. Por lo tanto, escribir una implementación de método en un DBus no es realmente diferente de Perl orientado a objetos normal (cf perltoot):</p>
+<pre>sub register_backend {
+    my $self = shift;
+    my $name = shift;
+    my $module = shift;
+    eval &quot;use $module&quot;;
+    if ($@) {
+        die &quot;cannot load backend $module: $@&quot; ;
+    }
+    $self-&gt;{backends}-&gt;{$name} = $module-&gt;new($self-&gt;get_service,
+                                              &quot;/music/player/backend/$name&quot;);
+}</pre>
+<p class="Pp">Mirando esto, uno podría preguntarse qué sucede si se activa el método <span class="Li">&quot;die&quot;</span>. En tal escenario, en lugar de terminar el proceso del servicio, el error será capturado y propagado al llamador remoto para que lo maneje.</p>
+<p class="Pp">Los backends del reproductor proporcionan un método <span class="Li">&quot;get_track_types&quot;</span> que devuelve una referencia de array de los tipos de pistas de música que soportan. Podemos usar este método para proporcionar una API que permita la recuperación fácil de un backend para un tipo de pista particular. Este método devolverá una ruta con la que se puede acceder al objeto backend</p>
+<pre>sub find_backend {
+    my $self = shift;
+    my $extension = shift;
+    foreach my $name (keys %{$self-&gt;{backends}}) {
+       my $backend = $self-&gt;{backends}-&gt;{$name};
+       foreach my $type (@{$backend-&gt;get_track_types}) {
+          if ($type eq $extension) {
+              return $backend-&gt;get_object_path;
+          }
+       }
+    }
+    die &quot;no backend for type $extension&quot;;
+}</pre>
+<p class="Pp">Tomemos un momento rápido para considerar cómo se usaría este método para reproducir una pista de música. Si aún no lo ha hecho, refresque su memoria de Net::DBus::Tutorial::UsingObjects. Ahora, tenemos un archivo MP3 que deseamos reproducir, así que buscamos la ruta a un backend, luego recuperamos el objeto para él y reproducimos la pista:</p>
+<pre>...obtener el servicio de reproductor de música...
+# Solicitar una ruta a un reproductor para archivos mp3
+my $path = $service-&gt;find_backend(&quot;mp3&quot;);
+# $path ahora contiene '/music/player/backend/mpg123'
+# y podemos obtener el objeto backend
+my $backend = $service-&gt;get_object($path);
+# y finalmente reproducir la pista
+$backend-&gt;play(&quot;/vol/music/beck/guero/09-scarecrow.mp3&quot;);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROVIDING_INTROSPECTION_DATA'><a class='permalink' href='#PROVIDING_INTROSPECTION_DATA'>PROPORCIONANDO   DATOS DE INTROSPECCIÓN</a></h1>
+<p class="Pp">El código anterior es un objeto funcional completo, listo para ser registrado con un servicio, y dado que los parámetros y valores de retorno de los dos métodos son ambos cadenas simples, podríamos detenernos ahí. En algunos casos, sin embargo, uno podría querer ser más específico sobre los tipos de datos esperados para los parámetros, por ejemplo, enteros con signo vs. sin signo. Agregar tipado explícito de datos también hace que la interacción con otros lenguajes de programación sea más confiable. Proporcionar definiciones de tipos de datos explícitos para métodos exportados se conoce en el mundo DBus como <span class="Li">&quot;Introspección&quot;</span>, y hace la vida mucho más confiable para los usuarios de uno's servicio que pueden estar utilizando un lenguaje fuertemente tipado como C.</p>
+<p class="Pp">El primer paso para proporcionar datos de introspección para un objeto DBus en Perl es especificar el nombre de la interfaz proporcionada por el objeto. Esta es típicamente una cadena separada por puntos, por convención que contiene el nombre de dominio de la aplicación como su primer componente. Dado que la mayoría de los módulos Perl terminan viviendo en CPAN, uno podría usar <span class="Li">&quot;org.cpan&quot;</span> como el primer componente, seguido del nombre del paquete del módulo (reemplazando :: por .), por ejemplo, <span class="Li">&quot;org.cpan.music.player.manager&quot;</span>. Si no se planea alojar el módulo en CPAN, se podría usar un dominio personal/de proyecto, por ejemplo, <span class="Li">&quot;com.berrange.music.player.manager&quot;</span>. La interfaz para un objeto se define cargando el módulo Net::DBus::Exporter, proporcionando la interfaz como su primer parámetro. Así que el ejemplo de código anterior se modificaría para verse así:</p>
+<pre>package Music::Player::Manager;
+use base qw(Net::DBus);
+use Net::DBus::Exporter qw(com.berrange.music.player.manager)</pre>
+<p class="Pp">A continuación, es necesario proporcionar tipos de datos para los parámetros y valores de retorno de los métodos. El módulo Net::DBus::Exporter proporciona un método <span class="Li">&quot;dbus_method&quot;</span> para este propósito, que toma tres parámetros, el nombre del método que se está exportando, una referencia de array de tipos de parámetros y una referencia de array de tipos de retorno (este último puede omitirse si no hay valores de retorno). Esto se puede llamar en cualquier momento en el código del módulo, pero por convención es preferible asociar las llamadas a <span class="Li">&quot;dbus_method&quot;</span> con la implementación real del método, así:</p>
+<pre>dbus_method(&quot;register_backend&quot;, [&quot;string&quot;, &quot;string&quot;]);
+sub register_backend {
+    my $self = shift;
+    my $name = shift;
+    my $module = shift;
+    .. snipped rest of method body ...
+}</pre>
+<p class="Pp">Y, así:</p>
+<pre>dbus_method(&quot;find_backend&quot;, [&quot;string&quot;], [&quot;string&quot;])
+sub find_backend {
+    my $self = shift;
+    my $extension = shift;
+    ... snip method body...
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEFINING_A_SERVICE'><a class='permalink' href='#DEFINING_A_SERVICE'>DEFINIENDO   UN SERVICIO</a></h1>
+<p class="Pp">Ahora que los objetos han sido escritos, es hora de definir un servicio. Un servicio no es más que un nombre bien conocido para un contrato de API determinado. Un contrato puede ser pensado como una definición de una lista de rutas de objetos y las interfaces correspondientes que proporcionan. Así, alguien más podría venir y proporcionar una implementación alternativa de reproductor de música usando los enlaces de Python o QT para DBus, y si proporcionaran el mismo conjunto de rutas de objetos e interfaces, podrían justificadamente registrar el mismo servicio en el bus.</p>
+<p class="Pp">El módulo Net::DBus::Service proporciona los medios para registrar un servicio. Su constructor espera una referencia al objeto bus (una instancia de Net::DBus), junto con el nombre del servicio. Al igual que con los nombres de interfaz, el primer componente de un nombre de servicio generalmente se deriva de un nombre de dominio, y luego se le añade el nombre de la aplicación, en nuestro ejemplo formando <span class="Li">&quot;org.cpan.Music.Player&quot;</span>. Mientras que algunos objetos se crearán sobre la marcha durante la ejecución de la aplicación, otros se crearán al inicio.</p>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+    </body>
+</html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Net::DBus::Tutorial::ExportingObjects(3pm) — Arch Linux man pages</title>
+        <link rel="stylesheet" href="/assets/css/style.css">
+        <link rel="stylesheet" href="/assets/css/man.css">
+        <link rel="icon" type="image/png" href="/assets/img/archlinux.png">
+    </head>
+    <body>
+        
+        <main class="container">
+            <article>
+<section class="Sh">
+<h1 class="Sh" id='CREATING_AN_OBJECT'><a class='permalink' href='#CREATING_AN_OBJECT'>CREATING   AN OBJECT</a></h1>
+<p class="Pp">As noted before, services are instantiated around objects which
+    provide the functionality required. An object may provide one, or more
+    DBus interfaces. As such, it is typical to have objects which provide
+    specific interfaces, and then to have a main service object which instantiates
+    these objects and registers them with the bus.</p>
+<p class="Pp">In our music player example, we might have a
+    <code class="Nm">Music::Player::Manager</code> object which handles the actual
+    playing of music, and a
+    <code class="Nm">Music::Player::Tracklist</code> object which handles the
+    playlist. The service object itself would then instantiate these objects
+    and register them with the bus under the paths required.</p>
+<p class="Pp">The constructor for a service object is responsible for instantiating
+    and registering the objects that the service exports. This is done by calling
+    the <code class="Nm">export_object</code> method on the service object itself.
+    This method takes the object to export, and the path at which to export it
+    as arguments.</p>
+<pre>package Music::Player;
+use base qw(Net::DBus::Service);
+sub new {
+    my $class = shift;
+    my $bus = shift;
+    my $self = $class-&gt;SUPER::new($bus, &quot;org.cpan.music.player&quot;);
+    bless $self, $class;
+    $self-&gt;{manager} = Music::Player::Manager-&gt;new($self);
+    $self-&gt;export_object($self-&gt;{manager}, &quot;/TrackList&quot;);
+    return $self;
+}</pre>
+<p class="Pp">The <code class="Nm">Net::DBus::Service</code> base class takes care
+    of the boilerplate for exposing the objects via DBus. The service object
+    itself is automatically exported under the root path
+    <span class="Li">&quot;/&quot;</span>, so you don't need to explicitly call
+    <code class="Nm">export_object</code> for it. You also don't need to explicitly
+    call it for any objects which are instantiated by the service using
+    <code class="Nm">Net::DBus::Service::new</code>. The
+    <code class="Nm">Net::DBus::Service</code> base class automatically exports
+    all objects created via its constructor.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROVIDING_INTROSPECTION_DATA'><a class='permalink' href='#PROVIDING_INTROSPECTION_DATA'>PROVIDING   INTROSPECTION DATA</a></h1>
+<p class="Pp">As noted previously, DBus uses XML for describing interfaces. This
+    is known as introspection data. A service which wishes to be discoverable
+    must provide this data. This is done by implementing the
+    <span class="Li">&quot;org.freedesktop.DBus.Introspectable&quot;</span>
+    interface on the objects being exported.</p>
+<p class="Pp">The interface is simple, containing only one method:
+    <span class="Li">&quot;Introspect&quot;</span>. This method should return an XML
+    string describing the interfaces provided by the object.</p>
+<p class="Pp">Here is an example of introspection data for the
+    <code class="Nm">Music::Player::Manager</code> object:</p>
+<pre>&lt;node&gt;
+  &lt;interface name=&quot;org.cpan.music.player.Manager&quot;&gt;
+    &lt;method name=&quot;Play&quot;&gt;
+      &lt;arg direction=&quot;in&quot;  type=&quot;s&quot; name=&quot;filename&quot;/&gt;
+    &lt;/method&gt;
+    &lt;method name=&quot;Stop&quot;/&gt;
+    &lt;signal name=&quot;TrackFinished&quot;&gt;
+      &lt;arg type=&quot;s&quot; name=&quot;filename&quot;/&gt;
+    &lt;/signal&gt;
+  &lt;/interface&gt;
+&lt;/node&gt;</pre>
+<p class="Pp">The <span class="Li">&quot;org.freedesktop.DBus.Exporter&quot;</span>
+    interface, which is automatically provided by
+    <span class="Li">&quot;Net::DBus::Service&quot;</span>, provides a list of
+    all objects exported by the service. This is useful for clients wishing to
+    discover the objects available within a service.</p>
+<pre>&lt;node&gt;
+  &lt;interface name=&quot;org.freedesktop.DBus.Exporter&quot;&gt;
+    &lt;method name=&quot;ListObjects&quot;&gt;
+      &lt;arg direction=&quot;out&quot; type=&quot;ao&quot; name=&quot;objects&quot;/&gt;
+    &lt;/method&gt;
+  &lt;/interface&gt;
+&lt;/node&gt;</pre>
+<p class="Pp">A service which exports multiple objects must aggregate the introspection
+    data from all its exported objects. The root object of the service is
+    responsible for providing this aggregated introspection data.</p>
+<p class="Pp">The <span class="Li">&quot;Net::DBus::Service&quot;</span> base class
+    provides a default implementation of the
+    <span class="Li">&quot;org.freedesktop.DBus.Introspectable&quot;</span>
+    interface. This default implementation will automatically generate introspection
+    data based on the objects that have been exported by the service. You can
+    override this default implementation if you need to provide custom introspection
+    data.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEFINING_A_SERVICE'><a class='permalink' href='#DEFINING_A_SERVICE'>DEFINING   A SERVICE</a></h1>
+<p class="Pp">The <code class="Nm">Net::DBus::Service</code> base class provides a
+    convenient way to define DBus services. A service is essentially a Perl
+    object that exports one or more DBus interfaces. The service object itself
+    is also exported as a DBus object, typically under the root path
+    <span class="Li">&quot;/&quot;</span>.</p>
+<p class="Pp">The constructor for a service object is responsible for instantiating
+    and registering the objects that the service exports. This is done by calling
+    the <code class="Nm">export_object</code> method on the service object itself.
+    This method takes the object to export, and the path at which to export it
+    as arguments.</p>
+<p class="Pp">The following example shows a simple service object that exports
+    a single interface,
+    <span class="Li">&quot;org.cpan.music.player.Manager&quot;</span>:</p>
+<pre>package Music::Player;
+use base qw(Net::DBus::Service);
+sub new {
+    my $class = shift;
+    my $bus = shift;
+    my $self = $class-&gt;SUPER::new($bus, &quot;org.cpan.music.player&quot;);
+    bless $self, $class;
+    $self-&gt;{manager} = Music::Player::Manager-&gt;new($self);
+    $self-&gt;export_object($self-&gt;{manager}, &quot;/TrackList&quot;);
+    return $self;
+}</pre>
+<p class="Pp">The <code class="Nm">Net::DBus::Service</code> base class automatically
+    provides one special object to all services, under the path
+    <span class="Li">&quot;/org/freedesktop/DBus/Exporter&quot;</span>. This
+    object implements the
+    <span class="Li">&quot;org.freedesktop.DBus.Exporter&quot;</span> interface
+    which has a method <span class="Li">&quot;ListObject&quot;</span>. This
+    enables clients to determine a list of all objects exported within a
+    service. While not functionally necessary for most applications, it is
+    none-the-less a useful tool for developers debugging applications, or
+    wondering what a service provides.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONNECTING_TO_THE_BUS'><a class='permalink' href='#CONNECTING_TO_THE_BUS'>CONNECTING   TO THE BUS</a></h1>
+<p class="Pp">The final step in getting our service up and running is to connect
+    it to the bus. This brings up an interesting conundrum, does one export the
+    service on the system bus (shared by all users &amp; processes on the
+    machine), or the session bus (one per user logged into a machine). In some
+    cases the answer, with only one of the two buses conceptually making sense.
+    In other cases, however, both the session &amp; system bus are valid. In the
+    former one would use the <span class="Li">&quot;session&quot;</span> or
+    &lt;system&gt; methods on Net::DBus to get a handle to the desired bus,
+    while in the latter case, the <span class="Li">&quot;find&quot;</span>
+    method would be used. This applies a heuristic to determine the correct bus
+    based on execution environment. In the case of the music player, either bus
+    is relevant, so the code to connect the service to the bus would look
+  like:</p>
+<pre>use Net::DBus;
+my $bus = Net::DBus-&gt;find;
+my $player = Music::Player-&gt;new($bus);</pre>
+<p class="Pp">With the service attached to the bus, it is merely necessary to
+    run the main event processing loop to listen out for &amp; handle incoming
+    DBus messages. So the above code is modified to start a simple reactor:</p>
+<pre>use Net::DBus;
+use Net::DBus::Reactor;
+my $bus = Net::DBus-&gt;find;
+my $player = Music::Player-&gt;new($bus);
+Net::DBus::Reactor-&gt;main-&gt;run;
+exit 0;</pre>
+<p class="Pp">Saving this code into a script
+    <span class="Li">&quot;/usr/bin/music-player.pl&quot;</span>, coding is
+    complete and the service ready for use by clients on the bus.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SERVICE_ACTIVATION'><a class='permalink' href='#SERVICE_ACTIVATION'>SERVICE   ACTIVATION</a></h1>
+<p class="Pp">One might now wonder how best to start the service, particularly
+    if it is a service capable of running on both the system and session buses.
+    DBus has the answer in the concept of
+    <span class="Li">&quot;activation&quot;</span>. What happens is that when a
+    client on the bus attempts to call a method, or register a signal handler
+    against, a service not currently running, it will first try and start the
+    service. Service's which wish to participate in this process merely need
+    stick a simple service definition file into the directory
+    <span class="Li">&quot;/usr/share/dbus-1/services&quot;</span>. The file
+    should be named to match the service name, with the file extension
+    <span class="Li">&quot;.service&quot;</span> appended. eg,
+    <span class="Li">&quot;/usr/share/dbus-1/services/org.cpan.music.player.service&quot;</span>
+    The file contains two keys, first the name of the service, and second the
+    name of the executable used to run the service, or in this case the Perl
+    script. So, for our simple service the data file would contain:</p>
+<pre>[D-BUS Service]
+Name=org.cpan.music.player
+Exec=/usr/bin/music-player.pl</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp">Net::DBus::Tutorial for details of other tutorials, and Net::DBus
+    for API documentation</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTHORS</a></h1>
+<p class="Pp">Daniel Berrange &lt;dan@berrange.com&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright (C) 2005 Daniel P. Berrange</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-net-dbus/">extra/perl-net-dbus</a></dd>
+        <dt>Version:</dt>
+        <dd>1.2.0-8</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Net-DBus">https://search.cpan.org/dist/Net-DBus</a></dd>
+        <dt>Licenses:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-net-dbus/">/listing/extra/perl-net-dbus/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#CREATING_AN_OBJECT">CREATING AN OBJECT</a></li>
+        
+            <li><a href="#PROVIDING_INTROSPECTION_DATA">PROVIDING INTROSPECTION DATA</a></li>
+        
+            <li><a href="#DEFINING_A_SERVICE">DEFINING A SERVICE</a></li>
+        
+            <li><a href="#CONNECTING_TO_THE_BUS">CONNECTING TO THE BUS</a></li>
+        
+            <li><a href="#SERVICE_ACTIVATION">SERVICE ACTIVATION</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+            <li><a href="#AUTHORS">AUTHORS</a></li>
+        
+            <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/Net::DBus::Tutorial::ExportingObjects.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Net::DBus::Tutorial::ExportingObjects.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

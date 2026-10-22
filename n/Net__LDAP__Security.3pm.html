@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::LDAP::Security(3) — Manuales de la documentación de Perl</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__LDAP__Security(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-ldap/">perl-ldap</a></p>
+<p class="lic">Licencias: GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Net::LDAP::Security(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por usuarios</td>
+    <td class="head-rtitle">Net::LDAP::Security(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Net::LDAP::Security - Problemas de seguridad relacionados con conexiones a servidores LDAP</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>none</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este documento discute diversos problemas de seguridad relacionados con el uso de LDAP y la conexión a servidores LDAP, especialmente cómo gestionar estos posibles vulnerabilidades:</p>
+<ul class="Bl-bullet">
+  <li>¿Conoces que estás conectado al servidor correcto?</li>
+  <li>¿Puede un atacante escuchar tus contrasenias o identificadores de usuario durante la conexión a un directorio?</li>
+  <li>¿Puede un atacante escuchar información confidencial de la conexión a un directorio?</li>
+</ul>
+<p class="Pp">Net::LDAP proporciona formas de abordar estas vulnerabilidades: mediante el uso de LDAPS, o LDAPv3 y TLS, y/o el uso de SASL. Cada uno de estos se explicará más adelante.</p>
+<section class="Ss">
+<h2 class="Ss" id='How_does_an_LDAP_connection_work'><a class='permalink' href='#How_does_an_LDAP_connection_work'>¿Cómo funciona una conexión LDAP?</a></h2>
+<p class="Pp">Una conexión LDAPv2 o LDAPv3 funciona mediante el cliente conectándose directamente a puerto 389 (por defecto), y luego emitir diversos requisitos LDAP como búsqueda, agregar, etc.</p>
+<p class="Pp">No hay manera de garantizar que un cliente LDAP esté conectado al servidor correcto. Los ciberdelincuentes pueden haber atacado tu DNS, por lo que 'ldap.example.com' podría apuntar a 'ldap.hacker.com'. O pueden haber instalado su propio servidor en el equipo correcto.</p>
+<p class="Pp">Es natural que toda la información se transmita entre el cliente y el servidor en 'texto plano'. Esto es un término usado por criptógrafos para describir datos no encriptados y recuperables, así que incluso aunque LDAP pueda transmitir valores binarios como imágenes JPEG, audios y certificados X.509, todo sigue siendo considerado 'texto plano'.</p>
+<p class="Pp">Si estas vulnerabilidades son un problema, entonces deberías considerar otras alternativas descritas más adelante, como LDAPS, LDAPv3 y TLS, y SASL.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='How_does_an_LDAPS_connection_work'><a class='permalink' href='#How_does_an_LDAPS_connection_work'>¿Cómo funciona una conexión LDAPS?</a></h2>
+<p class="Pp">LDAPS es un protocolo no oficial. Es a LDAPS como HTTPS es a HTTP, es decir, el mismo protocolo (pero en este caso LDAPv2 o LDAPv3) que se ejecuta sobre una conexión <i>segura</i> («Secure Socket Layer») a puerto 636 (por defecto).</p>
+<p class="Pp">No todas las servidores estarán configuradas para escuchar conexiones LDAPS, pero si lo hacen, suele estar en un puerto diferente del puerto normal de conexión LDAP sin encriptación.</p>
+<p class="Pp">El uso de LDAPS puede <i>potencialmente</i> resolver las vulnerabilidades descritas anteriormente, pero debes tener en cuenta que simplemente usar SSL no es un mago que automaticamente hace tu sistema «seguro».</p>
+<p class="Pp">Primero, LDAPS puede resolver el problema de verificar que estás conectado al servidor correcto. Cuando el cliente y el servidor se conectan, se realizan un handshake especial SSL, parte de lo cual involucra el intercambio de claves criptográficas del servidor y del cliente, que se describen usando certificados X.509. Si el cliente desea confirmar que está conectado al servidor correcto, lo único que necesita hacer es verificar la certificación del servidor que se envía en el handshake. Esto se hace de dos formas:</p>
+<dl class="Bl-tag">
+  <dt>1.</dt>
+  <dd>Verifica que la certificación sea firmada (confiable) por alguien que confías, y que no haya sido revocada. Por ejemplo, la certificación del servidor puede haber sido firmada por Verisign (www.verisign.com), y tú decides que quieres confiar en Verisign para firmar certificados legítimos.</dd>
+  <dt>2.</dt>
+  <dd>Verifica que el RDN más significativo de la DN del certificado del servidor sea el hostname completo que conectaste cuando creaste la conexión LDAPS. Por ejemplo, si el servidor tiene <cn=ldap.example.com,ou=My department,o=My company>, el RDN a verificar es <cn=ldap.example.com>.</dd>
+</dl>
+<p class="Pp">Puedes hacer esto usando las opciones cafile y capath cuando se crea un objeto <b>Net::LDAPS</b>, y también estableciendo la opción verify a 'require'.</p>
+<p class="Pp">Para evitar que los atacantes escuchen contrasenias y otras información en tu conexión, también debes asegurar que el algoritmo de encriptación utilizado en la conexión SSL sea suficientemente sólido. Esto también se decide durante el handshake SSL. Si el cliente y el servidor no pueden acordar un algoritmo aceptable, la conexión no se establece.</p>
+<p class="Pp">Net::LDAPS utilizará por defecto todos los algoritmos disponibles en tu copia de OpenSSL, excepto aquellos considerados como de baja seguridad, y aquellos que usan la encriptación con clave de exportación. Puedes cambiar esto al crear un objeto <b>Net::LDAPS</b> usando la opción 'ciphers'.</p>
+<p class="Pp">Una vez que hayas establecido la conexión segura, debes también verificar que el algoritmo de encriptación que se está utilizando sea uno que consideres aceptable. Servidores caídos han sido observados que 'fallan' y te dan una conexión no encriptada, así que deberías verificarlo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='How_does_LDAP_and_TLS_work'><a class='permalink' href='#How_does_LDAP_and_TLS_work'>¿Cómo funciona LDAP y TLS?</a></h2>
+<p class="Pp">SSL es una solución buena para muchos problemas de seguridad en redes, pero no es estándar. El IETF corrigió algunos defectos en el mecanismo de SSL y publicó un estándar llamado RFC 2246, que describe TLS («Seguridad de Capa de Transporte»), que es simplemente una versión limpia y estandarizada de SSL.</p>
+<p class="Pp">Solo puedes usar TLS con un servidor LDAPv3. Esto es porque el estándar (RFC 4511) para LDAP y TLS requiere que la conexión normal de LDAP (es decir, en puerto 389) pueda ser cambiada de texto plano a una conexión TLS de forma on demand. El mecanismo de cambio utiliza una operación especial de LDAP, y ya que estos no son legales en LDAPv2, solo puedes cambiar a TLS en una conexión LDAPv3.</p>
+<p class="Pp">Por lo tanto, el modo en que usas TLS con LDAPv3 es crear tu conexión normal LDAPv3 usando <span class="Li">Net::LDAP::new()</span>, y luego realizas el cambio usando <span class="Li">Net::LDAP::start_tls()</span>. El método <span class="Li">start_tls()</span> toma casi los mismos argumentos que <span class="Li">Net::LDAPS::new()</span>, así que consulta el contenido anterior para detalles.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='How_does_SASL_work'><a class='permalink' href='#How_does_SASL_work'>¿Cómo funciona SASL?</a></h2>
+<p class="Pp">SASL es un marco de autenticación que puede usarse por una variedad de servicios de Internet, incluyendo LDAPv3. Dado que es solo un marco, no ofrece ninguna forma de autenticarse por sí mismo; para autenticarse en un servicio, necesitas usar un mecanismo específico de SASL. Varios mecanismos se definen, como CRAM-MD5.</p>
+<p class="Pp">El uso de un mecanismo como CRAM-MD5 proporciona una solución a la vulnerabilidad de escaneo de contrasenias, ya que estos mecanismos suelen no requerir que el usuario envíe una clave secreta (por ejemplo, una contrasena) en claro en la red. En lugar de eso, la autenticación se lleva a cabo de manera ingeniosa que evita este problema y preven la escaneo de contrasenias.</p>
+<p class="Pp">Net::LDAP soporta SASL mediante la clase <b>Authen::SASL</b>. Actualmente, los únicos subclases disponibles de <b>Authen::SASL</b> (es decir, mecanismos SASL) son CRAM-MD5 y EXTERNAL.</p>
+<p class="Pp">Algunos mecanismos de SASL ofrecen una solución general para el escaneo de toda la información en la red, ya que pueden negociar conexiones de red confidenciales (es decir, encriptadas). Aunque esto es sobre y además de cualquier encriptación SSL o TLS, lamentablemente el código de <b>Authen::SASL</b> de Perl no puede negociar esto.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">Net::LDAP, Net::LDAPS, Authen::SASL</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ACKNOWLEDGEMENTS'><a class='permalink' href='#ACKNOWLEDGEMENTS'>AGRADECIMIENTOS</a></h1>
+<p class="Pp">Jim Dutton &lt;jimd@dutton3.it.siu.edu&gt; proporcionó feedback útil en las versiones tempranas del documento.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Chris Ridd &lt;chris.ridd@isode.com&gt;</p>
+<p class="Pp">Por favor, reporta cualquier errores, o propón sugerencias a la lista de correo perl-ldap &lt;perl-ldap@perl.org&gt;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">© 2001-2004 Chris Ridd. Todos los derechos reservados. Este programa es software libre; puedes redistribuirlo y/o modificarlo bajo los mismos términos que Perl en sí mismo.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-15</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search
+">
+        <input id="search-input" name="q" type="search" placeholder="Buscar en man.archlinux.org" />
+        <button type="submit" title="Buscar">Buscar</button>
+    </form>
+</section>
+<script type="text/javascript">
+    document.getElementById('search-input').addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            this.form.submit();
+        }
+    });
+</script>
+
+            </aside>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<form role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-ldap/">extra/perl-ldap</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.68-7</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/perl-ldap">https://search.cpan.org/dist/perl-ldap</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-ldap/">/listing/extra/perl-ldap/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINÓPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#ACKNOWLEDGEMENTS">AGRADECIMIENTOS</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT">DERECHOS DE AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Net::LDAP::Security.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Net::LDAP::Security.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

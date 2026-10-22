@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>IPC::Run(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">IPC__Run(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-ipc-run/">perl-ipc-run</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">IPC::Run(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">IPC::Run(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">IPC::Run - system() y procesos en segundo plano con tuberías, redirecciones, ptys
+    (Unix, Win32)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>## Primero, un comando para ejecutar:
+   my @cat = qw( cat );
+## Usando run() en lugar de system():
+   use IPC::Run qw( run timeout );
+   run \@cat, \$in, \$out, \$err, timeout( 10 ) or die &quot;cat: $?&quot;;
+   # También se puede hacer I/O a refs de subrutinas y nombres de archivo:
+   run \@cat, '&lt;', &quot;in.txt&quot;, \&amp;out, \&amp;err or die &quot;cat: $?&quot;;
+   run \@cat, '&lt;', &quot;in.txt&quot;, '&gt;&gt;', &quot;out.txt&quot;, '2&gt;&gt;', &quot;err.txt&quot;;
+   # Redireccionando usando pseudo-terminales en lugar de tuberías.
+   run \@cat, '&lt;pty&lt;', \$in,  '&gt;pty&gt;', \$out_and_err;
+## Scripting de subprocesos (como Expect):
+   use IPC::Run qw( start pump finish timeout );
+   # Leer incrementalmente de / escribir a escalares. 
+   # $in se vacía a medida que se alimenta a la entrada estándar de cat,
+   # $out acumula la salida estándar de cat
+   # $err acumula el error estándar de cat
+   # $h es para &quot;arnés&quot;.
+   my $h = start \@cat, \$in, \$out, \$err, timeout( 10 );
+   $in .= &quot;alguna entrada\n&quot;;
+   pump $h until $out =~ /input\n/g;
+   $in .= &quot;alguna entrada más\n&quot;;
+   pump $h until $out =~ /\G.*more input\n/;
+   $in .= &quot;alguna entrada final\n&quot;;
+   finish $h or die &quot;cat devolvió $?&quot;;
+   warn $err if $err; 
+   print $out;         ## Toda la salida de cat
+# Tubería entre hijos
+   run \@cat, '|', \@gzip;
+# Múltiples hijos simultáneamente (run() bloquea hasta que todos
+# los hijos terminan, usa start() para ejecución en segundo plano):
+   run \@foo1, '&amp;', \@foo2;
+# Llamar a \&amp;set_up_child en el hijo antes de que ejecute el
+# comando (solo funciona en sistemas con fork() y exec() reales)
+# las excepciones lanzadas en set_up_child() se propagarán de vuelta
+# al padre y se lanzarán desde run().
+   run \@cat, \$in, \$out,
+      init =&gt; \&amp;set_up_child;
+# Leer desde / escribir a manejadores de archivos que abres y cierras
+   open IN,  '&lt;in.txt'  or die $!;
+   open OUT, '&gt;out.txt' or die $!;
+   print OUT &quot;preámbulo\n&quot;;
+   run \@cat, \*IN, \*OUT or die &quot;cat devolvió $?&quot;;
+   print OUT &quot;postámbulo\n&quot;;
+   close IN;
+   close OUT;
+# Crear tuberías para que tú leas / escribas (como IPC::Open2 &amp; 3).
+   $h = start
+      \@cat,
+         '&lt;pipe', \*IN, # también puede ser un manejador de archivo léxico, p.ej. \my $infh
+         '&gt;pipe', \*OUT,
+         '2&gt;pipe', \*ERR 
+      or die &quot;cat devolvió $?&quot;;
+   print IN &quot;alguna entrada\n&quot;;
+   close IN;
+   print &lt;OUT&gt;, &lt;ERR&gt;;
+   finish $h;
+# Mezcla de modos de entrada y salida
+   run \@cat, 'in.txt', \&amp;catch_some_out, \*ERR_LOG;
+# Otras construcciones de redirección
+   run \@cat, '&gt;&amp;', \$out_and_err;
+   run \@cat, '2&gt;&amp;1';
+   run \@cat, '0&lt;&amp;3';
+   run \@cat, '&lt;&amp;-';
+   run \@cat, '3&lt;', \$in3;
+   run \@cat, '4&gt;', \$out4;
+   # etc.
+# Pasar opciones:
+   run \@cat, 'in.txt', debug =&gt; 1;
+# Llamar al shell de este sistema, devuelve TRUE si el código de salida es 0
+# ESTE ES EL SENTIDO OPUESTO DEL VALOR DE RETORNO de system()
+   run &quot;cat a b c&quot; or die &quot;cat devolvió $?&quot;;
+# Lanzar un subproceso directamente, sin shell. No se puede hacer redirección
+# con esta forma, está aquí para comportarse como system() con un
+# resultado invertido.
+   $r = run &quot;cat a b c&quot;;
+# Leer de un archivo a un escalar
+   run io( &quot;filename&quot;, 'r', \$recv );
+   run io( \*HANDLE,   'r', \$recv );</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCI%C3%93N'><a class='permalink' href='#DESCRIPCI%C3%93N'>DESCRIPCIÓN</a></h1>
+<p class="Pp">IPC::Run permite ejecutar e interactuar con procesos hijos usando
+    archivos, tuberías y pseudo-ttys. Se admiten tanto los usos de estilo
+    <b>system()</b> como los de scripting, y pueden mezclarse. Del mismo modo,
+    se admiten los estilos de API funcional y orientada a objetos, y también
+    pueden mezclarse.</p>
+<p class="Pp">Se proporcionan varios operadores de redirección que recuerdan
+    a los que se ven en las líneas de comando comunes de Unix y DOS.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INICIO_R%C3%81PIDO_SIMPLE'><a class='permalink' href='#INICIO_R%C3%81PIDO_SIMPLE'>INICIO
+    RÁPIDO SIMPLE</a></h1>
+<p class="Pp">Aquí tienes una guía rápida para el uso básico de la función
+    <span class="Li">run()</span> de IPC::Run.</p>
+<section class="Ss">
+<h2 class="Ss" id='Capturar_salida_y_errores_de_un_comando_externo'><a class='permalink' href='#Capturar_salida_y_errores_de_un_comando_externo'>Capturar
+    salida y errores de un comando externo</a></h2>
+<p class="Pp">Supongamos que quieres ejecutar un comando en tu shell. Usaremos
+    <span class="Li">&quot;ls&quot;</span> por simplicidad, aunque hay formas
+    mucho mejores de obtener una lista de archivos, como la función
+    <span class="Li">glob()</span> o el módulo File::Find.</p>
+<p class="Pp">La forma básica de <span class="Li">run()</span> tiene el comando
+    y sus argumentos pasados como un arrayref en el primer argumento. El comando
+    no puede ser una sola cadena.</p>
+<pre>@cmd = [ 'ls', '-a', '-l', '-r', '-t' ];    # Sí
+@cmd = ( 'ls -a -l -r -t' );                # No</pre>
+<p class="Pp">Después del comando, pasa una referencia escalar
+    <span class="Li">&quot;\$in&quot;</span> para la entrada a pasar, y referencias
+    escalares <span class="Li">&quot;\$out&quot;</span> y
+    <span class="Li">&quot;\$err&quot;</span> para recibir el contenido de stdout
+    y stderr.</p>
+<pre>use IPC::Run qw( run );
+@cmd = qw( ls -l -a -r -t );
+run( \@cmd, \$in, \$out, \$err ) or die $?;
+print(&quot;\$err tiene &quot;, length($err), &quot; bytes de largo\n&quot;);
+print($err, &quot;\n&quot;);
+print(&quot;\$out tiene &quot;, length($out), &quot; bytes de largo\n&quot;);
+print($out, &quot;\n&quot;);</pre>
+<p class="Pp">Ejecutar esto mostrará algo como:</p>
+<pre>$err tiene 0 bytes de largo
+$out tiene 1410 bytes de largo
+total 392
+drwxr-xr-x    3 andy  staff     96 Mar 17 11:53 .github
+-rw-r--r--    1 andy  staff    158 Mar 17 11:53 .gitignore
+... etc ...</pre>
+<p class="Pp">Ten en cuenta que <span class="Li">$out</span> y
+    <span class="Li">$err</span> siempre están definidos después de una llamada
+    a <span class="Li">run()</span>, incluso si no reciben datos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Pasar_entrada_al_programa_externo'><a class='permalink' href='#Pasar_entrada_al_programa_externo'>Pasar
+    entrada al programa externo</a></h2>
+<p class="Pp">Si tienes entrada para pasar, ponla en las variables
+    <span class="Li">$in</span>. Por ejemplo, para usar el comando
+    <span class="Li">&quot;wc&quot;</span> para contar líneas, palabras y
+    caracteres en un bloque de texto:</p>
+<pre>$in = &lt;&lt;'CARROLL';
+'Twas brillig, and the slithy toves
+    Did gyre and gimble in the wabe:
+All mimsy were the borogoves,
+    And the mome raths outgrabe.
+CARROLL
+@cmd = qw( wc );
+run( \@cmd, \$in, \$out, \$err ) or die $?;
+print &quot;$out&quot;;</pre>
+<p class="Pp">Esto da la salida:</p>
+<pre>4      23     140</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Manejar_errores'><a class='permalink' href='#Manejar_errores'>Manejar
+    errores</a></h2>
+<p class="Pp">Es importante comprobar el código de retorno de
+    <span class="Li">run()</span> para ver si el comando se ejecutó
+    correctamente. <span class="Li">run()</span> devuelve un booleano
+    verdadero en caso de éxito y falso en caso de fallo. Ten en cuenta que
+    esto es lo opuesto a <span class="Li">system()</span> de Perl, que
+    devuelve 0 en caso de éxito y un valor distinto de cero en caso de
+    fallos.</p>
+<p class="Pp">Para el código de error específico del subproceso, comprueba
+    <span class="Li">$?</span> directamente.</p>
+<pre>@cmd = qw( tar xzvf nonexistent.tar );
+if ( !run( \@cmd, \$in, \$out, \$err ) ) {
+    print &quot;\$? = $?\n&quot;;
+    print &quot;err = $err\n&quot;;
+}</pre>
+<p class="Pp">Ejecutar esto da:</p>
+<pre>$? = 256
+err = tar: Error al abrir el archivo: No se pudo abrir 'nonexistent.tar'</pre>
+<p class="Pp">Si el programa no existe, entonces <span class="Li">run()</span>
+    hará <span class="Li">&quot;die&quot;</span> y no devolverá nada. Por
+    ejemplo:</p>
+<pre>@cmd = qw( bogus-command );
+my $rc = run( \@cmd, \$in, \$out, \$err );
+print &quot;run devolvió &quot;, ($rc ? &quot;verdadero&quot; : &quot;falso&quot;), &quot;\n&quot;;</pre>
+<p class="Pp">Ejecutar esto no llega a la sentencia
+    <span class="Li">&quot;print&quot;</span>.</p>
+<pre>Comando 'bogus-command' no encontrado en [ lista de rutas ] en program.pl línea N.</pre>
+<p class="Pp">Para manejar la posibilidad de un programa inexistente, llama a
+    <span class="Li">run()</span> dentro de un
+    <span class="Li">&quot;eval&quot;</span>.</p>
+<pre>my $rc;
+eval { $rc = run( \@cmd, \$in, \$out, \$out ); 1; };
+if ( !defined($rc) ) {
+    print &quot;run murió: $@\n&quot;;
+}
+else {
+    if ( $rc ) {
+        print &quot;run devolvió verdadero\n&quot;;
+    }
+    else {
+        print &quot;run devolvió falso\n&quot;;
+        print &quot;\$? = $?\n&quot;;
+    }
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Y_m%C3%A1s'><a class='permalink' href='#Y_m%C3%A1s'>Y
+    más</a></h2>
+<p class="Pp">Eso es lo básico de usar <span class="Li">run()</span> como
+    reemplazo de <span class="Li">system()</span>. Si quieres hacer más, como
+    conseguir que los subprocesos se comuniquen entre sí, establecer tiempos de
+    espera en procesos de larga ejecución, matar subprocesos en ejecución,
+    redirigir la salida, cerrar descriptores de archivo y mucho mucho MÁS, sigue
+    leyendo.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LOS_DETALLES'><a class='permalink' href='#LOS_DETALLES'>LOS
+    DETALLES</a></h1>
+<p class="Pp">Antes de profundizar en los detalles, algunas LIMITACIONES son lo
+    suficientemente importantes como para mencionarlas de inmediato:</p>
+<dl class="Bl-tag">
+  <dt id="Win32"><a class="permalink" href="#Win32">Soporte Win32</a></dt&gt;
+  <dd>El soporte Win32 está funcionando pero <b>es EXPERIMENTAL,</b> aunque pasa todas las pruebas relevantes en NT 4.0. Véase "LIMITACIONES DE </dd>Win32".
+  <dt id="pty"><a class="permalink" href="#pty">Soporte </a></dt>pty
+  <dd>Si necesitas soporte pty, IPC::Run debería funcionar bien la mayor parte del tiempo, pero IO::Pty se está mejorando, y IPC::Run se mejorará para usar las nuevas características de IO::Pty cuando se lance.
+    <p class="Pp">El problema básico es que el pty necesita inicializarse antes de que el padre escriba en el pty maestro, o los datos escritos se perderán. Por lo tanto, IPC::Run hace un <a href='/man/sleep.1.en'>sleep(1)</a> en el padre después de hacer fork para (con suerte) dar al hijo la oportunidad de ejecutarse. Esto es un apaño que funciona bien en sistemas no muy cargados </p>:(.
+    <p class="Pp">Los ptys aún no están </p>soportados bajo Win32, </dd>pero serán emulados...
+  <dt id="Debugging"><a class="permalink" href="#Debugging">Depuración
+    </a></dt>Consejo
+  <dd>Puedes usar la variable de entorno
+      <span class="Li">"IPCRUNDEBUG" </span>para ver lo que está pasando bajo el capó:
+        <pre>$ IPCRUNDEBUG=basic   myscript     # imprime depuración mínima
+$ IPCRUNDEBUG=data    myscrip</pre>t     # imprime todos los datos leídos/escritos
+$ IPCRUNDEBUG=details myscript     # imprime</dd> muchos detalles de bajo nivel
+$ IPCRUNDEBUG=gory    myscript     # (solo Win32) imprime lo</dl>s datos moviéndose a través de
+                                   # los procesos auxiliares.
+<section class="Ss">
+<h2 class="Ss" id='Harnesses'><a class='permalink' href='#Harnesses'>Arnés </a></h2>(Harnesses)
+<p class="Pp">Los procesos hijos y los manejadores de E/S se re</p>cogen en un arnés, luego se inician y se ejecutan</section> hasta que el procesamiento finaliza o se aborta.
+<section class="Ss">
+<h2 class="Ss"><b>run()</b> vs. <b>start()</b>; <b>pump()</b>;
+  <b>fin</b>ish</h2>();
+<p class="Pp">Hay dos modos en los que puedes ejecutar arneses: <b>run()</b>
+    funciona como un <b>system() </b>mejorado, y
+    <b>start()</b>/<b>pump()</b>/<b>finish()</b> permiten procesos en segundo plano
+    e interacciones programadas con </p>ellos.
+<p class="Pp">Al usar <b>run()</b>, todos los datos a enviar al arnés se configuran
+    de antemano (aunque se puede alimentar a los subprocesos con entradas desde referencias a subrutinas para sortear esta limitación). El arnés se ejecuta y se recopila toda su salida, luego se espera a todos los procesos </p>hijos:
+<pre>run \@cmd, \&lt;&lt;IN, \$out;
+blah
+IN
+## Para precompilar arneses y ejecutarlos más tarde:
+my $h = harness \@cmd, \&lt;&lt;IN, \$out;
+blah
+IN
+run </pre>$h;
+<p class="Pp">La API de segundo plano y programación la proporcionan <b>start()</b>,
+    <b>pump()</b>, y <b>finish()</b>: <b>start()</b> crea un arnés si es necesario (llamando a <b>harness()</b>) e inicia cualquier subproceso,
+    <b>pump() </b>te permite consultarlos para ver su actividad, y <b>finish() </b>luego
+    monitorea las actividades del arnés hasta que se </p>completen.
+<pre>## Construye el arnés, abre todas las tuberías e inicia los subprocesos
+my $h = start \@cat, \$in, \$out;
+$in = "first input\n";
+## Ahora haz E/S.  start() no hace E/S.
+pump $h while length $in;  ## Espera a que se vaya toda la entrada
+## Ahora haz algo más de E/S.
+$in = "second input\n";
+pump $h until $out =~ /second input/;
+## Limpieza
+finish $h or die "cat returned $?</pre>";
+<p class="Pp">Opcionalmente puedes compilar el arnés con <b>harness() </b>antes de
+    llamar a <b>start()</b> o <b>run()</b>, y puedes omitir <b>start()</b>
+    entre <b>harness()</b> y <b>pump(). Podrías quere</b>r hacer estas
+    cos</p>as si compilas tus ar</section>neses por adelantado.
+<section class="Ss">
+<h2 class="Ss" id='Using_regexps_to_match_output'><a class='permalink' href='#Using_regexps_to_match_output'>Uso de expresiones regulares para coincidir con la </a></h2>salida
+<p class="Pp">Como se muestra en la mayoría de los ejemplos de programación, la facilidad de leer en un escalar para recopilar la salida del subcomando se usa a menudo con expresiones regulares para detectar puntos de parada. Esto se debe a que la salida del subcomando a menudo llega a trozos y gotas, a menudo solo un carácter o línea a la vez. Esta salida es entrada para el programa principal y se acumula en variables como <span class="Li">$out </span>y <span class="Li">$err </span>en
+    nuestros </p>ejemplos.
+<p class="Pp">Las expresiones regulares se pueden usar para esperar la salida apropiada de varias maneras. El ejemplo de <span class="Li">"cat" </span>en la
+    sección anterior demuestra cómo <b>pump()</b> hasta que aparezca alguna cadena
+    en la salida. Aquí hay un ejemplo que usa
+    <span class="Li">"smb" </span>para obtener archivos de un servidor
+  </p>remoto:
+<pre>$h = harness \@smbclient, \$in, \$out;
+$in = "cd /src\n";
+$h-&gt;pump until $out =~ /^smb.*&gt; \Z/m;
+die "error cding to /src:\n$out" if $out =~ "ERR";
+$out = '';
+$in = "mget *\n";
+$h-&gt;pump until $out =~ /^smb.*&gt; \Z/m;
+die "error retrieving files:\n$out" if $out =~ "ERR";
+$in = "quit\n";
+$h-&gt;</pre>finish;
+<p class="Pp">¿Notas que limpiamos cuidadosamente <span class="Li">$out </span>después del
+    primer ciclo de comando/respuesta? Eso es porque IPC::Run no borra
+    <span class="Li">$out </span>cuando continuamos, y no queremos tropezar
+    con la salida antigua en el segundo ciclo de comando/respuesta</p>.
+<p class="Pp">Supongamos que quieres acumular toda la salida en
+    <span class="Li">$out </span>y analizarla después. Perl ofrece
+    coincidencia incremental de expresiones regulares usando la
+    idiomática de coincidencia de patrones con
+    <span class="Li">"m//gc" </span>y la
+    <span class="Li">aserción </span>"\G". IPC::Run tiene cuidado de no
+    alterar el valor actual de <span class="Li">pos()</span> para los escalares a los que
+    agrega datos, por lo que podríamos modificar lo anterior para no destruir
+    <span class="Li">$out </span>añadiendo un par de
+    <span class="Li">modificadores </span>"/gc". El
+    <span class="Li">"/g" </span>nos impide tropezar con el
+    prompt anterior y el <span class="Li">"/c" </span>nos impide
+    restablecer la posición de coincidencia anterior si el prompt esperado no
+    aparece </p>inmediatamente:
+<pre>$h = harness \@smbclient, \$in, \$out;
+$in = "cd /src\n";
+$h-&gt;pump until $out =~ /^smb.*&gt; \Z/mgc;
+die "error cding to /src:\n$out" if $out =~ "ERR";
+$in = "mget *\n";
+$h-&gt;pump until $out =~ /^smb.*&gt; \Z/mgc;
+die "error retrieving files:\n$out" if $out =~ "ERR";
+$in = "quit\n";
+$h-&gt;finish;
+analyze( $out )</pre>;
+<p class="Pp">Al usar esta técnica, es posible que quieras preasignar
+    <span class="Li">$out </span>con suficiente memoria o puedes encontrar que
+    el acto de hacer crecer <span class="Li">$out </span>cada vez que llega nueva entrada
+    causa una <span class="Li">ralentización de "O(length($out)</span>^2)" a medida que
+    <span class="Li">$out </span>crece. Supongamos que esperamos no más de 10,000
+    caracteres de entrada como máximo. Para preasignar memoria a
+    <span class="Li">$out,</span> haz algo </p>como:
+<pre>my $out = "x" x 10_000;
+$out = </pre>"";
+<p class="Pp"><span class="Li">"perl" </span>asignará al menos
+    espacio para 10,000 caracteres, luego marcará
+    <span class="Li">$out como teniend</span>o longitud 0 sin </p>liberar toda esa
+ </section>   deliciosa RAM.
+<section class="Ss">
+<h2 class="Ss" id='Timeouts_and_Timers'><a class='permalink' href='#Timeouts_and_Timers'>Tiempos de espera y </a></h2>temporizadores
+<p class="Pp">Lo más probable es que no quieras que tus subprocesos se ejecuten para siempre, y a veces es bueno saber que van un poco lentos. Los tiempos de espera lanzan excepciones después de que haya transcurrido algún tiempo, los temporizadores simplemente hacen que
+    <b>pump() </b>retorne después de que haya transcurrido algún tiempo. Ninguno se restablece/reinicia automáticamente</p>.
+<p class="Pp">Los objetos de tiempo de espera se crean llamando a timeout(
+    <span class="Li">$interval </span>) y pasando el resultado a <b>run()</b>,
+    <b>start()</b> o <b>harness(). </b>El período de tiempo de espera comienza a contar justo después de que todos los procesos hijos hayan sido <b>fork()</b>eados o <b>spawn()</b>eados, y se consultan para ver si han expirado en <b>run()</b>, <b>pump()</b> y
+    <b>finish()</b>. Si/when expiran, se lanza una excepción. Esto es típicamente útil para evitar que un subproceso tarde </p>demasiado.
+<p class="Pp">Si ocurre un tiempo de espera en <b>run(),</b> todos los procesos hijos serán
+    terminados y todos los descriptores de archivo/tubería/ptty abiertos por <b>run()</b> serán
+    cerrados. Los descriptores de archivo abiertos por el proceso padre y pasados a
+    <b>run()</b> no se cierran en este </p>evento.
+<p class="Pp">Si ocurre un tiempo de espera en <b>pump()</b>, <b>pump_nb()</b>, o
+    <b>finish()</b>, depende de ti decidir si <b>kill_kill() </b>a todos
+    los hijos o implementar algún mecanismo de respaldo más elegante. No se cerrará ninguna E/S en <b>pump()</b>, <b>pump_nb()</b> o <b>finish()</b> por tal
+    excepción (aunque la E/S a menudo se cierra en esas rutinas durante el curso natural de los eventos)</p>.
+<p class="Pp">A menudo una excepción es demasiado severa. timer(
+    <span class="Li">$interval )</span> crea objetos temporizadores que simplemente
+    evitan que <b>pump() </b>se bloquee para siempre. Esto puede ser útil para
+    detectar E/S estancada o imprimir un mensaje tranquilizador o "." para
+    calmar a un usuario </p>ansioso.
+<p class="Pp">Los tiempos de espera y los temporizadores se pueden reiniciar en cualquier momento usando el método <b>start() </b>del temporizador (este no es el <b>start() </b>que lanza
+    subprocesos). Para reiniciar un temporizador, necesitas mantener una referencia al
+    </p>temporizador:
+<pre>  ## Comienza con un tiempo de espera largo y agradable para dejar que smbclient se conecte.  Si
+  ## pump o finish tardan demasiado, se lanzará una excepción.
+my $h;
+eval {
+  $h = harness \@smbclient, \$in, \$out, \$err, ( my $t = timeout 30 );
+  sleep 11;  # Sin efecto: el temporizador aún no está en marcha
+  start $h;
+  $in = "cd /src\n";
+  pump $h until ! length $in;
+  $in = "ls\n";
+  ## Ahora usa un tiempo de espera corto, ya que esto debería ser más rápido
+  $t-&gt;start( 5 );
+  pump $h until ! length $in;
+  $t-&gt;start( 10 );  ## Dale a smbclient un poco de tiempo para apagarse.
+  $h-&gt;finish;
+};
+if ( $@ ) {
+  my $x = $@;    ## Preserva $@ en caso de que ocurra otra excepción
+  $h-&gt;kill_kill; ## mátalo suavemente, luego brutalmente si es necesario, o solo
+                  ## brutalmente en Win32.
+  die $x;
+</pre>}
+<p class="Pp">Los tiempos de espera y los temporizadores <i>no se comprueban una vez que los subprocesos
+    se</i> han apagado; no expirarán en el intervalo entre el</p> último proceso válido y cuando IPC::Run recoja los</section> códigos de resultado de los procesos, por ejemplo.
+<section class="Ss">
+<h2 class="Ss" id='Spawning_synchronization,_child_exception_propagation'><a class='permalink' href='#Spawning_synchronization,_child_exception_propagation'>Sincronización de lanzamiento, propagación de excepciones del </a></h2>hijo
+<p class="Pp"><b>start()</b> pausa al padre hasta que el hijo ejecute el
+    comando o la referencia CODE y propague cualquier excepción lanzada (incluyendo
+    <b>fallo </b>de exec()) de vuelta al padre. Esto tiene varios efectos agradables: cualquier excepción lanzada en el hijo, incluyendo <b>fallo </b>de
+    exec(),
+    salen volando de <b>start()</b> o <b>run()</b> como si
+    hubieran ocurrido en el </p>padre.
+<p class="Pp">Esto incluye excepciones lanzadas por tu código desde subrutinas init. En este </p>ejemplo:
+<pre>eval {
+   run \@cmd, init =&gt; sub { die "blast it! foiled again!" };
+};
+print </pre>$@;
+<p class="Pp">la excepción "blast it! foiled again" será lanzada
+    desde el proceso hijo (previniendo el <b>exec()</b>) e impresa por el
+    </p>padre.
+<p class="Pp">En situaciones </p>como
+<pre>run \@cmd1, "|", \@cmd2, "|", </pre>\@cmd3;
+<p class="Pp"><span class="Li">@cmd1 </span>se inicializará y se <b>ejecutará </b>con exec()
+    antes que <span class="Li">@cmd2,</span> y <span class="Li">@cmd2
+</span>    antes que <span class="Li">@cmd3</span>« -f » et
+« -x » décrits dans perlfunc.
+Un autre effet agréable est que les sous-routines
+init() peuvent prendre leur temps pour faire des choses et il n'y aura aucun problème causé par un parent qui continue à s'exécuter avant que la routine
+init() d'un enfant soit terminée. Disons que la routine
+    <span class="Li">init()</span> doit
+    <span class="Li">ouvrir </span>un socket ou un fichier </p>temporaire
+<p class="Pp">auquel le parent veut se <b>connecter </b>; sans cette synchronisation, le parent devra implémenter une boucle d'attente active pour attendre que l'enfant s'exécute, car souvent, le parent <b>accomplit </b>beaucoup de choses avant que
+    <b>le </b>premier tranche de temps de l'enfant soit
+  allouée.
+C'est également tout à fait nécessaire pour l'initialisation du pseudo-terminal, qui doit avoir lieu avant que le parent n'écrive à l'enfant via pty. Les écritures qui ont lieu avant que le pty ne soit configuré peuvent être perdues.
+Une dernière, mineure, commodité est que </p>le
+<p class="Pp">débogage de l'enfant sera émis avant que le parent ne continue, ce qui rend le débogage beaucoup plus clair dans des situations complexes.
+Le seul inconvénient que je puisse concevoir est que le parent ne peut </p>pas
+<p class="Pp">continuer à fonctionner pendant que l'enfant est en cours d'initialisation. Si cela devient un problème sur le terrain, nous pouvons implémenter une option pour éviter ce comportement, mais je ne </p>m'attends
+<p class="Pp">pas à ce que cela arrive.
+Win32 : l'exécution de références CODE n'est pas prise en charge sur Win32, voir « Win32 LIMITATIONS » pour les détails.
+Syntaxe
+run(),
+start(), et
+harness() peuvent toutes prendre une spécification de harnais en entrée. Une </p>spécification
+<p class="Pp"><b>de harnais est soit une cha</b>îne unique à passer au shel</p>l du système :
+run "echo 'hi</section> there'";
+soit une liste de
+<section class="Ss">
+<h2 class="Ss" id='Syntax'><a class='permalink' href='#Syntax'>commandes</a></h2>,
+<p class="Pp"><b>run()</b>, <b>d'opérations </b>d'E/S <b>et/ou de </b>minuteries/délais d'expiration à exécuter. Les commandes consécutives doivent être séparées par un opérateur pipe '|' ou un '&amp;'. Les commandes </p>externes
+<pre>sont passées sous forme </pre>de
+<p class="Pp">références de tableau ou d'objets IPC::Run::Win32Process. Sur les systèmes prenant en charge
+fork(), le code
+Perl peut être passé sous forme de sous-routines :
+run \@cmd;
+run \@cmd1, '|', \@cmd2;
+run \@cmd1, '&amp;', \@cmd2;
+run \&
+run \&amp;sub1, '|', \&
+run \&amp;sub1, '&amp;', \&
+'|' <b>achemine </b>le stdout de \@cmd1 vers le stdin de </p>\@cmd2,
+<pre>tout comme un pipe de shell. '&amp;' ne le fait pas. Les processus enfants à droite d'un '&amp;' auront leur stdin fermé à moins qu'il ne </pre>soit
+<p class="Pp">redirigé vers eux.
+Les objets IPC::Run::IO peuvent également être passés, que des processus enfants soient également spécifiés ou non :
+run io( "infile", "&gt;", \$in ), io( "outfile", "&lt;", \$in );
+comme </p>les
+<p class="Pp">objets IPC::Run::Timer :
+run \@cmd, io( "outfile", "&lt;", \$in ), timeout( 10 );
+Les commandes peuvent être </p>suivies
+<pre>de références à des scalaires, des sous-routines ou </pre>des
+<p class="Pp">descripteurs d'E/S pour rediriger </p>l'entrée
+<pre>et la sortie du processus enfant :
+run \@cmd,  </pre>\undef,
+<p class="Pp">\$out;
+run \@cmd,  \$in,              \$out;
+run \@cmd1, \&amp;in, '|', \@cmd2, \*OUT;
+run \@cmd1, \*IN, '|', </p>\@cmd2,
+<pre>\&
+C'est ce qu'on appelle la syntaxe de redirection succincte, puisque
+run(),
+start() et
+harness(), déterminent quel descripteur de fichier rediriger et </pre>comment.
+<p class="Pp">Le descripteur de fichier 0 est présumé être une entrée <b>pour </b>le
+    <b>processus </b>enfant, <b>tous les </b>autres sont des sorties. Le descripteur de fichier supposé commence toujours à 0, à moins que la commande ne reçoive un pipe, auquel cas il commence à
+  1.
+Pour être explicite sur vos redirections, ou si vous devez faire des choses plus complexes, il existe également une syntaxe d'opérateur </p>de
+<p class="Pp">redirection :
+run \@cmd, '&lt;', \undef, '&gt;',  \$out;
+run \@cmd, '&lt;', \undef, '&gt;&amp;', \$out_and_err;
+run(
+   \@cmd1,
+      '&lt;', \$in,
+   '|', </p>\@cmd2,
+<pre>\$out
+);
+La syntaxe d'opérateur est requise si vous devez faire autre chose qu'une simple redirection vers/depuis des scalaires ou des </pre>sous-routines,
+<p class="Pp">comme dupliquer ou fermer des descripteurs de fichier ou rediriger vers/depuis un fichier nommé. Les opérateurs sont couverts en détail ci-dessous.
+Après chaque \@cmd (ou \&amp;foo), l'analyse commence en mode succinct et bascule en mode syntaxe d'opérateur </p>lorsqu'un
+<p class="Pp">opérateur (c'est-à-dire un scalaire simple, pas une référence) est vu. Une fois en mode syntaxe d'opérateur, l'analyse ne revient au mode succinct que lorsqu'un '|' ou '&amp;' est vu.
+En mode succinct, chaque paramètre après le \@cmd spécifie quoi faire avec le prochain descripteur </p>de
+<p class="Pp">fichier le plus élevé. Ces descripteurs de fichier commencent par 0 (stdin) sauf si stdin reçoit un pipe (
+"'|',
+    \@cmd"), auquel cas ils commencent par 1 (stdout). Actuellement, être à gauche d'un pipe<span class="Li">(
+"\@cmd, \$out, </span>\$err,
+    '|'") ne fait
+pas sauter stdout, bien que cela puisse changer car ce n'est pas aussi «<span class="Li">DWIMerly » (intuitif) que cela </span>pourrait <i>l'être.</i> Seul stdin est supposé être une entrée en mode succinct, tous les autres sont supposés être des sorties.
+Si aucune redirection n'est spécifiée pour un enfant, il héritera des descripteurs de fichier </p>ouverts
+<p class="Pp">du parent selon le comportement « close-on-exec » de votre système et l'indicateur $^F, sauf que les processus après un '&amp;' n'hériteront pas du stdin du parent. Notez également que $^F n'affecte pas les descripteurs de fichier obtenus via POSIX, car il ne s'applique qu'aux descripteurs de fichier Perl à part entière. De tels processus auront leur stdin fermé à moins qu'il n'ait été redirigé vers eux.
+Si vous voulez fermer le stdin d'un processus enfant, vous pouvez faire l'une des choses suivantes :
+run </p>\@cmd,
+<p class="Pp">\undef;
+run \@cmd, \"";
+run \@cmd, '&lt;&amp;-';
+run \@cmd, '0&lt;&amp;-';
+</p>La
+<pre>redirection est effectuée en plaçant des spécifications de redirection </pre>immédiatement
+<p class="Pp">après une commande ou une sous-routine enfant :
+run \@cmd1,      \$in, '|', \@cmd2,      \$out;
+run \@cmd1, '&lt;', </p>\$in,
+<pre>'|', \@cmd2, '&gt;', \$out;
+Si vous omettez les opérateurs de redirection, les descripteurs sont comptés </pre>à
+<p class="Pp">partir de 0. Le descripteur 0 est supposé être une entrée, tous les autres sont des sorties. Un '|' initial consomme le descripteur 0, donc cela fonctionne comme prévu.
+run \@cmd1, \$in, '|', \@cmd2, \$out;
+Le paramètre </p>suivant
+<pre>un opérateur de redirection peut être </pre>une
+<p class="Pp">référence à un scalaire, une référence à une sous-routine, un nom de fichier, un descripteur de fichier ouvert ou un descripteur de fichier fermé.
+S'il s'agit </p>d'une
+<p class="Pp">référence à un scalaire, l'enfant lit l'entrée depuis ou envoie la sortie vers cette </p>variable
+<pre>:
+$in = "Hello World.\n";
+run \@cat, \$in, \$out;
+print </pre>$out;
+<p class="Pp">Les scalaires utilisées dans les<b>applicatio</b>ns<b></b>i<b>ncrémentielles </b>(
+start()/
+pump()/
+finish()) sont traitées comme des files d'attente : l'entrée est retirée des scalaires d'entrée, ce qui les fait diminuer jusqu'à '', et la sortie est ajoutée aux scalaires de sortie. Ce n'est
+    <b>pas </b>le cas des </p>harnais
+<p class="Pp">run() en mode lot.
+Il est généralement judicieux d'ajouter le nouvel entrée à envoyer à l'enfant à la file d'attente d'entrée, et vous voudrez souvent vider les </p>files
+<pre>d'attente de sortie à '' avant de pomper.
+$h = start \@cat, \$in;
+$in = "line 1\n";
+pump $h;
+$in .= "line 2\n";
+</pre>pump
+<p class="Pp">$h;
+$in .= "line <b>3\n";
+finish $h;
+L'appel </b>final à
+finish() doit êtr</p>e là : il permet au(x) p</section>rocessus enfant(s) de s'e</section>xécuter jusqu'à la fin et
+<section class="Sh">
+<h1 class="Sh" id='OBSTINATE_CHILDREN'><a class='permalink' href='#OBSTINATE_CHILDREN'>attend leurs codes de </a></h1>sortie.
+<p class="Pp">ENFANTS TÊTUS
+Les applications interactives sont généralement optimisées pour un usage humain. Cela peut aider ou entraver la tentative d'interagir avec elles via des modules comme IPC::Run. Souvent, les programmes modifient leur comportement lorsqu'ils détectent que stdin, stdout ou stderr ne sont pas connectés à un tty, supposant qu'ils sont exécutés en mode lot. Que cela aide ou nuise dépend des optimisations qui changent. Et il n'y a souvent aucun moyen de savoir ce qu'un programme fait dans ces domaines autrement que par essais et erreurs et, occasionnellement, en lisant le code source. Cela inclut différentes versions et implémentations du même </p>programme.
+<p class="Pp">Tout n'est cependant pas perdu. La plupart des programmes se comportent de manière raisonnablement maîtrisable, une fois que vous avez </p>compris
+<p class="Pp">ce qu'ils essaient de faire.
+Voici quelques-uns des </p>problèmes
+<ul class="Bl-bullet">
+  <li><b>dont vous </b>pourriez avoir besoin d'être
+    <p class="Pp">conscient.
+fflush() de stdout et stderr
+Cela permet à l'utilisateur de voir stdout et stderr immédiatement. De nombreux programmes annulent cette optimisation si stdout n'est pas un tty, les rendant </p>plus
+    <p class="Pp">difficiles à gérer par des choses comme IPC::Run.
+De nombreux programmes refusent de faire fflush sur stdout ou stderr s'ils ne détectent </p>pas un
+    <p class="Pp">tty là-bas. Certaines commandes ftp font cela, par exemple.
+Si cela vous arrive, cherchez un moyen de forcer un comportement interactif, comme un commutateur de ligne de commande ou une commande. Si vous ne le pouvez </p>pas, </li>vous
+  <li>devrez utiliser un
+    <p class="Pp">pseudo-terminal ('&lt;pty&lt;' et '&gt;pty&gt;').
+Faux invites
+Les programmes interactifs ne garantissent généralement pas que la sortie des commandes utilisateur ne contiendra pas de chaîne d'invite. Par exemple, votre invite de shell pourrait être un '$', et un fichier nommé </p>'$'
+    <p class="Pp">pourrait être le seul fichier dans une liste de répertoire.
+Cela peut rendre difficile la garantie que votre analyseur de sortie </p>ne sera
+    <p class="Pp">pas trompé par une terminaison prématurée des résultats.
+Pour aider à contourner cela, vous pouvez voir si le programme peut modifier son invite, et utiliser quelque chose </p>que
+    <p class="Pp">vous pensez ne jamais se produire en pratique réelle.
+Vous devriez également chercher </p>à ce que
+        <pre>votre invite soit la seule chose sur une ligne :</pre>
+pump
+    <p class="Pp">$h <span class="Li">until $out </span>=~ /^&lt;SILLYPROMPT&gt;\s?\z/m;
+        <span class="Li">(utilisez
+</span>"(?!\n)\Z" </p>à la
+    <p class="Pp">place de
+"\z" sur les anciennes versions de perl).
+Vous pouvez également adopter l'approche qu'adopte IPC::ChildSafe et émettre une commande avec une sortie connue après chaque commande « réelle » que <b>vous émettez, </b>puis chercher
+        <b>cette sortie </b>connue. Voir
+new_appender() et
+new_chunker()</p> pour
+    <p class="Pp">les filtres qui peuvent aider avec cette tâche.
+Si ce n'est pas pratique ou possible de modifier une invite ou d'util</p>iser une paire commande/réponse connue, vous devrez peut-être détecter automatiquement l'invite au cas où la version l</li>ocale du programme enfant serait différente de celle avec laquelle vous avez testé, ou si l'utilisateur a le contrôle
+  <li>sur l'apparence et le ressenti de l'invite.
+Refuser
+    <p class="Pp">d'accepter l'entrée sauf si stdin est un tty.
+Certains programmes, pour des raisons de sécurité, n'accepteront que certains types d'entrée depuis un tty. su, notamment, ne demandera pas de mot de </p>passe
+    <p class="Pp">à moins d'être connecté à un </p>tty.
+Si c'est votre situation</li>, utilisez un pseudo-terminal
+  <li>('&lt;pty&lt;' et '&gt;pty&gt;').
+Ne pas demander d'entrée sauf
+    <p class="Pp">si connecté à un tty.
+Certains programmes ne demandent pas d'entrée sauf si stdin ou stdout est un tty. Voyez si vous pouvez réactiver la demande d'entrée. Sinon, voyez si vous pouvez trouver une commande que vous pouvez émettre après chaque commande réelle et chercher sa sortie, comme le fait IPC::ChildSafe. Il y a deux filtres inclus avec IPC::Run qui peuvent aider à faire cela : appender et chunker (voir
+        <b>new_appender()</b> et <b>new_chunker()).</b>
+</p>Format </li>de
+  <li>sortie différent lorsqu'il n'est pas connecté à un tty.
+Certaines
+    <p class="Pp">commandes modifient leurs formats para facilitar el análisis por</p> máquina
+        cuando no est</li>án conectados a una tubería. E</ul>sto es realmente bueno, pero p</section>uede
+        ser sorprendente.
+<section class="Sh">
+<h1 class="Sh" id='PSEUDO_TERMINALS'><a class='permalink' href='#PSEUDO_TERMINALS'>PSEUDOTERMINALE</a></h1>S
+<p class="Pp">En sistemas que proporcionan pseudoterminales bajo /dev, IPC::Run puede usar
+    IO::Pty (disponible en CPAN) para proporcionar un entorno de terminal a
+    subprocesos. Esto es necesario cuando el subproceso realmente quiere pensar
+    que está conectado a una terminal </p>real.
+<section class="Ss">
+<h2 class="Ss" id='CAVEATS'><a class='permalink' href='#CAVEATS'>ADVERTENCI</a></h2>AS
+<p class="Pp">Las pseudoterminales no son tuberías, aunque son similares. Aquí hay
+    algunas diferencias a tener en </p>cuenta.
+<dl class="Bl-tag">
+  <dt id="Echoing"><a class="permalink" href="#Echoing">Ec</a></dt>o
+  <dd>Enviar a stdin causará un eco en stdout, que ocurre antes de que cada
+      línea se pase al programa hijo. Actualmente no hay forma de desactivar
+      esto, aunque el proceso hijo puede y debe desactivarlo para cosas como
+      </dd>contraseñas.
+  <dt id="Shutdown"><a class="permalink" href="#Shutdown">Apaga</a></dt>do
+  <dd>IPC::Run no puede cerrar un pty hasta que se haya recopilado toda la salida. Esto
+      significa que no es posible enviar un EOF a stdin cerrando a medias el
+      pty, como podemos hacer cuando usamos una tubería hacia stdin.
+    <p class="Pp">Esto significa que necesita enviar al proceso hijo un comando de
+        salida o una señal, o <b>run()</b> / <b>finish() se agotará el tiempo de</b> espera. Tenga
+        cuidado d</p>e no esperar un indicador después</dd> de enviar el comando de salida.
+  <dt id="Command"><a class="permalink" href="#Command">Edición de la línea de
+    </a></dt>comandos
+  <dd>Algunos subprocesos, notablemente los shells que dependen de la configuración del indicador del usuario,
+      volverán a emitir el indicador más la entrada de la línea de comandos hasta el momento una
+      vez por cada </dd>carácter.
+  <dt>'&gt;pty&gt;' significa '&amp;&gt;pty&gt;', no '1&gt;</dt>pty&gt;'
+  <dd>La pseudoterminal redirige tanto stdout como stderr a menos que especifique un
+      descriptor de archivo. Si desea capturar stderr por separado, haga esto:
+        <pre>start \@cmd, '&lt;pty&lt;</pre>', \$in, '&gt;pty&gt;', </dd>\$out, '2&gt;', \$err;
+  <dt id="stdin,"><a class="permalink" href="#stdin,">stdin, stdout y stderr
+    no </a></dt>heredados
+  <dd>Los procesos hijos acoplados a una pseudoterminal tienen su stdin, stdout
+      y stderr completamente cerrados antes de que cualquier operador de redirección surta efecto.
+      Esto desata los vínculos de la terminal de control. Esto no se hace
+      al usar tuberías.
+    <p class="Pp">En este momento, esto afecta a todos los hijos e</p>n un arnés que tiene un
+        pty en uso, incl</dd>uso si ese pty no afectaría a un hijo en partic</dl>ular. Eso es
+        un error y se corregirá. Ha</section>sta entonces, es mejor no mezclar
+        hijos.
+<section class="Ss">
+<h2 class="Ss" id='Redirection_Operators'><a class='permalink' href='#Redirection_Operators'>Operadores de </a></h2>Redirección
+<pre>Operador       SHNP   Descripción
+========       ====   ===========
+&lt;, N&lt;          SHN    Redirige la entrada al fd N de un hijo (se asume 0)
+&gt;, N&gt;          SHN    Redirige la salida del fd N de un hijo (se asume 1)
+&gt;&gt;, N&gt;&gt;        SHN    Igual que '&gt;', pero añade a escalares o archivos con nombre
+&gt;&amp;, &amp;&gt;         SHN    Redirige stdout y stderr de un proceso hijo
+&lt;pty, N&lt;pty    S      Igual que '&lt;', pero usa una pseudo-tty en lugar de una tubería
+&gt;pty, N&gt;pty    S      Igual que '&gt;', pero usa una pseudo-tty en lugar de una tubería
+N&lt;&amp;M                  Duplica el fd de entrada N al fd de entrada M
+M&gt;&amp;N                  Duplica el fd de salida N al fd de entrada M
+N&lt;&amp;-                  Cierra el fd N
+&lt;pipe, N&lt;pipe     P   La tubería abre H para que el llamador lea, escriba, cierre.
+&gt;pipe, N&gt;pipe     P   La tubería abre H para que el llamador lea, escriba, </pre>cierre.
+<p class="Pp">'N' y 'M' son marcadores de posición para números enteros de descriptores de archivo.
+    Los términos 'entrada' y 'salida' son desde la perspectiva del proceso </p>hijo.
+<p class="Pp">El campo SHNP indica qué parámetros puede tomar un </p>operador:
+<pre>S: referencias \$scalar o \&amp;function. Se pueden usar filtros con
+   estos operadores (y solo con estos).
+H: \*HANDLE o IO::Handle para que el llamador abra y cierre
+N: "nombre de archivo".
+P: \*HANDLE o manejador de archivo léxico abierto por IPC::Run como el extremo padre de una tubería, pero leído
+   y escrito y cerrado por el llamador (como IPC::Open3)</pre>.
+<dl class="Bl-tag">
+  <dt id="Redirecting"><a class="permalink" href="#Redirecting">Redirigiendo
+    entrada: [n]&lt;, [n]</a></dt>&lt;pipe
+  <dd>Puede hacer que la entrada que lee el hijo en el número de descriptor de archivo n provenga de una
+      variable escalar, subrutina, manejador de archivo o un archivo con nombre. Si stdin no está
+      redirigido, se hereda el stdin del padre.
+        <pre>run \@cat, \undef          ## Cierra el stdin del hijo inmediatamente
+   or die "cat returned $?"; 
+run \@cat, \$in;
+run \@cat, \&lt;&lt;TOHERE;
+blah
+TOHERE
+run \@cat, \&       ## Llama a &amp;input, alimentando los datos devueltos
+                           ## al hijo. Cierra el stdin del hijo
+                           ## cuando se devuelve </pre>undef.
+    <p class="Pp">Redigir desde archivos con nombre requiere que use el operador de
+        redirección de </p>entrada:
+        <pre>run \@cat, '&lt;.profile';
+run \@cat, '&lt;', '.profile';
+open IN, "&lt;foo";
+run \@cat, \*IN;
+run \@cat, </pre>*IN{IO};
+    <p class="Pp">La forma utilizada en el segundo ejemplo aquí es la más segura, ya que
+        nombres de archivo como "0" y "&amp;more\n" no confundirán
+        </p>a &amp;run:
+    <p class="Pp">No puede hacer ninguna </p>de estas
+        <pre>run \@a, *IN;      ## INVÁLIDO
+run \@a, '&lt;', *IN; ## ERRÓNEO: Lee un archivo con un nombre similar a "*main:</pre>:A"
+    <p class="Pp">porque perl pasa a &amp;run un escalar que contiene una cadena que parece
+        "*main::A", y &amp;run no puede distinguir
+        la diferencia entre eso y un operador de redirección o un nombre de archivo.
+        &amp;run garantiza que cualquier escalar que pase después de un operador
+        de redirección es un nombre de </p>archivo.
+    <p class="Pp">Si su proceso hijo tomará entrada de descriptores de archivo
+        distintos de 0 (stdin), puede usar un operador de redirección con cualquiera de las
+        formas de entrada válidas (ref escalar, ref </p>sub, etc.):
+        <pre>run \@cat, '3&lt;', </pre>\$in3;
+    <p class="Pp">Al redirigir la entrada desde una ref escalar, la ref escalar se
+        usa como una cola. Esto le permite usar &amp;harness y <b>pump()</b>
+        para alimentar bits incrementales de entrada a un coproceso. Vea
+        "Coprocesos" más abajo para más </p>información.
+    <p class="Pp">El operador &lt;pipe abre la mitad de escritura de una tubería en la
+        referencia de glob de manejador de archivo que toma como </p>argumento:
+        <pre>$h = start \@cat, '&lt;pipe', \*IN;
+print IN "hello world\n";
+pump $h;
+close IN;
+finish </pre>$h;
+    <p class="Pp">A diferencia de los otros operadores '&lt;', IPC::Run no hace nada
+        más con él: usted es responsable de él. El ejemplo anterior es
+        funcionalmente </p>equivalente a:
+        <pre>pipe( \*R, \*IN ) or die $!;
+$h = start \@cat, '&lt;', \*IN;
+print IN "hello world\n";
+pump $h;
+close IN;
+finish </pre>$h;
+    <p class="Pp">Esto es como el comportamiento de IPC::Open2 y IPC::</p>Open3.
+    <p class="Pp"><b>Win32:</b> El manejador devuelto es en realidad un manejador de socket,
+        así que puede usar <b>sele</b>ct()</p> en</dd> él.
+  <dt id="Redirecting~2"><a class="permalink" href="#Redirecting~2">Redirigiendo
+    salida: [n]&gt;, [n]&gt;&gt;, [n]&gt;&amp;[m], [n]&gt;</a></dt>pipe
+  <dd>Puede redirigir cualquier salida que emita el hijo a una variable escalar,
+      subrutina, manejador de archivo o nombre de archivo. Puede hacer que &amp;run trunque o
+      añada a archivos con nombre o escalares. Si también está redirigiendo stdin, o
+      si el comando está en el extremo receptor de una tubería ('|'), puede omitir
+      el operador de redirección:
+        <pre>@ls = ( 'ls' );
+run \@ls, \undef, \$out
+   or die "ls returned $?"; 
+run \@ls, \undef, \&  ## Llama a &amp;out cada vez que se recibe algo de salida
+                           ## del hijo
+                           ## cuando se devuelve undef.
+run \@ls, \undef, '2&gt;ls.err';
+run \@ls, '2&gt;', 'ls.</pre>err';
+    <p class="Pp">La forma de dos parámetros garantiza que el nombre de archivo no será
+        interpretado como un operador de </p>redirección:
+        <pre>run \@ls, '&gt;', "&amp;more";
+run \@ls, '2&gt;', "&gt;</pre>foo\n";
+    <p class="Pp">Puede pasar manejadores de archivo que haya abierto para </p>escritura:
+        <pre>open( *OUT, "&gt;out.txt" );
+open( *ERR, "&gt;err.txt" );
+run \@cat, \*OUT, </pre>\*ERR;
+    <p class="Pp">Pasar una referencia escalar y una referencia de código requiere un
+        poco más de trabajo, pero le permite capturar toda la salida en un
+        escalar o cada pieza de salida mediante un </p>callback:
+    <p class="Pp">Estas dos hacen lo </p>mismo:
+        <pre>run( [ 'ls' ], '2&gt;', sub { $err_out .= $_[0] </pre>} );
+    <p class="Pp">hace lo mismo básicamente </p>que:
+        <pre>run( [ 'ls' ], '2&gt;', \$err_out </pre>);
+    <p class="Pp">La subrutina se llamará cada vez que se lean datos del
+        </p>hijo.
+    <p class="Pp">El operador &gt;pipe es diferente en concepto que los otros
+        operadores '&gt;', aunque su sintaxis es </p>similar:
+        <pre>$h = start \@cat, $in, '&gt;pipe', \*OUT, '2&gt;pipe', \*ERR;
+$in = "hello world\n";
+finish $h;
+print &lt;OUT&gt;;
+print &lt;ERR&gt;;
+close OUT;
+close </pre>ERR;
+    <p class="Pp">hace que se creen dos tuberías, con un extremo conectado a stdout y
+        stderr de cat, respectivamente, y el otro dejado abierto en OUT y ERR,
+        para que el script pueda manualmente <b>read()</b>, <b>select()</b>, etc. en
+        ellos. Esto es como el comportamiento de IPC::Open2 y IPC::</p>Open3.
+    <p class="Pp"><b>Win32:</b> El manejador devuelto es en realidad un manejador de socket,
+        así que puede usar <b>sele</b>ct()</p> en</dd> él.
+  <dt id="Duplicating"><a class="permalink" href="#Duplicating">Duplicando
+    descriptores de salida: &gt;&amp;m, </a></dt>n&gt;&amp;m
+  <dd>Esto duplica el descriptor de salida número n (el valor predeterminado es 1 si se omite n)
+      desde el descriptor número </dd>m.
+  <dt id="Duplicating~2"><a class="permalink" href="#Duplicating~2">Duplicando
+    descriptores de entrada: &lt;&amp;m, </a></dt>n&lt;&amp;m
+  <dd>Esto duplica el descriptor de entrada número n (el valor predeterminado es 0 si se omite n)
+      desde el descriptor número </dd>m
+  <dt id="Closing"><a class="permalink" href="#Closing">Cerrando descriptores:
+    &lt;&amp;-, </a></dt>3&lt;&amp;-
+  <dd>Esto cierra el descriptor número n (el valor predeterminado es 0 si se omite n). Los
+      siguientes comandos son equivalentes:
+        <pre>run \@cmd, \undef;
+run \@cmd, '&lt;&amp;-';
+run \@cmd, '&lt;in.txt', </pre>'&lt;&amp;-';
+    <p class="Pp">Ha</p>cer
+        <pre>run \@cmd, \$in, '&lt;&amp;-';    ## Receta de </pre>SIGPIPE.
+    <p class="Pp">es peligroso: el padre recibirá un SIGPIPE si
+        <span class="Li">$in </span>no es</p>tá va</dd>cío.
+  <dt id="Redirecting~3"><a class="permalink" href="#Redirecting~3">Redirigiendo
+    tanto stdout como stderr: &amp;&gt;, &gt;&amp;, &amp;&gt;pipe,
+    &gt;</a></dt>pipe&amp;
+  <dd>Los siguientes pares de comandos son equivalentes:
+        <pre>run \@cmd, '&gt;&amp;', \$out;       run \@cmd, '&gt;', \$out,     '2&gt;&amp;1';
+run \@cmd, '&gt;&amp;', 'out.txt';   run \@cmd, '&gt;', 'out.txt', '2&gt;</pre>&amp;1';
+    <p class="Pp">et</p>c.
+    <p class="Pp">No se permiten números de descriptor de archivo a la izquierda o a la
+        derecha de estos operadores, y el '&amp;' puede aparecer en cualquiera de los extremos del
+        </p>operador.
+    <p class="Pp">Las variantes '&amp;&gt;pipe' y '&gt;pipe&amp;' se comportan como
+</p>        el operador '&gt;pipe', excepto que tanto stdou</dd>t como stderr escriben en la
+        tubería creada.
+  <dt id="Redirection"><a class="permalink" href="#Redirection"&gt;Redirección
+    </a></dt>Filtros
+  <dd>Tanto las redirecciones de entrada como las de salida que usan escalares o subs
+      como extremos pueden tener un número arbitrario de subs de filtro colocadas entre
+      ellas y el proceso hijo. Esto es útil si desea recibir la salida
+      por trozos, o si desea procesar cada trozo de datos enviado al hijo.
+      Para usar esta característica, debe usar la sintaxis de operador:
+        <pre>run(
+   \@cmd
+      '&lt;', \&amp;in_filter_2, \&amp;in_filter_1, $in,
+      '&gt;', \&amp;out_filter_1, \&amp;in_filter_2, $out,</pre>
+);
+    <p class="Pp">Esta capacidad no está disponible para manejadores de E/S o archivos
+      con </p>nombre.
+    <p class="Pp">IPC::Run proporciona dos filtros: appender y chunker.
+        Dado que estos pueden tomar un argumento, necesita usar las funciones constructor <b>new_appender()</b> y <b>new_chunker()</b> en lugar de
+        usar la </p>sintaxis \&amp;:
+        <pre>run(
+   \@cmd
+      '&lt;', new_appender( "\n" ), $in,
+      '&gt;', new_chunker, </pre>$out,</dd>
+</dl>)</section>;
+<section class="Ss">
+<h2 class="Ss" id='Just_doing_I/O'><a class='permalink' href='#Just_doing_I/O'>Solo   haciendo </a></h2>E/S
+<p class="Pp">Si solo desea hacer E/S a un manejador o archivo que usted mismo abre,
+    puede especificar un filehandle o nombre de archivo en lugar de un comando en la
+    especificación del </p>arnés:
+<pre>run io( "filename", '&gt;', \$recv );
+$h = start io( $io, '&gt;', \$recv );
+$h = harness \@cmd, '&amp;', io( "file", '&lt;', \$send </pre>)</section>;
+<section class="Ss">
+<h2 class="Ss" id='Options'><a class='permalink' href='#Options'>Opcione</a></h2>s
+<p class="Pp">Las opciones se pasan como pares de </p>nombre/valor:
+<pre>run \@cat, \$in, debug =&gt; </pre>1;
+<p class="Pp">Si pasa la opción debug, quizás desee pasarla primero, para
+    poder ver qué análisis está </p>ocurriendo:
+<pre>run debug =&gt; 1, \@cat, </pre>\$in;
+<dl class="Bl-tag">
+  <dt id="debug"><a class="permalink" href="#debug">deb</a></dt>ug
+  <dd>Habilita la salida de depuración en el padre y el hijo. La información de depuración se emite al
+      STDERR que estaba presente cuando IPC::Run fue primero
+      <span class="Li">use()</span>ado (se <span class="Li">dup()ica fuera
+      d</span>el camino para que pu</dd>eda ser redirigido en </dl>los hijos sin tener
+  </section>    la salida de depu</section>ración emitida en él).
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUES'><a class='permalink' href='#RETURN_VALUES'>VALORES   DE </a></h1>RETORNO
+<p class="Pp"><b>harness()</b> y <b>start() </b>devuelven una referencia a un
+    arnés IPC::Run. Este está bendecido (blessed) en el paquete IPC::Run, así que puede
+    hacer llamadas posteriores a funciones como métodos si lo </p>desea:
+<pre>$h = harness( ... );
+$h-&gt;start;
+$h-&gt;pump;
+$h-&gt;finish;
+$h = start( .... );
+$h-&gt;pump;
+..</pre>.
+<p class="Pp">Por supuesto, usar la sintaxis de llamada a método le permite lidiar con cualquier
+    subclase de IPC::Run que pueda surgir, pero no espere sentado a que aparezca </p>alguna.
+<p class="Pp"><b>run()</b> y <b>finish() </b>devuelven VERDADERO cuando todos los subcomandos
+    salen con un código de resultado 0. <b>Esto es lo opuest</b>o al comando syst</p>em()
+    de perl.
+<p class="Pp">Todas las rutinas lanzan excepciones (a través de <b>die()) cuando se
+    reconocen condiciones de error. Un re</b>sultado de comando distinto de cero no se trata como una
+ </p>   condición de error, ya que algunos comandos son pruebas </section>cuyos resultados se reportan en
+    sus códigos de salida.
+<section class="Sh">
+<h1 class="Sh" id='ROUTINES'><a class='permalink' href='#ROUTINES'>RUTINA</a></h1>S
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="run"><a class="permalink" href="#run">ru</a></dt>n
+  <dd>Run toma un arnés o una especificación de arnés y lo ejecuta, bombeando toda
+      la entrada al (o a los) hijo(s), cerrando las tuberías de entrada cuando no hay más entrada
+      disponible, recopilando toda la salida que llega, hasta que las tuberías que entregan
+      la salida se cierran, luego esperando a que los hijos salgan y cosechando sus
+      códigos de resultado.
+    <p class="Pp">Puede pensar en <span class="Li">run( ... </span>) como algo
+        </p>similar a
+        <pre>start( ... )-&gt;finish()</pre>;
+    <p class="Pp">, aunque hay una diferencia sutil: <b>run() </b>no
+        establece \$input_scalars a '' como lo hace <b>finish()</b>. Si se lanza una excepción desde <b>run()</b>, todos los hijos serán asesinados
+        "suavemente", y luego "aniquilados" si no se van
+        suavemente (hacia esa noche oscura. lo </p>siento).
+    <p class="Pp">Si se lanzan excepciones, e</p>sto hace un
+        "kill_</dd>kill" antes de propagarlas.
+  <dt id="signal"><a class="permalink" href="#signal">sign</a></dt>al
+  <dd>
+    <pre>## Para enviarle una señal específica por nombre ("USR1"):
+signal $h, "USR1";
+$h-&gt;signal ( "USR1" </pre>);
+    <p class="Pp">Si <span class="Li">$signal </span>se proporciona y está definido,
+        envía una señal a todos los procesos hijos. Intente no enviar señales numéricas,
+        use <span class="Li">"KILL" </span>en lugar de
+        <span class="Li">9,</span> por ejemplo. Las señales numéricas no son
+        </p>portables.
+    <p class="Pp">Lanza una excepción si <span class="Li">$signal </span>es
+        </p>undef.
+    <p class="Pp">Esto <i>no </i>limpiará el arnés,
+        <span class="Li">no lo </span>"finalizará" si lo </p>mata.
+    <p class="Pp">Normalmente TERM mata un proceso de manera elegante (esto es lo que la utilidad de línea de comandos <span class="Li">"kill" </span>hace por
+        defecto), INT es enviada por una de las teclas
+        <span class="Li">"</span>^C",
+        <span class="Li">"Retroceso" </span>o
+        <span class="Li">"&lt;Del&gt;</span>", y
+        <span class="Li">"QUIT" se </span>usa para matar un proceso y
+        hacer que genere un volcado de memoria </p>(coredump).
+    <p class="Pp">La señal <span class="Li">"HUP" </span>se usa a menudo
+        para hacer que un proceso "reinicie", releyendo archivos de configuración,
+        y <span class="Li">"USR1" </span>y
+        <span class="Li">"USR2" </span>para cosas realmente específicas de la
+        </p>aplicación.
+    <p class="Pp">A menudo, ejecutar <span class="Li">"kill -l"
+</span>        (esa es una "L" minúscula) en la línea de comandos listará las
+        señales presentes en su sistema </p>operativo.
+    <p class="Pp"><b>ADVERTENCIA:</b> El subsistema de señales no es para nada portable.
+        *Podemos* ofrecer simular <span class="Li">"TERM" </span>y
+        <span class="Li">"KILL" </span>en algunos sistemas operativos,
+        envíeme código si desea </p>esto.
+    <p class="Pp"><b>ADVERTENCIA </b>2: Hasta y incluyendo perl v5.6.1, hacer
+        casi cualquier cosa en un manejador de señales podía ser peligroso. El código más seguro
+        evita todas las asignaciones de memoria (mallocs) y llamadas al sistema, generalmente preasignando una
+        bandera antes de entrar en el manejador de señales, alterando el valor de la bandera en el
+        manejador, y respondiendo al valor cambiado en el sistema </p>principal:
+        <pre>my $got_usr1 = 0;
+sub usr1_handler { ++$got_signal }
+$SIG{USR1} = \&
+while () { sleep 1; print "GOT IT" while $got_usr1--;</pre> }
+    <p class="Pp">Incluso este enfoque es peligroso si ++ y -- no son atómicos en
+        su sistema (nunca he oído hablar de esto en ninguna CPU moderna lo suficientemente grande para
+        ejecutar </p>perl)</dd>.
+  <dt id="kill_kill"><a class="permalink" href="#kill_kill">kill_ki</a></dt>ll
+  <dd>
+    <pre>## Para matar un proceso:
+$h-&gt;kill_kill;
+kill_kill $h;
+## Para especificar el período de gracia distinto a 30 segundos:
+kill_kill $h, grace =&gt; 5;
+## Para enviar QUIT en lugar de KILL si un proceso se niega a morir:
+kill_kill $h, coup_d_grace =&gt; </pre>"QUIT";
+    <p class="Pp">Envía un <span class="Li">"TERM",</span> espera a que
+        todos los hijos salgan durante un máximo de 30 segundos, luego envía un
+        <span class="Li">"KILL" </span>a cualquiera que haya sobrevivido al
+        <span class="Li">"T</span>ERM</p>".
+    <p class="Pp">Esperará hasta 30 segundos más para que el SO pueda
+        <span class="Li">"KILL" </span>exitosamente los </p>procesos.
+    <p class="Pp">Los 30 segundos pueden ser anulados estableciendo la
+        <span class="Li">opción </span>"grace", esto anula ambos
+        </p>temporizadores.
+    <p class="Pp">Luego se limpia el </p>arnés.
+    <p class="Pp">El nombre duplicado indica que esta función puede matar de nuevo
+        y evita colisionar con la función Perl central
+        <span class="Li">"k</span>ill</p>".
+    <p class="Pp">Devuelve undef si el <span class="Li">"TERM"
+</span>        fue suficiente, o un 1 si se <span class="Li">requirió </span>el
+        <span class="Li">"KILL". </span>Lanza una excepción si el
+"KILL" no permitió que los hijos fueran
+        </p>cosechados.
+    <p class="Pp"><b>NOTA:</b> El período de gracia es en realidad hasta 1 segundo
+        más largo que el dado. Esto se debe a que la granularidad de
+        <span class="Li">"time" </span>es de 1 segundo. Avíseme si necesita
+        una granularidad más fina, podemos aprovechar Time::HiRes </p>aquí.
+    <p class="Pp"><b>Win32:</b> Win32 no sabe cómo enviar señales reales, así que
+        <span class="Li">"TERM" </span>es una muerte a todo vapor en Win32.
+        Por lo tanto, todo el habla sobre períodos de gracia, etc., no se aplica </p>a </dd>Win32.
+  <dt id="harness"><a class="permalink" href="#harness">harne</a></dt>ss
+  <dd>Toma una especificación de arnés y devuelve un arnés. Este arnés está
+      bendecido en IPC::Run, permitiéndole usar la sintaxis de llamada a método para
+      <b>run()</b>, <b>start()</b>, etc. si lo desea.
+    <p class="Pp"><b>harness()</b> se proporciona para que pueda pre-construir
+        arneses si así lo desea, pero no es </p>obligatorio.
+    <p class="Pp">Puede proceder a <b>run()</b>, <b>start()</b> o
+        <b>pump() </b>después de llamar a <b>harness()</b> (<b>pump()</b> llama a
+        <b>start()</b> si es necesario). Alternativamente, puede pasar su especificación de arnés a <b>run()</b> o <b>start()</b> y dejar que ellos
+        <b>hagan el </b>harness() por usted. No puede pasar especificaciones de arnés a
+        <b>pump(</b>), si</p>n emb</dd>argo.
+  <dt id="close_terminal"><a class="permalink" href="#close_terminal">close_termin</a></dt>al
+  <dd>Esto se usa como (o en) un sub init para desprenderse de los lazos de una
+      terminal de control. Debe preceder a todas las demás operaciones de redirección que afecten
+      STDIN, STDOUT o STDERR para garantizar que sea </dd>efectivo.
+  <dt id="start"><a class="permalink" href="#start">sta</a></dt>rt
+  <dd>
+    <pre>$h = start(
+   \@cmd, \$in, \$out, ...,
+   timeout( 30, name =&gt; "process timeout" ),
+   $stall_timeout = timeout( 10, name =&gt; "stall timeout"   ),
+);
+$h = start \@cmd, '&lt;', \$in, '|', \@cmd2,</pre> ...;
+    <p class="Pp"><b>start()</b> acepta un arnés o una especificación de arnés y
+        devuelve un arnés después de construir todas las tuberías y lanzar (a través de
+        <b>fork()</b>/<b>exec()</b>, o, tal vez algún día, <b>spawn()</b>) todos los
+        procesos hijos. No envía ni recibe ningún dato en las tuberías, vea
+        <b>pump()</b> y <b>finish()</b> para </p>eso.
+    <p class="Pp">Puede llamar a <b>harness()</b> y luego pasar su resultado a
+        <b>start()</b> si lo desea, pero solo necesita hacerlo si le ayuda a
+        estructurar o ajustar su aplicación. Si llama a <b>harness()</b>, puede
+        omitir <b>start()</b> e ir directamente a </p>pump.
+    <p class="Pp"><b>start() </b>también inicia todos los temporizadores en el arnés. Vea
+        IPC::Run::Timer para más </p>información.
+    <p class="Pp"><b>start() </b>vacía (flush) STDOUT y STDERR para ayudarle a evitar
+        salida duplicada. No tiene forma de pedirle a Perl que vacíe todos sus
+        filehandles abiertos, así que va a necesitar vaciar cualquier otro que tenga abierto.
+        Lo </p>siento.
+    <p class="Pp">Así es como si no desea alterar el estado de $| para su
+        filehandle:</p>
+        <pre>$ofh = select HANDLE; $of = $|; $| = 1; $| = $of; select </pre>$ofh;
+    <p class="Pp">Si no le importa dejar la salida sin búfer en HANDLE, puede hacer
+        algo un poco </p>más corto
+        <pre>$ofh = select HANDLE; $| = 1; select </pre>$ofh;
+    <p class="Pp">O, puede usar el método <b>flush()</b> de IO:</p>:Handle:
+        <pre>use IO::Handle;
+flush </pre>HANDLE;
+    <p class="Pp">Perl necesita el equivalente de fflush( (FILE *)NULL )</p> de </dd>C.
+  <dt id="adopt"><a class="permalink" href="#adopt">ado</a></dt>pt
+  <dd>Característica experimental. NO FUNCIONA TODAVÍA, NECESITA CERRAR LOS FDS MEJOR EN
+      LOS HIJOS. VEA t/adopt.t para una suite de </dd>pruebas.
+  <dt id="pump"><a class="permalink" href="#pump">pu</a></dt>mp
+  <dd>
+    <pre>pump $h;
+$h-&gt;</pre>pump;
+    <p class="Pp">pump acepta un único parámetro harness. Se bloquea hasta que
+        entrega alguna entrada o recibe alguna salida. Devuelve VERDADERO si todavía hay
+        entrada o salida por hacer, FALSO en caso </p>contrario.
+    <p class="Pp"><b>pump()</b> llamará automáticamente a <b>start() </b>si es
+        necesario, por lo que puede llamar a <b>harness() </b>y luego proceder a <b>pump()</b> si
+        eso le ayuda a estructurar su </p>aplicación.
+    <p class="Pp">Si <b>pump()</b> se llama después de que todas las actividades del harness hayan
+        completado, se lanzará una excepción de "proceso terminado prematuramente". Esto permite la guionización simple de aplicaciones externas
+        sin tener que añadir mucho código de manejo de errores en cada paso del
+     </p>   guion:
+        <pre>$h = harness \@smbclient, \$in, \$out, $err;
+$in = "cd /foo\n";
+$h-&gt;pump until $out =~ /^smb.*&gt; \Z/m;</pre>
+die "error cding to /foo:\n$out" if $out =~ "ERR";
+$out = '';
+$in = "mget *\n";
+$h-&gt;pump until $out =</dd>~ /^smb.*&gt; \Z/m;
+die "error retrieving files:\n$out" if $out =~ "ERR";
+$h-&gt;finish;
+warn $err if $err;
+  <dt id="pump_nb"><a class="permalink" href="#pump_nb">pump_</a></dt>nb
+  <dd>
+    <pre>pump_nb $h;
+$h-&gt;</pre>pump_nb;
+    <p class="Pp">"<b>pump() no bloqueante", bombea si hay algo listo para ser bombeado,
+</b>        devuelve inmediatamente en caso contrario. Esto es útil si
+</p>        está haciendo alguna tarea de larga duración en primer plan</dd>o, pero no quiere
+        privar de recursos a ningún proceso hijo.
+  <dt id="pumpable"><a class="permalink" href="#pumpable">pumpab</a></dt>le
+  <dd>Devuelve VERDADERO si llamar a <b>pump()</b> no lanzará inmediatamente
+      una excepción de "proceso terminado prematuramente". Esto significa que hay
+      canales de E/S abiertos o procesos activos. Puede ceder el turno del proceso padre
+      durante 0.01 segundo si todas las tuberías son hacia el hijo y todas están
+      pausadas. En este caso no podemos saber si el hijo está muerto, así que cedemos el
+      procesador e intentamos recoger al hijo de forma no </dd>bloqueante.
+  <dt id="reap_nb"><a class="permalink" href="#reap_nb">reap_</a></dt>nb
+  <dd>Intenta recoger los procesos hijos, pero no se bloquea.
+    <p class="Pp">Actualmente no toma ningún parámetro, algún día permitirá
+        recoger hijos </p>específicos.
+    <p class="Pp">Llame a esto solo desde un manejador de señal si su
+        <span class="Li">"perl" </span>es lo suficientemente reciente como para tener manejo
+        seguro de señales (5.6.1 no lo tenía, si recuerdo bien, pero se estaba discutiendo en
+        perl5-porters). Llamar a esto (o hacer cualquier trabajo significativo) en un manejador de
+        señales en versiones antiguas de <span class="Li">"perl" es pe</span>dir
+        </p>fallos de s</dd>egmentación.
+  <dt id="finish"><a class="permalink" href="#finish">fini</a></dt>sh
+  <dd>Esto debe llamarse después de la última <b>start()</b> o <b>pump()</b> para un harness, o su sistema acumulará procesos defuntos y puede
+      "fugar" descriptores de archivo.
+    <p class="Pp"><b>finish() </b>devuelve VERDADERO si todos los hijos devolvieron 0 (y
+        no fueron señalados y no generaron volcado de memoria, es decir ! $?), y FALSO en caso contrario
+        (esto es como <b>run()</b>, y lo opuesto de <b>sys</b>tem(</p>)).
+    <p class="Pp">Una vez que un harness ha finalizado, puede ser <b>run()</b> o
+        <b>start() </b>de nuevo, incluido por el <b>auto-inicio </b>de </p>pump().
+    <p class="Pp">Si esto lanza una excepción en lugar de una salida normal, el
+        harness puede quedar en un estado inestable, es mejor matar el harness para
+        deshacerse de todos los procesos hijos,</p> etc.
+    <p class="Pp">Específicamente, si expira un tiempo de espera en <b>finish()</b>,
+        <b>finish()</b> no matará a todos los hijos. Llame a
+        <span class="Li">"$h-&gt;kill_kill" en este</span> caso si le
+        imp</p>orta. Esto difiere del c</dd>omportamiento de "run".
+  <dt id="result"><a class="permalink" href="#result">resu</a></dt>lt
+  <dd>
+    <pre>$h-&gt;</pre>result;
+    <p class="Pp">Devuelve el primer código de resultado distinto de cero (es decir $? &gt;&gt; 8). Vea
+        "full_result" para obtener el valor $? de un proceso </p>hijo.
+    <p class="Pp">Para obtener el resultado de un hijo en particular,</p> haga:
+        <pre>$h-&gt;result( 0 );  # first child's $? &gt;&gt; 8
+$h-&gt;result( 1 );  # second </pre>child
+    <p class="Pp"></p>o
+        <pre>($h-&gt;results)[0]
+($h-&gt;results)</pre>[1]
+    <p class="Pp">Devuelve undef si no se generaron procesos hijos y no </p>se especificó
+        ningún número de hijo. Lanza una </dd>excepción si se pasa un número de hijo fuera de rango.
+  <dt id="results"><a class="permalink" href="#results">resul</a></dt>ts
+  <dd>Devuelve una lista de valores de salida de los hijos. Vea "full_results" si
+      quiere saber si una señal mató al hijo.
+    <p class="Pp">Lanza una excepción si e</p>l harness no está en un </dd>estado
+      finalizado.
+  <dt id="full_result"><a class="permalink" href="#full_result">full_resu</a></dt>lt
+  <dd>
+    <pre>$h-&gt;</pre>full_result;
+    <p class="Pp">Devuelve el primer $? distinto de cero. Vea "result" para obtener
+        el primer valor $? &gt;&gt; 8 de un proceso </p>hijo.
+    <p class="Pp">Para obtener el resultado de un hijo en particular,</p> haga:
+        <pre>$h-&gt;full_result( 0 );  # first child's $?
+$h-&gt;full_result( 1 );  # second </pre>child
+    <p class="Pp"></p>o
+        <pre>($h-&gt;full_results)[0]
+($h-&gt;full_results)</pre>[1]
+    <p class="Pp">Devuelve undef si no se generaron procesos hijos y no </p>se especificó
+        ningún número de hijo. Lanza una </dd>excepción si se pasa un número de hijo fuera de rango.
+  <dt id="full_results"><a class="permalink" href="#full_results">full_resul</a></dt>ts
+  <dd>Devuelve una lista de valores de salida de los hijos como los devuelve
+      <span class="Li">"wait".</span> Vea "results" si no
+      le importan los volcados de memoria o las señales.
+    <p class="Pp">Lanza una ex</p>cepción si e</dd>l harness no</dl> está en un </div>estado
+     </section> finalizado.
+<section class="Sh">
+<h1 class="Sh" id='FILTERS'><a class='permalink' href='#FILTERS'>FILTRO</a></h1>S
+<p class="Pp">Estos filtros se utilizan para modificar la entrada o la salida entre un proceso
+    hijo y un punto final escalar o </p>subrutina.
+<dl class="Bl-tag">
+  <dt id="binary"><a class="permalink" href="#binary">bina</a></dt>ry
+  <dd>
+    <pre>run \@cmd, "&gt;", binary, \$out;
+run \@cmd, "&gt;", binary, \$out;  ## Any TRUE value to enable
+run \@cmd, "&gt;", binary 0, \$out;  ## Any FALSE value to </pre>disable
+    <p class="Pp">Esto es un constructor para un "filtro" de "binmode"
+        que le dice a IPC::Run que conserve los retornos de carro que
+        normalmente se editarían por usted (binmode generalmente está apagado). Esto no es
+        un filtro real, sino una opción disfrazada de </p>filtro.
+    <p class="Pp">No se llama "binmode" porque probablemente
+        querrá llamar al binmode de Perl en programas que están pasando datos binarios
+        </p>por </dd>ahí.
+  <dt id="new_chunker"><a class="permalink" href="#new_chunker">new_chunk</a></dt>er
+  <dd>Esto divide un flujo de datos en trozos, basándose en un parámetro escalar opcional o
+      expresión regular. El valor predeterminado es el separador de registro de entrada de Perl
+      en $/, que es un salto de línea por defecto.
+        <pre>run \@cmd, '&gt;', new_chunker, \&
+run \@cmd, '&gt;', new_chunker( "\r\n" ), </pre>\&
+    <p class="Pp">Dado que esto usa $/ por defecto, siempre debe pasar un
+        parámetro si le preocupa que otro código (módulos, etc) modifique
+      </p>  $/.
+    <p class="Pp">Si este filtro es el último en una cadena de filtros que vuelca en un
+        escalar, el escalar debe establecerse en '' antes de que se escriba un nuevo trozo
+        </p>en él.
+    <p class="Pp">Como ejemplo de cómo se puede escribir un filtro así, aquí hay
+        un troceador que divide por saltos </p>de línea:
+        <pre>sub line_splitter {
+   my ( $in_ref, $out_ref ) = @_;
+   return 0 if length $$out_ref;
+   return input_avail &amp;&amp; do {
+      while (1) {
+         if ( $$in_ref =~ s/\A(.*?\n)// ) {
+            $$out_ref .= $1;
+            return 1;
+         }
+         my $hmm = get_more_input;
+         unless ( defined $hmm ) {
+            $$out_ref = $$in_ref;
+            $$in_ref = '';
+            return length $$out_ref ? 1 : 0;
+         }
+         return 0 if $hmm eq 0;
+      }
+ </pre>  }</dd>
+};
+  <dt id="new_appender"><a class="permalink" href="#new_appender">new_append</a></dt>er
+  <dd>Esto añade una cadena fija a cada trozo de datos leído de la fuente
+      escalar o sub. Esto podría ser útil si está escribiendo comandos a un proceso hijo
+      que siempre debe terminar en una cadena fija, como "\n":
+        <pre>run( \@cmd,
+   '&lt;', new_appender( "\n" ), \&amp;commands,</pre>
+);
+    <p class="Pp">Aquí hay un sub de filtro típico que podría ser creado por
+        <b>new_a</b>ppend</p>er():
+        <pre>sub newline_appender {
+   my ( $in_ref, $out_ref ) = @_;
+   return input_avail &amp;&amp; do {
+      $$out_ref = join( '', $$out_ref, $$in_ref, "\n" );
+      $$in_ref = '';
+      1;
+ </pre>  }</dd>
+};
+  <dt id="new_string_source"><a class="permalink" href="#new_string_source">new_string_sou</a></dt>rce
+  <dd>POR HACER: Necesita confirmación. Estaba previamente sin documentar en este módulo.
+    <p class="Pp">Este es un filtro que es exportable. Devuelve un sub que
+        añade los datos pasados al búfer de salida y devuelve 1 si se añadieron
+        datos. 0 si era una cadena vacía y undef si no se pasaron </p>datos.
+    <p class="Pp">NOTA: Cualquier variable adicional pasada a new</p>_string_source
+        se pasará al sub cada vez</dd> que se llame y se añadirá a la
+        salida.
+  <dt id="new_string_sink"><a class="permalink" href="#new_string_sink">new_string_s</a></dt>ink
+  <dd>POR HACER: Necesita confirmación. Estaba previamente sin documentar.
+    <p class="Pp">Este es un filtro que es exportable. Devuel</p>ve un sub que extrae
+        los datos del</dd> flujo de entrada y los empuja a la cadena.
+  <dt id="io"><a class="permalink" href="#io">i</a></dt>o
+  <dd>Toma un nombre de archivo o un manejador de archivo, un operador de redirección, filtros opcionales,
+      y una fuente o destino (depende del operador de redirección). Devuelve
+      un objeto IPC::Run::IO adecuado para <b>harness()</b> (incluido a través de
+      <b>start()</b> o <b>run()</b>).
+    <p class="Pp">Esto es una abreviatura </p>para
+        <pre>require IPC::Run::IO;
+   ... IPC::Run::IO-&gt;new(...</pre>) </dd>...
+  <dt id="timer"><a class="permalink" href="#timer">tim</a></dt>er
+  <dd>
+    <pre>$h = start( \@cmd, \$in, \$out, $t = timer( 5 ) );
+pump $h until $out =~ /expected stuff/ || $t-&gt;</pre>is_expired;
+    <p class="Pp">Instancia un temporizador no fatal. <b>pump() </b>devuelve una vez
+        cada vez que expira un temporizador. No tiene un efecto directo en <b>run(),</b> pero
+        puede pasar una subrutina que se ejecute cuando expire el </p>temporizador.
+    <p class="Pp">Vea "timeout" para construir temporizadores que lanzan
+        excepciones al </p>expirar.
+    <p class="Pp">Vea ";timer" en IPC:</p>:Run::Timer par</dd>a más detalles.
+  <dt id="timeout"><a class="permalink" href="#timeout">timeo</a></dt>ut
+  <dd>
+    <pre>$h = start( \@cmd, \$in, \$out, $t = timeout( 5 ) );
+pump $h until $out =~ /expected </pre>stuff/;
+    <p class="Pp">Crea un temporizador que lanza una excepción cuando expira.
+        Si no proporcionas una excepción, se lanza por defecto una excepción que coincide
+        con /^IPC::Run: .*timed out/. Puedes pasar tu propio
+        escalar o referencia de </p>excepción:
+        <pre>$h = start(
+   \@cmd, \$in, \$out,
+   $t = timeout( 5, exception =&gt; 'slowpoke' </pre>),
+);
+    <p class="Pp">o establecer el nombre utilizado en el mensaje de depuración y en la cadena
+        de excepción </p>predeterminada:
+        <pre>$h = start(
+   \@cmd, \$in, \$out,
+   timeout( 50, name =&gt; 'process timer' ),
+   $stall_timer = timeout( 5, name =&gt; 'stall timer' ),
+);
+pump $h until $out =~ /started/;
+$in = 'command 1';
+$stall_timer-&gt;start;
+pump $h until $out =~ /command 1 finished/;
+$in = 'command 2';
+$stall_timer-&gt;start;
+pump $h until $out =~ /command 2 finished/;
+$in = 'very slow command 3';
+$stall_timer-&gt;start( 10 );
+pump $h until $out =~ /command 3 finished/;
+$stall_timer-&gt;start( 5 );
+$in = 'command 4';
+pump $h until $out =~ /command 4 finished/;
+$stall_timer-&gt;reset; # Prevenir reinicio o expiración
+finish </pre>$h;
+    <p class="Pp">Ver "timer" para construir temporizadores no </p>fatales.
+    <p class="Pp">Ver "timer</p>" en IPC::</dd>Run::Time</dl>r para más</section> detalles.
+<section class="Sh">
+<h1 class="Sh" id='FILTER_IMPLEMENTATION_FUNCTIONS'><a class='permalink' href='#FILTER_IMPLEMENTATION_FUNCTIONS'>FUNCIONES DE IMPLEMENTACIÓN DE </a></h1>FILTROS
+<p class="Pp">Estas funciones son para uso desde dentro de los </p>filtros.
+<dl class="Bl-tag">
+  <dt id="input_avail"><a class="permalink" href="#input_avail">input_ava</a></dt>il
+  <dd>Devuelve TRUE si hay entrada disponible. Si no la hay, se llama
+      a &amp;get_more_input y se devuelve su resultado.
+    <p class="Pp">Esto se usa generalmente en lugar de &amp;get_more_input para
+        que el filtro que llama elimine todos los datos del
+        <span class="Li">$in_ref </span>antes de que se lean más datos en
+        <span class="Li">$in_</span>r</p>ef.
+    <p class="Pp"><span class="Li">"input_avail" </span>se usa generalmente
+        como parte de una expresión de </p>retorno:
+        <pre>return input_avail &amp;&amp; do {
+   ## procesar la entrada recién obtenida
+   </pre>1;
+};
+    <p class="Pp">Esta técnica permite que input_avail devuelva el undef o 0
+        que un filtro normalmente devuelve cuando no hay entrada para procesar. Sin embargo, si un
+        filtro almacena valores intermedios, necesitará reaccionar a un
+     </p>   undef:
+        <pre>my $got = input_avail;
+if ( ! defined $got ) {
+   ## Nunca habrá más entrada, volcar buffers internos a $out_ref
+}
+return $got unless $got;
+## Se obtuvo algo de entrada, mover tanto como sea necesario
+return 1 if </pre>$added_to_out_r</dd>ef;
+  <dt id="get_more_input"><a class="permalink" href="#get_more_input">get_more_inp</a></dt>ut
+  <dd>Esto se usa para obtener más entrada en la variable de entrada. Devuelve
+      undef si nunca habrá más entrada, 0 si no la hay ahora, pero
+      podría haberla en el futuro, y TRUE si se obtuvo más entrada.
+    <p class="Pp"><span class="Li">"get_more_input" se us</span>a generalmente
+       </p> como parte de una exp</dd>resión de retorno, ver</dl> "input_avail" para
+  </section>      más información.
+<section class="Sh">
+<h1 class="Sh" id='TODO'><a class='permalink' href='#TODO'>POR </a></h1>HACER
+<p class="Pp">Estos se abordarán según sea necesario y según lo permita el </p>tiempo.
+<p class="Pp">Timeout de </p>inactividad.
+<p class="Pp">Exponer una lista de objetos de proceso hijo. Cuando lo haga, es probable que cada proceso
+    hijo sea bendecido en IPC::Run::</p>Proc.
+<p class="Pp"><span class="Li">$kid</span>-&gt;<b>abort()</b>,
+    <span class="Li">$kid</span>-&gt;<b>kill()</b>,
+    <span class="Li">$kid-&gt;</span>signal(
+    <span class="Li">$num_or_name </span>)</p>.
+<p class="Pp">Escribir pruebas para los subs /(full_)?results?</p>/.
+<p class="Pp">Actualmente, <b>pump()</b> y <b>run() </b>solo funcionan en sistemas
+    donde <b>select() </b>funciona en los manejadores de archivo devueltos por <b>pipe()</b>.
+    Esto *no* incluye ActiveState en Win32, aunque sí funciona en
+    cygwin bajo Win32 (aunque las pruebas se quejan un poco). Me gustaría rectificar
+    eso, sugerencias y parches son </p>bienvenidos.
+<p class="Pp">Del mismo modo <b>start() </b>solo funciona completamente en
+    <b>fork()</b>/<b>exec()</b> (bueno, solo <b>fork()</b> si solo
+    pasas subs de perl como subprocesos). Hay algo de andamiaje para llamar a
+    <b>Open3::spawn_with_handles()</b>, pero no está probado, y no es muy útil
+    con un <b>select</b>() lim</p>itado.
+<p class="Pp">Soporte para <span class="Li">"\@sub_cmd" </span>como un
+    argumento de un comando que se reemplaza con /dev/fd o el nombre de un
+    archivo temporal que contiene la salida de foo. Esto es como &lt;(sub_cmd ...) encontrado
+    en bash y csh (si recuerdo correctamente)</p>.
+<p class="Pp">Permitir que múltiples arneses se combinen como conjuntos independientes de
+    procesos en un </p>'meta-arnés'.
+<p class="Pp">Permitir que se pase un arnés en lugar de un \@cmd. Esto permitiría
+    agregar múltiples </p>arneses.
+<p class="Pp">Capacidad para añadir descriptores de archivo externos con cadenas de filtros y
+    puntos </p>finales.
+<p class="Pp">Capacidad para añadir timeouts y generadores de tiempo (es decir, timeouts
+    repetidos)</p>.
+<p class="Pp">Timeouts </p>de alta re</section>solución.
+<section class="Sh">
+<h1 class="Sh" id='Win32_LIMITATIONS'><a class='permalink' href='#Win32_LIMITATIONS'>LIMITACIONES DE </a></h1>Win32
+<dl class="Bl-tag">
+  <dt id="argument"><a class="permalink" href="#argument">las reglas de paso de argumentos
+    son específicas del </a></dt>programa
+  <dd>Los programas de Win32 reciben todos los argumentos en una sola cadena de "línea de comando".
+      IPC::Run ensambla esta cadena para que los programas que usan reglas estándar de análisis de línea de comando
+      <a href='https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args#parsing-c-command-line-arguments'>https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args#parsing-c-command-line-arguments
+</a>      vean un <span class="Li">"argv" </span>que coincida con la
+      referencia de arreglo que especifica el comando. Algunos programas usan reglas diferentes para
+      analizar su línea de comando. Ejemplos notables incluyen <i>cmd.</i>exe,
+      <i>cscript.exe </i>y programas de Cygwin llamados desde programas no-Cygwin.
+      Usa IPC::Run::Win32Process para llamar a estos y otros programas no </dd>estándar.
+  <dt id="batch"><a class="permalink" href="#batch">archivos por </a></dt>lotes
+  <dd>Escapar correctamente un argumento de archivo por lotes depende de cómo el script usará
+      ese argumento, porque algunos usos experimentan múltiples niveles de eliminación
+      de signos de intercalación (carácter de escape). Evita llamar a archivos por lotes con argumentos,
+      particularmente cuando los valores de los argumentos provienen de fuera de tu programa o
+      contienen caracteres no alfanuméricos. Los scripts de Perl y los scripts de PowerShell
+      son alternativas sólidas. Si usas argumentos de archivo por lotes, IPC::Run
+      los escapa para que el archivo por lotes pueda pasarlos, sin comillas, a un programa
+      que tenga reglas estándar de análisis de línea de comando. Si el archivo por lotes habilita
+      la expansión retrasada de variables de entorno, debe deshabilitar esa característica
+      antes de expandir sus argumentos. Por ejemplo, si <i>foo.</i>cmd contiene
+      <span class="Li">"perl </span>%*", <span class="Li">"run
+      ['foo.cmd', </span>@list]" creará un proceso Perl en el que
+      <span class="Li">@ARGV </span>coincida con <span class="Li">@list.</span>
+      Anteponer una <span class="Li">línea "setlocal
+      enabledelayedexpansion" </span>haría que el archivo por lotes
+      funcionara mal, silenciosamente. Otro ejemplo de mal funcionamiento silencioso es
+      <span class="Li">"run ['outer.bat', </span>@list]" para
+      <i>outer.bat </i>que contiene <span class="Li">"foo.</span>cmd
+      <span class="Li">%</span>*"</dd>.
+  <dt id="Fails"><a class="permalink" href="#Fails">Falla en </a></dt>Win9X
+  <dd>Si quieres soporte para Win9X, tendrás que depurarlo o financiarme porque ya no
+      uso ese sistema. El subsistema Win32 se ha extendido para
+      usar archivos temporales en invocaciones simples de <b>run()</b> y estos podrían
+      funcionar también en Win9X, pero no tengo tiempo para trabajar en </dd>ello.
+  <dt id="May"><a class="permalink" href="#May">Puede bloquearse en Win2K (pero no
+    en WinNT4 o </a></dt>WinXPPro)
+  <dd>Lanzar más de un subproceso en Win2K causa un bloqueo que aún no
+      he logrado resolver, pero usos simples de <b>run() </b>a menudo funcionan. Pasa todas las
+    pruebas en WinXPPro y </dd>WinNT.
+  <dt id="no"><a class="permalink" href="#no">aún no hay soporte para &lt;pty&lt; y
+    &gt;</a></dt>pty&gt;
+  <dd>Es probable que se implementen como "&lt;" y
+      "&gt;" con binmode activado, no estoy </dd>seguro.
+  <dt id="no~2"><a class="permalink" href="#no~2">no hay soporte para descriptores de archivo
+    superiores a 2 </a></dt>(stderr)
+  <dd>Win32 solo permite pasar fds explícitos 0, 1 y 2. Si realmente, realmente
+      necesitas pasar manejadores de archivo, usa Win32API:: <b>GetOsFHandle()</b> o
+      ::<b>FdGetOsFHandle() </b>para obtener el manejador entero y pasarlo al
+      proceso hijo usando la línea de comando, el entorno, stdin, un archivo
+      intermedio u otro mecanismo de IPC. Luego usa ese manejador en el hijo
+      (Win32.pm proporciona formas de reconstituir manejadores de archivo de Perl a partir de manejadores de archivo de Win32)</dd>.
+  <dt id="no~3"><a class="permalink" href="#no~3">no hay soporte para subprocesos
+    de subrutina (refs </a></dt>CODE)
+  <dd>No se puede <b>fork()</b>, así que las subrutinas no tendrían contexto, y
+      los cierres ciertamente no tienen significado
+    <p class="Pp">Quizás con la emulación de <b>fork()</b> de Win32, esto pueda
+        soportarse de forma limitada, pero hay otros problemas muy serios con eso: todos los fds del padre se <b>dup()ean en el hilo que
+        e</b>mula el proceso bifurcado, y eso </p>impide que el padre pueda
+       </dd> cerrar todos los fds apropiados.
+  <dt id="no~4"><a class="permalink" href="#no~4">no hay soporte para rutinas
+    init =&gt; sub </a></dt>{}.
+  <dd>Los procesos de Win32 se crean desde cero, no hay forma de hacer una rutina init
+      que afecte al hijo en ejecución. Quizás algún día se implemente algo de soporte limitado, haz <b>chdir()</b> y <span class="Li">cambios </span>en %ENV
+      pueden </dd>hacerse.
+  <dt id="signals"><a class="permalink" href="#signals">señal</a></dt>es
+  <dd>Win32 no soporta completamente las señales. <b>signal()</b> probablemente causará
+      errores a menos que se envíe una señal que Perl emule, y
+      <span class="Li">kill_kill()</span> es inmediatamente fatal (no hay
+      período de gracia)</dd>.
+  <dt>$? no puede representar todos los códigos de salida de </dt>Win32
+  <dd>Prefiere <span class="Li">full_result( </span>... ),
+      <span class="Li">result( ... </span>) u otros métodos de IPC::</dd>Run.
+  <dt id="helper"><a class="permalink" href="#helper">procesos </a></dt>auxiliares
+  <dd>IPC::Run usa procesos auxiliares, uno por archivo redirigido, para adaptarse entre
+      el tubo anónimo conectado al hijo y el socket TCP conectado al
+      padre. Esto es un desperdicio de recursos y cambiará en el futuro para
+      usar hilos (en lugar de procesos auxiliares) o una
+      llamada WaitForMultipleObjects (en lugar de select). Por favor, contáctame si
+      puedes ayudar con el <b>enfoque WaitForMultipleObjects()</b>; no he
+      descubierto cómo acceder a él sin código </dd>C.
+  <dt id="shutdown"><a class="permalink" href="#shutdown">apagado
+    </a></dt>pausa
+  <dd>Parece haber una pausa de hasta 1 segundo entre cuando un programa hijo
+      sale y los sockets correspondientes indican que están cerrados en el
+      padre. No estoy seguro de por </dd>qué.
+  <dt id="binmode"><a class="permalink" href="#binmode">binmo</a></dt>de
+  <dd>binmode no está soportadoorted yet. The underpinnings are implemented, just ask
+      if you need </dd>it.
+  <dt id="IPC::Run::IO"><a class="permalink" href="#IPC::Run::IO">IPC::Run::</a></dt>IO
+  <dd>Los objetos IPC::Run::IO se pueden usar en Unix para leer o escribir archivos arbitrarios.
+      En Win32, necesitarán usar los mismos procesos auxiliares para adaptarse desde
+      archivos no-<b>seleccionables </b>(select()able) a <b>seleccionables </b>(select()able) (o
+      quizás <b>WaitForMultipleObjects() </b>funcione con ellos, no
+    estoy seguro)</dd>.
+  <dt id="startup"><a class="permalink" href="#startup">condiciones de carrera en el </a></dt>inicio
+  <dd>Parece haber una condición de carrera ocasional entre el inicio del proceso hijo
+      y el cierre de las tuberías (pipes). Parece que si el hijo no está completamente creado
+      en el momento en que CreateProcess devuelve y cerramos el socket TCP que se le está entregando,
+      el socket del padre también puede cerrarse. Esto se observa con las aplicaciones "pumper" de Win32,
+      no con el proceso hijo "real" que se genera.
+    <p class="Pp">Asumo que esto es porque el kernel no ha llegado a
+        incrementar el recuento de referencias en el extremo del hijo (ya que el hijo fue
+        lento en iniciar), por lo que el cierre del extremo del hijo por parte del padre causa
+        que el socket se cierre, cerrando así el socket del </p>padre.
+    <p class="Pp">Al ser una condición de carrera, es difícil de reproducir, pero la
+        encontré mientras probaba este código en un recurso compartido de disco hacia una caja samba.
+        En este caso, le toma a t/run.t mucho tiempo generar sus procesos hijos
+        (el padre se cuelga en el primer select durante varios segundos hasta que el
+        hijo emite alguna salida de depuración)</p>.
+    <p class="Pp">No lo he visto en discos locales y no puedo reproducirlo a
+        voluntad, lamentablemente. El síntoma es un error de "bad file descriptor in
+        <b>select()</b>" y, al activar la depuración, es posible
+        ver que <b>select() </b>se está llamando en un descriptor de archivo que ya no está abierto y que fue devuelto desde la rutina <b>_socket()</b> en
+        Win32Helper. Hay un nuevo <b>confess() que verifi</b>ca esto
+        ("PAR</p>ENT_HANDLE no longer </dd>open"), pero no he p</dl>odido
+        reprod</section>ucirlo (típicamente).
+<section class="Sh">
+<h1 class="Sh" id='LIMITATIONS'><a class='permalink' href='#LIMITATIONS'>LIMITACIONE</a></h1>S
+<p class="Pp">En Unix, requiere un sistema que soporte
+    <span class="Li">"waitpid( $pid, WNOHANG )" </span>para que pueda saber
+    si un proceso hijo sigue en </p>ejecución.
+<p class="Pp">Los PTYs parecen no ser de bloqueo no (non-blocking) en algunas versiones de Solaris.
+    Aquí hay un script de prueba contribuido por Borislav Deianov
+    &lt;borislav@ensim.com&gt; para ver si tienes el problema. Si muere, tienes el </p>problema.
+<pre>#!/usr/bin/perl
+use IPC::Run qw(run);
+use Fcntl;
+use IO::Pty;
+sub makecmd {
+    return ['perl', '-e', 
+            '&lt;STDIN&gt;, print "\n" x '.$_[0].'; while(&lt;STDIN&gt;){last if /end/}'];
+}
+#pipe R, W;
+#fcntl(W, F_SETFL, O_NONBLOCK);
+#while (syswrite(W, "\n", 1)) { $pipebuf++ };
+#print "pipe buffer size is $pipebuf\n";
+my $pipebuf=4096;
+my $in = "\n" x ($pipebuf * 2) . "end\n";
+my $out;
+$SIG{ALRM} = sub { die "Never completed!\n" };
+print "reading from scalar via pipe...";
+alarm( 2 );
+run(makecmd($pipebuf * 2), '&lt;', \$in, '&gt;', \$out);
+alarm( 0 );
+print "done\n";
+print "reading from code via pipe... ";
+alarm( 2 );
+run(makecmd($pipebuf * 3), '&lt;', sub { $t = $in; undef $in; $t}, '&gt;', \$out);
+alarm( 0 );
+print "done\n";
+$pty = IO::Pty-&gt;new();
+$pty-&gt;blocking(0);
+$slave = $pty-&gt;slave();
+while ($pty-&gt;syswrite("\n", 1)) { $ptybuf++ };
+print "pty buffer size is $ptybuf\n";
+$in = "\n" x ($ptybuf * 3) . "end\n";
+print "reading via pty... ";
+alarm( 2 );
+run(makecmd($ptybuf * 3), '&lt;pty&lt;', \$in, '&gt;', \$out);
+alarm(0);
+print </pre>"done\n";
+<p class="Pp">No hay soporte para ';', '&amp;&amp;', '||', '{ ... }', etc: usa
+    los de perl, ya que <b>run() </b>devuelve TRUE cuando el comando sale con un código de
+    resultado </p>0.
+<p class="Pp">No proporciona interpolación de cadenas como en el </p>shell.
+<p class="Pp">No hay soporte para <span class="Li">"c</span>d",
+    <span class="Li">"setenv",</span> o
+    <span class="Li">"export":</span> haz esto en un <b>init()</b>
+  </p>sub
+<pre>run(
+   \cmd,
+      ...
+      init =&gt; sub {
+         chdir $dir or die $!;
+         $ENV{FOO}='BAR'
+      }
+)</pre>;
+<p class="Pp">El cálculo de tiempo de espera no permite tiempos absolutos, ni
+    la especificación de días, meses, </p>etc.
+<p class="Pp"><b>ADVERTENCIA:</b> Los coprocesos de función (<span class="Li">"run
+    \&amp;foo, ...") </span>sufren de dos limitaciones. La primera es que
+    es difícil cerrar todos los manejadores de archivo (filehandles) que el hijo hereda del padre,
+    ya que no hay forma de escanear todos los FILEHANDLEs abiertos en Perl y es
+    doloroso y un poco peligroso cerrar todos los descriptores de archivo abiertos con
+    <span class="Li">POSIX::close(). </span>Doloroso porque tampoco podemos decir qué
+    fds están abiertos a nivel POSIX, así que tendríamos que escanear todos los fds posibles
+    y cerrar cualquiera que no queramos que esté abierto (normalmente
+    <span class="Li">exec()</span> cierra cualquier no heredable pero nosotros no
+    <span class="Li">exec() </span>para los procesos </p>&amp;sub.
+<p class="Pp">El segundo problema es que los subs DESTROY de Perl y otras limpiezas al salir
+    se ejecutan en el proceso hijo. Si los objetos se instancian en el
+    padre antes de que el hijo se haga fork, el DESTROY se ejecutará una vez en el
+    padre y una vez en el hijo. Cuando los subs de coproceso salen, se llama a POSIX::_exit para
+    solucionar esto, pero significa que los objetos que todavía están referenciados en ese momento
+    no se limpian. Por lo tanto, establecer variables de paquete o variables de cierre para que apunten a objetos que dependen de DESTROY para afectar cosas
+    fuera del proceso (archivos, etc.), conducirá a </p>errores.
+<p class="Pp">Me equivoqué en la sintaxis: "&lt;</p>pipe" vs.
+    "&lt;pty&lt;" y "&gt;file</section>name" son ambas peculiaridades.
+<section class="Sh">
+<h1 class="Sh" id='TODO_2'><a class='permalink' href='#TODO_2'>PENDIENTES </a></h1>(TODO)
+<dl class="Bl-tag">
+  <dt id="Allow"><a class="permalink" href="#Allow">Permitir que un arnés (harness)
+    "adopte" a </a></dt>otro:
+  <dd>
+    <pre>$new_h = harnes</pre>s \@cmd2;
+$h-&gt;a</dd>dopt( $new_h );
+  <dt id="Close"><a class="permalink" href="#Close">Cerrar todos los manejadores de archivo (filehandles) no
+    marcados explícitamente para permanecer </a></dt>abiertos.
+  <dd>El problema con este es que no hay una buena form</dd>a de escanear todos los FILEHANDLEs abiertos
+    </dl>  en Perl, y sin embargo no quieres que los proc</section>esos hijos hereden manejadores
+      alegremente.
+<section class="Sh">
+<h1 class="Sh" id='INSPIRATION'><a class='permalink' href='#INSPIRATION'>INSPIRACIÓ</a></h1>N
+<p class="Pp">Bueno, <b>select()</b> y <b>waitpid() </b>necesitaban ser envueltos urgentemente,
+    y <b>open3() no </b>es lo suficientemente abierto de mente para </p>mí.
+<p class="Pp">La API similar al shell fue inspirada por un mensaje que Russ Allbery envió a
+    perl5-porters, que </p>incluía:
+<pre>He pensado por algún tiempo que sería
+    agradable tener un módulo que pudiera manejar la sintaxis completa de tuberías (pipes) del shell Bourne
+    internamente, con fork y exec, sin invocar nunca un shell. Algo
+    al que se le pudiera dar cosas como:
+    pipeopen (PIPE, [ qw/cat file/ ], '|', [ 'analyze', @args ], '&gt;&amp;3')</pre>;
+<p class="Pp">Mensaje ylln51p2b6.f</p>sf@windlord.stanford.</section>edu, del 2000/02/04.
+<section class="Sh">
+<h1 class="Sh" id='SUPPORT'><a class='permalink' href='#SUPPORT'>SOPORT</a></h1>E
+<p class="Pp">Los errores siempre deben enviarse a través del rastreador de errores de </p>GitHub
+<p class="Pp"><a href='https://github.com/toddr/IPC-Run/issues'>https://github.com/toddr/IPC-Run/issu</a></p>e</section>s
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORE</a></h1>S
+<p class="Pp">Adam Kennedy &lt;adamk@cpan.</p>org&gt;
+<p class="Pp">Barrie Slayma</p>ker &lt;barries</section>@slaysys.com&gt;
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE </a></h1>AUTOR
+<p class="Pp">Algunas partes copyright 2008 - 2009 Adam </p>Kennedy.
+<p class="Pp">Copyright 1999 Barrie </p>Slaymaker.
+<p class="Pp">Puedes distribuirlo bajo los término</p>s de la Licencia Pública General de </section>GNU
+    o la Licencia Artística, como</div> se especifica en el archivo README.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-08</td>-29
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-ipc-run/">extra/perl-i</a></dd>pc-run
+        <dt>Vers</dt>ión:
+        <dd>20250809.</dd>0-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://search.cpan.org/dist/IPC-Run">https://search.cpan.</a></dd>org/dist/IPC-Run
+        <dt>Licen</dt>cias:
+        <dd>GPL, </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-ipc-run/">/listin</a></dd>g/extra</dl>/perl-i</section>pc-run/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#SIMPLE_QUICKSTART">INICIO </a></li>RÁPIDO SIMPLE
+        
+            <li><a href="#THE_DETAILS">LOS </a></li>DETALLES
+        
+            <li><a href="#OBSTINATE_CHILDREN">HIJOS </a></li>OBSTINADOS
+        
+            <li><a href="#PSEUDO_TERMINALS">TERMINALES </a></li>PSEUDO
+        
+            <li><a href="#RETURN_VALUES">VALORES </a></li>DE RETORNO
+        
+            <li><a href="#ROUTINES">RU</a></li>TINAS
+        
+            <li><a href="#FILTERS">FI</a></li>LTROS
+        
+            <li><a href="#FILTER_IMPLEMENTATION_FUNCTIONS">FUNCIONES DE IMPLEMENTACIÓN </a></li>DE FILTROS
+        
+            <li><a href="#TODO">PENDIENTES </a></li>(TODO)
+        
+            <li><a href="#Win32_LIMITATIONS">LIMITACIONES </a></li>DE Win32
+        
+            <li><a href="#LIMITATIONS">LIMI</a></li>TACIONES
+        
+            <li><a href="#TODO_2">PENDIENTES </a></li>(TODO)
+        
+            <li><a href="#INSPIRATION">INSP</a></li>IRACIÓN
+        
+            <li><a href="#SUPPORT">SO</a></li>PORTE
+        
+            <li><a href="#AUTHORS">AU</a></li>TORES
+        
+            <li><a href="#COPYRIGHT">DER</a></li>ECHO</ul>S D</nav>E AU</details>TOR
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/IPC::Run.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/IPC::Run.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia GPL-3.0
+              </a> excepto por el contenido de la</p>s páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> correspondiente de Arch Linux.

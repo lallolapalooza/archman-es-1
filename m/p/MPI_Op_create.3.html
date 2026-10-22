@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>MPI_Op_create(3) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">MPI_Op_create(3)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">MPI_Op_create(3)</td>
+    <td class="head-vol">Open MPI</td>
+    <td class="head-rtitle">MPI_Op_create(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<p class="Pp"><i>MPI_Op_create</i> crea un identificador de operación personalizada que puede usarse posteriormente en <i>MPI_Reduce</i>, <i>MPI_Allreduce</i>, <i>MPI_Reduce_scatter</i> y <i>MPI_Scan</i>. Se asume que la operación personalizada es asociativa. Si commute=true, entonces la operación debe ser tanto conmutativa como asociativa. Si commute=false, el orden de los operandos es fijo y se define como el orden ascendente de las rutas de proceso, comenzando con el proceso cero. El orden de evaluación puede ser cambiado, aprovechando la asociatividad de la operación. Si commute=true, el orden de evaluación puede ser cambiado, aprovechando la conmutatividad y la asociatividad.</p>
+<p class="Pp"><i>function</i> es la función personalizada que debe tener los siguientes cuatro argumentos: invec, inoutvec, len y datatype.</p>
+<p class="Pp">El prototipo ANSI-C de la función es el siguiente:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>typedef void MPI_User_function(void *invec, void *inoutvec,
+                               int *len,
+                               MPI_Datatype *datatype);</pre>
+</div>
+</div>
+<p class="Pp">La declaración de la función personalizada en Fortran aparece a continuación.</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>FUNCTION USER_FUNCTION( INVEC(*), INOUTVEC(*), LEN, TYPE)
+&lt;type&gt; INVEC(LEN), INOUTVEC(LEN)
+ INTEGER LEN, TYPE</pre>
+</div>
+</div>
+<p class="Pp">El argumento datatype es un identificador del tipo de datos que se pasó en la llamada a <i>MPI_Reduce</i>. La función de reducción personalizada debe escribirse de manera que se cumplan las siguientes condiciones: Suponiendo que u[0], ..., u[len-1] son los len elementos en el buffer de comunicación descrito por los argumentos invec, len y datatype cuando se invoca la función; y v[0], ..., v[len-1] son los len elementos en el buffer de comunicación descrito por los argumentos inoutvec, len y datatype cuando se invoca la función; y w[0], ..., w[len-1] son los len elementos en el buffer de comunicación descrito por los argumentos inoutvec, len y datatype cuando se devuelve la función, entonces w[i] = u[i] o v[i], para i=0, ..., len-1, donde o es la operación de reducción que la función calcula.</p>
+<p class="Pp">En resumen, podemos pensar en invec y inoutvec como arrays de len elementos que la función combina. El resultado de la reducción sobrescribe los valores en inoutvec, de ahí el nombre de la operación. Cada invocación de la función produce una evaluación puntual de la operación de reducción en len elementos: es decir, la función devuelve en inoutvec[i] el valor de u[i] o inoutvec[i], para i=0, ..., count-1, donde o es la operación de combinación calculada por la función.</p>
+<p class="Pp">Internamente, comparando el valor del argumento datatype con identificadores globales conocidos, es posible sobrecargar el uso de una única función personalizada para varios tipos de datos.</p>
+<p class="Pp">Se pueden pasar tipos de datos generales a la función personalizada. Sin embargo, el uso de tipos de datos no contiguos puede causar ineficiencias.</p>
+<p class="Pp">No se puede llamar a ninguna función de comunicación MPI dentro de la función personalizada. Se puede llamar a <i>MPI_Abort</i> dentro de la función si hay un error.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS'><a class='permalink' href='#NOTAS'>NOTAS</a></h1>
+<p class="Pp">Supongamos que se define una biblioteca de funciones de reducción personalizadas que se sobrecargan: El argumento datatype se utiliza para seleccionar la ruta de ejecución adecuada según los tipos de los operandos. La función personalizada no puede decodificar el argumento datatype que recibe y no puede identificar por sí sola la correspondencia entre los identificadores de datos y los datos que representan. Esta correspondencia se estableció cuando se crearon los tipos de datos. Antes de utilizar la biblioteca, se debe ejecutar un preámbulo de inicialización de la biblioteca. Este código de preámbulo definirá los tipos de datos que utilizará la biblioteca y almacenará los identificadores de estos tipos de datos en variables globales y estáticas compartidas por el código del usuario y el código de la biblioteca.</p>
+<p class="Pp"><b>Ejemplo:</b> Ejemplo de función de reducción personalizada:</p>
+<p class="Pp">Calcular el producto de un array de números complejos, en C.</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>typedef struct {
+    double real, imag;
+} Complex;
+/* la función personalizada */
+void myProd( Complex *in, Complex *inout, int *len,
+             MPI_Datatype *dptr )
+{
+    int i;
+    Complex c;
+for (i=0; i&lt; *len; ++i) {
+        c.real = inout-&gt;real*in-&gt;real -
+                   inout-&gt;imag*in-&gt;imag;
+        c.imag = inout-&gt;real*in-&gt;imag +
+                   inout-&gt;imag*in-&gt;real;
+        *inout = c;
+        in++; inout++;
+    }
+}
+/* y, para llamarla... */
+...
+/* cada proceso tiene un array de 100 Complex */
+    Complex a[100], answer[100];
+    MPI_Op myOp;
+    MPI_Datatype ctype;
+/* explicar a MPI cómo se define el tipo Complex */
+   MPI_Type_contiguous( 2, MPI_DOUBLE, &amp;ctype );
+    MPI_Type_commit( &amp;ctype );
+    /* crear la operación de producto complejo personalizada */
+    MPI_Op_create( myProd, True, &amp;myOp );
+    MPI_Reduce( a, answer, 100, ctype, myOp, root, comm );
+    /* en este punto, la respuesta, que consiste en 100 Complex, reside en el proceso root */
+</pre>
+</div>
+</div>
+<p class="Pp">La versión Fortran de <i>MPI_Reduce</i> invocará una función de reducción personalizada utilizando las convenciones de llamada de Fortran y pasará un tipo de datos de Fortran; la versión C utilizará las convenciones de llamada de C y la representación del identificador de tipo de datos en C. Los usuarios que planeen mezclar lenguajes deberían definir sus funciones de reducción adecuadamente.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS_DE_OPERACIONES_COLECTIVAS'><a class='permalink' href='#NOTAS_DE_OPERACIONES_COLECTIVAS'>NOTAS DE OPERACIONES COLECTIVAS</a></h1>
+<p class="Pp">Las funciones de reducción (MPI_Op) no devuelven un valor de error. Por lo tanto, si detectan un error, solo pueden llamar a <i>MPI_Abort</i> o ignorar el problema. Por lo tanto, si se cambia el manejador de errores de MPI_ERRORS_ARE_FATAL a algo más, por ejemplo, MPI_ERRORS_RETURN, no se puede indicar ningún error.</p>
+<p class="Pp">La razón de esto es el problema de rendimiento para garantizar que todas las rutinas de operación colectiva devuelvan el mismo valor de error.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES'><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<p class="Pp">La mayoría de las rutinas de MPI devuelven un valor de error; las rutinas C lo devuelven como el resultado de la función y las rutinas Fortran en el último argumento.</p>
+<p class="Pp">Antes de devolver el valor de error, se llama al manejador de errores asociado con el objeto de comunicación (por ejemplo, communicator, window, file). Si no hay objeto de comunicación asociado con la llamada MPI, se considera que la llamada está asociada a MPI_COMM_SELF y se llama al manejador de errores asociado. Cuando MPI_COMM_SELF no está inicializado (es decir, antes de <i>MPI_Init</i>/<i>MPI_Init_thread</i>, después de <i>MPI_Finalize</i>, o cuando se utiliza exclusivamente el Modelo de Sesiones), se activa el manejador de errores inicial. El manejador de errores inicial se puede cambiar llamando a <i>MPI_Comm_set_errhandler</i> sobre MPI_COMM_SELF cuando se utiliza el Modelo del Mundo, o a través del argumento mpi_initial_errhandler de mpiexec o la clave info de <i>MPI_Comm_spawn</i>/<i>MPI_Comm_spawn_multiple</i>. Si no hay otro manejador de errores apropiado, se produce el error MPI_ERRORS_RETURN.</p>
+</section>
+</article>
+</main>
+</body>
+</html><section class="Sh">
+<h1 class="Sh" id='ERRORS'>ERRORS</h1>
+<p class="Pp">The MPI standard defines a number of error codes that can be returned
+    by MPI functions. The behavior of MPI functions when an error occurs is
+    controlled by an error handler that is associated with a communicator,
+    window, file, or session. By default, the <i>MPI_ERRORS_ARE_FATAL</i> error
+    handler is associated with all MPI objects. This means that if an MPI
+    function returns an error, the program will abort all MPI processes.
+    Open MPI provides a mechanism to change this default behavior. The
+    <i>MPI_Comm_set_errhandler</i> and <i>MPI_Win_set_errhandler</i> functions
+    can be used to associate a different error handler with a communicator or
+    window, respectively. The <i>MPI_File_set_errhandler</i> function can be
+    used to associate a different error handler with a file, and the
+    <i>MPI_Session_set_errhandler</i> or <i>MPI_Session_init</i> functions can
+    be used to associate a different error handler with a session.</p>
+<p class="Pp">Open MPI includes three predefined error handlers that can be
+    used:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><b>MPI_ERRORS_ARE_FATAL</b> Causes the program to abort all connected MPI
+      processes.</li>
+  <li><b>MPI_ERRORS_ABORT</b> An error handler that can be invoked on a
+      communicator, window, file, or session. When called on a communicator, it
+      acts as if <i>MPI_Abort</i> was called on that communicator. If called on
+      a window or file, acts as if <i>MPI_Abort</i> was called on a communicator
+      containing the group of processes in the corresponding window or file. If
+      called on a session, aborts only the local process.</li>
+  <li><b>MPI_ERRORS_RETURN</b> Returns an error code to the application.</li>
+</ul>
+</div>
+<p class="Pp">MPI applications can also implement their own error handlers by
+    calling:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><i>MPI_Comm_create_errhandler</i> then <i>MPI_Comm_set_errhandler</i></li>
+  <li><i>MPI_File_create_errhandler</i> then <i>MPI_File_set_errhandler</i></li>
+  <li><i>MPI_Session_create_errhandler</i> then
+      <i>MPI_Session_set_errhandler</i> or at <i>MPI_Session_init</i></li>
+  <li><i>MPI_Win_create_errhandler</i> then <i>MPI_Win_set_errhandler</i></li>
+</ul>
+</div>
+<p class="Pp">Note that MPI does not guarantee that an MPI program can continue
+    past an error.</p>
+<p class="Pp">See the <i>MPI man page</i> for a full list of <i>MPI error
+    codes</i>.</p>
+<p class="Pp">See the Error Handling section of the MPI-3.1 standard for more
+    information.</p>
+<p class="Pp"><b>SEE ALSO:</b></p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><i>MPI_Reduce</i></li>
+  <li><i>MPI_Reduce_scatter</i></li>
+  <li><i>MPI_Allreduce</i></li>
+  <li><i>MPI_Scan</i></li>
+  <li><i>MPI_Op_free</i></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">2003-2025, The Open MPI Community</p>
+</section>

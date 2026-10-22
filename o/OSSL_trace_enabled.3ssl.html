@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>OSSL_trace_enabled(3ssl) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">OSSL_trace_enabled(3ssl)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">OSSL_TRACE_ENABLED(3ssl)</td>
+    <td class="head-vol">OpenSSL</td>
+    <td class="head-rtitle">OSSL_TRACE_ENABLED(3ssl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">OSSL_trace_enabled, OSSL_trace_begin, OSSL_trace_end,
+    OSSL_TRACE_BEGIN, OSSL_TRACE_END, OSSL_TRACE_CANCEL, OSSL_TRACE,
+    OSSL_TRACE1, OSSL_TRACE2, OSSL_TRACE3, OSSL_TRACE4, OSSL_TRACE5,
+    OSSL_TRACE6, OSSL_TRACE7, OSSL_TRACE8, OSSL_TRACE9, OSSL_TRACEV,
+    OSSL_TRACE_STRING, OSSL_TRACE_STRING_MAX, OSSL_trace_string,
+    OSSL_TRACE_ENABLED - API de rastreo de OpenSSL</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;openssl/trace.h&gt;
+int OSSL_trace_enabled(int category);
+BIO *OSSL_trace_begin(int category);
+void OSSL_trace_end(int category, BIO *channel);
+/* macros del grupo de rastreo */
+OSSL_TRACE_BEGIN(category) {
+    ...
+    if (algún_error) {
+        /* Salir del grupo de rastreo prematuramente en caso de error */
+        OSSL_TRACE_CANCEL(category);
+        goto err;
+    }
+    ...
+} OSSL_TRACE_END(category);
+/* macros de rastreo de un solo disparo */
+OSSL_TRACE(category, texto)
+OSSL_TRACE1(category, formato, arg1)
+OSSL_TRACE2(category, formato, arg1, arg2)
+...
+OSSL_TRACE9(category, formato, arg1, ..., arg9)
+OSSL_TRACE_STRING(category, texto, completo, datos, longitud)
+#define OSSL_TRACE_STRING_MAX 80
+int OSSL_trace_string(BIO *out, int text, int full,
+                      const unsigned char *data, size_t size);
+/* verificar si una categoría de rastreo está habilitada */
+if (OSSL_TRACE_ENABLED(category)) {
+    ...
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Las funciones descritas aquí son principalmente de interés para
+    aquellos que proporcionan funcionalidad de OpenSSL, ya sea en OpenSSL mismo
+    o en módulos de motor o similares.</p>
+<p class="Pp">Si la instalación de rastreo está habilitada (ver "Configurar
+    Rastreo" a continuación), estas funciones se utilizan para generar salida
+    de rastreo en texto libre.</p>
+<p class="Pp">La salida de rastreo se divide en tipos que se habilitan
+    individualmente por la aplicación. Los tipos de rastreo se describen en
+    detalle en "Tipos de rastreo" en <a href='/man/OSSL_trace_set_callback.3.en'>OSSL_trace_set_callback(3)</a>. El
+    tipo de respaldo <b>OSSL_TRACE_CATEGORY_ALL</b> no debe usarse con las
+    funciones descritas aquí.</p>
+<p class="Pp">El rastreo para una categoría específica se habilita en tiempo
+    de ejecución si se adjunta un llamado <i>canal de rastreo</i> a ella. Un
+    canal de rastreo es simplemente un objeto BIO al cual la aplicación puede
+    escribir su salida de rastreo.</p>
+<p class="Pp">La aplicación tiene dos formas diferentes de registrar un canal
+    de rastreo, ya sea proporcionando directamente un objeto BIO usando
+    <a href='/man/OSSL_trace_set_channel.3.en'>OSSL_trace_set_channel(3)</a>, o proporcionando una rutina de
+    callback usando <a href='/man/OSSL_trace_set_callback.3.en'>OSSL_trace_set_callback(3)</a>. Este último está
+    envuelto internamente por un objeto BIO dedicado, por lo que para el código
+    de rastreo, ambos tipos de canal son efectivamente indistinguibles. Los
+    llamamos un <i>canal de rastreo simple</i> y un <i>canal de rastreo de
+    callback</i>, respectivamente.</p>
+<p class="Pp">Para producir salida de rastreo, es necesario obtener un puntero
+    al canal de rastreo (es decir, el objeto BIO) usando
+    <b>OSSL_trace_begin()</b>, escribir en él usando rutinas de salida BIO
+    arbitrarias y, finalmente, liberar el canal usando
+    <b>OSSL_trace_end()</b>. Las llamadas
+    <b>OSSL_trace_begin()</b>/<b>OSSL_trace_end()</b> que rodean la salida
+    de rastreo crean un grupo, que actúa como una sección crítica (protegida
+    por un mutex) para garantizar que la salida de rastreo de diferentes hilos
+    no se mezcle.</p>
+<p class="Pp">El código de rastreo normalmente no llama a
+    OSSL_trace_{begin,end}() directamente, sino que utiliza un conjunto de
+    macros de conveniencia, consulte la sección "Macros" a continuación.</p>
+<section class="Ss">
+<h2 class="Ss" id='Functions'><a class='permalink' href='#Functions'>Funciones</a></h2>
+<p class="Pp"><b>OSSL_trace_enabled()</b> se puede usar para verificar si el
+    rastreo para la <i>categoría</i> dada está habilitado, es decir, si la
+    instalación de rastreo se ha habilitado estáticamente (ver "Configurar
+    Rastreo" a continuación) y se ha registrado un canal de rastreo usando
+    <a href='/man/OSSL_trace_set_channel.3.en'>OSSL_trace_set_channel(3)</a> o
+    <a href='/man/OSSL_trace_set_callback.3.en'>OSSL_trace_set_callback(3)</a>.</p>
+<p class="Pp"><b>OSSL_trace_begin()</b> se utiliza para iniciar una sección de
+    rastreo y obtener el canal para la <i>categoría</i> dada en forma de un
+    BIO. Este BIO solo se puede usar para salida. El puntero devuelto es NULL si
+    la categoría es inválida o no está habilitada.</p>
+<p class="Pp"><b>OSSL_trace_end()</b> se utiliza para finalizar una sección de
+    rastreo.</p>
+<p class="Pp">Usar <b>OSSL_trace_begin()</b> y <b>OSSL_trace_end()</b> para
+    envolver secciones de rastreo es <i>obligatorio</i>. El resultado de intentar
+    producir salida de rastreo fuera de tales secciones no está definido.</p>
+<p class="Pp"><b>OSSL_trace_string()</b> produce la salida de <i>datos</i>
+    de longitud <i>tamaño</i> como una cadena en el BIO <i>out</i>. Si
+    <i>texto</i> es 0, la función enmascara cualquier carácter de control
+    incluido, aparte de los saltos de línea, y se asegura de que para una entrada
+    no vacía, la salida termine con un salto de línea. A menos que <i>completo</i>
+    no sea cero, la longitud se limita (con una advertencia adecuada) a
+    <b>OSSL_TRACE_STRING_MAX</b> caracteres, que actualmente es 80.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Macros'><a class='permalink' href='#Macros'>Macros</a></h2>
+<p class="Pp">Hay una serie de macros de conveniencia definidas para hacer el
+    rastreo fácil y consistente.</p>
+<p class="Pp"><b>OSSL_TRACE_BEGIN()</b> y <b>OSSL_TRACE_END()</b> reservan el
+    <b>BIO</b> <span class="Li">&quot;trc_out&quot;</span> y se utilizan de la
+    siguiente manera para envolver una sección de rastreo:</p>
+<pre>OSSL_TRACE_BEGIN(TLS) {
+    BIO_printf(trc_out, ... );
+} OSSL_TRACE_END(TLS);</pre>
+<p class="Pp">Esto normalmente se expandirá a:</p>
+<pre>do {
+    BIO *trc_out = OSSL_trace_begin(OSSL_TRACE_CATEGORY_TLS);
+    if (trc_out != NULL) {
+        ...
+        BIO_printf(trc_out, ...);
+    }
+    OSSL_trace_end(OSSL_TRACE_CATEGORY_TLS, trc_out);
+} while (0);</pre>
+<p class="Pp"><b>OSSL_TRACE_CANCEL()</b> debe usarse antes de regresar o
+    saltar fuera de una sección de rastreo:</p>
+<pre>OSSL_TRACE_BEGIN(TLS) {
+    if (algún_error) {
+        OSSL_TRACE_CANCEL(TLS);
+        goto err;
+    }
+    BIO_printf(trc_out, ... );
+} OSSL_TRACE_END(TLS);</pre>
+<p class="Pp">Esto normalmente se expandirá a:</p>
+<pre>do {
+    BIO *trc_out = OSSL_trace_begin(OSSL_TRACE_CATEGORY_TLS);
+    if (trc_out != NULL) {
+        if (algún_error) {
+            OSSL_trace_end(OSSL_TRACE_CATEGORY_TLS, trc_out);
+            goto err;
+        }
+        BIO_printf(trc_out, ... );
+    }
+    OSSL_trace_end(OSSL_TRACE_CATEGORY_TLS, trc_out);
+} while (0);</pre>
+<p class="Pp"><b>OSSL_TRACE()</b> y <b>OSSL_TRACE1()</b>,
+    <b>OSSL_TRACE2()</b>, ... <b>OSSL_TRACE9()</b> son los llamados macros de
+    un solo disparo:</p>
+<p class="Pp">La llamada al macro <span class="Li">&quot;OSSL_TRACE(categoría,
+    texto)&quot;</span> produce una salida de rastreo de texto literal.</p>
+<p class="Pp">La llamada al macro <span class="Li">&quot;OSSL_TRACEn(categoría,
+    formato, arg1, ..., argn)&quot;</span> produce una salida de rastreo estilo
+    printf con n argumentos de campo de formato (n=1,...,9). Se expande a:</p>
+<pre>OSSL_TRACE_BEGIN(category) {
+    BIO_printf(trc_out, formato, arg1, ..., argN);
+} OSSL_TRACE_END(category)</pre>
+<p class="Pp">Internamente, todos los macros de un solo disparo se implementan
+    utilizando un macro genérico <b>OSSL_TRACEV()</b>, ya que C90 no admite macros
+    variádicos. Este macro auxiliar tiene una sinopsis bastante extraña y no
+    debe usarse directamente.</p>
+<p class="Pp">La llamada al macro <span class="Li">&quot;OSSL_TRACE_STRING(categoría,
+    texto, completo, datos, longitud)&quot;</span> produce la salida de
+    <i>datos</i> de longitud <i>tamaño</i> como una cadena si el rastreo para la
+    <i>categoría</i> dada está habilitado. Se expande a:</p>
+<pre>OSSL_TRACE_BEGIN(category) {
+    OSSL_trace_string(trc_out, text, full, data, len);
+} OSSL_TRACE_END(category)</pre>
+<p class="Pp">El macro <b>OSSL_TRACE_ENABLED()</b> se puede usar para ejecutar
+    condicionalmente algún código solo si una categoría de rastreo específica está
+    habilitada. En algunas situaciones, esto es más simple que iniciar una
+    sección de rastreo usando <b>OSSL_TRACE_BEGIN()</b> y
+    <b>OSSL_TRACE_END()</b>. Por ejemplo, el código</p>
+<pre>if (OSSL_TRACE_ENABLED(TLS)) {
+    ...
+}</pre>
+<p class="Pp">se expande a</p>
+<pre>if (OSSL_trace_enabled(OSSL_TRACE_CATEGORY_TLS) {
+    ...
+}</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTAS</a></h1>
+<p class="Pp">No es necesario proteger las llamadas a funciones de salida de
+    rastreo como <i>OSSL_TRACE(categoría, ...)</i> con
+    <i>OSSL_TRACE_ENABLED(categoría)</i>.</p>
+<p class="Pp">Si la producción de la salida de rastreo requiere la realización
+    de cálculos auxiliares, este código auxiliar debe colocarse dentro de un
+    bloque condicional que se ejecute solo si la categoría de rastreo está
+    habilitada.</p>
+<p class="Pp">La forma más natural de hacerlo es colocar el código dentro de la
+    propia sección de rastreo, ya que ya introduce dicho bloque condicional.</p>
+<pre>OSSL_TRACE_BEGIN(TLS) {
+    int var = do_some_auxiliary_calculation();
+    BIO_printf(trc_out, &quot;var = %d\n&quot;, var);
+} OSSL_TRACE_END(TLS);</pre>
+<p class="Pp">En algunos casos, es más ventajoso usar un grupo condicional simple
+    en lugar de una sección de rastreo. Este es el caso si los cálculos y el
+    rastreo ocurren en diferentes ubicaciones del código, o si los cálculos son
+    tan lentos que colocarlos dentro de una sección de rastreo (crítica) crearía
+    demasiada contención.</p>
+<pre>if (OSSL_TRACE_ENABLED(TLS)) {
+    int var = do_some_auxiliary_calculation();
+    OS</pre>
+</section>
+</div>
+</section>
+            </article>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">OSSL_trace_enabled, OSSL_trace_begin, OSSL_trace_end, OSSL_trace_cancel,
+    OSSL_trace_printf, OSSL_trace_vprintf, OSSL_trace_puts, OSSL_trace_end_string,
+    OSSL_trace_string, OSSL_TRACE_BEGIN, OSSL_TRACE_END, OSSL_TRACE_CANCEL,
+    OSSL_TRACE_PRINTF, OSSL_TRACE_VPRINTF, OSSL_TRACE_PUTS, OSSL_TRACE_STRING_MAX,
+    SL_TRACE1, SL_TRACE2, SL_TRACE3, SL_TRACE4, SL_TRACE5, SL_TRACE6 - Tracing
+    facility</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>
+#include &lt;openssl/trace.h&gt;
+
+int OSSL_trace_enabled(OSSL_trace_type_t type);
+BIO *OSSL_trace_begin(OSSL_trace_type_t type);
+int OSSL_trace_end(OSSL_trace_type_t type, BIO *trc_out);
+void OSSL_trace_cancel(OSSL_trace_type_t type);
+int OSSL_trace_printf(OSSL_trace_type_t type, const char *fmt, ...);
+int OSSL_trace_vprintf(OSSL_trace_type_t type, const char *fmt, va_list ap);
+int OSSL_trace_puts(OSSL_trace_type_t type, const char *str);
+int OSSL_trace_end_string(OSSL_trace_type_t type, const char *str);
+int OSSL_trace_string(OSSL_trace_type_t type, const char *str);
+
+#define OSSL_TRACE_BEGIN(type)
+#define OSSL_TRACE_END(type)
+#define OSSL_TRACE_CANCEL(type)
+#define OSSL_TRACE_PRINTF(type, ...)
+#define OSSL_TRACE_VPRINTF(type, ...)
+#define OSSL_TRACE_PUTS(type, ...)
+#define OSSL_TRACE_STRING_MAX(type, ...)
+#define SL_TRACE1(type, ...)
+#define SL_TRACE2(type, ...)
+#define SL_TRACE3(type, ...)
+#define SL_TRACE4(type, ...)
+#define SL_TRACE5(type, ...)
+#define SL_TRACE6(type, ...)
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">The OpenSSL library includes a tracing facility that can be used
+    for debugging and diagnostic purposes. This facility allows developers to
+    insert trace points into the code that will only be active when tracing is
+    explicitly enabled. When tracing is enabled, trace messages are directed to
+    a channel, which can be configured to be a file, standard error, or other
+    output streams.</p>
+<p class="Pp">The tracing facility is organized around types of tracing events.
+    These types are defined in the include file &lt;openssl/trace.h&gt; and
+    typically correspond to specific areas of the library's functionality,
+    such as TLS, crypto algorithms, or other subsystems. The specific types
+    available depend on how OpenSSL was configured and built.</p>
+<p class="Pp">The core functions are:</p>
+<dl class="Bl-tag">
+  <dt><b>OSSL_trace_enabled</b>(3)</dt>
+  <dd>Checks if tracing is currently enabled for the given trace
+      <i>type</i>.</dd>
+  <dt><b>OSSL_trace_begin</b>(3)</dt>
+  <dd>Starts a trace block for the given <i>type</i>. If tracing is enabled
+      for this type, it returns an initialized <b>BIO</b> object that can be used
+      for writing trace information. Otherwise, it returns NULL.</dd>
+  <dt><b>OSSL_trace_end</b>(3)</dt>
+  <dd>Ends a trace block started by <b>OSSL_trace_begin</b>(3). It takes the
+      type and the <b>BIO</b> pointer returned by <b>OSSL_trace_begin</b>(3).
+      If the <i>type</i> is enabled, it writes any buffered trace data and
+      releases the <b>BIO</b> object. If the <i>type</i> is not enabled, it
+      simply releases the <b>BIO</b> object without writing anything.</dd>
+  <dt><b>OSSL_trace_cancel</b>(3)</dt>
+  <dd>Cancels a trace block without writing any output. This is useful for
+      handling error conditions within a trace block.</dd>
+  <dt><b>OSSL_trace_printf</b>(3), <b>OSSL_trace_vprintf</b>(3),
+      <b>OSSL_trace_puts</b>(3)</dt>
+  <dd>These functions provide direct ways to write trace messages for a given
+      <i>type</i> without explicitly using <b>OSSL_trace_begin</b>(3) and
+      <b>OSSL_trace_end</b>(3). They automatically check if tracing is enabled
+      for the given type and handle the output accordingly. <b>OSSL_trace_puts</b>(3)
+      is a convenience function for writing a simple string.</dd>
+  <dt><b>OSSL_trace_end_string</b>(3)</dt>
+  <dd>This function is similar to <b>OSSL_trace_puts</b>(3) but is intended
+      to be used for writing the final part of a trace message, potentially
+      followed by a newline character.</dd>
+  <dt><b>OSSL_trace_string</b>(3)</dt>
+  <dd>This function writes a string to the trace output for the specified
+      <i>type</i>. It is intended for writing complete trace messages that
+      do not require formatting.</dd>
+</dl>
+<p class="Pp">In addition to the core functions, there are convenience macros
+    that simplify the use of the tracing facility. These macros often wrap the
+    core functions to provide a more concise syntax:</p>
+<dl class="Bl-tag">
+  <dt><b>OSSL_TRACE_BEGIN</b>(type)</dt>
+  <dd>Expands to a call to <b>OSSL_trace_begin</b>(type) and sets up the
+      necessary context for subsequent trace output within the block.</dd>
+  <dt><b>OSSL_TRACE_END</b>(type)</dt>
+  <dd>Expands to a call to <b>OSSL_trace_end</b>(type) to close the trace
+      block.</dd>
+  <dt><b>OSSL_TRACE_CANCEL</b>(type)</dt>
+  <dd>Expands to a call to <b>OSSL_trace_cancel</b>(type) to discard any
+      buffered trace output for the current block.</dd>
+  <dt><b>OSSL_TRACE_PRINTF</b>(type, ...)</dt>
+  <dd>Expands to a call to <b>OSSL_trace_printf</b>(type, ...).</dd>
+  <dt><b>OSSL_TRACE_VPRINTF</b>(type, ...)</dt>
+  <dd>Expands to a call to <b>OSSL_trace_vprintf</b>(type, ...).</dd>
+  <dt><b>OSSL_TRACE_PUTS</b>(type, ...)</dt>
+  <dd>Expands to a call to <b>OSSL_trace_puts</b>(type, ...).</dd>
+  <dt><b>OSSL_TRACE_STRING_MAX</b>(type, str)</dt>
+  <dd>This macro is intended for tracing strings up to a maximum length. It
+      handles potential buffer overflows.</dd>
+  <dt><b>SL_TRACE1</b>(type, ...), <b>SL_TRACE2</b>(type, ...), ...,
+      <b>SL_TRACE6</b>(type, ...)</dt>
+  <dd>These are specialized convenience macros for outputting trace messages
+      with varying numbers of arguments. For example, <b>SL_TRACE1</b> is for
+      messages with one argument, <b>SL_TRACE2</b> for two, and so on, up to
+      <b>SL_TRACE6</b>. They are typically used for formatted string output
+      similar to <b>printf</b>.</dd>
+</dl>
+<p class="Pp">Example usage:</p>
+<pre>
+    #include &lt;openssl/trace.h&gt;
+
+    void process_data(int var)
+    {
+        OSSL_TRACE_BEGIN(TLS_CLIENT);
+        if (condition_for_error) {
+            OSSL_TRACE_CANCEL(TLS_CLIENT);
+            goto err;
+        }
+        OSSL_TRACE_PRINTF(TLS_CLIENT, &quot;Processing data with var = %d\n&quot;, var);
+        // ... other operations ...
+        OSSL_TRACE_END(TLS_CLIENT);
+        return;
+
+    err:
+        // Error handling
+        OSSL_TRACE_END(TLS_CLIENT); // Ensure trace is ended even on error
+        return;
+    }
+</pre>
+<p class="Pp">Note however that premature optimization of tracing code is in
+    general futile and it's better to keep the tracing code as simple as
+    possible. Because most often the limiting factor for the application's speed
+    is the time it takes to print the trace output, not to calculate it.</p>
+<section class="Ss">
+<h2 class="Ss" id='Configure_Tracing'><a class='permalink' href='#Configure_Tracing'>Configure
+    Tracing</a></h2>
+<p class="Pp">By default, the OpenSSL library is built with tracing disabled. To
+    use the tracing functionality documented here, it is therefore necessary to
+    configure and build OpenSSL with the 'enable-trace' option.</p>
+<p class="Pp">When the library is built with tracing disabled:</p>
+<ul class="Bl-bullet">
+  <li>The macro <b>OPENSSL_NO_TRACE</b> is defined in
+      <i>&lt;openssl/opensslconf.h&gt;</i>.</li>
+  <li>all functions are still present, but <b>OSSL_trace_enabled()</b> will
+      always report the categories as disabled, and all other functions will do
+      nothing.</li>
+  <li>the convenience macros are defined to produce dead code. For example, take
+      this example from &quot;Macros&quot; section above:
+        <pre>OSSL_TRACE_BEGIN(TLS) {
+    if (condition) {
+        OSSL_TRACE_CANCEL(TLS);
+        goto err;
+    }
+    BIO_printf(trc_out, ... );
+} OSSL_TRACE_END(TLS);
+</pre>
+    <p class="Pp">When the tracing API isn't operational, that will expand
+      to:</p>
+        <pre>do {
+    BIO *trc_out = NULL;
+    if (0) {
+        if (condition) {
+            ((void)0);
+            goto err;
+        }
+        BIO_printf(trc_out, ... );
+    }
+} while (0);
+</pre>
+  </li>
+</ul>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUES'><a class='permalink' href='#RETURN_VALUES'>RETURN
+    VALUES</a></h1>
+<p class="Pp"><b>OSSL_trace_enabled()</b> returns 1 if tracing for the given
+    <i>type</i> is operational and enabled, otherwise 0.</p>
+<p class="Pp"><b>OSSL_trace_begin()</b> returns a <b>BIO</b> pointer if the
+    given <i>type</i> is enabled, otherwise NULL.</p>
+<p class="Pp"><b>OSSL_trace_string()</b> returns the number of characters
+    emitted, or -1 on error.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE
+    ALSO</a></h1>
+<p class="Pp"><a href='/man/OSSL_trace_set_channel.3.en'>OSSL_trace_set_channel(3)</a>,
+    <a href='/man/OSSL_trace_set_callback.3.en'>OSSL_trace_set_callback(3)</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HISTORY'><a class='permalink' href='#HISTORY'>HISTORY</a></h1>
+<p class="Pp">The OpenSSL Tracing functions were added in OpenSSL 3.0.</p>
+<p class="Pp"><b>OSSL_TRACE_STRING()</b>, OSSL_TRACE_STRING_MAX, and
+    OSSL_trace_string were added in OpenSSL 3.2.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright 2019-2025 The OpenSSL Project Authors. All Rights
+    Reserved.</p>
+<p class="Pp">Licensed under the Apache License 2.0 (the &quot;License&quot;).
+    You may not use this file except in compliance with the License. You can
+    obtain a copy in the file LICENSE in the source distribution or at
+    <a href='https://www.openssl.org/source/license.html'>https://www.openssl.org/source/license.html</a>.</p>
+</section>

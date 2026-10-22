@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Component::IKC(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Component__IKC(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe-component-ikc/">perl-poe-component-ikc</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">IKC(3)</td>
+    <td class="head-vol">Documentación Perl contribuida por el usuario</td>
+    <td class="head-rtitle">IKC(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Component::IKC -- Comunicación entre núcleos POE (Inter-Kernel Communication)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='IKC_server'><a class='permalink' href='#IKC_server'>Servidor IKC</a></h2>
+<pre>use POE::Component::IKC::Server;
+# crea todas tus sesiones
+POE::Component::IKC::Server-&gt;spawn(
+            port=&gt;30, name=&gt;'Servidor'
+    ); # hay más opciones disponibles
+$poe_kernel-&gt;run();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='IKC_client'><a class='permalink' href='#IKC_client'>Cliente IKC</a></h2>
+<pre>use POE::Component::IKC::Client;
+POE::Component::IKC::Client-&gt;spawn( 
+            host=&gt;nombre, 
+            port=&gt;30, 
+            name=&gt;'Cliente',
+            on_connect=&gt;\&amp;construir);
+$poe_kernel-&gt;run();
+sub construir
+{
+    # crea sesiones que dependen del núcleo extranjero.
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Publicar_un_estado_en_un_núcleo_extranjero'><a class='permalink' href='#Publicar_un_estado_en_un_núcleo_extranjero'>Publicar un estado en un núcleo extranjero</a></h2>
+<pre>$kernel-&gt;post('IKC', 'post', "poe://Servidor/sesion/estado", $UN_argumento);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='El_IKC_es_peer-to-peer.'><a class='permalink' href='#El_IKC_es_peer-to-peer.'>El IKC es peer-to-peer.</a></h2>
+<p class="Pp">El servidor puede enviar al cliente.</p>
+<pre>$kernel-&gt;post('IKC', 'post', 'poe://Cliente/sesion/estado', $UN_argumento);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Llamar_un_estado_en_un_núcleo_remoto'><a class='permalink' href='#Llamar_un_estado_en_un_núcleo_remoto'>Llamar un estado en un núcleo remoto</a></h2>
+<p class="Pp">Los semánticas de llamada son imposibles, porque harían que POE se
+    bloqueara. La llamada IKC es un poco diferente. Es un 'post', pero con un
+    parámetro RSVP adicional.</p>
+<pre>$kernel-&gt;post('IKC', 'call', 'poe://Servidor/hola/mundo', $UN_argumento, 
+              'poe:callback');</pre>
+<p class="Pp">Esto hará que el valor de retorno del estado extranjero sea enviado
+    al estado 'callback' en la sesión actual. Puede que desees que la devolución
+    de llamada esté en otra sesión, pero no creo que sea una buena idea.</p>
+<pre>$kernel-&gt;post('IKC', 'call', 'poe://Servidor/hola/mundo', $UN_argumento, 
+              'poe:/otro/lugar/hola');</pre>
+<p class="Pp">Nota: si usas -&gt;call('IKC'), devolverá el número de núcleos
+    extranjeros a los que se envió el estado. Esta es una forma útil de saber si
+    todavía estás conectado a un núcleo extranjero.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Un_poco_de_magia'><a class='permalink' href='#Un_poco_de_magia'>Un poco de magia</a></h2>
+<p class="Pp">Si un estado es publicado por un núcleo extranjero,
+    <span class="Li">$_</span>[SENDER] solo es válido durante ese estado. Sin
+    embargo, podrás enviar de vuelta a él.</p>
+<pre>$kernel-&gt;post($_[SENDER], 'algo', 'la respuesta es foo');</pre>
+<p class="Pp">El llamador remoto DEBE haber publicado estados para que puedan ser
+    llamados, ¿eh?</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Publicar_/_Suscribir'><a class='permalink' href='#Publicar_/_Suscribir'>Publicar / Suscribir</a></h2>
+<p class="Pp">Debes publicar la interfaz de una sesión para que esté disponible
+    para núcleos remotos.</p>
+<p class="Pp">Si te suscribes a una sesión remota, puedes acceder a ella como si
+    fuera una sesión local.</p>
+<p class="Pp">Primero, una sesión publica sus interfaces:</p>
+<pre>$kernel-&gt;post('IKC', 'publish', 'alias_sesion',
+                    [qw(estado1 estado2 estado3 estado4)], );</pre>
+<p class="Pp">Luego, un núcleo extranjero se suscribe a ella:</p>
+<pre># Buscar una sesión en todos los núcleos extranjeros conocidos
+$kernel-&gt;post('IKC', 'subscribe', [qw(poe://*/alias_sesion/)]);
+# Buscar una sesión en un núcleo extranjero específico
+$kernel-&gt;post('IKC', 'subscribe', [qw(poe://Pulso/servidor_tiempo)]);
+# Asegurarse de que la sesión tenga un estado dado
+$kernel-&gt;post('IKC', 'subscribe', [qw(poe://*/servidor_tiempo/conectar)]);</pre>
+<p class="Pp">Después de la suscripción, se crea una sesión proxy que puede ser
+    accesada como cualquier otra sesión, aunque -&gt;<b>call()</b> actúa igual
+    que -&gt;<b>post()</b> por razones obvias:</p>
+<pre>$kernel-&gt;post('poe:/Pulso/servidor_tiempo', 'estado', $arg1, $arg2...);</pre>
+<p class="Pp">Actualmente, el alias de sesión utilizado para enviar al proxy de
+    sesión debe ser el mismo que se usó al suscribirse. Dado que los núcleos
+    tienen varios nombres, si estás usando '*' como el nombre del núcleo al
+    suscribirte, el alias de sesión podría no ser lo que piensas. Ver
+    &quot;Monitor&quot; para más detalles.</p>
+<p class="Pp">Por supuesto, intentar enviar a una sesión proxy antes de que se
+    cree será problemático. Para ser alertado cuando se cree la sesión proxy, se
+    puede especificar un estado de devolución de llamada,</p>
+<pre>$kernel-&gt;post('IKC', 'subscribe', [qw(poe://*/servidor_tiempo)], 
+        'servidor_tiempo_suscrito');</pre>
+<p class="Pp">La devolución de llamada se realizará con una lista de todas las
+    sesiones a las que se logró suscribir. Deberías comprobar esta lista antes de
+    continuar. Mejor aún, podrías usar el monitor IKC (ver más abajo).</p>
+<p class="Pp">También se puede dejar que POE::Component::IKC::Client-&gt;spawn
+    se encargue de todos los detalles.</p>
+<pre>POE::Component::IKC::Client-&gt;spawn(
+        port=&gt;31337, name=&gt;$name,
+        subscribe=&gt;[qw(poe://*/servidor_tiempo)],
+        on_connect=&gt;\&amp;crear_yo,
+    );</pre>
+<p class="Pp">'on_connect' solo se llama cuando todas las suscripciones han sido
+    aceptadas. Si una suscripción fue rechazada, create_ikc_client se dará por
+    vencido. Si se consultaron varios núcleos extranjeros para una sesión (como
+    en el caso anterior), la suscripción se considera exitosa si al menos un
+    núcleo extranjero acepta la suscripción.</p>
+<p class="Pp">Para deshacer cosas:</p>
+<pre>$kernel-&gt;post(IKC=&gt;'retract', 'alias_sesion'=&gt;[qw(estados)]);
+$kernel-&gt;post(IKC=&gt;'unsubscribe', [qw(poe://Pulso/servidor_tiempo)]);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Monitor'><a class='permalink' href='#Monitor'>Monitor</a></h2>
+<p class="Pp">Digamos que querías monitorizar todos los núcleos remotos que se
+    conectan a ti:</p>
+<pre>$kernel-&gt;post(IKC=&gt;'monitor', '*'=&gt;{register=&gt;'algún_evento'});
+sub algún_evento
+{
+    my($name, $real)=@_[ARG1, ARG2];
+    print "- Núcleo remoto ", ($real ? '' : 'alias '), "$name conectado\n";
+}</pre>
+<p class="Pp">Más tarde, quieres saber cuándo se desconecta una sesión remota
+    dada:</p>
+<pre>$kernel-&gt;post(IKC=&gt;'monitor', kernel_alguno=&gt;{unregister=&gt;'adiós_adiós'});</pre>
+<p class="Pp">O tal vez crees que una sesión debería limpiarse y marcharse
+    cuando IKC lo haga.</p>
+<pre>$kernel-&gt;post(IKC=&gt;'monitor', '*'=&gt;{shutdown=&gt;'otro_evento'});
+sub otro_evento
+{
+    # matar ruedas, alarmas, selects y alias aquí
+}</pre>
+<p class="Pp">Ver &quot;monitor&quot; en POE::Component::IKC::Responder para más
+    detalles.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Shutdown'><a class='permalink' href='#Shutdown'>Cierre</a></h2>
+<p class="Pp">Cuando sientas que es el momento adecuado y quieras deshacerte de
+    todas las sesiones relacionadas con IKC, simplemente haz lo siguiente:</p>
+<pre>$kernel-&gt;post(IKC=&gt;'shutdown');</pre>
+<p class="Pp">Y todas deberían desaparecer. En el peor de los casos, algunas
+    seguirán teniendo alias registrados, pero esto no impedirá que el núcleo
+    salga.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='El_núcleo_local'><a class='permalink' href='#El_núcleo_local'>El núcleo local</a></h2>
+<p class="Pp">Puedes enviar al núcleo local como si fuera remoto:</p>
+<pre>$kernel-&gt;post(IKC=&gt;'post', 
+                &quot;poe://$kernel-&gt;ID/sesion/estado'=&gt;$UN_argumento);</pre>
+<p class="Pp">Sin embargo, actualmente no puedes suscribirte a sesiones locales.
+    No sé cómo resolveré esto.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esto es Comunicación entre Núcleos (Inter-Kernel Communication) para
+    POE. Se utiliza para llevar eventos de un núcleo POE a otro.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">POE::Component::IKC::Responder -- Corazón del sistema</p>
+<p class="Pp">POE::Component::IKC::Server -- Crea un proceso que escucha a otros
+    núcleos.</p>
+<p class="Pp">POE::Component::IKC::Client -- Crea un proceso que se conecta a
+    otros núcleos.</p>
+<p class="Pp">POE::Component::IKC::ClientLite -- Implementación ligera de IKC
+    para lugares donde no puedes usar POE, como mod_perl.</p>
+<p class="Pp">POE::Component::IKC::Channel -- Maneja la comunicación con otros
+    núcleos.</p>
+<p class="Pp">POE::Component::IKC::Proxy -- Sesión proxy que se crea cuando te
+    suscribes a una sesión remota.</p>
+<p class="Pp">POE::Component::IKC::Freezer -- Método de serialización Pure-Perl.</p>
+<p class="Pp">POE::Component::IKC::Specifier -- Rutinas auxiliares para parsear
+    especificadores IKC.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Philip Gwyn &lt;perl-ikc at pied.nu&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>COPYRIGHT Y LICENCIA</a></h1>
+<p class="Pp">Copyright 1999-2014 por Philip Gwyn. Todos los derechos reservados.</p>
+<p class="Pp">Esta biblioteca es software libre; puedes redistribuirla y/o
+    modificarla bajo los mismos términos que Perl mismo.</p>
+<p class="Pp">Ver <a href='http://www.perl.com/language/misc/Artistic.html'>http://www.perl.com/language/misc/Artistic.html</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+   
+</section>
+                </article>
+                <aside id="content-right">
+                    <div id="sidebar">
+                        
+                    </div>
+                </aside>
+            </main>
+            <footer>
+                <p>Para más información sobre Arch Linux, visita la <a href="https://archlinux.org" title="Página principal de Arch Linux">página principal</a>, la <a href="https://archlinux.org/packages/" title="Base de datos de paquetes de Arch">base de datos de paquetes</a>, los <a href="https://bbs.archlinux.org/" title="Foros de la comunidad de Arch Linux">foros</a> o el <a href="https://wiki.archlinux.org/" title="Wiki de Arch Linux">wiki</a>.</p>
+            </footer>
+        </body>
+    </html>
+ <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe-component-ikc/">extra/perl-poe-component-ikc</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.2402-12</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE-Component-IKC/">https://search.cpan.org/dist/POE-Component-IKC/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-poe-component-ikc/">/listing/extra/perl-poe-component-ikc/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">DERECHOS DE AUTOR Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/POE::Component::IKC.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/POE::Component::IKC.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

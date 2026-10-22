@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Locale::Maketext::Cookbook(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Locale__Maketext__Cookbook.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Locale::Maketext::Cookbook(3perl)</td>
+    <td class="head-vol">Guía del Programador de Perl</td>
+    <td class="head-rtitle">Locale::Maketext::Cookbook(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Locale::Maketext::Cookbook - recetas para usar
+  Locale::Maketext</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTRODUCCIÓN'><a class='permalink' href='#INTRODUCCIÓN'>INTRODUCCIÓN</a></h1>
+<p class="Pp">Esto es un trabajo en progreso. No mucho progreso hasta ahora :-)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LÉXICOS_UNILATERALES'><a class='permalink' href='#LÉXICOS_UNILATERALES'>LÉXICOS
+    UNILATERALES</a></h1>
+<p class="Pp"><i>Adaptado de una sugerencia de Dan Muey</i></p>
+<p class="Pp">Puede ser común (por ejemplo, en su léxico principal) que las claves y
+    los valores del hash coincidan. Como en este caso:</p>
+<pre>q{Hola, dime tu nombre}
+  =&gt; q{Hola, dime tu nombre}</pre>
+<p class="Pp">Sería bueno simplemente escribir:</p>
+<pre>q{Hola, dime tu nombre} =&gt; ''</pre>
+<p class="Pp">y que esto se expanda mágicamente a la primera forma. Entre las
+    ventajas de tal representación, esto llevaría a archivos más pequeños, menos
+    propensos a errores tipográficos o de pegado, y útil para alguien que lo
+    traduce, que puede simplemente copiar el léxico principal e introducir la
+    traducción en lugar de tener que eliminar el valor primero.</p>
+<p class="Pp">Eso se puede lograr sobrescribiendo
+    <span class="Li">&quot;init&quot;</span> en su clase y trabajando en el léxico
+    principal con código como este:</p>
+<pre>package My::I18N;
+...
+sub init {
+    my $lh = shift; # un manejador recién creado
+    $lh-&gt;SUPER::init();
+    inflate_lexicon(\%My::I18N::en::Lexicon);
+    return;
+}
+sub inflate_lexicon {
+    my $lex = shift;
+    while (my ($k, $v) = each %$lex) {
+        $v = $k if !defined $v || $v eq '';
+    }
+}</pre>
+<p class="Pp">Aquí asumimos que
+    <span class="Li">&quot;My::I18N::en&quot;</span> posee el léxico principal.</p>
+<p class="Pp">Hay algunas desventajas aquí: la economía de espacio no se mantendrá
+    en tiempo de ejecución después de que se ejecute este <span class="Li">init()</span>.
+    Pero no debería ser tan crítico, ya que si no tiene espacio para eso, tampoco
+    tendrá espacio para ningún otro idioma además del principal. También podría
+    hacerlo con enlaces (ties), expandiendo el valor en el momento de la consulta,
+    lo que debería ser más costoso en tiempo como opción.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LUGARES_DECIMALES_EN_EL_FORMATO_DE_NÚMEROS'><a class='permalink' href='#LUGARES_DECIMALES_EN_EL_FORMATO_DE_NÚMEROS'>LUGARES
+    DECIMALES EN EL FORMATO DE NÚMEROS</a></h1>
+<p class="Pp"><i>Después de CPAN RT #36136
+    (<a href='https://rt.cpan.org/Ticket/Display.html?id=36136'>https://rt.cpan.org/Ticket/Display.html?id=36136</a>)</i></p>
+<p class="Pp">La documentación de Locale::Maketext aconseja que el método de corchetes
+    estándar <span class="Li">&quot;numf&quot;</span> es limitado y que debe
+    sobrescribirlo para obtener mejores resultados. Incluso sugiere el uso de
+    Number::Format.</p>
+<p class="Pp">Un defecto de <span class="Li">&quot;numf&quot;</span> estándar es
+    no poder usar una precisión decimal determinada. Por ejemplo,</p>
+<pre>$lh-&gt;maketext('pi es [numf,_1]', 355/113);</pre>
+<p class="Pp">produce</p>
+<pre>pi es 3.14159292035398</pre>
+<p class="Pp">Dado que pi &#x2248; 355/116 solo es preciso hasta 6 lugares decimales,
+    querría decir:</p>
+<pre>$lh-&gt;maketext('pi es [numf,_1,6]', 355/113);</pre>
+<p class="Pp">y obtener &quot;pi es 3.141592&quot;.</p>
+<p class="Pp">Una solución para eso podría usar
+    <span class="Li">&quot;Number::Format&quot;</span> de esta manera:</p>
+<pre>package Wuu;
+use base qw(Locale::Maketext);
+use Number::Format;
+# puede ser sobrescrito según las convenciones del idioma
+sub _numf_params {
+    return (
+        -thousands_sep  =&gt; '.',
+        -decimal_point  =&gt; ',',
+        -decimal_digits =&gt; 2,
+    );
+}
+# construye un Number::Format
+sub _numf_formatter {
+    my ($lh, $scale) = @_;
+    my @params = $lh-&gt;_numf_params;
+    if ($scale) { # usa escala explícita en lugar de la predeterminada
+        push @params, (-decimal_digits =&gt; $scale);
+    }
+    return Number::Format-&gt;new(@params);
+}
+sub numf {
+    my ($lh, $n, $scale) = @_;
+    # obtiene el formateador (en caché)
+    my $nf = $lh-&gt;{__nf}{$scale} ||= $lh-&gt;_numf_formatter($scale);
+    # formatea el número en sí
+    return $nf-&gt;format_number($n);
+}
+package Wuu::pt;
+use base qw(Wuu);</pre>
+<p class="Pp">y luego</p>
+<pre>my $lh = Wuu-&gt;get_handle('pt');
+$lh-&gt;maketext('A [numf,_1,3] km de dist&#x00E2;ncia', 1550.2222);</pre>
+<p class="Pp">devolvería &quot;A 1.550,222 km de dist&#x00E2;ncia&quot;.</p>
+<p class="Pp">Note que los métodos utilitarios estándar de
+    <span class="Li">&quot;Locale::Maketext&quot;</span> son irremediablemente
+    limitados porque no podrían pretender hacer todo lo que se podría esperar de
+    ellos en diferentes idiomas, culturas y aplicaciones. Por lo tanto, extender
+    <span class="Li">&quot;numf&quot;</span>,
+    <span class="Li">&quot;quant&quot;</span>, y
+    <span class="Li">&quot;sprintf&quot;</span> es natural tan pronto como sus
+    necesidades excedan lo que hacen los estándar.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#INTRODUCCIÓN">INTRODUCCIÓN</a></li>
+        
+            <li><a href="#LÉXICOS_UNILATERALES">LÉXICOS UNILATERALES</a></li>
+        
+            <li><a href="#LUGARES_DECIMALES_EN_EL_FORMATO_DE_NÚMEROS">LUGARES DECIMALES EN EL FORMATO DE NÚMEROS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Locale::Maketext::Cookbook.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Locale::Maketext::Cookbook.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/curl/">curl</a></p>
+<p class="lic">Licencias: MIT</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS(3)</td>
+    <td class="head-vol">Manual de funciones de la biblioteca</td>
+    <td class="head-rtitle">CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS - tiempo de los intentos de conexión</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;curl/curl.h&gt;
+CURLcode curl_easy_setopt(CURL *handle, CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS,
+                          long timeout);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Happy eyeballs es un algoritmo que controla la conexión a un host
+    que se resuelve a más de una dirección IP. Una configuración común es exponer
+    una dirección IPv4 y otra IPv6 (dual-stack). Otros hosts ofrecen un rango de
+    direcciones para una o ambas pilas.</p>
+<dl class="Bl-tag">
+  <dt id="DIRECCIONES-IP"><a class="permalink" href="#DIRECCIONES-IP">Direcciones IP</a></dt>
+  <dd>Cuando curl se compila con soporte para IPv6, intenta conectarse primero a
+      IPv6, cuando está disponible. Cuando falla, se inicia otro intento de
+      conexión para la primera dirección IPv4 (de nuevo, si está disponible). Si
+      eso falla, se usa la siguiente dirección IPv6, luego la siguiente IPv4,
+      etc. Si solo hay direcciones para una pila, esas se prueban una tras otra.
+    <p class="Pp">Cuando no hay una respuesta positiva ni negativa a un intento,
+        se inicia otro intento después de que haya pasado el <i>timeout</i>.
+        Luego otro, después de que el <i>timeout</i> haya pasado de nuevo.
+        Siempre que haya direcciones disponibles.</p>
+    <p class="Pp">Cuando se han probado y fallado todas las direcciones, la
+        transferencia falla. Todos los intentos se abortan después de que haya
+        pasado <a href='/man/CURLOPT_CONNECTTIMEOUT_MS.3.en'>CURLOPT_CONNECTTIMEOUT_MS(3)</a>, contado desde el primer
+        intento en adelante.</p>
+    <p class="Pp">El rango de valores útiles sugeridos para <i>timeout</i> es
+        limitado. El RFC 6555 de Happy Eyeballs dice: "Se RECOMIENDA que los
+        intentos de conexión se espacien entre 150 y 250 ms para equilibrar los
+        factores humanos con la carga de la red." libcurl actualmente usa 200 ms
+        por defecto. Firefox y Chrome actualmente usan 300 ms por defecto.</p>
+    <p class="Pp">Como ejemplo, para un host que se resuelve a 'a1_v4, a2_v4,
+        a3_v6, a4_v6', curl abre primero un socket a 'a3_v6'. Cuando este no
+        responde, abre otro socket a 'a1_v4' después de 200ms. El primer socket
+        permanece abierto y aún podría tener éxito. Cuando han pasado 200ms
+        más, se abre un socket para 'a4_v6'. 200ms después, se prueba 'a2_v4'.</p>
+    <p class="Pp">En este punto, hay 4 sockets abiertos (a menos que la red haya
+        reportado algo). Eso tomó 3 veces el tiempo de espera de happy eyeballs,
+        es decir, 600ms en la configuración predeterminada. Cuando cualquiera de
+        esos cuatro reporte éxito, ese socket se usará para la transferencia y los
+        otros tres se cerrarán.</p>
+    <p class="Pp">Hay situaciones en las que los intentos de conexión fallan,
+        pero la falla se considera inconclusa. El protocolo QUIC puede encontrar
+        esto. Cuando un servidor QUIC se reinicia, puede enviar respuestas
+        indicando que no está aceptando nuevas conexiones en este momento, pero
+        quizás más tarde.</p>
+    <p class="Pp">Tales fallas de intentos de conexión "inconclusas" provocan un
+        reinicio del intento, con la misma dirección en un nuevo socket, cerrando
+        el anterior. Repetidamente hasta que <a href='/man/CURLOPT_CONNECTTIMEOUT_MS.3.en'>CURLOPT_CONNECTTIMEOUT_MS(3)</a>
+        se agote.</p>
+  </dd>
+  <dt id="HTTPS"><a class="permalink" href="#HTTPS">HTTPS</a></dt>
+  <dd>Cuando la conexión con el protocolo HTTPS a un host que puede hablar HTTP/3,
+      HTTP/2 o HTTP/1.1, curl aplica una estrategia similar de happy eyeballs al
+      intentar estas versiones.
+    <p class="Pp">Cuando HTTPS solo implica una conexión TCP, las versiones se
+        negocian a través de ALPN, la extensión TLS, en una sola conexión. Dado
+        que HTTP/3 se ejecuta sobre QUIC (que se ejecuta sobre UDP), requiere un
+        intento de conexión separado.</p>
+    <p class="Pp">El intento de HTTP/3 se inicia primero y, después de que
+        expira el <i>timeout</i>, el intento de HTTP/2 (o 1.1) se inicia en
+        paralelo.</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='POR-DEFECTO'><a class='permalink' href='#POR-DEFECTO'>POR DEFECTO</a></h1>
+<p class="Pp">CURL_HET_DEFAULT (actualmente definido como 200L)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROTOCOLOS'><a class='permalink' href='#PROTOCOLOS'>PROTOCOLOS</a></h1>
+<p class="Pp">Esta funcionalidad afecta a todos los protocolos compatibles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLO'><a class='permalink' href='#EJEMPLO'>EJEMPLO</a></h1>
+<pre>int main(void)
+{
+  CURL *curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, &quot;https://example.com&quot;);
+    curl_easy_setopt(curl, CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS, 300L);
+    curl_easy_perform(curl);
+    /* siempre limpiar */
+    curl_easy_cleanup(curl);
+  }
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DISPONIBILIDAD'><a class='permalink' href='#DISPONIBILIDAD'>DISPONIBILIDAD</a></h1>
+<p class="Pp">Añadido en curl 7.59.0</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VALOR-DE-RETORNO'><a class='permalink' href='#VALOR-DE-RETORNO'>VALOR DE RETORNO</a></h1>
+<p class="Pp"><a href='/man/curl_easy_setopt.3.en'>curl_easy_setopt(3)</a> devuelve un CURLcode indicando éxito
+    o error.</p>
+<p class="Pp">CURLE_OK (0) significa que todo estuvo bien, un valor distinto de
+    cero indica que ocurrió un error, consulte <a href='/man/libcurl-errors.3.en'>libcurl-errors(3)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER-TAMBIÉN'><a class='permalink' href='#VER-TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/CURLOPT_CONNECTTIMEOUT_MS.3.en'>CURLOPT_CONNECTTIMEOUT_MS(3)</a>,
+    <a href='/man/CURLOPT_LOW_SPEED_LIMIT.3.en'>CURLOPT_LOW_SPEED_LIMIT(3)</a>, <a href='/man/CURLOPT_TIMEOUT.3.en'>CURLOPT_TIMEOUT(3)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-11-13</td>
+    <td class="foot-os">libcurl</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/curl/">core/curl</a></dd>
+        <dt>Versión:</dt>
+        <dd>8.17.0-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://curl.se/">https://curl.se/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>MIT</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/curl/">/listing/core/curl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#POR-DEFECTO">POR DEFECTO</a></li>
+        
+            <li><a href="#PROTOCOLS">PROTOCOLOS</a></li>
+        
+            <li><a href="#EJEMPLO">EJEMPLO</a></li>
+        
+            <li><a href="#DISPONIBILIDAD">DISPONIBILIDAD</a></li>
+        
+            <li><a href="#VALOR-DE-RETORNO">VALOR DE RETORNO</a></li>
+        
+            <li><a href="#VER-TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS.3.en.txt">txt</a>, 
+        
+            <a href="/man/CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

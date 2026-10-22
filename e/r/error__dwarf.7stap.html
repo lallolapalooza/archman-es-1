@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>error::dwarf(7stap) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+        <link rel="alternate" href="/man/error::dwarf.7stap.cs" hreflang="cs">
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">error__dwarf.7stap</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/systemtap/">systemtap</a></p>
+<p class="lic">Licencias: GPL-2.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">ERROR::DWARF(7stap)</td>
+    <td class="head-vol"></td>
+    <td class="head-rtitle">ERROR::DWARF(7stap)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">error::dwarf - problemas de calidad de la información de depuración dwarf</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" DESCRIPCIÓN"><a class='permalink' href='# DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Systemtap a veces depende de la información de depuración ELF/DWARF para
+    los programas que se están instrumentando para localizar lugares donde
+    insertar sondas, o variables de contexto para leer/escribir, al igual que lo
+    hace un depurador simbólico. Aunque el examen del código fuente del programa
+    puede mostrar variables o líneas donde se desean sondas, el compilador debe
+    preservar información sobre ellas para que systemtap (o un depurador como
+    gdb) pueda acceder de forma precisa a la información deseada. Si un script
+    requiere dichos datos, pero el compilador no ha preservado suficiente de
+    ellos, pueden producirse errores en la fase de pase 2.</p>
+<p class="Pp">Las condiciones comunes que desencadenan estos problemas incluyen:</p>
+<dl class="Bl-tag">
+  <dt id="falta-o-inconsistencia-de-la-información-de-depuración"><a class="permalink" href="#falta-o-inconsistencia-de-la-información-de-depuración">información de depuración
+    faltante o inconsistente</a></dt>
+  <dd>A veces, la información de depuración está instalada, pero no coincide con
+      los binarios que se están sondeando. Consulte la página del manual de
+      <i>warning::debuginfo</i> para obtener más ayuda para localizar la
+      información de depuración correcta.
+      </dd>
+  <dt id="versión-del-compilador"><a class="permalink" href="#versión-del-compilador">versión
+    del compilador</a></dt>
+  <dd>Antes de la versión 4.5 de GCC, la calidad de la información de depuración
+      era bastante limitada. A menudo, se aconsejaba a los desarrolladores que
+      compilaran sus programas con las banderas <i>-O0 -g</i> para deshabilitar
+      la optimización. La versión 4.5 de GCC introdujo una instalación llamada
+      "asignaciones de seguimiento de variables" que le permite generar
+      información de depuración de alta calidad bajo la optimización completa
+      <i>-O2 -g</i>. No es perfecta, pero mucho mejor que antes. Tenga en cuenta
+      que, debido a otro error de gcc (PR51358), <i>-O0 -g</i> puede, de hecho,
+      a veces empeorar la calidad de la información de depuración que con
+      <i>-O2 -g</i>.
+    <p class="Pp">Otro problema relacionado implica la calidad de la información
+        de depuración para el área del prólogo de una función (PR15123), en la
+        que un programa compilado con CFLAGS=-mfentry (especialmente el kernel,
+        para ftrace) puede carecer de información de depuración precisa para las
+        instrucciones de entrada para gcc antes de la versión 4.8. Si es posible,
+        organice la compilación de sus programas con CFLAGS
+        <i>-grecord-gcc-switches</i> y/o intente volver a ejecutar systemtap con
+        <i>$PR15123_ASSUME_MFENTRY=1</i>.</p>
+      </dd>
+  <dt id="linux-kbuild-daña-la-calidad-de-la-información-de-depuración"><a class="permalink" href="#linux-kbuild-daña-la-calidad-de-la-información-de-depuración">el
+      kbuild de Linux daña la calidad de la información de depuración</a></dt>
+  <dd>Una confirmación inicial del kernel #2062afb4f804a introdujo
+      -fno-var-tracking-assignments en KCFLAGS, reduciendo drásticamente la
+      calidad de la información de depuración, lo que puede causar fallos en la
+      información de depuración. La solución más sencilla es **borrar,
+      eliminar, es decir, erradicar** esta línea del Makefile principal de
+      Linux:
+    <p class="Pp">KBUILD_CFLAGS += [...] -fno-var-tracking-assignments [...]</p>
+      </dd>
+  <dt id="inlining-de-funciones"><a class="permalink" href="#inlining-de-funciones">inlining
+    de funciones</a></dt>
+  <dd>Incluso el gcc moderno a veces tiene problemas con los parámetros de las
+      funciones inlined. Puede ser necesario cambiar el script para sondear en
+      un lugar ligeramente diferente. Pruebe una sonda de <i>.statement()</i>,
+      en lugar de una sonda de <i>.function()</i>, en algún lugar unas líneas
+      de código dentro del cuerpo de la función inlined. O intente colocar una
+      sonda en el sitio de llamada de la función inlined. O utilice la construcción
+      del lenguaje de script <i>if @defined($var) { ... }</i> para probar la
+      resolución de la variable de contexto antes de usarla.
+      </dd>
+  <dt id="reordenamiento-de-instrucciones"><a class="permalink" href="#reordenamiento-de-instrucciones">reordenamiento
+    de instrucciones</a></dt>
+  <dd>El código fuertemente optimizado a menudo mezcla las instrucciones de
+      múltiples sentencias de código fuente. Esto puede dejar a systemtap sin un
+      lugar para elegir para colocar una sonda, especialmente una sonda de
+      sentencia especificada por número de línea. Systemtap puede sugerir
+      intentar un número de línea cercano, pero estos tampoco pueden funcionar
+      bien. Considere colocar una sonda por un comodín de sentencia o un rango
+      de números de línea.
+      </dd>
+  <dt id="configuración-de-elfutils"><a class="permalink" href="#configuración-de-elfutils">configuración
+    de elfutils</a></dt>
+  <dd>Es posible que la información de depuración DWARF que se busca esté
+      disponible, pero no en un formato aceptable para la copia de elfutils
+      utilizada por systemtap. Por ejemplo, su copia de gcc podría producir
+      información de depuración comprimida (secciones ELF <i>.zdebug_*</i> o
+      archivos <i>.xz</i>) mientras que su copia de elfutils podría carecer de las
+      capacidades de descompresión adecuadas. Desafortunadamente, no hay una
+      manera fácil de saber si este es el problema. Si está compilando su propia
+      copia de elfutils, asegúrese de que todos los encabezados/bibliotecas de
+      descompresión estén disponibles en el momento de la compilación.
+      </dd>
+  <dt id="configuración-de-la-información-de-depuración-1"><a class="permalink" href="#configuración-de-la-información-de-depuración-1">configuración
+    de la información de depuración</a></dt>
+  <dd>Algunas herramientas pueden generar información de depuración que no es
+      compatible con systemtap, como la opción CONFIG_DEBUG_INFO_SPLIT (archivos
+      <i>.dwo</i>) del kernel de Linux. Utilice la información ELF/DWARF
+      estándar (opcionalmente dividida, estilo Fedora), si es posible.
+          </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" ALTERNATIVAS"><a class='permalink' href='# ALTERNATIVAS'>ALTERNATIVAS</a></h1>
+<p class="Pp">Para reducir la dependencia de la información de depuración ELF/DWARF,
+    considere el uso de instrumentación compilada estáticamente, como puntos de
+    rastreo del kernel, o marcadores en el espacio de usuario de
+    <i>&lt;sys/sdt.h&gt;</i>. Dichos sitios de enganche de instrumentación tienen
+    un costo relativamente bajo (solo una instrucción NOP para sdt.h) y garantizan
+    casi la disponibilidad de los datos de parámetros y un sitio de sonda
+    confiable, todo ello sin depender de la información de depuración.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" VER-TAMBIÉN"><a class='permalink' href='# VER-TAMBIÉN'>VER TAMBIÉN</a></h1>
+<pre><a href='/man/stap.1.en'>stap(1)</a>,
+<i>http://dwarfstd.org/</i>,
+<i>http://sourceware.org/systemtap/wiki/TipContextVariables</i>,
+<i>http://gcc.gnu.org/wiki/Var_Tracking_Assignments</i>,
+<i>warning::debuginfo</i>(7stap),
+<i>warning::buildid</i>(7stap),
+<i>error::reporting</i>(7stap)</pre>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/systemtap/">extra/systemtap</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.4-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://sourceware.org/systemtap/">https://sourceware.org/systemtap/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL-2.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/systemtap/">/listing/extra/systemtap/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#ALTERNATIVAS">ALTERNATIVAS</a></li>
+        
+            <li><a href="#VER-TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+<nav class="other-languages">
+    <p>En otros idiomas:</p>
+    <ul>
+    
+        <li><a href="/man/error::dwarf.7stap.cs">cs</a></li>
+    
+    </ul>
+</nav>
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/error::dwarf.7stap.en.txt">txt</a>, 
+        
+            <a href="/man/error::dwarf.7stap.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Params::Validate(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Params__Validate(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-params-validate/">perl-params-validate</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Params::Validate(3pm)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Params::Validate(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Params::Validate - Valida parámetros de métodos/funciones</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">versión 1.31</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Params::Validate qw(:all);
+# acepta parámetros con nombre (hash o hashref)
+sub foo {
+    validate(
+        @_, {
+            foo =&gt; 1,    # obligatorio
+            bar =&gt; 0,    # opcional
+        }
+    );
+}
+# acepta parámetros posicionales
+sub bar {
+    # los dos primeros son obligatorios, el tercero es opcional
+    validate_pos( @_, 1, 1, 0 );
+}
+sub foo2 {
+    validate(
+        @_, {
+            foo =&gt;
+                # especifica un tipo
+                { type =&gt; ARRAYREF },
+            bar =&gt;
+                # especifica una interfaz
+                { can =&gt; [ 'print', 'flush', 'frobnicate' ] },
+            baz =&gt; {
+                type      =&gt; SCALAR,     # un escalar...
+                                         # ...que es un entero simple...
+                regex     =&gt; qr/^\d+$/,
+                callbacks =&gt; {           # ...y menor que 90
+                    'menor que 90' =&gt; sub { shift() &lt; 90 },
+                },
+            }
+        }
+    );
+}
+sub callback_with_custom_error {
+    validate(
+        @_,
+        {
+            foo =&gt; {
+                callbacks =&gt; {
+                    'es un entero' =&gt; sub {
+                        return 1 if $_[0] =~ /^-?[1-9][0-9]*$/;
+                        die &quot;$_[0] no es un valor entero válido&quot;;
+                    },
+                },
+            }
+        }
+    );
+}
+sub with_defaults {
+    my %p = validate(
+        @_, {
+            # obligatorio
+            foo =&gt; 1,
+            # $p{bar} será 99 si no se proporciona bar. bar ahora
+            # es opcional.
+            bar =&gt; { default =&gt; 99 }
+        }
+    );
+}
+sub pos_with_defaults {
+    my @p = validate_pos( @_, 1, { default =&gt; 99 } );
+}
+sub sets_options_on_call {
+    my %p = validate_with(
+        params =&gt; \@_,
+        spec   =&gt; { foo =&gt; { type =&gt; SCALAR, default =&gt; 2 } },
+        normalize_keys =&gt; sub { $_[0] =~ s/^-//; lc $_[0] },
+    );
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>Recomiendo considerar el uso de</b> <b>Params::ValidationCompiler</b>
+    <b>en su lugar. Ese módulo, a pesar de ser Perl puro, es</b> <b><i>significativamente</i></b>
+    <b>más rápido que</b> <b>este, al costo de tener que adoptar un sistema de
+    tipos como Specio,</b> <b>Type::Tiny, o el que viene con Moose</b>.</p>
+<p class="Pp">Este módulo permite validar los parámetros de llamadas a métodos o
+    funciones a un nivel arbitrario de especificidad. En su nivel más simple, es
+    capaz de validar que se proporcionaron los parámetros requeridos y que no se
+    pasaron parámetros adicionales no especificados.</p>
+<p class="Pp">También es capaz de determinar que un parámetro es de un tipo
+    específico, que es un objeto de una cierta jerarquía de clases, que posee
+    ciertos métodos, o de aplicar callbacks de validación a los
+    argumentos.</p>
+<section class="Ss">
+<h2 class="Ss" id='EXPORT'><a class='permalink' href='#EXPORT'>EXPORTACIÓN</a></h2>
+<p class="Pp">El módulo siempre exporta las funciones <span class="Li">validate()</span>
+    y <span class="Li">validate_pos()</span>.</p>
+<p class="Pp">También tiene una función adicional disponible para exportar,
+    <span class="Li">&quot;validate_with&quot;</span>, que puede ser usada para
+    validar cualquier tipo de parámetros, y establecer varias opciones en base a
+    cada invocación.</p>
+<p class="Pp">Además, puede exportar las siguientes constantes, que se usan como
+    parte de la verificación de tipos. Estas son
+    <span class="Li">&quot;SCALAR&quot;</span>,
+    <span class="Li">&quot;ARRAYREF&quot;</span>,
+    <span class="Li">&quot;HASHREF&quot;</span>,
+    <span class="Li">&quot;CODEREF&quot;</span>,
+    <span class="Li">&quot;GLOB&quot;</span>,
+    <span class="Li">&quot;GLOBREF&quot;</span> y
+    <span class="Li">&quot;SCALARREF&quot;</span>,
+    <span class="Li">&quot;UNDEF&quot;</span>,
+    <span class="Li">&quot;OBJECT&quot;</span>,
+    <span class="Li">&quot;BOOLEAN&quot;</span> y
+    <span class="Li">&quot;HANDLE&quot;</span>. Estas se explican en la
+    sección sobre Validación de Tipos.</p>
+<p class="Pp">Las constantes están disponibles a través de la etiqueta de exportación
+    <span class="Li">&quot;:types&quot;</span>. También hay una etiqueta
+    <span class="Li">&quot;:all&quot;</span> que incluye todas las constantes,
+    así como la función <span class="Li">validation_options()</span>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PARAMETER_VALIDATION'><a class='permalink' href='#PARAMETER_VALIDATION'>VALIDACIÓN DE PARÁMETROS</a></h1>
+<p class="Pp">Los mecanismos de validación proporcionados por este módulo pueden
+    manejar tanto parámetros nombrados como posicionales. En su mayor parte, las
+    mismas características están disponibles para cada uno. La mayor diferencia
+    es la forma en que la especificación de validación se entrega a la subrutina
+    relevante. La otra diferencia está en los mensajes de error producidos
+    cuando fallan las comprobaciones de validación.</p>
+<p class="Pp">Al manejar parámetros nombrados, el módulo aceptará un hash o una
+    referencia a hash.</p>
+<p class="Pp">Las subrutinas que esperan parámetros nombrados deben llamar a la
+    subrutina <span class="Li">validate()</span> de esta manera:</p>
+<pre>validate(
+    @_, {
+        parametro1 =&gt; especificacion de validacion,
+        parametro2 =&gt; especificacion de validacion,
+        ...
+    }
+);</pre>
+<p class="Pp">Las subrutinas que esperan parámetros posicionales deben llamar a la
+    subrutina <span class="Li">validate_pos()</span> de esta manera:</p>
+<pre>validate_pos( @_, { especificacion de validacion }, { especificacion de validacion } );</pre>
+<section class="Ss">
+<h2 class="Ss" id='Mandatory/Optional_Parameters'><a class='permalink' href='#Mandatory/Optional_Parameters'>Parámetros Obligatorios/Opcionales</a></h2>
+<p class="Pp">Si solo desea especificar que algunos parámetros son obligatorios y
+    otros opcionales, esto se puede hacer de forma muy sencilla.</p>
+<p class="Pp">Para una subrutina que espera parámetros nombrados, haría esto:</p>
+<pre>validate( @_, { foo =&gt; 1, bar =&gt; 1, baz =&gt; 0 } );</pre>
+<p class="Pp">Esto indica que los parámetros &quot;foo&quot; y &quot;bar&quot;
+    son obligatorios y que el parámetro &quot;baz&quot; es opcional. La
+    presencia de cualquier otro parámetro causará un error.</p>
+<p class="Pp">Para una subrutina que espera parámetros posicionales, haría esto:</p>
+<pre>validate_pos( @_, 1, 1, 0, 0 );</pre>
+<p class="Pp">Esto indica que se esperan al menos 2 y no más de 4
+    parámetros. Si tiene una subrutina que tiene un número mínimo de parámetros
+    pero puede aceptar cualquier número máximo, puede hacer esto:</p>
+<pre>validate_pos( @_, 1, 1, (0) x (@_ - 2) );</pre>
+<p class="Pp">Esto siempre será válido siempre que se proporcionen al menos dos
+    parámetros. Se podría usar una construcción similar para los parámetros de
+    validación más complejos descritos más adelante.</p>
+<p class="Pp">Tenga en cuenta que esto:</p>
+<pre>validate_pos( @_, 1, 1, 0, 1, 1 );</pre>
+<p class="Pp">no tiene ningún sentido, así que no lo haga. Cualquier cero debe
+    venir al final de la especificación de validación.</p>
+<p class="Pp">Además, si especifica que un parámetro puede tener un valor predeterminado,
+    entonces se considera opcional.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Type_Validation'><a class='permalink' href='#Type_Validation'>Validación de Tipos</a></h2>
+<p class="Pp">Este módulo soporta los siguientes tipos simples, que pueden ser
+    exportados como constantes:</p>
+<ul class="Bl-bullet">
+  <li>SCALAR
+    <p class="Pp">Un escalar que no es una referencia, como
+        <span class="Li">10</span> o <span class="Li">'hola'</span>. Un
+        parámetro que es indefinido <b>no</b> se trata como un escalar. Si
+        desea permitir valores indefinidos, tendrá que especificar
+        <span class="Li">&quot;SCALAR |</span>
+        <span class="Li">UNDEF&quot;</span>.</p>
+  </li>
+  <li>ARRAYREF
+    <p class="Pp">Una referencia de array como <span class="Li">&quot;[1, 2,
+        3]&quot;</span> o <span class="Li">&quot;\@foo&quot;</span>.</p>
+  </li>
+  <li>HASHREF
+    <p class="Pp">Una referencia de hash como <span class="Li">&quot;{ a =&gt; 1, b
+        =&gt; 2 }&quot;</span> o <span class="Li">&quot;\%bar&quot;</span>.</p>
+  </li>
+  <li>CODEREF
+    <p class="Pp">Una referencia a subrutina como
+        <span class="Li">&quot;\&amp;foo_sub&quot;</span> o
+        <span class="Li">&quot;sub { print &quot;hola&quot; }&quot;</span>.</p>
+  </li>
+  <li>GLOB
+    <p class="Pp">Este es un poco complicado. Un glob sería algo como
+        <span class="Li">*FOO</span>, pero no
+        <span class="Li">&quot;\*FOO&quot;</span>, que es una referencia a glob.
+        Cabe señalar que este truco:</p>
+        <pre>my $fh = do { local *FH; };
+</pre>
+    <p class="Pp">hace que <span class="Li">$fh</span> sea un glob, no una referencia
+        a glob. Por otro lado, el valor de retorno de
+        <span class="Li">&quot;Symbol::gensym&quot;</span> es una referencia a
+        glob. Cualquiera de los dos puede ser usado como manejador de archivo o
+        directorio.</p>
+  </li>
+  <li>GLOBREF
+    <p class="Pp">Una referencia a glob como
+        <span class="Li">&quot;\*FOO&quot;</span>. Ver la entrada GLOB arriba
+        para más detalles.</p>
+  </li>
+  <li>SCALARREF
+    <p class="Pp">Una referencia a un escalar como
+        <span class="Li">&quot;\$x&quot;</span>.</p>
+  </li>
+  <li>UNDEF
+    <p class="Pp">Un valor indefinido</p>
+  </
+<ul>
+  <li>
+    OBJECT
+    <p class="Pp">Una referencia bendecida.</p>
+  </li>
+  <li>BOOLEAN
+    <p class="Pp">Esta es una opción especial, y es solo un atajo para
+        <span class="Li">&quot;UNDEF | SCALAR&quot;</span>.</p>
+  </li>
+  <li> HANDLE
+    <p class="Pp">Esta opción también es especial, y es solo un atajo para
+        <span class="Li">&quot;GLOB |</span>
+        <span class="Li">GLOBREF&quot;</span>. Sin embargo, parece probable que
+        la mayoría de las personas interesadas en globs o referencias a globs
+        estén realmente interesadas en si el parámetro en cuestión podría ser un
+        manejo de archivo o directorio válido.</p>
+  </li>
+</ul>
+<p class="Pp">Para especificar que un parámetro debe ser de un tipo dado al usar
+    parámetros con nombre, haga esto:</p>
+<pre>validate(
+    @_, {
+        foo =&gt; { type =&gt; SCALAR },
+        bar =&gt; { type =&gt; HASHREF }
+    }
+);</pre>
+<p class="Pp">Si un parámetro puede ser de más de un tipo, simplemente use el
+    operador OR bit a bit (<span class="Li">&quot;|&quot;</span>) para
+    combinarlos.</p>
+<pre>validate( @_, { foo =&gt; { type =&gt; GLOB | GLOBREF } );</pre>
+<p class="Pp">Para parámetros posicionales, esto se puede especificar de la
+    siguiente manera:</p>
+<pre>validate_pos( @_, { type =&gt; SCALAR | ARRAYREF }, { type =&gt; CODEREF } );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Validacion_de_interfaz'><a class='permalink' href='#Validacion_de_interfaz'>Validación de interfaz</a></h2>
+<p class="Pp">Para especificar que se espera que un parámetro tenga un cierto
+    conjunto de métodos, podemos hacer lo siguiente:</p>
+<pre>   validate(
+       @_, {
+           foo =&gt;
+               # solo tiene que ser capaz de -&gt;bar
+               { can =&gt; 'bar' }
+       }
+   );
+... o ...
+   validate(
+       @_, {
+           foo =&gt;
+               # debe ser capaz de -&gt;bar y -&gt;print
+               { can =&gt; [qw( bar print )] }
+       }
+   );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Validacion_de_clase'><a class='permalink' href='#Validacion_de_clase'>Validación de clase</a></h2>
+<p class="Pp">Una advertencia. Al construir sus interfaces externas, probablemente
+    sea mejor especificar qué métodos espera que tenga un objeto en lugar de de
+    qué clase debe ser (o una hija de). Esto hará que su API sea mucho más
+    flexible.</p>
+<p class="Pp">Dicho esto, si desea validar que un parámetro entrante pertenece a
+    una clase (o clase hija) o clases, haga:</p>
+<pre>   validate(
+       @_,
+       { foo =&gt; { isa =&gt; 'My::Frobnicator' } }
+   );
+... o ...
+   validate(
+       @_,
+       # debe ser ambos, no uno u otro!
+       { foo =&gt; { isa =&gt; [qw( My::Frobnicator IO::Handle )] } }
+   );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Validacion_con_expresiones_regulares'><a class='permalink' href='#Validacion_con_expresiones_regulares'>Validación con expresiones regulares</a></h2>
+<p class="Pp">Si desea especificar que un parámetro dado debe coincidir con una
+    expresión regular específica, esto se puede hacer con la clave de especificación
+    &quot;regex&quot;. Por ejemplo:</p>
+<pre>validate(
+    @_,
+    { foo =&gt; { regex =&gt; qr/^\d+$/ } }
+);</pre>
+<p class="Pp">El valor de la clave &quot;regex&quot; puede ser una cadena o una
+    expresión regular precompilada creada a través de <span class="Li">&quot;qr&quot;</span>.</p>
+<p class="Pp">Si el valor que se verifica contra una expresión regular no está
+    definido, la expresión regular se verifica explícitamente contra la cadena
+    vacía (''), para evitar advertencias de &quot;Uso de valor no inicializado&quot;.</p>
+<p class="Pp">El módulo <span class="Li">&quot;Regexp::Common&quot;</span> en
+    CPAN es una excelente fuente de expresiones regulares adecuadas para validar
+    entradas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Validacion_con_callbacks'><a class='permalink' href='#Validacion_con_callbacks'>Validación con callbacks</a></h2>
+<p class="Pp">Si ninguno de los anteriores es suficiente, es posible pasar uno o
+    más callbacks para validar el parámetro. Al callback se le dará el
+    <b>valor</b> del parámetro como su primer argumento. Su segundo argumento
+    serán todos los parámetros, como una referencia a un hash o a un array. Los
+    callbacks se especifican como una referencia a hash. La clave es un id para
+    el callback (usado en mensajes de error) y el valor es una referencia a una
+    subrutina, como:</p>
+<pre>validate(
+    @_,
+    {
+        foo =&gt; {
+            callbacks =&gt; {
+                'smaller than a breadbox' =&gt; sub { shift() &lt; $breadbox },
+                'green or blue'           =&gt; sub {
+                    return 1 if $_[0] eq 'green' || $_[0] eq 'blue';
+                    die &quot;$_[0] is not green or blue!&quot;;
+                }
+            }
+        }
+    }
+);
+validate(
+    @_, {
+        foo =&gt; {
+            callbacks =&gt; {
+                'bigger than baz' =&gt; sub { $_[0] &gt; $_[1]-&gt;{baz} }
+            }
+        }
+    }
+);</pre>
+<p class="Pp">El callback debe devolver un valor verdadero si el valor es válido.
+    Si no, puede devolver falso o morir. Si devuelve falso,
+    <span class="Li">&quot;Params::Validate&quot;</span> lanzará un mensaje
+    de error genérico.</p>
+<p class="Pp">Si su callback muere en su lugar, puede proporcionar un mensaje de
+    error personalizado. Si el callback muere con una cadena simple, esta cadena
+    se agregará a un mensaje de excepción generado por
+    <span class="Li">&quot;Params::Validate&quot;</span>. Si el callback muere
+    con una referencia (bendecida o no), entonces esta será relanzada tal cual
+    por <span class="Li">&quot;Params::Validate&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Desinfeccion_de_entrada'><a class='permalink' href='#Desinfeccion_de_entrada'>Desinfección de entrada</a></h2>
+<p class="Pp">Si desea valores desinfectados, establezca la clave
+    &quot;untaint&quot; en un hashref de especificación a un valor verdadero,
+    así:</p>
+<pre>my %p = validate(
+    @_, {
+        foo =&gt; { type =&gt; SCALAR, untaint =&gt; 1 },
+        bar =&gt; { type =&gt; ARRAYREF }
+    }
+);</pre>
+<p class="Pp">Esto desinfectará el parámetro &quot;foo&quot; si los parámetros
+    son válidos.</p>
+<p class="Pp">Tenga en cuenta que la desinfección solo se realiza si
+    *todos los parámetros* son válidos. Además, solo se desinfectan los valores
+    de retorno, no los valores originales pasados a la función de validación.</p>
+<p class="Pp">Pedir la desinfección de un valor de referencia no hará nada, ya
+    que <span class="Li">&quot;Params::Validate&quot;</span> solo intentará
+    desinfectar la referencia en sí misma.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Revisitar_obligatorio_opcional'><a class='permalink' href='#Revisitar_obligatorio_opcional'>Revisitar obligatorio/opcional</a></h2>
+<p class="Pp">Si desea especificar algo como tipo o interfaz, además del hecho de
+    que un parámetro puede ser opcional, haga esto:</p>
+<pre>validate(
+    @_, {
+        foo =&gt; { type =&gt; SCALAR },
+        bar =&gt; { type =&gt; ARRAYREF, optional =&gt; 1 }
+    }
+);</pre>
+<p class="Pp">o esto para parámetros posicionales:</p>
+<pre>validate_pos(
+    @_,
+    { type =&gt; SCALAR },
+    { type =&gt; ARRAYREF, optional =&gt; 1 }
+);</pre>
+<p class="Pp">Por defecto, se asume que los parámetros son obligatorios a menos que
+    se especifiquen como opcionales.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Dependencias'><a class='permalink' href='#Dependencias'>Dependencias</a></h2>
+<p class="Pp">También es posible especificar que un parámetro opcional dado depende
+    de la presencia de uno o más parámetros opcionales.</p>
+<pre>validate(
+    @_, {
+        cc_number =&gt; {
+            type     =&gt; SCALAR,
+            optional =&gt; 1,
+            depends  =&gt; [ 'cc_expiration', 'cc_holder_name' ],
+        },
+        cc_expiration  =&gt; { type =&gt; SCALAR, optional =&gt; 1 },
+        cc_holder_name =&gt; { type =&gt; SCALAR, optional =&gt; 1 },
+    }
+);</pre>
+<p class="Pp">En este caso, &quot;cc_number&quot;, &quot;cc_expiration&quot; y
+    &quot;cc_holder_name&quot; son todos opcionales. Sin embargo, si se proporciona
+    &quot;cc_number&quot;, entonces también se deben proporcionar
+    &quot;cc_expiration&quot; y &quot;cc_holder_name&quot;.</p>
+<p class="Pp">Esto le permite agrupar conjuntos de parámetros que deben
+    proporcionarse todos juntos.</p>
+<p class="Pp">La versión <span class="Li">validate_pos()</span> de las
+    dependencias es ligeramente diferente, en el sentido de que solo puedes
+    depender de un otro parámetro. Además, si, por ejemplo, el segundo parámetro
+    depende del cuarto parámetro, entonces implica una dependencia del tercer
+    parámetro también. Esto se debe a que si el cuarto parámetro es requerido, el
+    usuario también debe proporcionar un tercer parámetro para que pueda haber
+    cuatro parámetros en total.</p>
+<p class="Pp"><span class="Li">&quot;Params::Validate&quot;</span> morirá si
+    intentas depender de un parámetro no declarado como parte de tu especificación
+    de parámetros.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Especificar_valores_por_defecto'><a class='permalink' href='#Especificar_valores_por_defecto'>Especificar valores por defecto</a></h2>
+<p class="Pp">Si las funciones <span class="Li">validate()</span> o
+    <span class="Li">validate_pos()</span> se llaman en un contexto de lista,
+    devolverán un hash o que contendrá los parámetros originales más los valores
+    por defecto según lo indicado por la especificación de validación.</p>
+<p class="Pp">Si la función no se llama en un contexto de lista, proporcionar un
+    valor por defecto en la especificación de validación aún indica que el
+    parámetro es opcional.</p>
+<p class="Pp">El hash o array devuelto por la función siempre será una copia de los
+    parámetros originales, para dejar <span class="Li">@_</span> intacto para la
+    función que llama.</p>
+<p class="Pp">Ejemplos simples de valores por defecto serían:</p>
+<pre>my %p = validate( @_, { foo =&gt; 1, bar =&gt; { default =&gt; 99 } } );
+my @p = validate_pos( @_, 1, { default =&gt; 99 } );</pre>
+<p class="Pp">En contexto escalar, se devolverá una referencia a hash o una
+    referencia a array, según corresponda.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS_DE_USO'><a class='permalink' href='#NOTAS_DE_USO'>NOTAS DE USO</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Fallo_de_validacion'><a class='permalink' href='#Fallo_de_validacion'>Fallo de validación</a></h2>
+<p class="Pp">Por defecto, cuando la validación falla,
+    <span class="Li">&quot;Params::Validate&quot;</span> llama a
+    <span class="Li">Carp::confess()</span>. Esto se puede anular estableciendo
+    la opción <span class="Li">&quot;on_fail&quot;</span>, que se describe en
+    la sección OPCIONES GLOBALES.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Llamadas_a_metodos'><a class='permalink' href='#Llamadas_a_metodos'>Llamadas a métodos</a></h2>
+<p class="Pp">Al usar este módulo para validar los parámetros pasados a una llamada
+    de método, probablemente querrá eliminar la clase/objeto de la lista de
+    parámetros *antes* de llamar a
+    <span class="Li">validate()</span> o
+    <span class="Li">validate_pos()</span>. Si su método espera parámetros con
+    nombre, esto es necesario para que la función
+    <span class="Li">validate()</span> funcione realmente, de lo contrario
+    <span class="Li">@_</span> no será utilizable como un hash, porque primero
+    tendrá su objeto (o clase) *seguido* por un conjunto de claves y valores.</p>
+<p class="Pp">Por lo tanto, el uso idiomático de
+    <span class="Li">validate()</span> en una llamada de método se verá algo
+    así:</p>
+<pre>sub method {
+    my $self = shift;
+    my %params = validate(
+        @_, {
+            foo =&gt; 1,
+            bar =&gt; { type =&gt; ARRAYREF },
+        }
+    );
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Acelerar_la_validacion'><a class='permalink' href='#Acelerar_la_validacion'>Acelerar la validación</a></h2>
+<p class="Pp">En la mayoría de los casos, la especificación de validación seguirá
+    siendo la misma para cada llamada a una subrutina. En ese caso, puede
+    acelerar la validación definiendo la especificación de validación una sola
+    vez, en lugar de en cada llamada a la subrutina:</p>
+<pre>my %spec = ( ... );
+sub foo {
+    my %params = validate( @_, \%spec );
+}</pre>
+<p class="Pp">También puede u</p>
+<section class="Sh">
+<h1 class="Sh" id="USO_DEL_ESTADO"><a class="permalink" href="#USO_DEL_ESTADO">USO_DEL_ESTADO</a></h1>
+<p class="Pp">use feature 'state';
+sub foo {
+    state $spec = { ... };
+    my %params = validate( @_, $spec );
+}</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='&amp;quot;OPCIONES_GLOBALES&amp;quot;'><a class='permalink' href='#&amp;quot;OPCIONES_GLOBALES&amp;quot;'>&quot;OPCIONES_GLOBALES&quot; OPCIONES</a></h1>
+<p class="Pp">Dado que la API de las funciones <span class="Li">validate()</span>
+    y <span class="Li">validate_pos()</span> no permite especificar opciones
+    aparte de la especificación de validación, es posible configurar algunas
+    opciones como 'globales' pseudo. Estas permiten especificar si la validación
+    de parámetros con nombre debe ser sensible a mayúsculas y minúsculas, por
+    ejemplo.</p>
+<p class="Pp">Estas opciones se llaman 'globales' pseudo porque estas
+    configuraciones **solo se aplican a las llamadas que se originan desde el
+    paquete que estableció las** **opciones**.</p>
+<p class="Pp">En otras palabras, si estoy en el paquete
+    <span class="Li">&quot;Foo&quot;</span> y llamo a
+    <span class="Li">validation_options()</span>, esas opciones solo estarán
+    en vigor cuando llame a <span class="Li">validate()</span> desde el paquete
+    <span class="Li">&quot;Foo&quot;</span>.</p>
+<p class="Pp">Si bien esto es bastante diferente de cómo operan la mayoría de
+    los módulos, considero que es necesario para permitir que un módulo/aplicación
+    utilice Params::Validate mientras sigue utilizando otros módulos que también
+    lo usan, quizás con diferentes opciones establecidas.</p>
+<p class="Pp">La desventaja es que si estás escribiendo una aplicación con un
+    estilo de llamada estándar para todas las funciones, y tu aplicación tiene
+    diez módulos, **cada** **módulo debe incluir una llamada a**
+    <span class="Li"><b>validation_options()</b></span>. Por supuesto, podrías
+    escribir un módulo que todos tus módulos utilicen y que emplee varios
+    trucos para hacer esto al importarlo.</p>
+<section class="Ss">
+<h2 class="Ss" id='Opciones'><a class='permalink' href='#Opciones'>Opciones</a></h2>
+<ul class="Bl-bullet">
+  <li>normalize_keys =&gt; <span class="Li">$callback</span>
+    <p class="Pp">Esta opción solo es relevante cuando se trata de parámetros
+        con nombre.</p>
+    <p class="Pp">Esta función de retorno se utilizará para transformar las
+        claves de hash de los parámetros y de la especificación del parámetro
+        cuando se llamen <span class="Li">validate()</span> o
+        <span class="Li">validate_with()</span>.</p>
+    <p class="Pp">Cualquier alteración realizada por esta función de retorno se
+        reflejará en el hash de parámetros que devuelve la función de validación.
+        Por ejemplo:</p>
+        <pre>sub foo {
+    return validate_with(
+        params =&gt; \@_,
+        spec   =&gt; { foo =&gt; { type =&gt; SCALAR } },
+        normalize_keys =&gt;
+            sub { my $k = shift; $k =~ s/^-//; return uc $k },
+    );
+}
+%p = foo( foo =&gt; 20 );
+# $p{FOO} ahora es 20
+%p = foo( -fOo =&gt; 50 );
+# $p{FOO} ahora es 50
+</pre>
+    <p class="Pp">La función de retorno debe devolver un valor definido.</p>
+    <p class="Pp">Si se proporciona una función de retorno, las opciones
+        obsoletas &quot;ignore_case&quot; y &quot;strip_leading&quot; se
+        ignoran.</p>
+  </li>
+  <li>allow_extra =&gt; <span class="Li">$booleano</span>
+    <p class="Pp">Si es verdadero, la rutina de validación permitirá parámetros
+        adicionales no especificados en la especificación de validación. En el
+        caso de parámetros posicionales, esto permite un número ilimitado de
+        parámetros máximos (aunque todavía se puede establecer un mínimo). El
+        valor predeterminado es falso.</p>
+  </li>
+  <li>on_fail =&gt; <span class="Li">$callback</span>
+    <p class="Pp">Si se proporciona, esta función de retorno se llamará cada
+        vez que falle una comprobación de validación. Se llamará con un solo
+        parámetro, que será una cadena que describe el fallo. Esto es útil si
+        desea que este módulo lance excepciones como objetos en lugar de
+        cadenas, por ejemplo.</p>
+    <p class="Pp">Se espera que esta función de retorno llame internamente a
+        <span class="Li">die()</span>. Si no lo hace, la validación continuará,
+        con resultados impredecibles.</p>
+    <p class="Pp">El valor predeterminado es simplemente usar la función
+        <span class="Li">confess()</span> del módulo Carp.</p>
+  </li>
+  <li>stack_skip =&gt; <span class="Li">$número</span>
+    <p class="Pp">Esto le dice a Params::Validate cuántos marcos de la pila
+        saltar al encontrar un nombre de subrutina para usar en los mensajes de
+        error. Por defecto, mira un marco hacia atrás, al llamador inmediato de
+        <span class="Li">validate()</span> o <span class="Li">validate_pos()</span>.
+        Si se establece esta opción, se omiten el número dado de marcos.</p>
+  </li>
+  <li>ignore_case =&gt; <span class="Li">$booleano</span>
+    <p class="Pp">OBSOLETO</p>
+    <p class="Pp">Esto solo es relevante cuando se trata de parámetros con
+        nombre. Si es verdadero, el código de validación ignorará las mayúsculas
+        y minúsculas de los nombres de los parámetros. El valor predeterminado es
+        falso.</p>
+  </li>
+  <li>strip_leading =&gt; <span class="Li">$caracteres</span>
+    <p class="Pp">OBSOLETO</p>
+    <p class="Pp">Esto también es solo relevante cuando se trata de parámetros
+        con nombre. Si se proporciona, se considerarán equivalentes los
+        parámetros que comiencen con estos caracteres a los parámetros sin
+        ellos por completo. Por ejemplo, si se especifica como '-', entonces
+        <span class="Li">&quot;-foo&quot;</span> y <span class="Li">&quot;foo&quot;</span>
+        se considerarían idénticos.</p>
+  </li>
+</ul>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OPCIONES_POR_INVOCACIÓN'><a class='permalink' href='#OPCIONES_POR_INVOCACIÓN'>OPCIONES_POR_INVOCACIÓN</a></h1>
+<p class="Pp">La función <span class="Li">validate_with()</span> se puede usar
+    para establecer las opciones enumeradas anteriormente en una base por
+    invocación. Por ejemplo:</p>
+<pre>my %p = validate_with(
+    params =&gt; \@_,
+    spec   =&gt; {
+        foo =&gt; { type    =&gt; SCALAR },
+        bar =&gt; { default =&gt; 10 }
+    },
+    allow_extra =&gt; 1,
+);</pre>
+<p class="Pp">Además de las opciones enumeradas anteriormente, también es posible
+    establecer la opción &quot;called&quot;, que debe ser una cadena. Esta
+    cadena se utilizará en cualquier mensaje de error causado por un fallo al
+    cumplir la especificación de validación.</p>
+<p class="Pp">Esta subrutina validará parámetros con nombre como un hash si el
+    parámetro &quot;spec&quot; es una referencia de hash. Si es una referencia
+    de array, se asume que los parámetros son posicionales.</p>
+<pre>my %p = validate_with(
+    params =&gt; \@_,
+    spec   =&gt; {
+        foo =&gt; { type    =&gt; SCALAR },
+        bar =&gt; { default =&gt; 10 }
+    },
+    allow_extra =&gt; 1,
+    called      =&gt; 'El constructor de la clase Quux::Baz',
+);
+my @p = validate_with(
+    params =&gt; \@_,
+    spec   =&gt; [
+        { type    =&gt; SCALAR },
+        { default =&gt; 10 }
+    ],
+    allow_extra =&gt; 1,
+    called      =&gt; 'El constructor de la clase Quux::Baz',
+);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESACTIVACIÓN_DE_LA_VALIDACIÓN'><a class='permalink' href='#DESACTIVACIÓN_DE_LA_VALIDACIÓN'>DESACTIVACIÓN_DE_LA_VALIDACIÓN</a></h1>
+<p class="Pp">Si la variable de entorno
+    <span class="Li">&quot;PERL_NO_VALIDATION&quot;</span> se establece en algo
+    verdadero, la validación se desactiva. Esto puede ser útil si solo desea
+    utilizar este módulo durante el desarrollo, pero no quiere la penalización
+    de rendimiento en producción.</p>
+<p class="Pp">El único error que se detectará será cuando se pase un número
+    impar de parámetros a una función/método que espera un hash.</p>
+<p class="Pp">Si desea activar y desactivar selectivamente la validación en
+    tiempo de ejecución, puede establecer directamente la variable global
+    <span class="Li">$Params::Validate::NO_VALIDATION</span>. Se **recomienda
+    encarecidamente** que **localice** cualquier cambio en esta variable, ya que
+    otros módulos que esté utilizando pueden esperar que la validación esté
+    activada cuando se ejecuten. Por ejemplo:</p>
+<pre>{
+    local $Params::Validate::NO_VALIDATION = 1;
+    # sin error
+    foo( bar =&gt; 2 );
+}
+# error
+foo( bar =&gt; 2 );
+sub foo {
+    my %p = validate( @_, { foo =&gt; 1 } );
+    ...;
+}</pre>
+<p class="Pp">Pero si quieres dispararte en el pie y simplemente desactivarla,
+    ¡adelante!</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ESPECIFICACIÓN_DE_UNA_IMPLEMENTACIÓN'><a class='permalink' href='#ESPECIFICACIÓN_DE_UNA_IMPLEMENTACIÓN'>ESPECIFICACIÓN_DE_UNA_IMPLEMENTACIÓN</a></h1>
+<p class="Pp">Este módulo viene con dos implementaciones equivalentes, una en XS
+    y otra en Perl puro. Por defecto, intentará cargar la versión XS y recurrirá
+    a la implementación de Perl puro según sea necesario. Si desea solicitar una
+    versión específica, puede establecer la variable de entorno
+    <span class="Li">&quot;PARAMS_VALIDATE_IMPLEMENTATION&quot;</span> en
+    <span class="Li">&quot;XS&quot;</span> o <span class="Li">&quot;PP&quot;</span>.
+    Si la implementación que solicita no se puede cargar, este módulo fallará al
+    cargarse.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MODO_TAINT'><a class='permalink' href='#MODO_TAINT'>MODO_TAINT</a></h1>
+<p class="Pp">La implementación XS de este módulo tiene algunos problemas en modo
+    taint con versiones de Perl anteriores a 5.14. Si la validación falla, en
+    lugar de recibir el mensaje de error esperado, recibirá un mensaje como
+    &quot;Insecure dependency in eval_sv&quot;. Esto se puede solucionar
+    deshaciendo el taint de los argumentos usted mismo, utilizando la
+    implementación de Perl puro o actualizando su Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LIMITACIONES'><a class='permalink' href='#LIMITACIONES'>LIMITACIONES</a></h1>
+<p class="Pp">Por el momento no hay forma (salvo una función de retorno) de
+    especificar que algo debe ser de una de una lista de clases, o que debe
+    poseer uno de una lista de métodos. Si esto es deseado, se puede agregar en el
+    futuro.</p>
+<p class="Pp">Idealmente, solo habría una función de validación. Si alguien
+    descubre cómo hacer esto, por favor hágamelo saber.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SOPORTE'><a class='permalink' href='#SOPORTE'>SOPORTE</a></h1>
+<p class="Pp">Los errores se pueden enviar a
+    <a href='https://github.com/houseabsolute/Params-Validate/issues'>https://github.com/houseabsolute/Params-Validate/issues</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CÓDIGO_FUENTE'><a class='permalink' href='#CÓDIGO_FUENTE'>CÓDIGO_FUENTE</a></h1>
+<p class="Pp">El repositorio de código fuente de Params-Validate se puede encontrar
+    en
+    <a href='https://github.com/houseabsolute/Params-Validate'>https://github.com/houseabsolute/Params-Validate</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DONACIONES'><a class='permalink' href='#DONACIONES'>DONACIONES</a></h1>
+<p class="Pp">Si desea agradecer mi trabajo en este módulo, considere hacerme una
+    &quot;donación&quot; a través de PayPal. Dedico mucho tiempo libre a crear
+    software gratuito y apreciaría cualquier apoyo que pudiera ofrecer.</p>
+<p class="Pp">Tenga en cuenta que **NO sugiero que deba hacerlo** para que
+    continúe trabajando en este software en particular. Continuaré haciéndolo,
+    en la medida en que lo he hecho en el pasado, mientras me interese.</p>
+<p class="Pp">Del mismo modo, una donación realizada de esta manera probablemente
+    no hará que trabaje mucho más en este software, a menos que reciba tantas
+    donaciones que pueda considerar trabajar a tiempo completo en software libre
+    (riámonos todos juntos de eso).</p>
+<p class="Pp">Para donar, inicie sesión en PayPal y envíe dinero a
+    autarch@urth.org, o use el botón en
+    <a href='https://houseabsolute.com/foss-donations/'>https://houseabsolute.com/foss-donations/</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTORES'><a class='permalink' href='#AUTORES'>AUTORES</a></h1>
+<ul class="Bl-bullet">
+  <li>Dave Rolsky &lt;autarch@urth.org&gt;</li>
+  <li>Ilya Martynov &lt;ily</li>
+</ul>
+</section>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Params::Validate(3pm)</title>
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="stylesheet" href="/css/manual.css">
+    </head>
+    <body>
+        
+        <main>
+            <article>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTHORS</a></h1>
+<p class="Pp">Dave Rolsky &lt;autarch@urth.org&gt;</p>
+<p class="Pp">Ilya Martynov &lt;ilya@martynov.org&gt;</p>
+<p class="Pp">Original author of the specification: Damian Conway &lt;dconway@cpan.org&gt;</p>
+<p class="Pp">Initial POD and tests: David C. Landrum &lt;david@landrum.org&gt;</p>
+<p class="Pp">Igor Gringaut &lt;i.gringaut@gmail.com&gt;</p>
+<p class="Pp">Dave Rolsky &lt;dave@autarch.org&gt;</p>
+<p class="Pp">Dave Rolsky &lt;autarch@urth.org&gt;</p>
+<p class="Pp">Ilya Martynov &lt;ilya@martynov.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONTRIBUTORS'><a class='permalink' href='#CONTRIBUTORS'>CONTRIBUTORS</a></h1>
+<ul class="Bl-bullet">
+  <li>Andy Grundman &lt;andyg@activestate.com&gt;</li>
+  <li>Diab Jerius &lt;djerius@cfa.harvard.edu&gt;</li>
+  <li>E. Choroba &lt;choroba@matfyz.cz&gt;</li>
+  <li>Graham Knop &lt;haarg@haarg.org&gt;</li>
+  <li>Ivan Bessarabov &lt;ivan@bessarabov.ru&gt;</li>
+  <li>J.R. Mash &lt;jmash.code@gmail.com&gt;</li>
+  <li>Karen Etheridge &lt;ether@cpan.org&gt;</li>
+  <li>Noel Maddy &lt;zhtwnpanta@gmail.com&gt;</li>
+  <li>Olivier Mengu&#x00E9; &lt;dolmen@cpan.org&gt;</li>
+  <li>Tony Cook &lt;tony@develop-help.com&gt;</li>
+  <li>Vincent Pit &lt;perl@profvince.com&gt;</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>COPYRIGHT
+    AND LICENSE</a></h1>
+<p class="Pp">Este software es Copyright (c) 2001 - 2022 por Dave Rolsky e Ilya
+    Martynov.</p>
+<p class="Pp">Este es software libre, licenciado bajo:</p>
+<pre>La Licencia Artística 2.0 (Compatible con GPL)</pre>
+<p class="Pp">El texto completo de la licencia se puede encontrar en el archivo
+    <i>LICENSE</i> incluido con esta distribución.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-params-validate/">extra/perl-params-validate</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.31-5</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Params-Validate">https://search.cpan.org/dist/Params-Validate</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-params-validate/">/listing/extra/perl-params-validate/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#VERSION">VERSIÓN</a></li>
+        
+            <li><a href="#SYNOPSIS">SINAPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PARAMETER_VALIDATION">VALIDACIÓN DE PARÁMETROS</a></li>
+        
+            <li><a href="#USAGE_NOTES">NOTAS DE USO</a></li>
+        
+            <li><a href="#&amp;quot;GLOBAL&amp;quot;_OPTIONS">&quot;GLOBALES&quot; OPCIONES</a></li>
+        
+            <li><a href="#PER-INVOCATION_OPTIONS">OPCIONES POR INVOCACIÓN</a></li>
+        
+            <li><a href="#DISABLING_VALIDATION">DESACTIVANDO VALIDACIÓN</a></li>
+        
+            <li><a href="#SPECIFYING_AN_IMPLEMENTATION">ESPECIFICANDO UNA IMPLEMENTACIÓN</a></li>
+        
+            <li><a href="#TAINT_MODE">MODO TAINT</a></li>
+        
+            <li><a href="#LIMITATIONS">LIMITACIONES</a></li>
+        
+            <li><a href="#SUPPORT">SOPORTE</a></li>
+        
+            <li><a href="#SOURCE">FUENTE</a></li>
+        
+            <li><a href="#DONATIONS">DONACIONES</a></li>
+        
+            <li><a href="#AUTHORS">AUTORES</a></li>
+        
+            <li><a href="#CONTRIBUTORS">CONTRIBUIDORES</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">COPYRIGHT Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Params::Validate.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/Params::Validate.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>MIME::Parser(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">MIME__Parser(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">MIME::Parser(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">MIME::Parser(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">MIME::Parser - clase experimental para analizar flujos MIME</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Antes de seguir leyendo, deberías ver MIME::Tools para asegurarte
+    de que entiendes dónde encaja este módulo en el gran esquema de las cosas.
+    Adelante, hazlo ahora. Te esperaré.</p>
+<p class="Pp">¿Listo? Ok...</p>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplos_de_uso_básico'><a class='permalink' href='#Ejemplos_de_uso_básico'>Ejemplos
+    de uso básico</a></h2>
+<pre>### Crea un nuevo objeto analizador:
+my $parser = new MIME::Parser;
+### Dile dónde poner las cosas:
+$parser-&gt;output_under(&quot;/tmp&quot;);
+### Analiza un manejador de entrada:
+$entity = $parser-&gt;parse(\*STDIN);
+### ¡Felicitaciones: ahora tienes una entidad MIME (posiblemente multipart)!
+$entity-&gt;dump_skeleton;          # para depuración</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplos_de_entrada'><a class='permalink' href='#Ejemplos_de_entrada'>Ejemplos
+    de entrada</a></h2>
+<pre>### Analiza desde manejadores de archivo:
+$entity = $parser-&gt;parse(\*STDIN);
+$entity = $parser-&gt;parse(IO::File-&gt;new(&quot;some command|&quot;);
+### Analiza desde cualquier objeto que soporte getline() y read():
+$entity = $parser-&gt;parse($myHandle);
+### Analiza un mensaje MIME en memoria:
+$entity = $parser-&gt;parse_data($message);
+### Analiza un mensaje MIME en un archivo:
+$entity = $parser-&gt;parse_open(&quot;/some/file.msg&quot;);
+### Analiza un mensaje MIME de una tubería:
+$entity = $parser-&gt;parse_open(&quot;gunzip - &lt; file.msg.gz |&quot;);
+### Analiza entrada ya dividida (tal como te la daría &quot;deliver&quot;):
+$entity = $parser-&gt;parse_two(&quot;msg.head&quot;, &quot;msg.body&quot;);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplos_de_control_de_salida'><a class='permalink' href='#Ejemplos_de_control_de_salida'>Ejemplos
+    de control de salida</a></h2>
+<pre>### Mantén los cuerpos de mensaje analizados en memoria (por defecto se envían al disco):
+$parser-&gt;output_to_core(1);
+### Envía cada cuerpo de mensaje a un directorio por mensaje:
+$parser-&gt;output_under(&quot;/tmp&quot;);
+### Envía cada cuerpo de mensaje al mismo directorio:
+$parser-&gt;output_dir(&quot;/tmp&quot;);
+### Cambia cómo se nombran los archivos de componentes de mensaje sin nombre:
+$parser-&gt;output_prefix(&quot;msg&quot;);
+### Coloca archivos temporales en otro lugar
+$parser-&gt;tmp_dir(&quot;/var/tmp/mytmpdir&quot;);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplos_de_recuperación_de_errores'><a class='permalink' href='#Ejemplos_de_recuperación_de_errores'>Ejemplos
+    de recuperación de errores</a></h2>
+<pre>### Mecanismo normal:
+eval { $entity = $parser-&gt;parse(\*STDIN) };
+if ($@) {
+    $results  = $parser-&gt;results;
+    $decapitated = $parser-&gt;last_head;  ### obtiene la última cabecera de nivel superior
+}
+### Mecanismo ultra-tolerante:
+$parser-&gt;ignore_errors(1);
+$entity = eval { $parser-&gt;parse(\*STDIN) };
+$error = ($@ || $parser-&gt;last_error);
+### Limpia todos los archivos creados por el análisis:
+eval { $entity = $parser-&gt;parse(\*STDIN) };
+...
+$parser-&gt;filer-&gt;purge;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplos_de_opciones_del_analizador'><a class='permalink' href='#Ejemplos_de_opciones_del_analizador'>Ejemplos
+    de opciones del analizador</a></h2>
+<pre>### ¿Intentar decodificar automáticamente los encabezados MIME RFC 2047?
+$parser-&gt;decode_headers(1);             ### por defecto es falso
+### ¿Analizar objetos contenidos &quot;message/rfc822&quot; como flujos MIME anidados?
+$parser-&gt;extract_nested_messages(0);    ### por defecto es verdadero
+### ¿Buscar uuencode en mensajes &quot;text&quot; y extraerlo?
+$parser-&gt;extract_uuencode(1);           ### por defecto es falso
+### ¿Deberíamos perdonar errores normalmente fatales?
+$parser-&gt;ignore_errors(0);              ### por defecto es verdadero</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplos_varios'><a class='permalink' href='#Ejemplos_varios'>Ejemplos
+    varios</a></h2>
+<pre>### Convertir un objeto Mail::Internet a un MIME::Entity:
+my $data = join('', (@{$mail-&gt;header}, &quot;\n&quot;, @{$mail-&gt;body}));
+$entity = $parser-&gt;parse_data(\$data);</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Puedes heredar de esta clase para crear tus propias subclases que
+    analicen flujos MIME en objetos MIME::Entity.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFAZ_PÚBLICA'><a class='permalink' href='#INTERFAZ_PÚBLICA'>INTERFAZ
+    PÚBLICA</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Construcción'><a class='permalink' href='#Construcción'>Construcción</a></h2>
+<dl class="Bl-tag">
+  <dt id="new"><a class="permalink" href="#new">new ARGS...</a></dt>
+  <dd><i>Método de clase.</i> Crea un nuevo objeto analizador. Una vez que hagas
+      esto, puedes configurar varios parámetros antes de realizar el análisis
+      real. Por ejemplo:
+        <pre>my $parser = new MIME::Parser;
+$parser-&gt;output_dir(&quot;/tmp&quot;);
+$parser-&gt;output_prefix(&quot;msg1&quot;);
+my $entity = $parser-&gt;parse(\*STDIN);
+</pre>
+    <p class="Pp">Cualquier argumento se pasa a <span class="Li">init()</span>.
+        No anules esto en tus subclases; anula <b>init()</b>
+      en su lugar.</p>
+  </dd>
+  <dt id="init"><a class="permalink" href="#init">init ARGS...</a></dt>
+  <dd><i>Método de instancia.</i> Inicializa un nuevo objeto MIME::Parser. Esto
+      se envía automáticamente a un nuevo objeto; es posible que desees anularlo.
+      Si anulas esto, asegúrate de invocar el método heredado.</dd>
+  <dt id="init_parse"><a class="permalink" href="#init_parse">init_parse</a></dt>
+  <dd><i>Método de instancia.</i> Se invoca automáticamente cada vez que se llama
+      a uno de los métodos <b>parse()</b> de nivel superior, para restablecer el
+      analizador a un estado de &quot;listo&quot;.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Alterar_cómo_se_analizan_los_mensajes'><a class='permalink' href='#Alterar_cómo_se_analizan_los_mensajes'>Alterar
+    cómo se analizan los mensajes</a></h2>
+<dl class="Bl-tag">
+  <dt id="decode_headers"><a class="permalink" href="#decode_headers">decode_headers
+    [SÍNO]</a></dt>
+  <dd><i>Método de instancia.</i> Controla si el analizador intentará decodificar
+      todos los encabezados MIME (según RFC 2047) en el momento en que los vea.
+      <b>Esto no es aconsejable</b> <b>por dos razones muy importantes:</b></dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><b>Arruina la extracción de información de los campos MIME.</b> Si decodificas
+      completamente los encabezados en bytes, puedes transformar inadvertidamente
+      un encabezado MIME analizable como este:
+        <pre>Content-type: text/plain; filename=&quot;=?ISO-8859-1?Q?Hi=22Ho?=&quot;
+</pre>
+    <p class="Pp">en galimatías inanalizables; en este caso:</p>
+        <pre>Content-type: text/plain; filename=&quot;Hi&quot;Ho&quot;
+</pre>
+  </li>
+  <li><b>Pierde información.</b> Una cadena codificada que contiene caracteres
+      tanto latinos como cirílicos se convertirá en una mezcla binaria que
+      simplemente no se puede representar.</li>
+</ul>
+</div>
+<div class="Bd-indent">
+<p class="Pp"><b>Historial.</b> Este método fue una vez la única forma disponible
+    para tratar con archivos adjuntos cuyos nombres de archivo tenían caracteres
+    no ASCII. Sin embargo, desde MIME-tools 5.4xx ya no es necesario.</p>
+<p class="Pp"><b>Parámetros.</b> Si YESNO es verdadero, se realiza la decodificación.
+    Sin embargo, recibirás una advertencia a menos que uses uno de los valores
+    especiales &quot;verdaderos&quot;:</p>
+<pre>&quot;I_NEED_TO_FIX_THIS&quot;
+       Simplemente cállate y hazlo. No recomendado.
+       Proporcionado solo para aquellos que necesitan mantener scripts antiguos en funcionamiento.
+&quot;I_KNOW_WHAT_I_AM_DOING&quot;
+       Simplemente cállate y hazlo. No recomendado.
+       Proporcionado para aquellos que REALMENTE saben lo que están haciendo.</pre>
+<p class="Pp">Si YESNO es falso (el valor predeterminado), no se intentará
+    decodificar. Sin argumentos, simplemente devuelve la configuración actual.
+    <b>Recuerda:</b> siempre puedes decodificar los encabezados *después* de que
+    el análisis se haya completado (ver <b>MIME::Head::decode()</b>), o decodificar
+    las palabras bajo demanda (ver MIME::Words).</p>
+</div>
+<dl class="Bl-tag">
+  <dt id="extract_nested_messages"><a class="permalink" href="#extract_nested_messages">extract_nested_messages
+    OPCIÓN</a></dt>
+  <dd><i>Método de instancia.</i> Algunos mensajes MIME contendrán una parte de
+      tipo <span class="Li">&quot;message/rfc822&quot;</span>
+      ,<span class="Li">&quot;message/partial&quot;</span> o
+      <span class="Li">&quot;message/external-body&quot;</span>: literalmente, el
+      texto de un mensaje incrustado de correo/noticias/etc. Esta opción controla
+      si (y cómo) analizamos ese mensaje incrustado.
+    <p class="Pp">Si la OPCIÓN es falsa, tratamos dicho mensaje como si fuera un
+        documento <span class="Li">&quot;text/plain&quot;</span>, sin intentar
+        decodificar su contenido.</p>
+    <p class="Pp">Si la OPCIÓN es verdadera (el valor predeterminado), el cuerpo
+        de la parte <span class="Li">&quot;message/rfc822&quot;</span> o
+        <span class="Li">&quot;message/partial&quot;</span> es analizado por este
+        analizador, creando un objeto entidad. Lo que sucede entonces está
+        determinado por la OPCIÓN real:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="NEST"><a class="permalink" href="#NEST">NEST o 1</a></dt>
+  <dd>La configuración predeterminada. El mensaje contenido se convierte en la
+      única &quot;parte&quot; de la entidad <span class="Li">&quot;message/rfc822&quot;</span>
+      (como si el mensaje contenedor fuera un tipo especial de mensaje
+      &quot;multipart&quot;). Puedes recuperar la sub-entidad invocando el método
+      <b>parts()</b> en la entidad
+      <span class="Li">&quot;message/rfc822&quot;</span>
+      </dd>
+</dl>
+</div>
+</div>
+</section>
+
+</article>
+            
+        </main>
+    </body>
+</html>
+<div class="Bd-indent">
+<p class="Pp"><i>Gracias a Andreas Koenig por sugerir este método.</i></p>
+</div>
+<dl class="Bl-tag">
+  <dt id="extract_uuencode"><a class="permalink" href="#extract_uuencode">extract_uuencode
+    [YESNO]</a></dt>
+  <dd><i>Método de instancia.</i> Si se establece en true, entonces cuando se encuentre un mensaje cuyo tipo de contenido efectivo sea "text/plain" y su codificación sea 7bit/8bit/binary, el cuerpo codificado se analizará para ver si contiene datos codificados en uu (generalmente señalados por una línea "begin XXX").
+    <p class="Pp">Si es así, el mensaje codificado se descompone en un multipart, donde el texto antes de la primera línea "begin XXX" se convierte en la primera parte, y todas las secciones "begin...end" subsiguientes se convierten en las partes siguientes. El nombre de archivo (si se especifica) será accesible a través de los medios normales.</p>
+  </dd>
+  <dt id="ignore_errors"><a class="permalink" href="#ignore_errors">ignore_errors
+    [YESNO]</a></dt>
+  <dd><i>Método de instancia.</i> Controla si el parser intentará ignorar errores normalmente graves, tratándolos como advertencias y continuando con el análisis.
+    <p class="Pp">Si YESNO es true (el valor predeterminado), se toleran muchos errores de sintaxis. Si es false, los errores graves lanzan excepciones. Sin argumento, devuelve el valor actual.</p>
+  </dd>
+  <dt id="decode_bodies"><a class="permalink" href="#decode_bodies">decode_bodies
+    [YESNO]</a></dt>
+  <dd><i>Método de instancia.</i> Controla si el parser debe decodificar los cuerpos de las entidades. Si este valor es false (el valor predeterminado es true), todos los cuerpos de las entidades se mantendrán en su contenido codificado original.
+    <p class="Pp">Para evitar la doble codificación en el lado de la salida, MIME::Body-&gt;is_encoded se establece en false, lo que indica a MIME::Body que no codifique los datos nuevamente si se le ha solicitado codificar. Esto es especialmente útil cuando es importante que el contenido <b>no se modifique</b>, por ejemplo, si deseas calcular firmas OpenPGP a partir de él.</p>
+    <p class="Pp"><b>¡ADVERTENCIA!</b> Los significados cambian significativamente si analiza mensajes MIME con esta opción habilitada, ya que MIME::Entity y MIME::Body *siempre* ven datos codificados ahora, mientras que el comportamiento predeterminado es trabajar con datos decodificados (y codificarlos solo si se solicita). Debe decodificar los datos usted mismo si desea tenerlos decodificados.</p>
+    <p class="Pp">Por lo tanto, úselo solo si sabe exactamente lo que está haciendo y está seguro de que realmente lo necesita.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='analizar_una_fuente_de_entrada'><a class='permalink' href='#analizar_una_fuente_de_entrada'>Analizar una fuente de entrada</a></h2>
+<dl class="Bl-tag">
+  <dt id="parse_data"><a class="permalink" href="#parse_data">parse_data
+    DATOS</a></dt>
+  <dd><i>Método de instancia.</i> Analiza un mensaje MIME ya en memoria. Internamente crea un manejador de archivos en memoria usando PerlIO.
+    <p class="Pp">Puede proporcionar los DATOS de cualquier manera...</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><b>Un escalar</b> que almacena el mensaje. Se usará una referencia a este escalar internamente.</li>
+  <li><b>Una referencia a un escalar</b> que almacena el mensaje. Esta referencia se usará internamente.</li>
+  <li><b>OBSOLETO</b>
+    <p class="Pp"><b>Una referencia a un array de escalares.</b> El array se concatena internamente en una cadena temporal, y se usa una referencia a la nueva cadena internamente.</p>
+    <p class="Pp">Es más eficiente pasar una referencia a un escalar, por lo que te recomiendo reestructurar tu código para usar esta interfaz. Si absolutamente necesitas pasar un array, puede ser mejor usar IO::ScalarArray en el código que llama a <b><i>parse()</i></b><i></i></p>
+  </li>
+</ul>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Devuelve el MIME::Entity analizado en caso de éxito.</p>
+</div>
+<dl class="Bl-tag">
+  <dt id="parse"><a class="permalink" href="#parse">parse INSTREAM</a></dt>
+  <dd><i>Método de instancia.</i> Toma una transmisión MIME y la divide en sus entidades componentes.
+    <p class="Pp">El INSTREAM puede proporcionarse como un IO::File, un manejador de archivos globref (como "\*STDIN"), o como cualquier objeto que implemente la interfaz IO (que como mínimo implementa <b>getline()</b> y <b>read()</b>).</p>
+    <p class="Pp">Devuelve el MIME::Entity analizado en caso de éxito. Lanza una excepción en caso de error. Si el mensaje tiene demasiadas partes (según lo establecido por <i>max_parts</i>), devuelve undef.</p>
+  </dd>
+  <dt id="parse_open"><a class="permalink" href="#parse_open">parse_open
+    EXPR</a></dt>
+  <dd><i>Método de instancia.</i> Interfaz conveniente a <span class="Li">parse()</span>. Simplemente proporcione a este método cualquier expresión que pueda usarse como segundo argumento a <b>open()</b> para abrir un manejador de archivos para lectura.
+    <p class="Pp">Devuelve el MIME::Entity analizado en caso de éxito. Lanza una excepción en caso de error.</p>
+  </dd>
+  <dt id="parse_two"><a class="permalink" href="#parse_two">parse_two HEADFILE,
+    BODYFILE</a></dt>
+  <dd><i>Método de instancia.</i> Interfaz conveniente a <span class="Li">parse_open()</span>, para programas que se ejecutan bajo manejadores de correo como <b>deliver</b>, que divide el mensaje de correo en un archivo de encabezado y un cuerpo. Simplemente proporcione a este método las rutas a los archivos correspondientes.
+    <p class="Pp"><b>¡Advertencia!</b> Se asume que, una vez concatenados los archivos, habrá una línea en blanco separando la parte del encabezado y el cuerpo.</p>
+    <p class="Pp"><b>¡Advertencia!</b> La nueva implementación lee los archivos en un array de líneas para mayor portabilidad, en lugar de usar 'cat'. Esto puede ser un problema si sus mensajes son grandes.</p>
+    <p class="Pp">Devuelve el MIME::Entity analizado en caso de éxito. Lanza una excepción en caso de error.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='especificar_el_destino_de_salida'><a class='permalink' href='#especificar_el_destino_de_salida'>Especificar el destino de salida</a></h2>
+<p class="Pp"><b>¡Advertencia!</b> En las versiones 5.212 y anteriores, esto se hacía a través de métodos de MIME::Parser. Sin embargo, dado que muchos usuarios han solicitado un control fino sobre cómo se realiza esto, la lógica se ha separado del parser y se ha colocado en su propia clase, MIME::Parser::Filer. Cada MIME::Parser maneja una instancia de una clase derivada de MIME::Parser::Filer para administrar la salida a disco (consulte MIME::Parser::Filer para obtener detalles).</p>
+<p class="Pp">La ventaja es que el código de MIME::Parser no se verá saturado con muchas cosas relacionadas con el disco. La desventaja es que la forma en que anula el comportamiento predeterminado cambiará.</p>
+<p class="Pp">Por ahora, todos los métodos públicos normales todavía se proporcionan, pero muchos son solo stubs que crean o delegan a la clase MIME::Parser::Filer subyacente.</p>
+<dl class="Bl-tag">
+  <dt id="filer"><a class="permalink" href="#filer">filer [FILER]</a></dt>
+  <dd><i>Método de instancia.</i> Obtiene/establece el objeto FILER utilizado para administrar la salida a disco. Este será una subclase de MIME::Parser::Filer.</dd>
+  <dt id="output_dir"><a class="permalink" href="#output_dir">output_dir
+    DIRECTORIO</a></dt>
+  <dd><i>Método de instancia.</i> Crea mensajes que se guardan directamente en el DIRECTORIO dado. Esto lo hace estableciendo el objeto subyacente en <b>filer()</b> a una nueva instancia de MIME::Parser::FileInto, y pasa los argumentos a su método <b>new()</b>.
+    <p class="Pp"><b>Nota:</b> Este método reemplaza el objeto subyacente, por lo que debes invocarlo <i>antes</i> de realizar cambios en cualquier atributo del objeto, como el prefijo de salida; de lo contrario, esos cambios se perderán.</p>
+  </dd>
+  <dt id="output_under"><a class="permalink" href="#output_under">output_under
+    BASEDIR, OPTS...</a></dt>
+  <dd><i>Método de instancia.</i> Crea mensajes que se guardan directamente en subdirectorios de BASEDIR, uno por mensaje. Esto lo hace estableciendo el objeto subyacente en <b>filer()</b> a una nueva instancia de MIME::Parser::FileUnder, y pasa los argumentos a su método <b>new()</b>.
+    <p class="Pp"><b>Nota:</b> Este método reemplaza el objeto subyacente, por lo que debes invocarlo <i>antes</i> de realizar cambios en cualquier atributo del objeto, como el prefijo de salida; de lo contrario, esos cambios se perderán.</p>
+  </dd>
+  <dt id="output_path"><a class="permalink" href="#output_path">output_path
+    HEAD</a></dt>
+  <dd><i>Método de instancia, OBSOLETO.</i> Dado un encabezado MIME para un archivo que se extraerá, genera una buena ruta de salida para el archivo extraído. Idéntico a la forma preferida:
+        <pre>$parser-&gt;filer-&gt;output_path(...args...);
+</pre>
+    <p class="Pp">Delegamos esto al objeto subyacente <b>filer()</b></p>
+  </dd>
+  <dt id="output_prefix"><a class="permalink" href="#output_prefix">output_prefix
+    [PREFIX]</a></dt>
+  <dd><i>Método de instancia, OBSOLETO.</i> Obtiene/establece la cadena corta con la que comenzarán todos los directorios de archivos extraídos (asumiendo que no hay un "nombre recomendado" mejor). Idéntico a la forma preferida:
+        <pre>$parser-&gt;filer-&gt;output_prefix(...args...);
+</pre>
+    <p class="Pp">Delegamos esto al objeto subyacente <b>filer()</b></p>
+  </dd>
+  <dt id="evil_filename"><a class="permalink" href="#evil_filename">evil_filename
+    NAME</a></dt>
+  <dd><i>Método de instancia, OBSOLETO.</i> Idéntico a la forma preferida:
+        <pre>$parser-&gt;filer-&gt;evil_filename(...args...);
+</pre>
+    <p class="Pp">Delegamos esto al objeto subyacente <b>filer()</b></p>
+  </dd>
+  <dt id="max_parts"><a class="permalink" href="#max_parts">max_parts
+    NUM</a></dt>
+  <dd><i>Método de instancia.</i> Limita el número de partes MIME que se analizarán.
+    <p class="Pp">Normalmente, las instancias de esta clase analizan un mensaje hasta el final. Los mensajes con muchas partes MIME pueden causar un consumo excesivo de memoria. Si invoca este método, el análisis se detendrá con <b>die()</b> si un mensaje tiene más de NUM partes.</p>
+    <p class="Pp">Si NUM se establece en -1 (el valor predeterminado), no se establece ningún límite.</p>
+    <p class="Pp">Sin argumento, devuelve el valor actual como un entero.</p>
+  </dd>
+  <dt id="output_to_core"><a class="permalink" href="#output_to_core">output_to_core
+    YESNO</a></dt>
+  <dd><i>Método de instancia.</i> Normalmente, las instancias de esta clase escriben todos sus datos de cuerpo decodificados en archivos en disco (a través de MIME::Body::File). Sin embargo, puede cambiar este comportamiento invocando este método antes de analizar:
+    <p class="Pp">Si YESNO es false (el valor predeterminado), todos los datos del cuerpo van a archivos en disco.</p>
+    <p class="Pp">Si YESNO es true, todos los datos del cuerpo van a estructuras de datos en memoria. Esto es un poco arriesgado (¿qué pasa si alguien te envía un MPEG o...</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+          <h2 class="Ss" id="tar_file"><a class="permalink" href="#tar_file">Archivo Tar</a></h2>
+          <dl class="Bl-tag">
+            <dt id="tar_file"><a class="permalink" href="#tar_file">tar_file</a></dt>
+            <dd><i>Método de instancia.</i> Mantiene la configuración del archivo tar como un valor booleano.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="tmp_to_core"><a class="permalink" href="#tmp_to_core">tmp_to_core</a></h2>
+          <dl class="Bl-tag">
+            <dt id="tmp_to_core"><a class="permalink" href="#tmp_to_core">tmp_to_core</a> [YESNO]</dt>
+            <dd><i>Método de instancia.</i> ¿Debería <b>new_tmpfile()</b> crear archivos temporales en disco o usar archivos en memoria? Normalmente permitimos la creación de archivos temporales en disco, ya que permite manejar grandes archivos adjuntos incluso cuando el núcleo está limitado.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="use_inner_files"><a class="permalink" href="#use_inner_files">use_inner_files</a></h2>
+          <dl class="Bl-tag">
+            <dt id="use_inner_files"><a class="permalink" href="#use_inner_files">use_inner_files</a> [YESNO]</dt>
+            <dd><i>ELIMINADO</i>.
+              <p class="Pp"><i>Método de instancia.</i></p>
+              <p class="Pp">MIME::Parser ya no soporta IO::InnerFile, pero este método se mantiene por compatibilidad inversa. No hace nada.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="Specifying_classes_to_be_instantiated"><a class="permalink" href="#Specifying_classes_to_be_instantiated">Especificando clases a instanciar</a></h2>
+          <dl class="Bl-tag">
+            <dt id="interface"><a class="permalink" href="#interface">interface</a> ROL,[VALOR]</dt>
+            <dd><i>Método de instancia.</i> Durante el análisis, el analizador normalmente crea instancias de ciertas clases, como MIME::Entity. Sin embargo, podrías querer crear una subclase del analizador que use tus propias clases experimentales de cabecera, entidad, etc. (por ejemplo, tu clase de "cabecera" puede proporcionar métodos adicionales orientados a MIME).
+
+            <p class="Pp">Si lo deseas, entonces este es el método que tu subclase debe invocar durante la inicialización. Usa como ejemplo:</p>
+            <pre>package MiAnalizador;
+@ISA = qw(MIME::Analizador);
+...
+sub init {
+    my $self = shift;
+    $self-&gt;SUPER::init(@_);        ### hacer la inicialización del padre
+    $self-&gt;interface(ENTIDAD_CLASE =&gt; 'MIME::MiEntidad');
+    $self-&gt;interface(CABECERA_CLASE   =&gt; 'MIME::MiCabecera');
+    $self;                         ### devolver
+}
+</pre>
+            <p class="Pp">Sin valor, devuelve el valor asociado con ese Rol actual.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="new_body_for"><a class="permalink" href="#new_body_for">new_body_for</a> CABECERA</h2>
+          <dl class="Bl-tag">
+            <dt id="new_body_for"><a class="permalink" href="#new_body_for">new_body_for</a> CABECERA</dt>
+            <dd><i>Método de instancia.</i> Dada la CABECERA de una parte que estamos analizando, devuelve un nuevo objeto de tipo MIME::Body (cualquiera que sea su subclase) para recibir los datos de esa parte.
+
+            <p class="Pp">Si has configurado la opción <span class="Li">output_to_core</span> a falso (el valor por defecto), entonces llamamos a <span class="Li">output_path()</span> y creamos un objeto MIME::Body::File en ese archivo.
+
+            <p class="Pp">Si has configurado la opción <span class="Li">output_to_core</span> a verdadero antes de analizar, entonces obtienes un objeto MIME::Body::InCore.
+
+            <p class="Pp">Si quieres que el analizador haga algo diferente, puedes sobreescribir este método en una subclase.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="Temporary_File_Creation"><a class="permalink" href="#Temporary_File_Creation">Creación de Archivos Temporales</a></h2>
+          <dl class="Bl-tag">
+            <dt id="tmp_dir"><a class="permalink" href="#tmp_dir">tmp_dir</a> DIRECTORIO</dt>
+            <dd><i>Método de instancia.</i> Crea cualquier archivo temporal generado por este analizador en el directorio especificado.
+
+            <p class="Pp">Si se llama sin argumentos, devuelve el valor actual.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="new_tmpfile"><a class="permalink" href="#new_tmpfile">new_tmpfile</a></h2>
+          <dl class="Bl-tag">
+            <dt id="new_tmpfile"><a class="permalink" href="#new_tmpfile">new_tmpfile</a></dt>
+            <dd><i>Método de instancia.</i> Devuelve un handle de IO para almacenar datos temporales durante el análisis.
+
+            <p class="Pp">El valor por defecto usa <b>MIME::Tools::tmpopen()</b> para crear un archivo temporal nuevo, excepto si <b>tmp_to_core()</b> lo indica, pero puedes sobrescribirlo. No deberías necesitarlo.
+
+            <p class="Pp">El lugar donde se guardan los archivos temporales puede cambiarse por defecto en el análisis del parser con <b>tmp_dir()</b>.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="Parse_results_and_error_recovery"><a class="permalink" href="#Parse_results_and_error_recovery">Resultados del análisis y recuperación de errores</a></h2>
+          <dl class="Bl-tag">
+            <dt id="last_error"><a class="permalink" href="#last_error">last_error</a></dt>
+            <dd><i>Método de instancia.</i> Devuelve el error (si existe) que ignoró en el último análisis.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="ambiguous_content"><a class="permalink" href="#ambiguous_content">ambiguous_content</a></h2>
+          <dl class="Bl-tag">
+            <dt id="ambiguous_content"><a class="permalink" href="#ambiguous_content">ambiguous_content</a></dt>
+            <dd><i>Método de instancia.</i> Devuelve verdadero si el mensaje más reciente tiene una o más entidades con contenido ambiguo. Consulta la documentación del método <span class="Li">ambiguous_content</span> de <span class="Li">MIME::Entity</span> para más detalles.
+
+            <p class="Pp">Nota: aunque estas dos llamadas a <b>ambiguous_content</b> devuelven el mismo resultado:</p>
+            <pre>$entidad = $parser-&gt;parse($whatever_stream);
+$parser-&gt;ambiguous_content();
+$entidad-&gt;ambiguous_content();
+</pre>
+            <p class="Pp">La primera es más rápida porque simplemente devuelve los resultados detectados durante el análisis, mientras que la segunda ejecuta el código que verifica explícitamente el contenido ambiguo.</dd>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="last_head"><a class="permalink" href="#last_head">last_head</a></h2>
+          <dl class="Bl-tag">
+            <dt id="last_head"><a class="permalink" href="#last_head">last_head</a></dt>
+            <dd><i>Método de instancia.</i> Devuelve la cabecera MIME más alta del último stream que intentó analizar. Es útil para responder a usuarios que envían mensajes MIME mal formados.
+
+            <pre>### Analiza un stream de entrada:
+eval { $entidad = $parser-&gt;parse(\*STDIN) };
+if (!$entidad) {    ### ¡falló el análisis!
+    my $decabezado = $parser-&gt;last_head;
+    ...
+}
+</pre>
+          </dl>
+        </section>
+        <section class="Ss">
+          <h2 class="Ss" id="results"><a class="permalink" href="#results">results</a></h2>
+          <dl class="Bl-tag">
+            <dt id="results"><a class="permalink" href="#results">results</a></dt>
+            <dd><i>Método de instancia.</i> Devuelve un objeto que contiene mucha información de la última entidad analizada. Este será una instancia de la clase MIME::Parser::Results.</dd>
+          </dl>
+        </section>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="OPTIMIZING_YOUR_PARSER"><a class='permalink' href='#OPTIMIZING_YOUR_PARSER'>OPTIMIZANDO TU ANALIZADOR</a></h1>
+      <section class="Ss">
+        <h2 class="Ss" id="Maximizing_speed"><a class='permalink' href='#Maximizing_speed'>Maximizando la velocidad</a></h2>
+        <p class="Pp">Mejores mecanismos de entrada:</p>
+        <pre>parse()                    SÍ (si le das un globref o una subclase de IO::File)
+parse_open()               SÍ
+parse_data()               NO  (ver abajo)
+parse_two()                NO  (ver abajo)</pre>
+        <p class="Pp">Mejores configuraciones:</p>
+        <pre>decode_headers()           *** (no hay diferencia real; 0 es ligeramente más rápido)
+extract_nested_messages()  0   (puede ser ligeramente más rápido, pero generalmente querrás configurarlo a 1)
+output_to_core()           0   (será mucho más rápido)
+tmp_to_core()              0   (será mucho más rápido)</pre>
+        <p class="Pp"><b>La I/O nativa es mucho más rápida que la I/O orientada a objetos.</b> Es mucho más rápido usar &lt;$foo&gt; que $foo-&gt;getline. Para compatibilidad inversa, este módulo debe continuar usando I/O orientada a objetos en la mayoría de los lugares, pero si usas <b>parse()</b> con un archivo real (string, globref, o subclase de IO::File), MIME::Parser puede realizar algunas optimizaciones importantes.</p>
+        <p class="Pp"><b>La llamada parse_two() es muy ineficiente.</b> Actualmente es solo una interfaz para <b>parse_data()</b>. Si tu sistema lo soporta, estás *mucho mejor* haciendo algo como:</p>
+        <pre>$parser-&gt;parse_open(&quot;/bin/cat msg.head msg.body |&quot;);</pre>
+      </section>
+      <section class="Ss">
+        <h2 class="Ss" id="Minimizing_memory"><a class='permalink' href='#Minimizing_memory'>Minimizando la memoria</a></h2>
+        <p class="Pp">Mejores mecanismos de entrada:</p>
+        <pre>parse()                    SÍ
+parse_open()               SÍ
+parse_data()               NO  (la I/O en memoria consumirá el core)
+parse_two()                NO  (la I/O en memoria consumirá el core)</pre>
+        <p class="Pp">Mejores configuraciones:</p>
+        <pre>decode_headers()           *** (no hay diferencia real)
+extract_nested_messages()  *** (no hay diferencia real)
+output_to_core()           0   (usará mucha menos memoria)
+                                tmp_to_core es 1)
+tmp_to_core()              0   (usará mucha menos memoria)</pre>
+      </section>
+      <section class="Ss">
+        <h2 class="Ss" id="Maximizing_tolerance_of_bad_MIME"><a class='permalink' href='#Maximizing_tolerance_of_bad_MIME'>Maximizando la tolerancia a MIME defectuoso</a></h2>
+        <p class="Pp">Mejores mecanismos de entrada:</p>
+        <pre>parse()                    *** (no importa)
+parse_open()               *** (no importa)
+parse_data()               *** (no importa)
+parse_two()                *** (no importa)</pre>
+        <p class="Pp">Mejores configuraciones:</p>
+        <pre>decode_headers()           0   (evita el problema de las cabeceras mal codificadas)
+extract_nested_messages()  0   (evita problemas con mensajes anidados defectuosos, pero a menudo querrás configurarlo a 1)
+output_to_core()           *** (no importa)
+tmp_to_core()              *** (no importa)</pre>
+      </section>
+      <section class="Ss">
+        <h2 class="Ss" id="Avoiding_disk-based_temporary_files"><a class='permalink' href='#Avoiding_disk-based_tempor'>Evitando archivos temporales basados en disco</a></h2><section class="Sh">
+<h1 class="Sh" id='OPTIMIZING_YOUR_PARSER'><a class='permalink' href='#OPTIMIZING_YOUR_PARSER'>OPTIMIZING YOUR PARSER</a></h1>
+<h2 class="Sh" id='avoiding_disk-based_temporary_files'><a class='permalink' href='#avoiding_disk-based_temporary_files'>Avoiding disk-based temporary files</a></h2>
+<p class="Pp">Optimum input mechanisms:</p>
+<pre>parse()                    YES (if you give it a seekable handle)
+parse_open()               YES (becomes a seekable handle)
+parse_data()               NO  (unless you set tmp_to_core(1))
+parse_two()                NO  (unless you set tmp_to_core(1))</pre>
+<p class="Pp">Optimum settings:</p>
+<pre>decode_headers()           *** (doesn't matter)
+extract_nested_messages()  *** (doesn't matter)
+output_to_core()           *** (doesn't matter)
+tmp_to_core()              1</pre>
+<p class="Pp"><b>You can veto tmpfiles entirely.</b> You can set
+    <b>tmp_to_core()</b> true: this will always use in-core I/O for the
+    buffering (<b>warning:</b> this will slow down the parsing of messages with
+    large attachments).</p>
+<p class="Pp"><b>Final resort.</b> You can always override <b>new_tmpfile()</b>
+    in a subclass.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='WARNINGS'><a class='permalink' href='#WARNINGS'>WARNINGS</a></h1>
+<dl class="Bl-tag">
+  <dt id="Multipart"><a class="permalink" href="#Multipart">Multipart messages
+    are always read line-by-line</a></dt>
+  <dd>Multipart document parts are read line-by-line, so that the encapsulation
+      boundaries may easily be detected. However, bad MIME composition agents
+      (for example, naive CGI scripts) might return multipart documents where
+      the parts are, say, unencoded bitmap files... and, consequently, where
+      such &quot;lines&quot; might be veeeeeeeeery long indeed.
+    <p class="Pp">A better solution for this case would be to set up some form
+        of state machine for input processing. This will be left for future
+        versions.</p>
+  </dd>
+  <dt id="Multipart~2"><a class="permalink" href="#Multipart~2">Multipart parts
+    read into temp files before decoding</a></dt>
+  <dd>In my original implementation, the MIME::Decoder classes had to be aware
+      of encapsulation boundaries in multipart MIME documents. While this
+      decode-while-parsing approach obviated the need for temporary files, it
+      resulted in inflexible and complex decoder implementations.
+    <p class="Pp">The revised implementation uses a temporary file (a la
+        <span class="Li">tmpfile()</span>) during parsing to hold the
+        <i>encoded</i> portion of the current MIME document or part. This file
+        is deleted automatically after the current part is decoded and the data
+        is written to the &quot;body stream&quot; object; you'll never see it,
+        and should never need to worry about it.</p>
+    <p class="Pp">Some folks have asked for the ability to bypass this temp-file
+        mechanism, I suppose because they assume it would slow down their
+        application. I considered accommodating this wish, but the temp-file
+        approach solves a lot of thorny problems in parsing, and it also
+        protects against hidden bugs in user applications (what if you've
+        directed the encoded part into a scalar, and someone unexpectedly sends
+        you a 6 MB tar file?). Finally, I'm just not convinced that the
+        temp-file use adds significant overhead.</p>
+  </dd>
+  <dt id="Fuzzing"><a class="permalink" href="#Fuzzing">Fuzzing of CRLF and
+    newline on input</a></dt>
+  <dd>RFC 2045 dictates that MIME streams have lines terminated by CRLF
+      (<span class="Li">&quot;\r\n&quot;</span>). However, it is extremely
+      likely that folks will want to parse MIME streams where each line ends in
+      the local newline character <span class="Li">&quot;\n&quot;</span>
+      instead.
+    <p class="Pp">An attempt has been made to allow the parser to handle both
+        CRLF and newline-terminated input.</p>
+  </dd>
+  <dt id="Fuzzing~2"><a class="permalink" href="#Fuzzing~2">Fuzzing of CRLF and
+    newline on output</a></dt>
+  <dd>The <span class="Li">&quot;7bit&quot;</span> and
+      <span class="Li">&quot;8bit&quot;</span> decoders will decode both a
+      <span class="Li">&quot;\n&quot;</span> and a
+      <span class="Li">&quot;\r\n&quot;</span> end-of-line sequence into a
+      <span class="Li">&quot;\n&quot;</span>.
+    <p class="Pp">The <span class="Li">&quot;binary&quot;</span> decoder
+        (default if no encoding specified) still outputs stuff verbatim... so a
+        MIME message with CRLFs and no explicit encoding will be output as a
+        text file that, on many systems, will have an annoying ^M at the end of
+        each line... <i>but this is as it should be</i>.</p>
+  </dd>
+  <dt id="Inability"><a class="permalink" href="#Inability">Inability to handle
+    multipart boundaries that contain newlines</a></dt>
+  <dd>First, let's get something straight: <i>this is an evil, EVIL
+      practice,</i> and is incompatible with RFC 2046... hence, it's not valid
+      MIME.
+    <p class="Pp">If your mailer creates multipart boundary strings that contain
+        newlines <i>when they appear in the message body,</i> give it two weeks
+        notice and find another one. If your mail robot receives MIME mail like
+        this, regard it as syntactically incorrect MIME, which it is.</p>
+    <p class="Pp">Why do I say that? Well, in RFC 2046, the syntax of a boundary
+        is given quite clearly:</p>
+        <pre>boundary := 0*69&lt;bchars&gt; bcharsnospace
+bchars := bcharsnospace / &quot; &quot;
+bcharsnospace :=    DIGIT / ALPHA / &quot;'&quot; / &quot;(&quot; / &quot;)&quot; / &quot;+&quot; /&quot;_&quot;
+             / &quot;,&quot; / &quot;-&quot; / &quot;.&quot; / &quot;/&quot; / &quot;:&quot; / &quot;=&quot; / &quot;?&quot;
+</pre>
+    <p class="Pp">All of which means that a valid boundary string <i>cannot</i>
+        have newlines in it, and any newlines in such a string in the message
+        header are expected to be solely the result of <i>folding</i> the string
+        (i.e., inserting to-be-removed newlines for readability and
+        line-shortening <i>only</i>).</p>
+    <p class="Pp">Yet, there is at least one brain-damaged user agent out there
+        that composes mail like this:</p>
+        <pre>MIME-Version: 1.0
+Content-type: multipart/mixed; boundary=&quot;----ABC-
+ 123----&quot;
+Subject: Hi... I'm a dork!
+This is a multipart MIME message (yeah, right...)
+----ABC-
+ 123----
+Hi there!
+</pre>
+    <p class="Pp">We have <i>got</i> to discourage practices like this (and the
+        recent file upload idiocy where binary files that are part of a
+        multipart MIME message aren't base64-encoded) if we want MIME to stay
+        relatively simple, and MIME parsers to be relatively robust.</p>
+    <p class="Pp"><i>Thanks to Andreas Koenig for bringing a baaaaaaaaad user
+        agent to</i> <i>my attention.</i></p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp">MIME::Tools, MIME::Head, MIME::Body, MIME::Entity,
+  MIME::Decoder</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Eryq (<i>eryq@zeegee.com</i>), ZeeGee Software Inc
+    (<a href='http://www.zeegee.com'>http://www.zeegee.com</a>). Dianne Skoll (dianne@skoll.ca)</p>
+<p class="Pp">All rights reserved. This program is free software; you can
+    redistribute it and/or modify it under the same terms as Perl itself.</p>
+</section>

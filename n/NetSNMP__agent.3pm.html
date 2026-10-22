@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>NetSNMP::agent(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">NetSNMP__agent(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/net-snmp/">net-snmp</a></p>
+<p class="lic">Licencias: BSD</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">agent(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">agent(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">NetSNMP::agent - Extensión de Perl para el agente net-snmp.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>use NetSNMP::agent;
+my $agent = new NetSNMP::agent('Name' =&gt; 'mi_nombre_agente');</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCION'><a class='permalink' href='#DESCRIPCION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo implementa un conjunto de API para hacer que un agente
+    SNMP actúe como un agente snmp, un subagente snmp (usando el protocolo de
+    subagente AgentX) y/o APIs embebidas de perl directamente dentro del demonio
+    tradicional del agente net-snmp.</p>
+<p class="Pp">Consulte también el tutorial sobre la API general de C de Net-SNMP,
+    que este módulo implementa a la manera de Perl, y un tutorial específico de
+    Perl en:</p>
+<a href='http://www.net-snmp.org/tutorial-5/toolkit/'>http://www.net-snmp.org/tutorial-5/toolkit/</a>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLOS'><a class='permalink' href='#EJEMPLOS'>EJEMPLOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplo_de_subagente'><a class='permalink' href='#Ejemplo_de_subagente'>Ejemplo de subagente</a></h2>
+<pre>use NetSNMP::agent (':all');
+use NetSNMP::ASN qw(ASN_OCTET_STR);
+my $value = &quot;hola mundo&quot;;
+sub myhandler {
+    my ($handler, $registration_info, $request_info, $requests) = @_;
+    my $request;
+    for($request = $requests; $request; $request = $request-&gt;next()) {
+        my $oid = $request-&gt;getOID();
+        if ($request_info-&gt;getMode() == MODE_GET) {
+            # ... generalmente, calcularías el valor a partir del oid
+            if ($oid == new NetSNMP::OID(&quot;.1.3.6.1.4.1.8072.9999.9999.7375.1.0&quot;)) {
+                $request-&gt;setValue(ASN_OCTET_STR, $value);
+            }
+        } elsif ($request_info-&gt;getMode() == MODE_GETNEXT) {
+            # ... generalmente, calcularías el valor a partir del oid
+            if ($oid &lt; new NetSNMP::OID(&quot;.1.3.6.1.4.1.8072.9999.9999.7375.1.0&quot;)) {
+                $request-&gt;setOID(&quot;.1.3.6.1.4.1.8072.9999.9999.7375.1.0&quot;);
+                $request-&gt;setValue(ASN_OCTET_STR, $value);
+            }
+        } elsif ($request_info-&gt;getMode() == MODE_SET_RESERVE1) {
+            if ($oid != new NetSNMP::OID(&quot;.1.3.6.1.4.1.8072.9999.9999.7375.1.0&quot;)) {  # haz la comprobación de errores aquí
+                $request-&gt;setError($request_info, SNMP_ERR_NOSUCHNAME);
+            }
+        } elsif ($request_info-&gt;getMode() == MODE_SET_ACTION) {
+            # ... (o usa el valor)
+            $value = $request-&gt;getValue();
+        }
+    }
+}
+my $agent = new NetSNMP::agent(
+                        # hace que el agente lea un archivo de configuración my_agent_name.conf
+                        'Name' =&gt; &quot;mi_nombre_agente&quot;,
+                        'AgentX' =&gt; 1
+                        );
+$agent-&gt;register(&quot;mi_nombre_agente&quot;, &quot;.1.3.6.1.4.1.8072.9999.9999.7375&quot;,
+                 \&amp;myhandler);
+my $running = 1;
+while($running) {
+        $agent-&gt;agent_check_and_process(1);
+}
+$agent-&gt;shutdown();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ejemplo_de_agente_embebido'><a class='permalink' href='#Ejemplo_de_agente_embebido'>Ejemplo de agente embebido</a></h2>
+<pre># coloca esto en un archivo .pl, y luego en tu archivo snmpd.conf pon:
+#    perl do '/ruta/al/archivo.pl';
+use NetSNMP::agent;
+my $agent;
+sub myhandler {
+    my ($handler, $registration_info, $request_info, $requests) = @_;
+    # ...
+}
+$agent = new NetSNMP::agent(
+                        'Name' =&gt; 'mi_nombre_agente'
+                        );
+$agent-&gt;register(&quot;mi_nombre_agente&quot;, &quot;.1.3.6.1.4.1.8072.9999.9999.7375&quot;,
+                 \&amp;myhandler);
+$agent-&gt;main_loop();</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CONSTRUCTOR'><a class='permalink' href='#CONSTRUCTOR'>CONSTRUCTOR</a></h1>
+<pre>new ( OPCIONES )
+    Este es el constructor para un nuevo objeto NetSNMP::agent.
+Opciones posibles son:
+    Name    - Nombre del agente (opcional, por defecto es &quot;perl&quot;)
+              (La librería snmp leerá un archivo de configuración snmp
+              NAME.conf basado en este argumento.)
+    AgentX  - Haznos un subagente (0 = falso, 1 = verdadero)
+              (El agente maestro Net-SNMP debe estar ejecutándose primero)
+    Ports   - Puertos en los que este agente escuchará (EJ: &quot;udp:161,tcp:161&quot;)
+Ejemplo:
+    $agent = new NetSNMP::agent(
+                             'Name' =&gt; 'mi_nombre_agente',
+                             'AgentX' =&gt; 1
+                             );</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METODOS'><a class='permalink' href='#METODOS'>MÉTODOS</a></h1>
+<pre>register (NOMBRE, OID, \&amp;rutina_manejadora )
+    Registra el manejador de callback con el OID dado.
+    $agent-&gt;register();
+    Un código de retorno de 0 indica que no hay error.
+agent_check_and_process ( BLOQUEANTE )
+    Ejecuta una iteración del bucle principal.
+    BLOQUEANTE - Llamada bloqueante o no bloqueante. 1 = verdadero, 0 = falso.
+    $agent-&gt;agent_check_and_process(1);
+main_loop ()
+    Ejecuta el agente en un bucle. No retorna.
+shutdown ()
+    Cierra el agente o subagente de forma limpia.
+    $agent-&gt;shutdown();</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CALLBACKS_DE_MANEJADOR'><a class='permalink' href='#CALLBACKS_DE_MANEJADOR'>CALLBACKS DE MANEJADOR</a></h1>
+<pre>handler ( MANEJADOR, INFORMACION_REGISTRO, INFORMACION_SOLICITUD, SOLICITUDES )
+    El manejador es llamado con los siguientes parámetros:
+    MANEJADOR                 - FIXME
+    INFORMACION_REGISTRO       - ¿cuáles son los significados correctos de estos?
+    INFORMACION_SOLICITUD      -
+    SOLICITUDES                -
+Ejemplo de manejador:
+    sub myhandler {
+        my ($handler, $reg_info, $request_info, $requests) = @_;
+        # ...
+    }</pre>
+<p class="Pp">La subrutina manejadora será llamada cuando una solicitud SNMP
+    recibida por el agente para cualquier cosa por debajo del OID registrado. El
+    manejador recibe 4 argumentos: <span class="Li">$handler</span>,
+    <span class="Li">$registration_info</span>,
+    <span class="Li">$request_info</span>, <span class="Li">$requests</span>.
+    Estos coinciden con los argumentos pasados a la versión C de la misma API. Tenga
+    en cuenta que no son objetos completamente completos sino que son
+    funcionales &quot;suficientemente&quot; en este momento.</p>
+<section class="Ss">
+<h2 class="Ss" id='funciones_del_objeto_$request_info'><a class='permalink' href='#funciones_del_objeto_$request_info'>funciones del objeto $request_info</a></h2>
+<pre>getMode ()
+    Devuelve el modo de la solicitud. Vea la sección MODOS para
+    la lista de modos válidos.
+    $mode = $request-&gt;getMode();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='funciones_del_objeto_$registration_info'><a class='permalink' href='#funciones_del_objeto_$registration_info'>funciones del objeto $registration_info</a></h2>
+<pre>getRootOID ()
+    Devuelve un objeto NetSNMP::OID que describe el punto de registro
+    para el cual se llama al manejador (en caso de que
+    registres una función manejadora con múltiples OIDs, lo cual
+    sería raro de todos modos)
+    $root_oid = $request-&gt;getRootOID();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='funciones_del_objeto_$request'><a class='permalink' href='#funciones_del_objeto_$request'>funciones del objeto $request</a></h2>
+<pre>next ()
+    Devuelve la siguiente solicitud en la lista o undef si no hay
+    siguiente solicitud.
+    $request = $request-&gt;next();
+getOID ()
+    Devuelve el oid de la solicitud (una clase NetSNMP::OID).
+    $oid = $request-&gt;getOID();
+setOID (new NetSNMP::OID(&quot;unoid&quot;))
+    Establece el OID de la solicitud a un valor oid pasado. Esto
+    generalmente solo debe hacerse durante el manejo de solicitudes
+    GETNEXT.
+    $request-&gt;setOID(new NetSNMP::OID(&quot;unoid&quot;));
+getValue ()
+    Devuelve el valor de la solicitud. Se usa, por ejemplo, al
+    establecer valores.
+    $value = $request-&gt;getValue();
+    FIXME: ¿cómo obtener el tipo del valor? ¿Está siquiera disponible?
+           [Wes: no, todavía no.]
+setValue ( TIPO, DATOS )
+    Establece los datos que se devolverán al demonio.
+    Devuelve 1 si tiene éxito, 0 si hay error.
+    TIPO - Tipo de los datos. Consulte NetSNMP::ASN para tipos válidos.
+    DATOS - Los datos a devolver.
+    $ret = $request-&gt;setValue(ASN_OCTET_STR, &quot;prueba&quot;);
+setError ( INFORMACION_SOLICITUD, CODIGO_ERROR )
+    Establece el código de error dado para la solicitud. Consulte la sección
+    CÓDIGOS DE ERROR para la lista de códigos válidos.
+    $request-&gt;setError($request_info, SNMP_ERR_NOTWRITABLE);
+getProcessed ()
+    El indicador procesado indica que una solicitud no necesita
+    ser manejada porque alguien más (un manejador superior) ya la ha
+    manejado.
+    $processed = $request-&gt;getProcessed();
+setProcessed ( PROCESADO )
+    Establece el indicador procesado en la solicitud. Generalmente,
+    no deberías tener que establecerlo tú mismo.
+    PROCESADO - 0 = falso, 1 = verdadero
+    $request-&gt;setProcessed(1);
+getDelegated ()
+    Si puedes manejar una solicitud en segundo plano o en un momento posterior
+    (POR EJEMPLO, estás esperando un descriptor de archivo, o tráfico de red, o ...),
+    el indicador delegado se puede establecer en la solicitud. Cuando
+    la solicitud se procese en el futuro, el indicador debe restablecerse
+    a 0 para que el agente sepa que puede finalizar la solicitud original
+    y enviarla de vuelta al gestor. Esto no ha sido probado dentro de perl,
+    pero esperemos que funcione.
+    $delegated = $request-&gt;getDelegated();
+setDelegated ( DELEGADO )
+    Establece el indicador delegado.
+    DELEGADO - 0 = falso, 1 = verdadero
+    $request-&gt;setDelegated(1);
+getRepeat ()
+    El indicador de repetición indica que se está manejando una operación
+    getbulk y esto indica cuántas respuestas deben devolverse.
+    Generalmente, si no te registraste para manejar directamente el soporte
+    getbulk por ti mismo, no necesitarás</pre>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+d para tratar
+    con este valor.
+    $repeat = $request-&gt;getRepeat();
+setRepeat ( REPEAT )
+    Establece el recuento de repetición (disminuye después de responder a las solicitudes si
+    gestionas las solicitudes getbulk tú mismo)
+    REPEAT - recuento de repetición ARREGLARME
+    $request-&gt;setRepeat(5);
+getSourceIp ()
+    Obtiene la dirección IPv4 del dispositivo que realiza la solicitud al manejador.
+    use Socket;
+    print &quot;Fuente: &quot;, inet_ntoa($request-&gt;getSourceIp()), &quot;\n&quot;;
+getDestIp ()
+    Obtiene la dirección IPv4 del destino al que se envió la solicitud.
+    use Socket;
+    print &quot;Destino: &quot;, inet_ntoa($request-&gt;getDestIp()), &quot;\n&quot;;</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MODOS'><a class='permalink' href='#MODOS'>MODOS</a></h1>
+<pre>MODE_GET
+MODE_GETBULK
+MODE_GETNEXT
+MODE_SET_ACTION
+MODE_SET_BEGIN
+MODE_SET_COMMIT
+MODE_SET_FREE
+MODE_SET_RESERVE1
+MODE_SET_RESERVE2
+MODE_SET_UNDO</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CODIGOS_DE_ERROR'><a class='permalink' href='#CODIGOS_DE_ERROR'>CÓDIGOS DE ERROR</a></h1>
+<pre>SNMP_ERR_NOERROR
+SNMP_ERR_TOOBIG
+SNMP_ERR_NOSUCHNAME
+SNMP_ERR_BADVALUE
+SNMP_ERR_READONLY
+SNMP_ERR_GENERR
+SNMP_ERR_NOACCESS
+SNMP_ERR_WRONGTYPE
+SNMP_ERR_WRONGLENGTH
+SNMP_ERR_WRONGENCODING
+SNMP_ERR_WRONGVALUE
+SNMP_ERR_NOCREATION
+SNMP_ERR_INCONSISTENTVALUE
+SNMP_ERR_RESOURCEUNAVAILABLE
+SNMP_ERR_COMMITFAILED
+SNMP_ERR_UNDOFAILED
+SNMP_ERR_AUTHORIZATIONERROR
+SNMP_ERR_NOTWRITABLE</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Por favor, envía un correo a la lista de correo net-snmp-users@lists.sourceforge.net
+    para obtener ayuda, preguntas o comentarios sobre este módulo.</p>
+<p class="Pp">Módulo escrito por:
+  <br/>
+   Wes Hardaker &lt;hardaker@users.sourceforge.net&gt;</p>
+<p class="Pp">Documentación escrita por:
+  <br/>
+   Toni Willberg &lt;toniw@iki.fi&gt;
+  <br/>
+   Wes Hardaker &lt;hardaker@users.sourceforge.net&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIEN'><a class='permalink' href='#VER_TAMBIEN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/NetSNMP::OID.3.en'>NetSNMP::OID(3)</a>, <a href='/man/NetSNMP::ASN.3.en'>NetSNMP::ASN(3)</a>,
+  <a href='/man/perl.1.en'>perl(1)</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/net-snmp/">extra/net-snmp</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.9.4-7</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://www.net-snmp.org/">http://www.net-snmp.org/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>BSD</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/net-snmp/">/listing/extra/net-snmp/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINAPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#EXAMPLES">EJEMPLOS</a></li>
+        
+            <li><a href="#CONSTRUCTOR">CONSTRUCTOR</a></li>
+        
+            <li><a href="#METHODS">MÉTODOS</a></li>
+        
+            <li><a href="#HANDLER_CALLBACKS">CALLBACKS DEL MANEJADOR</a></li>
+        
+            <li><a href="#MODOS">MODOS</a></li>
+        
+            <li><a href="#ERROR_CODES">CÓDIGOS DE ERROR</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/NetSNMP::agent.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/NetSNMP::agent.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

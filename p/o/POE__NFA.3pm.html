@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::NFA(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__NFA(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::NFA(3)</td>
+    <td class="head-vol">User Contributed Perl Documentation</td>
+    <td class="head-rtitle">POE::NFA(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::NFA - una máquina de estados orientada a eventos (autómata finito no determinista)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use POE::Kernel;
+use POE::NFA;
+use POE::Wheel::ReadLine;
+# Inicia una NFA y entra en su estado inicial.
+POE::NFA-&gt;spawn(
+  inline_states =&gt; {
+    initial =&gt; {
+      setup =&gt; \&amp;setup_stuff,
+    },
+    state_login =&gt; {
+      on_entry =&gt; \&amp;login_prompt,
+      on_input =&gt; \&amp;save_login,
+    },
+    state_password =&gt; {
+      on_entry =&gt; \&amp;password_prompt,
+      on_input =&gt; \&amp;check_password,
+    },
+    state_cmd =&gt; {
+      on_entry =&gt; \&amp;command_prompt,
+      on_input =&gt; \&amp;handle_command,
+    },
+  },
+)-&gt;goto_state(initial =&gt; &quot;setup&quot;);
+POE::Kernel-&gt;run();
+exit;
+sub setup_stuff {
+  $_[RUNSTATE]{io} = POE::Wheel::ReadLine-&gt;new(
+    InputEvent =&gt; 'on_input',
+  );
+  $_[MACHINE]-&gt;goto_state(state_login =&gt; &quot;on_entry&quot;);
+}
+sub login_prompt { $_[RUNSTATE]{io}-&gt;get('Login: '); }
+sub save_login {
+  $_[RUNSTATE]{login} = $_[ARG0];
+  $_[MACHINE]-&gt;goto_state(state_password =&gt; &quot;on_entry&quot;);
+}
+sub password_prompt { $_[RUNSTATE]{io}-&gt;get('Password: '); }
+sub check_password {
+  if ($_[RUNSTATE]{login} eq $_[ARG0]) {
+    $_[MACHINE]-&gt;goto_state(state_cmd =&gt; &quot;on_entry&quot;);
+  }
+  else {
+    $_[MACHINE]-&gt;goto_state(state_login =&gt; &quot;on_entry&quot;);
+  }
+}
+sub command_prompt { $_[RUNSTATE]{io}-&gt;get('Cmd: '); }
+sub handle_command {
+  $_[RUNSTATE]{io}-&gt;put(&quot;  &lt;&lt;$_[ARG0]&gt;&gt;&quot;);
+  if ($_[ARG0] =~ /^(?:quit|stop|exit|halt|bye)$/i) {
+    $_[RUNSTATE]{io}-&gt;put('Bye!');
+    $_[MACHINE]-&gt;stop();
+  }
+  else {
+    $_[MACHINE]-&gt;goto_state(state_cmd =&gt; &quot;on_entry&quot;);
+  }
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::NFA implementa un tipo diferente de sesión POE: un autómata
+    finito no determinista. Desglosémoslo.</p>
+<p class="Pp">Un autómata finito es una máquina de estados con un número limitado
+    de estados y transiciones. Técnicamente, los objetos POE::NFA pueden modificarse
+    a sí mismos en tiempo de ejecución, por lo que realmente no son
+    &quot;finitos&quot;. La modificación en tiempo de ejecución no es compatible
+    actualmente con la API, ¡así que se mantiene la negación plausible!</p>
+<p class="Pp">Las máquinas de estados deterministas son aquellas en las que todas
+    las transiciones posibles se conocen en tiempo de compilación. POE::NFA es
+    &quot;no determinista&quot; porque las transiciones pueden cambiar según las
+    condiciones en tiempo de ejecución.</p>
+<p class="Pp">Pero, más sencillamente, POE::NFA es como POE::Session pero con
+    bancos de manejadores de eventos que pueden intercambiarse según el estado
+    de ejecución de la sesión. Considere el ejemplo de la SINOPSIS, que tiene
+    manejadores &quot;on_entry&quot; y &quot;on_input&quot; que hacen cosas
+    diferentes dependiendo del estado en tiempo de ejecución. POE::Wheel::ReadLine
+    lanza &quot;on_input&quot;, pero suceden cosas diferentes dependiendo de si
+    la sesión está en su estado de &quot;login&quot;, &quot;password&quot; o
+    &quot;command&quot;.</p>
+<p class="Pp">POE::NFA toma mucho prestado de POE::Session, por lo que este
+    documento solo discutirá las diferencias. Consulte POE::Session para ver las
+    cosas que son similares.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_METHODS'><a class='permalink' href='#PUBLIC_METHODS'>MÉTODOS PÚBLICOS</a></h1>
+<p class="Pp">Este documento se centra principalmente en las diferencias con
+    respecto a POE::Session.</p>
+<section class="Ss">
+<h2 class="Ss" id='get_current_state'><a class='permalink' href='#get_current_state'>get_current_state</a></h2>
+<p class="Pp">Cada estado de la máquina tiene un nombre. <b>get_current_state()</b>
+    devuelve el nombre del estado actual de la máquina. <b>get_current_state()</b>
+    se utiliza principalmente para recuperar el estado de alguna otra máquina. Es
+    más fácil (y rápido) usar <span class="Li">$_[STATE]</span> en los propios
+    manejadores de eventos de una máquina.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_runstate'><a class='permalink' href='#get_runstate'>get_runstate</a></h2>
+<p class="Pp"><b>get_runstate()</b> devuelve el estado de ejecución actual de
+    la máquina. Los estados de ejecución son equivalentes a los HEAPS de POE::Session,
+    por lo que este método hace prácticamente lo mismo que el
+    <b>get_heap()</b> de POE::Session. Sin embargo, es más fácil (y rápido)
+    usar <span class="Li">$_[RUNSTATE]</span> en los propios manejadores de
+    eventos de una máquina.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='spawn_STATE_NAME_=&amp;gt;_HANDLERS_HASHREF[,_...]'><a class='permalink' href='#spawn_STATE_NAME_=&amp;gt;_HANDLERS_HASHREF%5B,_...%5D'>spawn   NOMBRE_ESTADO =&gt; REFERENCIA_HASH_MANEJADORES[, ...]</a></h2>
+<p class="Pp"><b>spawn()</b> es el constructor de POE::NFA. El nombre refleja
+    la idea de que las nuevas máquinas de estados se inician como hilos o procesos
+    en lugar de instanciarse como objetos.</p>
+<p class="Pp">La máquina en sí se define como una lista de nombres de estados y
+    hashes que mapean eventos a manejadores dentro de cada estado.</p>
+<pre>my %states = (
+  state_1 =&gt; {
+    event_1 =&gt; \&amp;handler_1,
+    event_2 =&gt; \&amp;handler_2,
+  },
+  state_2 =&gt; {
+    event_1 =&gt; \&amp;handler_3,
+    event_2 =&gt; \&amp;handler_4,
+  },
+);</pre>
+<p class="Pp">Un solo evento puede ser manejado por muchos estados. El manejador
+    apropiado se llamará según el estado actual de la máquina. Por ejemplo, si
+    se envía <span class="Li">&quot;event_1&quot;</span> mientras la máquina está
+    en <span class="Li">&quot;state_2&quot;</span>, se llamará a
+    <b>handler_3()</b> para manejar el evento. El mapa estado -&gt; evento
+    -&gt; manejador se ve así:</p>
+<pre>$machine{state_2}{event_1} = \&amp;handler_3;</pre>
+<p class="Pp">En lugar de <span class="Li">&quot;inline_states&quot;</span>, se
+    pueden usar <span class="Li">&quot;object_states&quot;</span> o
+    <span class="Li">&quot;package_states&quot;</span>. Estos mapean los eventos
+    de un estado a un método de objeto o paquete respectivamente.</p>
+<pre>object_states =&gt; {
+  state_1 =&gt; [
+    $object_1 =&gt; [qw(event_1 event_2)],
+  ],
+  state_2 =&gt; [
+    $object_2 =&gt; {
+      event_1 =&gt; method_1,
+      event_2 =&gt; method_2,
+    }
+  ]
+}</pre>
+<p class="Pp">En el ejemplo anterior, en el caso de que llegue
+    <span class="Li">&quot;event_1&quot;</span> mientras la máquina está en
+    <span class="Li">&quot;state_1&quot;</span>, se llamará al método
+    <span class="Li">&quot;event_1&quot;</span> en <span class="Li">$object_1</span>.
+    Si la máquina está en <span class="Li">&quot;state_2&quot;</span>, se llamará
+    al método <span class="Li">&quot;method_1&quot;</span> en
+    <span class="Li">$object_2</span>.</p>
+<p class="Pp"><span class="Li">&quot;package_states&quot;</span> es muy
+    similar, pero en lugar de usar un <span class="Li">$object</span>, se pasa
+    un <span class="Li">&quot;Package::Name&quot;</span></p>
+<p class="Pp">El parámetro <span class="Li">&quot;runstate&quot;</span> permite
+    que <span class="Li">&quot;RUNSTATE&quot;</span> se inicialice de manera
+    diferente en el momento de la instanciación. <span class="Li">&quot;RUNSTATE&quot;</span>,
+    al igual que los heaps, suelen ser referencias hash anónimas, pero
+    <span class="Li">&quot;runstate&quot;</span> puede configurarlas para que sean
+    referencias de arrays o incluso objetos.</p>
+<p class="Pp">Las transiciones de estado no se ejecutan necesariamente de inmediato
+    por defecto. En su lugar, se colocan en la cola de eventos de POE detrás de
+    cualquier evento pendiente actualmente. Habilitar la opción
+    <span class="Li">&quot;immediate&quot;</span> hace que las transiciones de
+    estado ocurran inmediatamente, independientemente de cualquier evento en cola.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='goto_state_NEW_STATE[,_ENTRY_EVENT[,_EVENT_ARGS]]'><a class='permalink' href='#goto_state_NEW_STATE%5B,_ENTRY_EVENT%5B,_EVENT_ARGS%5D%5D'>goto_state   NUEVO_ESTADO[, EVENTO_ENTRADA[, ARGUMENTOS_EVENTO]]</a></h2>
+<p class="Pp"><b>goto_state()</b> pone la máquina en un nuevo estado. Si se
+    especifica un EVENTO_ENTRADA, ese evento se enviará después de que la máquina
+    entre en el nuevo estado. Los ARGUMENTOS_EVENTO, si se incluyen, se pasarán
+    al manejador del evento de entrada a través de <span class="Li">&quot;ARG0..$#_&quot;</span>.</p>
+<pre># Cambia al siguiente estado.
+$_[MACHINE]-&gt;goto_state( 'next_state' );
+# Cambia al siguiente estado y llama a un punto de entrada específico.
+$_[MACHINE]-&gt;goto_state( 'next_state', 'entry_event' );
+# Cambia al siguiente estado; llama a un punto de entrada con algunos valores.
+$_[MACHINE]-&gt;goto_state( 'next_state', 'entry_event', @parameters );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='stop'><a class='permalink' href='#stop'>stop</a></h2>
+<p class="Pp"><b>stop()</b> fuerza a una máquina a detenerse. La máquina también
+    se detendrá de forma elegante si se queda sin cosas que hacer, al igual que
+    POE::Session.</p>
+<p class="Pp"><b>stop()</b> es una medida drástica. Forzará la limpieza de los
+    recursos. Sin embargo, las referencias circulares en el
+    <span class="Li">&quot;RUNSTATE&quot;</span> de la máquina no son responsabilidad
+    de POE y pueden causar fugas de memoria.</p>
+<pre>$_[MACHINE]-&gt;stop();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='call_state_RETURN_EVENT,_NEW_STATE[,_ENTRY_EVENT[,_EVENT_ARGS]]'><a class='permalink' href='#call_state_RETURN_EVENT,_NEW_STATE%5B,_ENTRY_EVENT%5B,_EVENT_ARGS%5D%5D'>call_state   EVENTO_RETORNO, NUEVO_ESTADO[, EVENTO_ENTRADA[, ARGUMENTOS_EVENTO]]</a></h2>
+<p class="Pp"><b>call_state()</b> es similar a <b>goto_state()</b>, pero
+    empuja el estado actual a una pila. En algún momento posterior, un manejador
+    puede llamar a <b>return_state()</b> para sacar la pila de llamadas y
+    devolver la máquina a su estado anterior. En ese momento, un evento llamado
+    EVENTO_RETORNO se enviará a la máquina.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='return_state'><a class='permalink' href='#return_state'>return_state</a></h2>
+<p class="Pp"><b>return_state()</b> saca el último estado de la pila de llamada
+    y lo restituye como el estado actual de la máquina. Si se especifica un
+    EVENTO_RETORNO cuando se llama a <b>call_state()</b>, ese evento se enviará
+    al estado que se está reanudando.</p>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp"><code class="Nm">POE::NFA</code> &#x2013; a state machine for POE</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>    use POE::NFA;
+
+    my $machine = POE::NFA::State->spawn(
+        -package => 'My::States',
+        -state   =&gt; 'initial_state',
+    );
+
+    # In My::States.pm:
+    package My::States;
+    use strict;
+    use POE::NFA::State; # Or inherit from it
+
+    sub initial_state {
+        my ($machine, $args) = @_;
+        # ...
+        $machine-&gt;goto_state( 'next_state', 'some_event' );
+        # ...
+    }
+
+    sub next_state {
+        my ($machine, $args) = @_;
+        # ...
+    }
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">POE::NFA provides a way to implement state machines within POE
+    sessions. It is a subclass of <span class="Li">POE::Session</span>.</p>
+<p class="Pp">It provides methods to transition between states, and to call
+    and return from states, similar to subroutines.</p>
+<section class="Ss">
+<h2 class="Ss" id='States'><a class='permalink' href='#States'>States</a></h2>
+<p class="Pp">States are simply Perl subroutines. They are passed two arguments:
+    a reference to the state machine object itself, and a hash reference of
+    arguments. The arguments hash reference contains information about the
+    current event, such as the event name, the session ID, and any data
+    associated with the event.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Transitions'><a class='permalink' href='#Transitions'>Transitions</a></h2>
+<p class="Pp">State transitions are performed using methods like
+    <code class="Nm">goto_state()</code>, <code class="Nm">call_state()</code>,
+    and <code class="Nm">return_state()</code>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_METHODS'><a class='permalink' href='#PUBLIC_METHODS'>PUBLIC METHODS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='spawn'><a class='permalink' href='#spawn'>spawn</a></h2>
+<p class="Pp">This is the constructor for <span class="Li">POE::NFA</span>. It
+    is equivalent to <span class="Li">POE::Session::spawn()</span>, but with
+    additional parameters:</p>
+<dl class="Bl-tag">
+  <dt id="package-PACKAGE"><a class="permalink" href='#package-PACKAGE'>-package</a>
+    <code class="Li">PACKAGE</code></dt>
+  <dd>The package that contains the state subroutines.</dd>
+  <dt id="state-STATE"><a class="permalink" href='#state-STATE'>-state</a> <code class="Li">STATE</code></dt>
+  <dd>The initial state to enter.</dd>
+  <dt id="session_id-ID"><a class="permalink" href='#session_id-ID'>-session_id</a> <code class="Li">ID</code></dt>
+  <dd>The session ID for the state machine.</dd>
+  <dt id="alias-ALIAS"><a class="permalink" href='#alias-ALIAS'>-alias</a> <code class="Li">ALIAS</code></dt>
+  <dd>An alias for the session.</dd>
+</dl>
+</section>
+<section class=" Ss">
+<h2 class=" Ss" id='goto_state_[RETURN_ARGS]'><a class='permalink' href='#goto_state_[RETURN_ARGS]'>goto_state([RETURN_ARGS])</a></h2>
+<p class="Pp">The <code class="Nm">goto_state()</code> method is used to transition
+    to a new state. It takes the new state's name as its first argument, and an
+    event name as its second argument. Optional arguments can be passed to the
+    new state's handler via <span class="Li">&quot;ARG0..$#_&quot;</span>.</p>
+<pre>$machine-&gt;goto_state( 'new_state', 'entry_event', $arg1, $arg2 );</pre>
+<p class="Pp"><span class="Li">&quot;ENTRY_EVENT&quot;</span> is the event that will be
+    emitted once the machine enters its new state. <span class="Li">&quot;ENTRY_ARGS&quot;</span>
+    are parameters passed to the <span class="Li">&quot;ENTRY_EVENT&quot;</span>
+    handler via <span class="Li">&quot;ARG0..$#_&quot;</span>.</p>
+<p class="Pp">If <code class="Nm">goto_state()</code> is called from within a state
+    that was entered via <code class="Nm">call_state()</code>, the return event
+    and arguments from the original <code class="Nm">call_state()</code> call
+    will be ignored.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='call_state_[RETURN_EVENT]_REGO'><a class='permalink' href='#call_state_[RETURN_EVENT]_REGO'>call_state([RETURN_EVENT], [RETURN_ARGS])</a></h2>
+<p class="Pp">The <code class="Nm">call_state()</code> method is similar to
+    <code class="Nm">goto_state()</code>, but it allows the state machine to return
+    to the previous state after the called state has finished.</p>
+<p class="Pp">The first argument is the name of the state to call. The second
+    argument is the event name that will be emitted when the machine returns to
+    the current state. Subsequent arguments are passed to the called state's
+    handler.</p>
+<pre>$machine-&gt;call_state( 'called_state', 'return_here', 'new_state', 'entry_event', $arg1, $arg2 );</pre>
+<p class="Pp">When the called state finishes (by calling <code class="Nm">return_state()</code>),
+    the machine will transition to <span class="Li">&quot;new_state&quot;</span>
+    and emit <span class="Li">&quot;entry_event&quot;</span>. The original state's
+    handler will not be invoked again.</p>
+<p class="Pp">If the call to <code class="Nm">call_state()</code> is followed by
+    a <code class="Nm">goto_state()</code>, the return event and arguments will be
+    discarded. The <span class="Li">&quot;RETURN_EVENT&quot;</span> will be posted
+    to notify the old state of the return.</p>
+<pre>$machine-&gt;call_state( 'return_here', 'new_state', 'entry_event' );</pre>
+<p class="Pp">As with <code class="Nm">goto_state()</code>, <span class="Li">&quot;ENTRY_EVENT&quot;</span>
+    is the event that will be emitted once the machine enters its new state.
+    <span class="Li">&quot;ENTRY_ARGS&quot;</span> are parameters passed to the
+    <span class="Li">&quot;ENTRY_EVENT&quot;</span> handler via
+    <span class="Li">&quot;ARG0..$#_&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='return_state_[RETURN_ARGS]'><a class='permalink' href='#return_state_[RETURN_ARGS]'>return_state   [RETURN_ARGS]</a></h2>
+<p class="Pp"><b>return_state()</b> returns to the most recent state in which
+    <b>call_state()</b> was invoked. If the preceding <b>call_state()</b>
+    included a return event then its handler will be invoked along with some
+    optional <span class="Li">&quot;RETURN_ARGS&quot;</span>. The
+    <span class="Li">&quot;RETURN_ARGS&quot;</span> will be passed to the return
+    handler via <span class="Li">&quot;ARG0..$#_&quot;</span>.</p>
+<pre>$_[MACHINE]-&gt;return_state( 'success', @success_values );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Methods_that_match_POE::Session'><a class='permalink' href='#Methods_that_match_POE::Session'>Methods   that match POE::Session</a></h2>
+<p class="Pp">The following methods behave identically to the ones in
+    POE::Session.</p>
+<dl class="Bl-tag">
+  <dt id="ID"><a class="permalink" href="#ID">ID</a></dt>
+  <dd></dd>
+  <dt id="option"><a class="permalink" href="#option">option</a></dt>
+  <dd></dd>
+  <dt id="postback"><a class="permalink" href="#postback">postback</a></dt>
+  <dd></dd>
+  <dt id="callback"><a class="permalink" href="#callback">callback</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='About_&lt;b&gt;new()&lt;/b&gt;_and_&lt;b&gt;create()&lt;/b&gt;'><a class='permalink' href='#About_&lt;b&gt;new()&lt;/b&gt;_and_&lt;b&gt;create()&lt;/b&gt;'>About   <b>new()</b> and <b>create()</b></a></h2>
+<p class="Pp">POE::NFA's constructor is <b>spawn()</b>, not <b>new()</b> or
+    <b>create()</b>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PREDEFINED_EVENT_FIELDS'><a class='permalink' href='#PREDEFINED_EVENT_FIELDS'>PREDEFINED   EVENT FIELDS</a></h1>
+<p class="Pp">POE::NFA's predefined event fields are the same as POE::Session's
+    with the following three exceptions.</p>
+<section class="Ss">
+<h2 class="Ss" id='MACHINE'><a class='permalink' href='#MACHINE'>MACHINE</a></h2>
+<p class="Pp"><span class="Li">&quot;MACHINE&quot;</span> is equivalent to
+    Session's <span class="Li">&quot;SESSION&quot;</span> field. It holds a
+    reference to the current state machine, and is useful for calling its
+    methods.</p>
+<p class="Pp">See POE::Session's <span class="Li">&quot;SESSION&quot;</span>
+    field for more information.</p>
+<pre>$_[MACHINE]-&gt;goto_state( $next_state, $next_state_entry_event );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='RUNSTATE'><a class='permalink' href='#RUNSTATE'>RUNSTATE</a></h2>
+<p class="Pp"><span class="Li">&quot;RUNSTATE&quot;</span> is equivalent to
+    Session's <span class="Li">&quot;HEAP&quot;</span> field. It holds an
+    anonymous hash reference which POE is guaranteed not to touch. Data stored
+    in <span class="Li">&quot;RUNSTATE&quot;</span> will persist between handler
+    invocations.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='STATE'><a class='permalink' href='#STATE'>STATE</a></h2>
+<p class="Pp"><span class="Li">&quot;STATE&quot;</span> contains the name of the
+    machine's current state. It is not equivalent to anything from
+  POE::Session.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='EVENT'><a class='permalink' href='#EVENT'>EVENT</a></h2>
+<p class="Pp"><span class="Li">&quot;EVENT&quot;</span> is equivalent to
+    Session's <span class="Li">&quot;STATE&quot;</span> field. It holds the name
+    of the event which invoked the current handler. See POE::Session's
+    <span class="Li">&quot;STATE&quot;</span> field for more information.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PREDEFINED_EVENT_NAMES'><a class='permalink' href='#PREDEFINED_EVENT_NAMES'>PREDEFINED   EVENT NAMES</a></h1>
+<p class="Pp">POE::NFA defines four events of its own. These events are used
+    internally and may not be overridden by application code.</p>
+<p class="Pp">See POE::Session's &quot;PREDEFINED EVENT NAMES&quot; section for
+    more information about other predefined events.</p>
+<p class="Pp">The events are:
+    <span class="Li">&quot;poe_nfa_goto_state&quot;</span>,
+    <span class="Li">&quot;poe_nfa_push_state&quot;</span>,
+    <span class="Li">&quot;poe_nfa_pop_state&quot;</span>,
+    <span class="Li">&quot;poe_nfa_stop&quot;</span>.</p>
+<p class="Pp">Yes, all the internal events begin with &quot;poe_nfa_&quot;. More
+    may be forthcoming, but they will always begin the same way. Therefore
+    please do not define events beginning with &quot;poe_nfa_&quot;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp">Many of POE::NFA's features are taken directly from POE::Session.
+    Please see POE::Session for more information.</p>
+<p class="Pp">The SEE ALSO section in POE contains a table of contents covering
+    the entire POE distribution.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">See POE::Session's documentation.</p>
+<p class="Pp">POE::NFA is not as feature-complete as POE::Session. Your feedback
+    is appreciated.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTHORS   &amp; COPYRIGHTS</a></h1>
+<p class="Pp">Please see POE for more information about authors and
+    contributors.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PMDA(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">PMDA(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/pcp/">pcp</a></p>
+<p class="lic">Licencias: GPL-2.0-or-later, LGPL-2.1-or-later, CC-BY-3.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">PMDA(3)</td>
+    <td class="head-vol">Manual de funciones de la librería de agentes de dominio de métricas</td>
+    <td class="head-rtitle">PMDA(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp"><b>PMDA</b> - introducción a la librería de agentes de dominio de métricas (PMDA)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='C_SYNOPSIS'><a class='permalink' href='#C_SYNOPSIS'>SYNOPSIS C</a></h1>
+<p class="Pp"><b>#include &lt;pcp/pmapi.h&gt;</b>
+  <br/>
+  <b>#include &lt;pcp/pmda.h&gt;</b></p>
+<p class="Pp">... rutinas adicionales ...</p>
+<p class="Pp">cc ... -lpcp_pmda -lpcp</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Para ayudar en el desarrollo de agentes de dominio de métricas (PMDA) para el Performance Co-Pilot (PCP), se proporciona una interfaz procedural que extiende la interfaz de aplicación de la librería de métricas de aplicación (PMAPI(3)). Estas procedimientos están diseñados para permitir a un desarrollador crear rápidamente un PMDA que luego pueda ser probado y refinado. Sin embargo, esto también implica que un PMDA tiene una estructura particular que puede no ser adecuada para ciertas implementaciones de PMDA.</p>
+<p class="Pp">Una vez que estés familiarizado con el PCP y el framework de PMDA, puedes implementar rápidamente un nuevo PMDA con solo unos pocos datos estructurados y funciones. Esta información se detalla en el <i>Guía de Programador del PCP</i>.</p>
+<p class="Pp">Un PMDA es responsable de una serie de métricas de rendimiento, en el sentido de que debe responder a solicitudes de <a href='/man/pmcd.1.en'>pmcd(1)</a> sobre información sobre métricas de rendimiento, dominios de instancias y valores instanciados.</p>
+<p class="Pp">Esta página de man contiene secciones de un <b>simple PMDA</b> ubicado en <i>$PCP_PMDAS_DIR</i>/simple.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COMMUNICATING_WITH_PMCD'><a class='permalink' href='#COMMUNICATING_WITH_PMCD'>COMUNICACIÓN CON PMCD</a></h1>
+<p class="Pp">Se pueden usar dos enfoques para conectar un PMDA a un proceso <a href='/man/pmcd.1.en'>pmcd(1)</a>. Una Opción dinámica de objeto compartido (DSO) puede ser adjunta por <a href='/man/pmcd.1.en'>pmcd(1)</a> usando <a href='/man/dlopen.3.en'>dlopen(3)</a> cuando el proceso <a href='/man/pmcd.1.en'>pmcd(1)</a> es iniciado. Una interfaz procedural referida a través de un estructura de datos compartida se utiliza para manejar solicitudes de <a href='/man/pmcd.1.en'>pmcd(1)</a> al PMDA.</p>
+<p class="Pp">El enfoque preferido es que un proceso separado (daemon) comunique con <a href='/man/pmcd.1.en'>pmcd(1)</a> usando el protocolo de comunicación de unidades de datos (PDU) interprocesal (IPC).</p>
+<p class="Pp">Todos los PMDAs son iniciados y controlados por el proceso <a href='/man/pmcd.1.en'>pmcd(1)</a> en el propio host. Las solicitudes de los clientes se reciben por <a href='/man/pmcd.1.en'>pmcd(1)</a> y se dirigen a los correspondientes PMDAs. Las respuestas, cuando sean necesarias, se devuelven por <a href='/man/pmcd.1.en'>pmcd(1)</a> a los clientes. Las solicitudes (PDUs) que pueden ser enviadas a un PMDA desde <a href='/man/pmcd.1.en'>pmcd(1)</a> son <b>PDU_FETCH</b>, <b>PDU_PROFILE</b>, <b>PDU_INSTANCE_REQ</b>, <b>PDU_DESC_REQ</b>, <b>PDU_TEXT_REQ</b> y <b>PDU_RESULT</b>. Si el PMDA implementa alguna métrica dinámica, también puede recibir <b>PDU_PMNS_CHILD</b>, <b>PDU_PMNS_IDS</b>, <b>PDU_PMNS_NAMES</b> y <b>PDU_PMNS_TRAVERSE</b> PDUs.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEFAULT_CALLBACKS_FOR_HANDLING_PDUs'><a class='permalink' href='#DEFAULT_CALLBACKS_FOR_HANDLING_PDUs'>CALLBACKS DE DEFECTO PARA MANEJAR PDUs</a></h1>
+<p class="Pp">Para permitir un marco consistente, <a href='/man/pmdaMain.3.en'>pmdaMain(3)</a> puede ser utilizado por un PMDA en modo daemon para manejar el protocolo de comunicación usando los mismos callbacks que un DSO PMDA. La estructura <b>pmdaInterface</b> se utiliza para transmitir la interfaz procedural común y la información de estado que se utiliza por <a href='/man/pmcd.1.en'>pmcd(1)</a> y un PMDA. Esta información de estado incluye tablas que describen las métricas y dominios de instancias soportadas.</p>
+<p class="Pp">Como la mayoría de la interfaz procedural es idéntica para todos los PMDAs, son proporcionados como parte de esta librería de soporte (<a href='/man/pmdaProfile.3.en'>pmdaProfile(3)</a>, <a href='/man/pmdaFetch.3.en'>pmdaFetch(3)</a>, <a href='/man/pmdaInstance.3.en'>pmdaInstance(3)</a>, <a href='/man/pmdaDesc.3.en'>pmdaDesc(3)</a>, <a href='/man/pmdaText.3.en'>pmdaText(3)</a> y <a href='/man/pmdaStore.3.en'>pmdaStore(3)</a>). Sin embargo, estas rutinas requieren acceso a la información de estado <b>pmdaInterface</b> del PMDA, por lo que debe ser inicializada correctamente usando <a href='/man/pmdaConnect.3.en'>pmdaConnect(3)</a>, <a href='/man/pmdaDaemon.3.en'>pmdaDaemon(3)</a>, <a href='/man/pmdaOpenLog.3.en'>pmdaOpenLog(3)</a>, <a href='/man/pmdaDSO.3.en'>pmdaDSO(3)</a>, <a href='/man/pmdaGetOpt.3.en'>pmdaGetOpt(3)</a> y <a href='/man/pmdaInit.3.en'>pmdaInit(3)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INSTANCES_AND_INSTANCE_DOMAINS'><a class='permalink' href='#INSTANCES_AND_INSTANCE_DOMAINS'>INSTANCIAS Y DOMINIOS DE INSTANCIAS</a></h1>
+<p class="Pp">Tres estructuras se declaran en <i>/usr/include/pcp/pmda.h</i> que proporcionan un marco para declarar las métricas y las instancias soportadas por el PMDA.</p>
+<p class="Pp">Cada instancia requiere un identificador único entero y un nombre único, definidos por la estructura <b>pmdaInstid</>:</p>
+<pre>/*
+ * Descripción de la instancia: índice y nombre
+ */
+typedef struct {
+    int         i_inst;        /* identificador de instancia interno */
+    char        *i_name;       /* identificador externo de la instancia */
+} pmdaInstid;
+<br/></pre>
+<p class="Pp">Un dominio de instancia requiere su propio identificador único (<b>pmInDom</b>), el número de instancias representadas por el dominio y un puntero a un array de descripciones de instancias. Esta definición se encuentra en la estructura <b>pmdaIndom</b>:</p>
+<pre>/*
+ * Descripción de dominio de instancia: identificador único de la instancia,
+ * número de instancias en este dominio y la lista de instancias (no terminada con null).
+ */
+typedef struct {
+    pmInDom     it_indom;       /* indom, llenado con valor */
+    int         it_numinst;     /* número de instancias */
+    pmdaInstid  *it_set;        /* identificadores de instancias */
+} pmdaIndom;
+<br/></pre>
+<p class="Pp">El <b>simple PMDA</b> tiene un dominio de instancia para <i>simple</i>.<i>color</i> con tres instancias (<i>red</i>, <i>green</i> y <i>blue</i>), y un segundo dominio de instancia para <i>simple</i>.<i>now</i> con instancias que pueden especificarse en tiempo de ejecución. Estos dominios de instancia se definen como:</p>
+<pre>static pmdaInstid _color[] = {
+    { 0, "red" }, { 1, "green" }, { 2, "blue" }
+};
+static pmdaInstid *_timenow = NULL;
+static pmdaIndom indomtab[] = {
+#define COLOR_INDOM	0
+    { COLOR_INDOM, 3, _color },
+#define NOW_INDOM 1
+    { NOW_INDOM, 0, NULL },
+};
+<br/></pre>
+<p class="Pp">Las macros de preprocesador <b>COLOR_INDOM</b> y <b>NOW_INDOM</b> se utilizan en la tabla de descripción de métricas para identificar los dominios de instancia de individuales métricas. Estos corresponden al valor <i>serial</i> en el dominio de instancia <b>pmInDom</b> (el valor <i>domain</i> se establece por <a href='/man/pmdaInit.3.en'>pmdaInit(3)</a> en tiempo de ejecución). El valor serial debe ser único para cada dominio de instancia dentro del PMDA.</p>
+<p class="Pp">La tabla de dominios mostrada anteriormente, que suele ser pasada a <a href='/man/pmdaInit.3.en'>pmdaInit(3)</a>, no necesita ser creada si se quiere escribir un propio <a href='/man/pmdaFetch.3.en'>pmdaFetch(3)</a> y <a href='/man/pmdaInstance.3.en'>pmdaInstance(3)</a>. Ver <a href='/man/pmdaInit.3.en'>pmdaInit(3)</a> para más detalles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NAMESPACE'><a class='permalink' href='#NAMESPACE'>NAMESPACE</a></h1>
+<p class="Pp">Cada PMDA tiene su propio <b>namespace</b> utilizando el formato definido en <a href='/man/PMNS.5.en'>PMNS(5)</a>. En resumen, el namespace coincide con los nombres de las métricas y su identificador único. El <b>simple PMDA</b> define cinco métricas: <i>simple</i>.<i>numfetch</i>, <i>simple</i>.<i>color</i>, <i>simple</i>.<i>time</i>.<i>user,</i> <i>simple</i>.<i>time</i>.<i>sys</i> y <i>simple</i>.<i>now</i>. El namespace para estas métricas se define en <i>$PCP_PMDAS_DIR</i>/simple/pmns y se instala como:</p>
+<pre>simple {
+    numfetch    253:0:0
+    color       253:0:1
+    time
+    now         253:2:4
+}
+simple.time {
+    user        253:1:2
+    sys         253:1:3
+}
+<br/></pre>
+<p class="Pp">El número de dominio de <i>253</i> se obtiene de <i>$PCP_VAR_DIR</i>/pmns/stdpmid. Los nuevos PMDAs deben especificar un número de dominio único en este archivo, y obtener el número durante la instalación. Esto permite cambiar el número de dominio modificando solo el archivo <i>$PCP_VAR_DIR</i>/pmns/stdpmid.</p>
+<p class="Pp">Las métricas <i>simple.time</i> y <i>simple.now</i> se definen en clusters separados de las demás métricas, lo que permite a un PMDA soportar más de 1024 métricas, así como agrupar métricas similares. Por lo tanto, los números de items de un nuevo cluster pueden ser idénticos a los números de items de otros clusters. El <b>simple PMDA</b> continúa incrementando los números de items para permitir una mapeo directo (ver <a href='/man/pmdaInit.3.en'>pmdaInit(3)</a>).</p>
+<p class="Pp">El archivo de namespace debe instalarse y eliminarse junto con el agente usando <a href='/man/pmnsadd.1.en'>pmnsadd(1)</a> y <a href='/man/pmnsdel.1.en'>pmnsdel(1)</a>. Consulte las secciones siguientes sobre la INSTALACIÓN y ELIMINACIÓN.</p>
+<p class="Pp">Un namespace ASCII simple puede construirse creando un archivo similar a <i>$PCP_PMDAS_DIR</i>/simple/root:</p>
+<pre>/*
+ * fake "root" para validar el subtree local del PMNS
+ */
+#include "$PCP_VAR_DIR/pmns/stdpmid"
+</pre>
+</section>
+</div>
+</section>
+</article>
+</main>
+</body>
+</html><html>
+<head>
+<meta charset="UTF-8">
+<title>PMDA - Performance Metrics Domain Agent</title>
+</head>
+<body>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+<p class="Pp">pmda - Performance Metrics Domain Agent (PMDA) framework</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+<pre>
+<span class="Nm">pmda$iam</span> [-h host] [-p port] [-L logfile] [-l level] \
+    [-d domain] [-m mapfile] [-U user] [-G group] \
+    [-c config] [-C syntaxcheck] [-D flags]
+</pre>
+<p class="Pp"><b>pmda</b> <i>$iam</i> [-h host] [-p port] [-L logfile] [-l level]
+    [-d domain] [-m mapfile] [-U user] [-G group] [-c config] [-C syntaxcheck]
+    [-D flags]</p>
+<p class="Pp">Where <i>$iam</i> is the name of the PMDA (e.g. <b>pmda_simple</b>,
+    <b>pmda_proc</b>).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+<p class="Pp">The Performance Metrics Domain Agent (PMDA) framework provides a
+    standard interface for Performance Co-Pilot (PCP) agents to collect and
+    export performance metrics. PMDAs can be implemented as standalone daemons
+    or as dynamically loaded shared objects (DSOs).</p>
+<p class="Pp">The <b>simple</b> PMDA is a basic example PMDA used for
+    demonstration purposes. It exports a small set of synthetic metrics and
+    illustrates the core concepts of PMDA development.</p>
+<p class="Pp">The primary configuration file for pmcd is <span class="It">$PCP_PMCDCONF_PATH</span>.
+    This file dictates which PMDAs should be loaded or executed by pmcd. The
+    PMDA names in this file must be in the format <b>$iam</b> or
+    <b>$iam</b>:</p>
+<pre>
+root { simple }
+#include "pmns"
+&lt;br/&gt;
+</pre>
+<p class="Pp">and can be referred to with the <b>-n</b> option in most PCP
+    tools.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="METRIC_DESCRIPTIONS"><a class="permalink" href="#METRIC_DESCRIPTIONS">METRIC
+    DESCRIPTIONS</a></h1>
+<p class="Pp">Each metric requires a description (<b>pmDesc</b>), which contains
+    its Performance Metric Identifier (PMID), data type specification, instance
+    domain, semantics and units (see <a href="/man/pmLookupDesc.3.en">pmLookupDesc(3)</a>). A handle is also
+    provided for application specific information in the <b>pmdaMetric</b>
+    structure:</p>
+<pre>/*
+ * Metric description: handle for extending description,
+ * and the description.
+ */
+typedef struct {
+    void*       m_user;         /* for users external use */
+    pmDesc      m_desc;         /* metric description */
+} pmdaMetric;
+<br/>
+</pre>
+<p class="Pp">The <b>simple PMDA</b> defines the metrics as:</p>
+<pre>static pmdaMetric metrictab[] = {
+/* numfetch */
+    { (void *)0,
+      { PMDA_PMID(0,0), PM_TYPE_U32, PM_INDOM_NULL, PM_SEM_INSTANT,
+        { 0,0,0,0,0,0} }, },
+/* color */
+    { (void *)0,
+      { PMDA_PMID(0,1), PM_TYPE_32, COLOR_INDOM, PM_SEM_INSTANT,
+        { 0,0,0,0,0,0} }, },
+/* time.user */
+    { (void*)0,
+      { PMDA_PMID(1,2), PM_TYPE_DOUBLE, PM_INDOM_NULL, PM_SEM_COUNTER,
+      	{ 0, 1, 0, 0, PM_TIME_SEC, 0 } }, },
+/* time.sys */
+    { (void*)0,
+      { PMDA_PMID(1,3), PM_TYPE_DOUBLE, PM_INDOM_NULL, PM_SEM_COUNTER,
+      	{ 0, 1, 0, 0, PM_TIME_SEC, 0 } }, },
+/* now */
+    { NULL,
+      { PMDA_PMID(2,4), PM_TYPE_U32, NOW_INDOM, PM_SEM_INSTANT,
+        { 0,0,0,0,0,0 } }, },
+};
+<br/>
+</pre>
+<p class="Pp">The macro <b>PMDA_PMID</b> (defined in
+    <i>/usr/include/pcp/pmda.h</i>) is used to specify each metric's
+    <i>cluster</i> and <i>item</i> fields of the associated <b>pmID</b>. As with
+    instance domains, the <i>domain</i> field is set by <a href="/man/pmdaInit.3.en">pmdaInit(3)</a> at
+    run-time, however, the default domain is assumed to be defined by the PMDA
+    in the macro <b>MYDOMAIN</b>.</p>
+<p class="Pp">The metric table shown above which is usually passed to
+    <a href="/man/pmdaInit.3.en">pmdaInit(3)</a> does not need to be created if one wants to write one's
+    own Fetch and Descriptor functions. See <a href="/man/pmdaInit.3.en">pmdaInit(3)</a> for more
+    details.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DSO_PMDA"><a class="permalink" href="#DSO_PMDA">DSO
+    PMDA</a></h1>
+<p class="Pp">A PMDA that is run as a DSO is opened by <a href="/man/pmcd.1.en">pmcd(1)</a> with
+    <a href="/man/dlopen.3.en">dlopen(3)</a>. <a href="/man/pmcd.1.en">pmcd(1)</a> will call the PMDA's initialization
+    function that is specified in <i>$PCP_PMCDCONF_PATH</i>. This function is
+    passed a pointer to a <b>pmdaInterface</b> structure which must be
+    completed. Any callbacks which are <i>not</i> the default PMDA support
+    library callbacks must be specified in the <b>pmdaInterface</b>
+    structure.</p>
+<p class="Pp">The <b>simple PMDA</b> uses its own store and fetch callback.
+    <b>simple_fetch</b>() calls <a href="/man/pmdaFetch.3.en">pmdaFetch(3)</a> which requires a callback to
+    be set with <a href="/man/pmdaSetFetchCallBack.3.en">pmdaSetFetchCallBack(3)</a> as can be seen in
+    <i>$PCP_PMDAS_DIR</i>/simple/simple.c.</p>
+<p class="Pp">The flag <b>_isDSO</b> is used to determine if the PMDA is a
+    daemon or a DSO so that the correct initialization routine,
+    <a href="/man/pmdaDaemon.3.en">pmdaDaemon(3)</a> or <a href="/man/pmdaDSO.3.en">pmdaDSO(3)</a>, is called.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DAEMON_PMDA"><a class="permalink" href="#DAEMON_PMDA">DAEMON
+    PMDA</a></h1>
+<p class="Pp">A PMDA that is run as a daemon is forked and executed by
+    <a href="/man/pmcd.1.en">pmcd(1)</a>. Therefore, unlike a DSO PMDA, the starting point for a
+    daemon PMDA is <b>main</b>(). The agent should parse the command line
+    arguments, create a log file and initialize some data structures that
+    <a href="/man/pmcd.1.en">pmcd(1)</a> would initialize for a DSO agent.</p>
+<p class="Pp">The <b>pmdaInterface</b> structure must be completely defined by
+    the daemon PMDA. The function <a href="/man/pmdaDaemon.3.en">pmdaDaemon(3)</a> can be called at the
+    start of <b>main</b>() to set most of these fields. Command line parsing can
+    be simplified by using <a href="/man/pmdaGetOpt.3.en">pmdaGetOpt(3)</a>, which is similar to
+    <a href="/man/getopt.2.en">getopt(2)</a>, but extracts a common set of options into the
+    <b>pmdaInterface</b> structure. <i>stderr</i> can be mapped to a log file
+    using <a href="/man/pmdaOpenLog.3.en">pmdaOpenLog(3)</a> to simplify debugging and error messages. The
+    connection to <a href="/man/pmcd.1.en">pmcd(1)</a> can be made with <a href="/man/pmdaConnect.3.en">pmdaConnect(3)</a> and the
+    loop which handles the incoming PDUs, <a href="/man/pmdaMain.3.en">pmdaMain(3)</a>, should be the last
+    function called. This can be seen in
+    <i>$PCP_PMDAS_DIR</i>/simple/simple.c.</p>
+<p class="Pp">The <b>simple_init</b>() routine is common to an agent that can be
+    run as both a Daemon and DSO PMDA.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="HELP_TEXT"><a class="permalink" href="#HELP_TEXT">HELP
+    TEXT</a></h1>
+<p class="Pp">Each PMDA must be able to provide <a href="/man/pmcd.1.en">pmcd(1)</a> with the help
+    text for each metric. Most PMDAs use specially created files with indexes to
+    support efficient retrieval of the help text. Tools are provided with PCP to
+    create the help text files of appropriate format. See <a href="/man/newhelp.1.en">newhelp(1)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="INSTALLATION_AND_REMOVAL"><a class="permalink" href="#INSTALLATION_AND_REMOVAL">INSTALLATION
+    AND REMOVAL</a></h1>
+<p class="Pp">A series of shell procedures are defined in
+    <i>$PCP_SHARE_DIR</i>/lib/pmdaproc.sh which greatly simplify the
+    installation and removal of a PMDA.</p>
+<p class="Pp">The <i>Install</i> scripts for most PMDAs should only need to
+    specify the name of the PMDA in <b>iam</b>, call <b>pmdaSetup</b> which sets
+    up some default variables, checks permissions (you have to be ``root'' to
+    install or remove a PMDA), checks that you're in the right directory
+    (somewhere that ends with /pmdas/<i>$iam</i>), optionally generate the
+    Performance Metrics Name Space (PMNS) and PMDA domain number files for Perl
+    or Python PMDAs, checks the PMDA domain number is valid, etc., specify the
+    communication protocols, and finally call <b>pmdaInstall</b> to do all the
+    work of updating the PMNS, updating the <a href="/man/pmcd.1.en">pmcd(1)</a> control file,
+    notifying or restarting <a href="/man/pmcd.1.en">pmcd(1)</a>,</p>
+<p class="Pp">Beyond <b>pmdaSetup</b> and <b>pmdaInstall</b>, another optional
+    helper routines is <b>pmdaChooseConfigFile</b> that may be used to
+    interactively select or create a PMDA-specific configuration file, e.g.
+    <a href="/man/pmdalogger.1.en">pmdalogger(1)</a>.</p>
+<p class="Pp">The <i>Remove</i> scripts are even simpler as setting up the
+    communication protocols are not required, so set the name of the PMDA in
+    <i>iam</i>, then call <b>pmdaSetup</b> followed by a call to
+    <b>pmdaRemove</b>.</p>
+<p class="Pp">Further information is contained in the
+    <i>$PCP_SHARE_DIR</i>/lib/pmdaproc.sh file and the following section.</p>
+<p class="Pp">Optionally, a PMDA may provide an <i>Upgrade</i> script alongside
+    <i>Install</i> and <i>Remove</i>. If present this script will be used by the
+    <b>pmcd</b> startup process to ensure corrections to an installation have
+    been made before starting the PMDA. Examples of such corrections include:
+    updates to <i>pmcd.conf</i> when a PMDA script or binary has been renamed,
+    when the PMDA supports a new format of its configuration file, or if there
+    is some latent problem from an earlier install (e.g. some PMDAs may need to
+    introduce use of the <b>notready</b> keyword in <i>pmcd.conf</i>, as
+    described below).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="INSTALLATION_REFINEMENTS"><a class="permalink" href="#INSTALLATION_REFINEMENTS">INSTALLATION
+    REFINEMENTS</a></h1>
+<p class="Pp">As outlined below there are a number of variables that can be set
+    in a PMDA's <i>Install</i> script to influence the behaviour of the
+    installation procedures. These would typically need to be set before the
+    call to <b>pmdaInstall</b>, but in some instances (like <i>$iam</i> and the
+    cases specifically noted below), before the call to <b>pmdaSetup</b>.</p>
+<p class="Pp">The following variables control the communication options between
+    the PMDA and <a href="/man/pmcd.1.en">pmcd(1)</a>. At least one of <i>$daemon_opt</i>,
+    <i>$dso_opt</i>, <i>$perl_opt</i> or <i>$python_opt</i> must be set to
+    define the supported mode(s) of communication. If more than one of these is
+    set the user will be prompted to make a selection when the <i>Install</i>
+    script is run.</p>
+<dl class="Bl-tag">
+  <dt id="daemon_opt"><i>daemon_opt</i></dt>
+  <dd>We are willing to install the PMDA as a daemon.
+    <br/>
+    Default: true</dd>
+  <dt id="dso_opt"><i>dso_opt</i></dt>
+  <dd>We are willing to install the PMDA as a DSO, so <a href="/man/pmcd.1.en">pmcd(1)</a> will use
+      the dynamic linking loader to attach the PMDA's DSO at run-time and
+      communication from <a href="/man/pmcd.1.en">pmcd(1)</a> to the PMDA and back uses procedure
+      calls, not an IPC channel.
+    <br/>
+    Default: false</dd>
+  <dt id="dso_entry"><i>dso_entry</i></dt>
+  <dd>For a DSO PMDA, this is the name of the PMDA's initialization routine.
+    <br/>
+    Default: <i>${iam}</i>_init</dd>
+  <dt id="dso_name"><i>dso_name</i></dt>
+  <dd>For a DSO PMDA, this is the full pathanme of the PMDA's DSO file.
+    <br/>
+    Default:
+      <i>$PCP_PMDAS_DIR</i>/<i>$iam</i>/pmda_<i>$iam</i>.<i>$dso_suffix</i></dd>
+  <dt id="pipe_opt"><i>pipe_opt</i></dt>
+  <dd>For a daemon PMDA, is the default IPC channel via a <a href="/man/pipe.2.en">pipe(2)</a>?
+    <br/>
+    Default: Platform-specific, so <b>true</b> for most, but <b>false</b> for
+      Windows</dd>
+  <dt id="perl_opt"><i>perl_opt</i></dt>
+  <dd>We are willing to install the PMDA as a Perl script and <a href="/man/pmcd.1.en">pmcd(1)</a>
+      will use the <a href="/man/perl.1.en">perl(1)</a> interpreter to run the PMDA.
+    <br/>
+    Default: false</dd>
+  <dt id="pmda_dir"><i>pmda_dir</i></dt>
+  <dd>Full pathname to the directory where the PMDA's installation files
+      (executable, script, PMNS source, help text source, etc) are to be found.
+    <br/>
+    Default: output from pwd(1)</dd>
+</dl>
+<div class="Bd-indent">
+<p class="Pp">If set, must be done before the call to <b>pmdaSetup</b>.</p>
+</div>
+<dl class="Bl-tag">
+  <dt id="pmda_name"><i>pmda_name</i></dt>
+  <dd>For a daemon PMDA, this is the name of the PMDA's executable binary
+      relative to the <i>$pmda_dir</i> directory.
+    <br/>
+    Default: pmda<i>$iam</i></dd>
+  <dt id="python_opt"><i>python_opt</i></dt>
+  <dd>We are willing to install the PMDA as a Python script and <a href="/man/pmcd.1.en">pmcd(1)</a>
+      will use the <a href="/man/python.1.en">python(1)</a> interpreter to run the PMDA.
+    <br/>
+    Default: false</dd>
+  <dt id="ipc_prot"><i>ipc_prot</i></dt>
+  <dd>For a daemon PMDA, this can be set to either <b>binary</b> or <b>text</b>.
+      The default is <b>binary</b> and <b>text</b> is rarely used. In addition,
+      an optional IPC par</dd>
+</dl>
+</body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION">DESCRIPTION</h1>
+<p class="Pp">The following variables control the IPC parameters for a PMDA.</p>
+<dl class="Bl-tag">
+  <dt id="ipc_prot"><a class="permalink" href="#ipc_prot"><i>ipc_prot</i></a></dt>
+  <dd>This parameter specifies the inter-process communication (IPC) protocol
+      to be used between PMCD and the PMDA. The default is the native
+      binary protocol. Setting it to “<i>binary notready</i>” will cause the
+      PMDA to start in the <b>notready</b> state. For example,
+      <span class="Li">ipc_prot="binary notready"</span>. Note that the quotes are
+      required. The IPC parameters for a PMDA appear in
+      <a href='/man/pmcd.1.en'>pmcd(1)</a> in the <b>IPC Params</b> column. For further details, see
+      <a href='/man/pmcd.1.en'>pmcd(1)</a> but basically <b>pmcd</b> will not issue any requests to a PMDA that has
+      started in the <b>notready</b> state until the PMDA sends a
+      <b>PM_ERR_PMDAREADY</b> PDU. This allows PMDAs with long startup times to
+      initialize correctly without timing out. For details, see
+      <a href='/man/pmdaSendError.3.en'>pmdaSendError(3)</a> and <a href='/man/pmcd.1.en'>pmcd(1)</a>. When a PMDA is in the
+      <b>notready</b> state, any client requests sent to <b>pmcd</b> for the
+      PMDA domain will return with the <b>PM_ERR_PMDANOTREADY</b> error.</dd>
+  <dt id="socket_inet_def"><a class="permalink" href="#socket_inet_def"><i>socket_inet_def</i></a></dt>
+  <dd>For a daemon PMDA using a <a href='/man/socket.2.en'>socket(2)</a> as the IPC channel the default
+      Internet port number or service name (if known).
+    <br/>
+    Default: &quot;&quot;</dd>
+  <dt id="socket_opt"><a class="permalink" href="#socket_opt"><i>socket_opt</i></a></dt>
+  <dd>For a daemon PMDA, is the default IPC channel via a <a href='/man/socket.2.en'>socket(2)</a>?
+    <br/>
+    Default: Platform-specific, so <b>false</b> for most, but <b>true</b> for
+      Windows</dd>
+</dl>
+<p class="Pp">The following variables control the PMNS options.</p>
+<dl class="Bl-tag">
+  <dt id="pmns_dupok"><a class="permalink" href="#pmns_dupok"><i>pmns_dupok</i></a></dt>
+  <dd>Most PMDAs do not have duplicate names for the same PMID in their PMNS.
+      But if this is not the case, <i>pmns_dupok</i> should be set to
+      <b>true</b>.
+    <br/>
+    Default: false</dd>
+  <dt id="pmns_name"><a class="permalink" href="#pmns_name"><i>pmns_name</i></a></dt>
+  <dd>Each PMDA will add one or more non-leaf nodes to the top of the PMNS. The
+      most common case is that all of the metrics for a PMDA will be placed
+      below the node named <i>$iam</i>. If this is not the case, and especially
+      when the PMDA adds more than one non-leaf node at the top of the PMNS,
+      <i>pmns_name</i> needs to be set to the list of node names (separated by
+      white space), e.g. for <a href='/man/pmdaproc.1.en'>pmdaproc(1)</a> <i>pmns_name</i> is set to
+      &quot;proc cgroup hotproc&quot;.
+    <br/>
+    Default: <i>$iam</i></dd>
+</dl>
+<div class="Bd-indent">
+<p class="Pp">It is most important that if <i>pmns_name</i> is set to a
+    non-default value in the <i>Install</i> script then it must also be set to
+    the same value in the <i>Remove</i> script.</p>
+</div>
+<dl class="Bl-tag">
+  <dt id="pmns_source"><a class="permalink" href="#pmns_source"><i>pmns_source</i></a></dt>
+  <dd>The name of the PMDA's PMNS source file. By default, the name is
+      interpreted as a relative pathname from the <i>$pmda_dir</i> directory.
+    <br/>
+    Default: pmns</dd>
+</dl>
+<p class="Pp">The following variables provide assorted additional options
+    associated with the installation of a PMDA.</p>
+<dl class="Bl-tag">
+  <dt id="args"><a class="permalink" href="#args"><i>args</i></a></dt>
+  <dd>Additional command line args for the PMDA. These will be appended to the
+      PMDA's control line in <i>$PCP_PMCDCONF_PATH</i>.
+    <br/>
+    Default: &quot;&quot;</dd>
+  <dt id="check_delay"><a class="permalink" href="#check_delay"><i>check_delay</i></a></dt>
+  <dd>Delay (in seconds) after finishing the PMDA installation (or removal)
+      before checking the availability of metrics from the PMDA. May need to be
+      increased if the PMDA has a lengthy startup procedure.
+    <br/>
+    Default: 0.3</dd>
+  <dt id="signal_delay"><a class="permalink" href="#signal_delay"><i>signal_delay</i></a></dt>
+  <dd>Delay (in seconds) after notifying <a href='/man/pmcd.1.en'>pmcd(1)</a> with a signal. Required
+      to allow <a href='/man/pmcd.1.en'>pmcd(1)</a> to complete processing before proceeding to the
+      next step of the installation (or removal).
+    <br/>
+    Default: 1</dd>
+  <dt id="configdir"><a class="permalink" href="#configdir"><i>configdir</i></a></dt>
+  <dd>Determines the directory in which a PMDA's configuration file will be
+      stored. Used by <b>pmdaChooseConfigFile</b> so should be set before
+      calling that procedure.
+    <br/>
+    Default: <i>$PCP_VAR_DIR</i>/config/<i>$iam</i></dd>
+  <dt id="configfile"><a class="permalink" href="#configfile"><i>configfile</i></a></dt>
+  <dd>Preferred configuration file for the PMDA. Used by
+      <b>pmdaChooseConfigFile</b> so should be set before calling that
+      procedure.
+    <br/>
+    Default: &quot;&quot;</dd>
+  <dt id="default_configfile"><a class="permalink" href="#default_configfile"><i>default_configfile</i></a></dt>
+  <dd>Default configuration file for the PMDA. Used by
+      <b>pmdaChooseConfigFile</b> so should be set before calling that
+      procedure.
+    <br/>
+    Default: &quot;&quot;</dd>
+  <dt id="dso_suffix"><a class="permalink" href="#dso_suffix"><i>dso_suffix</i></a></dt>
+  <dd>Standard suffix for a DSO. Should not need to be changed under normal
+      circumstances.
+    <br/>
+    Default: Platform-specific, so 'so' for Linux, 'dylib' for macOS, 'dll' for
+      Windows, etc.</dd>
+</dl>
+<div class="Bd-indent">
+<p class="Pp">If set, must be done before the call to <b>pmdaSetup</b>.</p>
+</div>
+<dl class="Bl-tag">
+  <dt id="help_source"><a class="permalink" href="#help_source"><i>help_source</i></a></dt>
+  <dd>The name of the help text source file that should be used as input to
+      <a href='/man/pmnewhelp.1.en'>pmnewhelp(1)</a>. By default, the name is interpreted as a relative
+      pathname from the <i>$pmda_dir</i> directory.
+    <br/>
+    Default: help</dd>
+  <dt id="python_name"><a class="permalink" href="#python_name"><i>python_name</i></a></dt>
+  <dd>Full pathname of the Python script for a Python PMDA.
+    <br/>
+    Default: <i>$pmda_dir</i>/pmda<i>$iam</i>.python or
+      <i>$pmda_dir</i>/pmda<i>$iam</i>.py</dd>
+</dl>
+<p class="Pp">The shell procedures in <i>$PCP_SHARE_DIR</i>/lib/pmdaproc.sh
+    manipulate a number of temporary files using the variable <i>$tmp</i> as the
+    prefix for the name of the temporary files. <i>$tmp</i> is a directory that
+    is created, used and removed internally within the procedures of
+    <i>$PCP_SHARE_DIR</i>/lib/pmdaproc.sh but can also be used as the prefix for
+    temporary files needed by a PMDA's <i>Install</i> or <i>Remove</i> scripts.
+    When used in this way, <i>$tmp</i> should be followed by a ``/'' and then a
+    suffix, e.g. <i>$tmp</i>/myfoo. The <i>Install</i> and <i>Remove</i> scripts
+    should not use other temporary file name prefixes nor use <a href='/man/sh.1.en'>sh(1)</a>
+    <b>trap</b> statements to clean up temporary files as this is all done
+    within <i>$PCP_SHARE_DIR</i>/lib/pmdaproc.sh.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="CAVEAT">CAVEAT</h1>
+<p class="Pp">Failing to complete any of the data structures or calling any of
+    the library routines out of order may cause unexpected behavior in the
+    PMDA.</p>
+<p class="Pp">Due to changes to the <a href='/man/PMAPI.3.en'>PMAPI(3)</a> and <a href='/man/PMDA.3.en'>PMDA(3)</a> API in
+    the PCP 2.0 release, as described in the product release notes, PMDAs built
+    using PCP 2.0 must specify <b>PMDA_INTERFACE_2</b> or later and link with
+    <i>libpcp_pmda.so.2</i> and <i>libpcp.so.2</i>. Pre-existing Daemon PMDAs
+    specifying <b>PMDA_INTERFACE_1</b> will continue to function using the
+    backwards compatible <i>libpcp_pmda.so.1</i> and <i>libpcp.so.1</i>
+    libraries and may be recompiled using the headers installed in
+    <i>/usr/include/pcp1.x/</i> without any modification. These backwards
+    compatible headers and libraries are contained in the <i>pcp.sw.compat</i>
+    subsystem.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DIAGNOSTICS">DIAGNOSTICS</h1>
+<p class="Pp">Any PMDA which uses this library can set <a href='/man/PMAPI.3.en'>PMAPI(3)</a> debugging
+    control option <b>libpmda</b> (with <b>-Dlibpmda</b> on the command line or
+    via <b>3</b>pmSetDebug<b>(3))</b> to to enable the display of debugging
+    information which may be useful during development (see
+    <a href='/man/pmdbg.1.en'>pmdbg(1)</a>).</p>
+<p class="Pp">The <i>status</i> field of the <b>pmdaInterface</b> structure
+    should be zero after <b>pmdaDaemon</b>, <b>pmdaDSO</b>, <b>pmdaGetOpt</b>,
+    <b>pmdaConnect</b> and <b>pmdaInit</b> are called. A value less than zero
+    indicates that initialization has failed.</p>
+<p class="Pp">Some error messages that are common to most functions in this
+    library are:</p>
+<dl class="Bl-tag">
+  <dt id="PMDA-interface"><b>PMDA interface version
+    </b><i>interface</i><b> not supported</b></dt>
+  <dd>Most of the functions require that the <i>comm.version</i> field of the
+      <b>pmdaInterface</b> structure be set to <b>PMDA_INTERFACE_2</b> or later.
+      <b>PMDA_INTERFACE_2</b> or <b>PMDA_INTERFACE_3</b> implies that the
+      <i>version.two</i> fields are correctly initialized, while
+      <b>PMDA_INTERFACE_4</b> implies that the <i>version.four</i> fields are
+      correctly initialized (see <a href='/man/pmdaDaemon.3.en'>pmdaDaemon(3)</a> and
+      <a href='/man/pmdaDSO.3.en'>pmdaDSO(3)</a>).</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="FILES">FILES</h1>
+<dl class="Bl-tag">
+  <dt><i>/usr/include/pcp/pmda.h</i></dt>
+  <dd>Header file for the PMDA support library.</dd>
+  <dt><i>/usr/lib/libpcp_pmda.so</i></dt>
+  <dd>Dynamic library containing PMDA support library routines.</dd>
+  <dt><i>$PCP_PMDAS_DIR</i>/trivial</dt>
+  <dd>The source of the <b>trivial PMDA</b>.</dd>
+  <dt><i>$PCP_PMDAS_DIR</i>/simple</dt>
+  <dd>The source of the <b>simple PMDA</b>.</dd>
+  <dt><i>$PCP_PMDAS_DIR</i>/txmon</dt>
+  <dd>The source of the <b>txmon PMDA</b>.</dd>
+  <dt><i>$PCP_PMCDCONF_PATH</i></dt>
+  <dd>Configuration file for <a href='/man/pmcd.1.en'>pmcd(1)</a>.</dd>
+  <dt><i>$PCP_VAR_DIR</i>/pmns</dt>
+  <dd>Location of namespace descriptions for every PMDA.</dd>
+  <dt><i>$PCP_VAR_DIR</i>/pmns/stdpmid</dt>
+  <dd>The unique domain identifiers for each PMDA.</dd>
+  <dt><i>$PCP_SHARE_DIR</i>/lib/pmdaproc.sh</dt>
+  <dd>Shell procedures for installing and removing a PMDA.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="PCP_ENVIRONMENT">PCP ENVIRONMENT</h1>
+<p class="Pp">Environment variables with the prefix <b>PCP_</b> are used to
+    parameterize the file and directory names used by PCP. On each installation,
+    the file <i>/etc/pcp.conf</i> contains the local values for these variables.
+    The <i>$PCP_CONF</i> variable may be used to specify an alternative
+    configuration file, as described in <a href='/man/pcp.conf.5.en'>pcp.conf(5)</a>. Values for these
+    variables may be obtained programmatically using the <a href='/man/pmGetConfig.3.en'>pmGetConfig(3)</a>
+    function.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO">SEE ALSO</h1>
+<p class="Pp"><a href='/man/dbpmda.1.en'>dbpmda(1)</a>, <a href='/man/newhelp.1.en'>newhelp(1)</a>, <a href='/man/pmcd.1.en'>pmcd(1)</a>,
+    <a href='/man/pmnsadd.1.en'>pmnsadd(1)</a>, <a href='/man/pmnsdel.1.en'>pmnsdel(1)</a>, <a href='/man/PMAPI.3.en'>PMAPI(3)</a>, <a href='/man/PMWEBAPI.3.en'>PMWEBAPI(3)</a>,
+    <a href='/man/pmdaConnect.3.en'>pmdaConnect(3)</a>, <a href='/man/pmdaDaemon.3.en'>pmdaDaemon(3)</a>, <a href='/man/pmdaDesc.3.en'>pmdaDesc(3)</a>,
+    <a href='/man/pmdaDSO.3.en'>pmdaDSO(3)</a>, <a href='/man/pmdaFetch.3.en'>pmdaFetch(3)</a>, <a href='/man/pmdaGetOpt.3.en'>pmdaGetOpt(3)</a>,
+    <a href='/man/pmdaInit.3.en'>pmdaInit(3)</a></p>
+</section>
+.en'>pmdaInit(3)</a>, <a href='/man/pmdaInstance.3.en'>pmdaInstance(3)</a>, <a href='/man/pmdaMain.3.en'>pmdaMain(3)</a>,
+    <a href='/man/pmdaOpenLog.3.en'>pmdaOpenLog(3)</a>, <a href='/man/pmdaProfile.3.en'>pmdaProfile(3)</a>, <a href='/man/pmdaStore.3.en'>pmdaStore(3)</a>,
+    <a href='/man/pmdaText.3.en'>pmdaText(3)</a>, <a href='/man/pmLookupDesc.3.en'>pmLookupDesc(3)</a> y <a href='/man/PMNS.5.en'>PMNS(5)</a>.</p>
+<p class="Pp">Para una descripción completa de la biblioteca <i>pcp_pmda</i> y el
+    proceso de desarrollo de PMDA, consulte el libro Insight <i>Performance Co-Pilot
+    Programmer's Guide</i>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">PCP</td>
+    <td class="foot-os">Performance Co-Pilot</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/pcp/">extra/pcp</a></dd>
+        <dt>Versión:</dt>
+        <dd>7.0.5-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://pcp.io">https://pcp.io</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL-2.0-or-later, LGPL-2.1-or-later, CC-BY-3.0</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/pcp/">/listing/extra/pcp/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#C_SYNOPSIS">SINÓPSIS EN C</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#COMMUNICATING_WITH_PMCD">COMUNICÁNDOSE CON PMCD</a></li>
+        
+            <li><a href="#DEFAULT_CALLBACKS_FOR_HANDLING_PDUs">CALLBACKS PREDETERMINADOS PARA MANEJAR PDUs</a></li>
+        
+            <li><a href="#INSTANCES_AND_INSTANCE_DOMAINS">INSTANCIAS Y DOMINIOS DE INSTANCIA</a></li>
+        
+            <li><a href="#NAMESPACE">ESPACIO DE NOMBRES</a></li>
+        
+            <li><a href="#METRIC_DESCRIPTIONS">DESCRIPCIONES DE MÉTRICAS</a></li>
+        
+            <li><a href="#DSO_PMDA">PMDA DSO</a></li>
+        
+            <li><a href="#DAEMON_PMDA">PMDA DAEMON</a></li>
+        
+            <li><a href="#HELP_TEXT">TEXTO DE AYUDA</a></li>
+        
+            <li><a href="#INSTALLATION_AND_REMOVAL">INSTALACIÓN Y ELIMINACIÓN</a></li>
+        
+            <li><a href="#INSTALLATION_REFINEMENTS">REFINAMIENTOS DE INSTALACIÓN</a></li>
+        
+            <li><a href="#CAVEAT">ADVERTENCIA</a></li>
+        
+            <li><a href="#DIAGNOSTICS">DIAGNÓSTICOS</a></li>
+        
+            <li><a href="#FILES">ARCHIVOS</a></li>
+        
+            <li><a href="#PCP_ENVIRONMENT">ENTORNO PCP</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/PMDA.3.en.txt">txt</a>, 
+        
+            <a href="/man/PMDA.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

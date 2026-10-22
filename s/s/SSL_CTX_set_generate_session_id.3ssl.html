@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SSL_CTX_set_generate_session_id(3ssl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">SSL_CTX_set_generate_session_id(3ssl)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/openssl/">openssl</a></p>
+<p class="lic">Licencias: Apache-2.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">SSL_CTX_SET_GENERATE_SESSION_ID(3ssl)</td>
+    <td class="head-vol">OpenSSL</td>
+    <td class="head-rtitle">SSL_CTX_SET_GENERATE_SESSION_ID(3ssl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">SSL_CTX_set_generate_session_id, SSL_set_generate_session_id,
+    SSL_has_matching_session_id, GEN_SESSION_CB - manipula la generación de IDs de sesión SSL (solo servidor)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;openssl/ssl.h&gt;
+typedef int (*GEN_SESSION_CB)(SSL *ssl, unsigned char *id,
+                              unsigned int *id_len);
+int SSL_CTX_set_generate_session_id(SSL_CTX *ctx, GEN_SESSION_CB cb);
+int SSL_set_generate_session_id(SSL *ssl, GEN_SESSION_CB, cb);
+int SSL_has_matching_session_id(const SSL *ssl, const unsigned char *id,
+                                unsigned int id_len);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>SSL_CTX_set_generate_session_id()</b> establece la función de
+    callback para generar nuevos IDs de sesión para sesiones SSL/TLS para <b>ctx</b>
+    como <b>cb</b>.</p>
+<p class="Pp"><b>SSL_set_generate_session_id()</b> establece la función de
+    callback para generar nuevos IDs de sesión para sesiones SSL/TLS para <b>ssl</b>
+    como <b>cb</b>.</p>
+<p class="Pp"><b>SSL_has_matching_session_id()</b> comprueba si una sesión con
+    el ID <b>id</b> (de longitud <b>id_len</b>) ya está contenida en la caché
+    interna de sesiones del contexto padre de <b>ssl</b>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS'><a class='permalink' href='#NOTES'>NOTAS</a></h1>
+<p class="Pp">Cuando se establece una nueva sesión entre cliente y servidor, el
+    servidor genera un ID de sesión. El ID de sesión es una secuencia arbitraria
+    de bytes. La longitud del ID de sesión está entre 1 y 32 bytes. El ID de
+    sesión no es crítico para la seguridad, pero debe ser único para el
+    servidor. Además, el ID de sesión se transmite en claro al reutilizar la
+    sesión, por lo que no debe contener información confidencial.</p>
+<p class="Pp">Sin una función de callback establecida, un servidor OpenSSL
+    generará un ID de sesión único a partir de números pseudoaleatorios de la
+    longitud máxima posible. Utilizando la función de callback, el ID de sesión
+    puede modificarse para contener información adicional, como por ejemplo un ID
+    de host, para mejorar el balanceo de carga o las técnicas de caché externas.</p>
+<p class="Pp">La función de callback recibe un puntero a la ubicación de memoria
+    donde colocar <b>id</b> y un puntero a la longitud máxima permitida
+    <b>id_len</b>. El búfer en la ubicación <b>id</b> solo está garantizado que
+    tenga el tamaño <b>id_len</b>. La función de callback solo tiene permitido
+    generar un ID más corto y reducir <b>id_len</b>; la función de callback
+    **nunca debe** aumentar <b>id_len</b> o escribir en la ubicación <b>id</b>
+    excediendo el límite dado.</p>
+<p class="Pp">La ubicación <b>id</b> se rellena con 0x00 antes de llamar a la
+    función de callback, por lo que la función de callback solo puede rellenar
+    parte de la longitud posible y dejar <b>id_len</b> sin cambios, manteniendo
+    la reproducibilidad.</p>
+<p class="Pp">Dado que las sesiones deben distinguirse, los IDs de sesión deben
+    ser únicos. Sin la función de callback se utiliza un número aleatorio, de modo
+    que la probabilidad de generar el mismo ID de sesión es extremadamente
+    pequeña (2^256 para SSLv3/TLSv1). Para asegurar la unicidad del ID de sesión
+    generado, la función de callback debe llamar a
+    <b>SSL_has_matching_session_id()</b> y generar otro ID si ocurre un conflicto.
+    Si no se resuelve un conflicto de ID, el handshake fallará. Si la aplicación
+    codifica, por ejemplo, un ID de host único, un número de proceso único y un
+    número de secuencia único en el ID de sesión, la unicidad podría lograrse
+    fácilmente sin añadir aleatoriedad (sin embargo, se debe tener cuidado de
+    no filtrar información confidencial de esta manera). Si la aplicación no puede
+    garantizar la unicidad, se recomienda utilizar la longitud máxima
+    <b>id_len</b> y rellenar los bytes no utilizados para codificar información
+    especial con datos aleatorios para evitar colisiones.</p>
+<p class="Pp"><b>SSL_has_matching_session_id()</b> solo consultará la caché de
+    sesiones interna, no la externa. Dado que el ID de sesión se genera antes de
+    que se complete el handshake, no se añade inmediatamente a la caché. Si otro
+    hilo está utilizando la misma caché de sesiones interna, puede ocurrir una
+    condición de carrera en la que otro hilo genere el mismo ID de sesión. Las
+    colisiones también pueden ocurrir al usar una caché de sesiones externa, ya
+    que la caché externa no se comprueba con
+    <b>SSL_has_matching_session_id()</b> y se aplica la misma condición de
+    carrera.</p>
+<p class="Pp">La función de callback debe devolver 0 si no puede generar un ID de
+    sesión por cualquier motivo y devolver 1 en caso de éxito.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VALORES_DE_RETORNO'><a class='permalink' href='#RETURN_VALUES'>VALORES DE RETORNO</a></h1>
+<p class="Pp"><b>SSL_CTX_set_generate_session_id()</b> y
+    <b>SSL_set_generate_session_id()</b> devuelven 1 en caso de éxito y 0 en
+    caso de fallo.</p>
+<p class="Pp"><b>SSL_has_matching_session_id()</b> devuelve 1 si ya existe otra
+    sesión con el mismo ID en la caché, o 0 en caso contrario.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLOS'><a class='permalink' href='#EXAMPLES'>EJEMPLOS</a></h1>
+<p class="Pp">La función de callback que se muestra generará un ID de sesión con el
+    prefijo de servidor dado y rellenará el resto con bytes pseudoaleatorios:</p>
+<pre>const char session_id_prefix = "www-18";
+#define MAX_SESSION_ID_ATTEMPTS 10
+static int generate_session_id(SSL *ssl, unsigned char *id,
+                               unsigned int *id_len)
+{
+    unsigned int count = 0;
+    do {
+        RAND_pseudo_bytes(id, *id_len);
+        /*
+         * Prefija el session_id con el prefijo requerido. NB: Si nuestro
+         * prefijo es demasiado largo, se recorta - pero habrá efectos peores
+         * de todos modos, por ejemplo, el servidor solo podría crear 1
+         * ID de sesión (es decir, ¡el prefijo!) por lo que todas las futuras
+         * negociaciones de sesión fallarán debido a conflictos.
+         */
+        memcpy(id, session_id_prefix, strlen(session_id_prefix) &lt; *id_len ?
+                                      strlen(session_id_prefix) : *id_len);
+    } while (SSL_has_matching_session_id(ssl, id, *id_len)
+              &amp;&amp; ++count &lt; MAX_SESSION_ID_ATTEMPTS);
+    if (count &gt;= MAX_SESSION_ID_ATTEMPTS)
+        return 0;
+    return 1;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/ssl.7.es'>ssl(7)</a>, <a href='/man/SSL_get_version.3.es'>SSL_get_version(3)</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright 2001-2020 The OpenSSL Project Authors. All Rights
+    Reserved.</p>
+<p class="Pp">Concedido bajo la Licencia Apache 2.0 (la &quot;Licencia&quot;).
+    No puede usar este archivo excepto en cumplimiento con la Licencia. Puede
+    obtener una copia en el archivo LICENSE en la distribución fuente o en
+    <a href='https://www.openssl.org/source/license.html'>https://www.openssl.org/source/license.html</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-10-01</td>
+    <td class="foot-os">3.6.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/openssl/">core/openssl</a></dd>
+        <dt>Versión:</dt>
+        <dd>3.6.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.openssl.org">https://www.openssl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Apache-2.0</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/openssl/">/listing/core/openssl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#NOTES">NOTAS</a></li>
+        
+            <li><a href="#RETURN_VALUES">VALORES DE RETORNO</a></li>
+        
+            <li><a href="#EXAMPLES">EJEMPLOS</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/SSL_CTX_set_generate_session_id.3ssl.es.txt">txt</a>, 
+        
+            <a href="/man/SSL_CTX_set_generate_session_id.3ssl.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+           </p></footer>
+    </body>
+</html>
+        </footer>
+    </body>
+</html>

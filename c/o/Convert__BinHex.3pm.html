@@ -1,0 +1,601 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Convert::BinHex(3pm) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Convert__BinHex(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-convert-binhex/">perl-convert-binhex</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Convert::BinHex(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Convert::BinHex(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Convert::BinHex - extraer datos de archivos BinHex de Macintosh</p>
+<p class="Pp">ADVERTENCIA ALPHA: este código se encuentra actualmente en su versión Alpha. Las cosas
+    pueden cambiar drásticamente hasta que la interfaz se defina: si tienes
+    sugerencias o objeciones, ¡háglas saber ahora!</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp"><b>Funciones simples:</b></p>
+<pre>use Convert::BinHex qw(binhex_crc macbinary_crc);
+# Calcular el CRC estilo HQX7 para los datos, inyectando el CRC antiguo si se desea:
+$crc = binhex_crc($data, $crc);
+# Calcular el CRC estilo MacBinary-II para los datos:
+$crc = macbinary_crc($data, $crc);</pre>
+<p class="Pp"><b>Hex a bin, interfaz de bajo nivel.</b> La conversión se realiza
+    realmente a través de un objeto ("Convert::BinHex::Hex2Bin") que mantiene
+    el estado interno de la conversión:</p>
+<pre># Crear y usar un objeto "traductor":
+my $H2B = Convert::BinHex-&gt;hex2bin;    # obtener un objeto convertidor
+while (&lt;STDIN&gt;) {
+    print $STDOUT $H2B-&gt;next($_);        # convertir algo más de entrada
+}
+print $STDOUT $H2B-&gt;done;              # sin más entrada: finalizar</pre>
+<p class="Pp"><b>Hex a bin, interfaz OO.</b> Las siguientes operaciones
+    <i>deben</i> realizarse en el orden mostrado.</p>
+<pre># Leer datos por partes:
+$HQX = Convert::BinHex-&gt;open(FH=&gt;\*STDIN) || die "open: $!";
+$HQX-&gt;read_header;                  # leer información de la cabecera
+@data = $HQX-&gt;read_data;            # leer todos los datos
+@rsrc = $HQX-&gt;read_resource;        # leer todos los recursos</pre>
+<p class="Pp"><b>Bin a hex, interfaz de bajo nivel.</b> La conversión se realiza
+    realmente a través de un objeto ("Convert::BinHex::Bin2Hex") que mantiene
+    el estado interno de la conversión:</p>
+<pre># Crear y usar un objeto "traductor":
+my $B2H = Convert::BinHex-&gt;bin2hex;    # obtener un objeto convertidor
+while (&lt;STDIN&gt;) {
+    print $STDOUT $B2H-&gt;next($_);        # convertir algo más de entrada
+}
+print $STDOUT $B2H-&gt;done;              # sin más entrada: finalizar</pre>
+<p class="Pp"><b>Bin a hex, interfaz de archivo.</b> Sí, puedes convertir <i>a</i>
+    BinHex así como desde él.</p>
+<pre># Crear un nuevo objeto vacío:
+my $HQX = Convert::BinHex-&gt;new;
+# Establecer atributos de la cabecera:
+$HQX-&gt;filename("logo.gif");
+$HQX-&gt;type("GIFA");
+$HQX-&gt;creator("CNVS");
+# Proporcionarle los forks de datos y recursos (cualquiera de los dos puede faltar):
+$HQX-&gt;data(Path =&gt; "/ruta/a/datos");       # aquí, los datos están en disco
+$HQX-&gt;resource(Data =&gt; $resourcefork);     # aquí, el recurso está en memoria
+# Salida como un flujo BinHex, completo con el comentario inicial:
+$HQX-&gt;encode(\*STDOUT);</pre>
+<p class="Pp"><b>¡¡¡PLANIFICADO!!! Bin a hex, interfaz "CAP".</b>
+    <i>Gracias a Ken Lunde por sugerir esto</i>.</p>
+<pre># Crear un nuevo objeto vacío desde un árbol CAP:
+my $HQX = Convert::BinHex-&gt;from_cap("/ruta/a/raiz/archivo");
+$HQX-&gt;encode(\*STDOUT);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>BinHex</b> es un formato utilizado por Macintosh para transportar archivos Mac
+    de forma segura a través del correo electrónico, como flujos de datos de 7 bits, de líneas cortas y semicomprimidos. Este módulo proporciona un medio para convertir esos flujos de datos
+    de vuelta a datos binarios.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FORMAT'><a class='permalink' href='#FORMAT'>FORMATO</a></h1>
+<p class="Pp"><i>(Parte del texto tomado de la RFC-1741.)</i> Los archivos en Macintosh
+    consisten en dos partes, llamadas <i>forks</i>:</p>
+<dl class="Bl-tag">
+  <dt>Fork de datos (Data fork)</dt>
+  <dd>Los datos reales incluidos en el archivo. El fork de datos es típicamente la única
+      parte significativa de un archivo Macintosh en un sistema informático no Macintosh.
+      Por ejemplo, si un usuario de Macintosh quiere enviar un archivo de datos a un usuario de
+      un IBM-PC, ella solo enviaría el fork de datos.</dd>
+  <dt id="Resource"><a class="permalink" href="#Resource">Fork de recursos (Resource fork)</a></dt>
+  <dd>Contiene una colección de pares de atributos/valores arbitrarios, incluyendo
+      segmentos de programa, mapas de bits de iconos y valores paramétricos.</dd>
+</dl>
+<p class="Pp">La información adicional sobre los archivos Macintosh es almacenada por el
+    Finder en un archivo oculto, llamado "Desktop Database" (Base de Datos de Escritorio).</p>
+<p class="Pp">Debido a las complicaciones de almacenar diferentes partes de un
+    archivo Macintosh en un sistema de archivos no Macintosh que solo maneja datos consecutivos
+    en una parte, es común convertir el archivo Macintosh a algún otro
+    formato antes de transferirlo a través de la red. El formato BinHex comprime
+    esos datos en ASCII transmisible de la siguiente manera:</p>
+<dl class="Bl-tag">
+  <dt>1.</dt>
+  <dd>El archivo se emite como un <b>flujo de bytes</b> que consiste en algo de información básica de
+      cabecera (nombre de archivo, tipo, creador), luego el fork de datos, luego el
+      fork de recursos.</dd>
+  <dt>2.</dt>
+  <dd>El flujo de bytes se <b>comprime</b> buscando series de bytes
+      duplicados y representándolos usando una secuencia de escape binaria especial (por
+      supuesto, cualquier ocurrencia del carácter de escape también debe escaparse).</dd>
+  <dt>3.</dt>
+  <dd>El flujo comprimido se <b>codifica</b> a través de la "hemiola 6/8"
+      común a <i>base64</i> y <i>uuencode</i>: cada grupo de tres bytes de 8 bits (24 bits) se divide en cuatro números de 6 bits, que se usan como
+      índices en un "alfabeto" ASCII. (Asumo que los bytes sobrantes
+      se rellenan con ceros; la documentación es escasa).</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS'><a class='permalink' href='#FUNCTIONS'>FUNCIONES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='CRC_computation'><a class='permalink' href='#CRC_computation'>Cálculo de CRC</a></h2>
+<dl class="Bl-tag">
+  <dt id="macbinary_crc"><a class="permalink" href="#macbinary_crc">macbinary_crc
+    DATOS, SEMILLA</a></dt>
+  <dd>Calcula el CRC estilo MacBinary-II para los DATOS dados, con el CRC inicializado
+      a la SEMILLA. Normalmente, se comienza con una SEMILLA de 0, y se inyecta el
+      CRC anterior como la SEMILLA si estás manejando muchos
+      datos un trozo a la vez. Es decir:
+        <pre>$crc = 0;
+while (&lt;STDIN&gt;) {
+    $crc = macbinary_crc($_, $crc);
+}
+</pre>
+    <p class="Pp"><i>Nota:</i> Extraído de la utilidad <i>mcvert</i> (Doug
+        Moore, abril de '87), usando un algoritmo de "matriz mágica" de Jim Van
+        Verth para mayor eficiencia. Convertido a Perl5 por Eryq. <b>Sin probar.</b></p>
+  </dd>
+  <dt id="binhex_crc"><a class="permalink" href="#binhex_crc">binhex_crc DATOS,
+    SEMILLA</a></dt>
+  <dd>Calcula el CRC estilo HQX para los DATOS dados, con el CRC inicializado a la SEMILLA.
+      Normalmente, se comienza con una SEMILLA de 0, y se inyecta el CRC anterior como
+      la SEMILLA si estás manejando muchos datos un trozo a la vez. Es decir:
+        <pre>$crc = 0;
+while (&lt;STDIN&gt;) {
+    $crc = binhex_crc($_, $crc);
+}
+</pre>
+    <p class="Pp"><i>Nota:</i> Extraído de la utilidad <i>mcvert</i> (Doug
+        Moore, abril de '87), usando un algoritmo de "matriz mágica" de Jim Van
+        Verth para mayor eficiencia. Convertido a Perl5 por Eryq.</p>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OO_INTERFACE'><a class='permalink' href='#OO_INTERFACE'>INTERFAZ OO</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Conversion'><a class='permalink' href='#Conversion'>Conversión</a></h2>
+<dl class="Bl-tag">
+  <dt id="bin2hex"><a class="permalink" href="#bin2hex">bin2hex</a></dt>
+  <dd><i>Método de clase, constructor.</i> Devuelve un objeto convertidor. Solo crea
+      una nueva instancia de "Convert::BinHex::Bin2Hex"; consulta esa clase para
+      más detalles.</dd>
+  <dt id="hex2bin"><a class="permalink" href="#hex2bin">hex2bin</a></dt>
+  <dd><i>Método de clase, constructor.</i> Devuelve un objeto convertidor. Solo crea
+      una nueva instancia de "Convert::BinHex::Hex2Bin"; consulta esa clase para
+      más detalles.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Construction'><a class='permalink' href='#Construction'>Construcción</a></h2>
+<dl class="Bl-tag">
+  <dt id="new"><a class="permalink" href="#new">new PARAMHASH</a></dt>
+  <dd><i>Método de clase, constructor.</i> Devuelve un manejador sobre una entidad convertible a BinHex.
+      En general, los forks de datos y recursos para dicha entidad se almacenan en
+      formato nativo (binario).
+    <p class="Pp">Los parámetros en el PARAMHASH son los mismos que los nombres de los métodos orientados a
+        cabecera, y pueden usarse para establecer atributos:</p>
+        <pre>$HQX = new Convert::BinHex filename =&gt; "icon.gif",
+                           type    =&gt; "GIFB",
+                           creator =&gt; "CNVS";
+</pre>
+  </dd>
+  <dt id="open"><a class="permalink" href="#open">open PARAMHASH</a></dt>
+  <dd><i>Método de clase, constructor.</i> Devuelve un manejador sobre un nuevo flujo
+      BinHex, para su análisis. Los parámetros son:</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="Data"><a class="permalink" href="#Data">Data</a></dt>
+  <dd>Entrada de un flujo HEX desde los datos dados. Puede ser un escalar, o una
+      referencia a un arreglo de escalares.</dd>
+  <dt id="Expr"><a class="permalink" href="#Expr">Expr</a></dt>
+  <dd>Entrada de un flujo HEX desde cualquier expresión <b>open()</b>válida. Será
+      abierta y puesta en modo binario, y el manejador de archivo se cerrará ya sea en un
+      <span class="Li">close()</span> o cuando el objeto sea destruido.</dd>
+  <dt id="FH"><a class="permalink" href="#FH">FH</a></dt>
+  <dd>Entrada de un flujo HEX desde el manejador de archivo dado.</dd>
+  <dt id="NoComment"><a class="permalink" href="#NoComment">NoComment</a></dt>
+  <dd>Si es verdadero, el analizador no debe intentar omitir un comentario inicial "(This
+      file...)"t; comentario. Eso significa que los primeros caracteres no blancos encontrados deben ser los datos codificados en binhex.</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Get/set_header_information'><a class='permalink' href='#Get/set_header_information'>Obtener/establecer   información de cabecera</a></h2>
+<dl class="Bl-tag">
+  <dt id="creator"><a class="permalink" href="#creator">creator [VALOR]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer el creador del archivo. Esta es una
+      cadena de cuatro caracteres (aunque no sé si está garantizado que sea
+      ASCII imprimible!) que sirve como parte de la versión de Macintosh de un
+      "content-type" MIME.
+    <p class="Pp">Por ejemplo, un documento creado por "Canvas" podría
+        tener como creador <span class="Li">"CNVS"</span>.</p>
+  </dd>
+  <dt id="data"><a class="permalink" href="#data">data [PARAMHASH]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer el data fork. Cualquier argumento se pasa
+      al <b>new()</b> método de "Convert::BinHex::Fork".</dd>
+  <dt id="filename"><a class="permalink" href="#filename">filename
+    [VALOR]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer el nombre del archivo.</dd>
+  <dt id="flags"><a class="permalink" href="#flags">flags [VALOR]</a></dt>
+  <dd><i>Método de instancia.</i> Devuelve los flags, como un entero. Usa enmascaramiento de bits para
+      obtener los valores que necesites.</dd>
+  <dt id="header_as_string"><a class="permalink" href="#header_as_string">header_as_string</a></dt>
+  <dd>Devuelve una versión en cadena de la cabecera que podrías usar con
+      fines de registro/depuración. Se ve así:
+        <pre>X-HQX-Software: BinHex 4.0 (Convert::BinHex 1.102)
+X-HQX-Filename: Something_new.eps
+X-HQX-Version: 0
+X-HQX-Type: EPSF
+X-HQX-Creator: ART5
+X-HQX-Data-Length: 49731
+X-HQX-Rsrc-Length: 23096
+</pre>
+    <p class="Pp">Como algunos de vosotros habréis adivinado, esto es al estilo
+        RFC-822, y puede colocarse fácilmente en medio de una cabecera de
+        correo, o dividirse en líneas, etc.</p>
+  </dd>
+  <dt id="requires"><a class="permalink" href="#requires">requires
+    [VALOR]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer la versión de software requerida para convertir
+      este archivo, tal como se extrajo del comentario que precedía a los
+      datos binhex'eados; por ejemplo:
+        <pre>(This file must be converted with BinHex 4.0)
+</pre>
+    <p class="Pp">En este caso, después de analizar el comentario, el código:</p>
+        <pre>$HQX-&gt;requires;
+</pre>
+    <p class="Pp">devolvería "4.0".</p>
+  </dd>
+  <dt id="resource"><a class="permalink" href="#resource">resource
+    [PARAMHASH]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer el resource fork. Cualquier argumento se
+      pasa al <b>new()</b> método de
+    "Convert::BinHex::Fork".</dd>
+  <dt id="type"><a class="permalink" href="#type">type [VALOR]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer el tipo del archivo. Esta es una
+      cadena de cuatro caracteres (aunque no sé si está garantizado que sea
+      ASCII imprimible!) que sirve como parte de la versión de Macintosh de un
+      "content-type" MIME.
+    <p class="Pp">Por ejemplo, un archivo GIF89a podría tener como tipo
+        <span class="Li">"GF89"</span>.</p>
+  </dd>
+  <dt id="version"><a class="permalink" href="#version">version [VALOR]</a></dt>
+  <dd><i>Método de instancia.</i> Obtener/establecer la versión, como un entero.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Decode,_high-level'><a class='permalink' href='#Decode,_high-level'>Decodificar,   a nivel alto</a></h2>
+<dl class="Bl-tag">
+  <dt id="read_comment"><a class="permalink" href="#read_comment">read_comment</a></dt>
+  <dd><i>Método de instancia.</i> Salta el comentario inicial en el archivo, que
+      tiene la forma:
+        <pre>(This file must be converted with BinHex 4.0)
+</pre>
+    <p class="Pp">Según la RFC-1741, <i>este comentario debe preceder inmediatamente a los
+        datos BinHex,</i> y cualquier texto anterior a él será ignorado.</p>
+    <p class="Pp"><i>No necesitas invocar este método tú mismo;</i>
+        <span class="Li">read_header()</span> lo hará por ti. Después de la
+        llamada, el número de versión en el comentario es accesible a través del
+        <span class="Li">requires()</span> método.</p>
+  </dd>
+  <dt id="read_header"><a class="permalink" href="#read_header">read_header</a></dt>
+  <dd><i>Método de instancia.</i> Lee la cabecera del archivo BinHex. ¡Debes hacer esto
+      primero!</dd>
+  <dt id="read_data"><a class="permalink" href="#read_data">read_data
+    [NBYTES]</a></dt>
+  <dd><i>Método de instancia.</i> Lee información del data fork. Úsalo en un
+      contexto de array para absorber todos los datos en un array de escalares:
+        <pre>@data = $HQX-&gt;read_data;
+</pre>
+    <p class="Pp">O úsalo en un contexto escalar para obtener los datos por partes:</p>
+        <pre>while (defined($data = $HQX-&gt;read_data)) {
+   # haz cosas con $data
+}
+</pre>
+    <p class="Pp">El NBYTES a leer por defecto es 2048.</p>
+  </dd>
+  <dt id="read_resource"><a class="permalink" href="#read_resource">read_resource
+    [NBYTES]</a></dt>
+  <dd><i>Método de instancia.</i> Lee todo/algunos datos del resource fork. Ver
+      <span class="Li">read_data()</span> para el uso.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Encode,_high-level'><a class='permalink' href='#Encode,_high-level'>Codificar,   a nivel alto</a></h2>
+<dl class="Bl-tag">
+  <dt id="encode"><a class="permalink" href="#encode">encode OUT</a></dt>
+  <dd>Codifica el objeto como un flujo BinHex hacia el manejador de salida OUT dado. OUT
+      puede ser un filehandle, o cualquier objeto bendito que responda a un
+      <span class="Li">print()</span> mensaje.
+    <p class="Pp">El comentario inicial se emite, usando el
+        <span class="Li">requires()</span> atributo.</p>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SUBMODULES'><a class='permalink' href='#SUBMODULES'>SUBMÓDULOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Convert::BinHex::Bin2Hex'><a class='permalink' href='#Convert::BinHex::Bin2Hex'>Convert::BinHex::Bin2Hex</a></h2>
+<p class="Pp">Un convertidor de BINario a HEX. Este tipo de conversión requiere una
+    cierta cantidad de información de estado; no se puede hacer simplemente llamando a una
+    función simple repetidamente. Úsalo así:</p>
+<pre># Crea y usa un objeto "traductor":
+my $B2H = Convert::BinHex-&gt;bin2hex;    # obtén un objeto convertidor
+while (&lt;STDIN&gt;) {
+    print STDOUT $B2H-&gt;next($_);          # convierte algo más de entrada
+}
+print STDOUT $B2H-&gt;done;               # no más entrada: termina
+# Reutiliza el objeto:
+$B2H-&gt;rewind;                 # ¡listo para más acción!
+while (&lt;MOREIN&gt;) { ...</pre>
+<p class="Pp">En cada iteración, <span class="Li">next()</span> (y
+    <span class="Li">done()</span>) puede devolver tanto una cadena no vacía de tamaño decente
+    (indicando que hay más datos convertidos listos para ti) o una cadena vacía
+    (indicando que el convertidor está esperando a acumular más entrada en sus
+    buffers privados antes de entregarte más cosas para la salida.</p>
+<p class="Pp">Ten en cuenta que <span class="Li">done()</span> <i>siempre</i> convierte
+    y te entrega lo que queda.</p>
+<p class="Pp">Puede que este haya sido un buen enfoque. Puede que no. Algún día, el
+    convertidor puede permitirte darle un objeto que responda a
+    <b>read()</b>, o un FileHandle, y hará todo el desagradable rellenado de buffers
+    por su cuenta, sirviéndote cosas línea por línea:</p>
+<pre># Algún día, quizás...
+my $B2H = Convert::BinHex-&gt;bin2hex(\*STDIN);
+while (defined($_ = $B2H-&gt;getline)) {
+    print STDOUT $_;
+}</pre>
+<p class="Pp">Algún día, quizás. No dudes en expresar tus opiniones.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Convert::BinHex::Hex2Bin'><a class='permalink' href='#Convert::BinHex::Hex2Bin'>Convert::BinHex::Hex2Bin</a></h2>
+<p class="Pp">Un convertidor de HEX a BINario. Este tipo de conversión requiere una
+    cierta cantidad de información de estado; no se puede hacer simplemente llamando a una
+    función simple repetidamente. Úsalo así:</p>
+<pre># Crea y usa un objeto "traductor":
+my $H2B = Convert::BinHex-&gt;hex2bin;    # obtén un objeto convertidor
+while (&lt;STDIN&gt;) {
+    print STDOUT $H2B-&gt;next($_);          # convierte algo más de entrada
+}
+print STDOUT $H2B-&gt;done;               # no más entrada: termina
+# Reutiliza el objeto:
+$H2B-&gt;rewind;                 # ¡listo para más acción!
+while (&lt;MOREIN&gt;) { ...</pre>
+<p class="Pp">En cada iteración, <span class="Li">next()</span> (y
+    <span class="Li">done()</span>) puede devolver tanto una cadena no vacía de tamaño decente
+    (indicando que hay más datos convertidos listos para ti) o una cadena vacía
+    (indicando que el convertidor está esperando a acumular más entrada en sus
+    buffers privados antes de entregarte más cosas para la salida.</p>
+<p class="Pp">Ten en cuenta que <span class="Li">done()</span> <i>siempre</i> convierte
+    y te entrega lo que queda.</p>
+<p class="Pp">Ten en cuenta que este convertidor no <i>no</i> encuentra el comentario inicial de
+    "BinHex version". Tienes que saltártelo tú mismo. Solo
+    maneja datos entre la apertura y el cierre
+    <span class="Li">":"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Convert::BinHex::Fork'><a class='permalink' href='#Convert::BinHex::Fork'>Convert::BinHex::Fork</a></h2>
+<p class="Pp">Un fork en un archivo Macintosh.</p>
+<pre># Cómo obtenerlos...
+$data_fork = $HQX-&gt;data;      # obtén el data fork
+$rsrc_fork = $HQX-&gt;resource;  # obtén el resource fork
+# Crea un nuevo fork:
+$FORK = Convert::BinHex::Fork-&gt;new(Path =&gt; "/tmp/file.data");
+$FORK = Convert::BinHex::Fork-&gt;new(Data =&gt; $scalar);
+$FORK = Convert::BinHex::Fork-&gt;new(Data =&gt; \@array_of_scalars);
+# Obtén/establece la longitud del data fork:
+$len = $FORK-&gt;length;
+$FORK-&gt;length(170);        # ¡esto anula el valor REAL: ten cuidado!
+# Obtén/establece la ruta a los datos subyacentes (si está en un archivo de disco):
+$path = $FORK-&gt;path;
+$FORK-&gt;path("/tmp/file.data");
+# Obtén/establece los datos en memoria, que pueden ser un escalar o una referencia a array:
+$data = $FORK-&gt;data;
+$FORK-&gt;data($scalar);
+$FORK-&gt;data(\@array_of_scalars);
+# Obtén/establece el CRC:
+$crc = $FORK-&gt;crc;
+$FORK-&gt;crc($crc);</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='UNDER_THE_HOOD'><a class='permalink' href='#UNDER_THE_HOOD'>POR   DEBAJO DEL CAPÓ</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Design_issues'><a class='permalink' href='#Design_issues'>Problemas de   diseño</a></h2>
+<dl class="Bl-tag">
+  <dt id="BinHex"><a class="permalink" href="#BinHex">BinHex necesita un analizador con estado</a></dt>
+  <dd>A diferencia de sus primos <i>base64</i> y <i>uuencode</i>, el formato BinHex no es
+      propicio para ser analizado línea por línea. Parece no haber garantía
+      de que las líneas contengan 4n caracteres codificados... e incluso si la hay, el
+      algoritmo de compresión de BinHex interfiere: incluso cuando puedes <i>decodificar</i>
+      una línea a la vez, no puedes necesariamente <i>descomprimir</i> una línea a la
+      vez.
+    <p class="Pp">Por ejemplo: una línea decodificada que termine con el byte
+        <span class="Li">"\x90"</span> (el carácter de escape o "marca"
+        ) es ambigua: dependiendo del siguiente byte decodificado, podría
+        significar un <span class="Li">"\x90"</span> literal (si el siguiente
+        byte es un <span class="Li">"\x00"</span>), o podría significar
+        n-1 repeticiones más del carácter anterior (si el siguiente byte es algún
+        no cero <span class="Li">"n"</span>).</p>
+    <p class="Pp">Por esta razón, un analizador BinHex debe ser algo con estado:
+        no puedes tener código como este:</p>
+        <pre>#### ¡NO! #### ¡NO! #### ¡NO! #### ¡NO! #### ¡NO! ####
+while (&lt;STDIN&gt;) {            # lee HEX
+    print hexbin($_);          # convierte y escribe BIN
+}
+</pre>
+    <p class="Pp">a menos que algo esté sucediendo "detrás de escena" para
+        llevar la cuenta de lo que se hizo la última vez. <i>Lo peligroso, sin embargo, es
+        que este</i> <i>enfoque </i><b><i>parecerá</i></b><i> funcionarrk, si
+        solo lo pruebas en archivos </i>BinHex <i>que no usan compresión y
+        que tienen 4n caracteres </i>HEX <i>en cada </i></p>línea.
+    <p class="Pp">Dado que de todos modos tenemos que mante</p>ner estado, usamos el objeto
+        del </dd>analizador para conservar nuestro estado.
+  <dt id="We"><a class="permalink" href="#We">Necesitamos manejar archivos de entrada
+    </a></dt>grandes
+  <dd>Las soluciones que exigen leer todo en memoria no me parecen buenas.
+      El primer archivo MPEG que aparezca puede arruinarle el día a uno.
+      Por lo tanto, este módulo no tiene limitaciones de tamaño: los datos se
+      leen bajo demanda, y los manejadores de archivos siempre son una </dd>opción.
+  <dt id="Boy,"><a class="permalink" href="#Boy,">¡Vaya, qué lento es </a></dt>esto!
+  <dd>Gran parte de la manipulación a nivel de bytes que hay que realizar, en
+      particular el cálculo del CRC (que implica desplazamientos y máscaras de
+      bits intensivos), ralentiza significativamente este módulo. Lo que se
+      necesita quizás es una
+      <i>extensión </i>opcional
+    <p class="Pp">biblioteca donde las part</p>es lentas puedan hacerse m</dd>ás
+      rápidamente... u</dl>n Convert::BinHex::CRC, si</section> se quiere. ¿Voluntarios?
+<section class="Ss">
+<h2 class="Ss" id='How_it_works'><a class='permalink' href='#How_it_works'>Aun considerando eso, es más lento de lo que me gustaría. Estoy
+        seguro de que se pueden hacer muchas mejoras en el extremo HEX-a-BIN.
+        Sin duda intentaré algunas con </a></h2>el tiempo...
+<p class="Pp">Cómo </p>funciona
+<pre>Dado que BinHex es un formato por capas, que consiste en..</pre>.
+<p class="Pp">Un archivo Macintosh [el "BIN"]...
+   Codificado como un flujo de bytes estructurado de 8 bits, luego...
+      Comprimido para reducir bytes duplicados, luego...
+         Codificado como ASCII de 7 bits [el "HEX"] <b>...existe un algoritmo de análisis por capas para revertir el proceso.
+    Básicamente, </b>funciona de </p>manera similar a
+<pre>fread(</pre>)
+<p class="Pp">de</p> s</section>tdi</section>o:
+<section class="Sh">
+<h1 class="Sh" id='WARNINGS'><a class='permalink' href='#WARNINGS'>0. Hay un búfer interno de datos descomprimidos (BIN),
+   inicialmente vacío.
+1. La aplicación solicita leer() n bytes de datos del objeto
+2. Si el búfer no está lo suficientemente lleno para atender la solicitud:
+     2a. El método read() toma el siguiente trozo disponible de datos de
+         entrada (el HEX).
+     2b. Los datos HEX se convierten y descomprimen en tantos bytes BIN
+         como sea posible.
+     2c. Los bytes BIN se añaden al búfer de read().
+     2d. Vuelve al paso 2a. hasta que el búfer esté lo </a></h1>suficientemente lleno
+         o se alcance el fin de la entrada.
+<p class="Pp">Los algoritmos de conversión y descompresión necesitan sus propios
+    búferes y estado internos (ya que el siguiente trozo de entrada puede no
+    contener todos los datos necesarios para una operación completa de
+    conversión/descompresión). Estos se mantienen en el objeto, por lo que es
+    posible analizar dos flujos de entrada diferentes simultáneamente. <span class="Li">ADVERTENCIAS </span>Solo maneja archivos "Hqx7"
+[[22]], según
+    </p>RFC-1741.
+<p class="Pp">Recuerda que los archivos de texto de Macintosh usan
+    <span class="Li">"</span>\r</p>"
+<pre>como fin de línea: esto significa que si
+    quieres que </pre>un archivo de texto se vea normal en un sistema que no sea</section> Mac,
+    probablemente quieras hacer esto con los datos:
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR_AND_CREDITS'><a class='permalink' href='#AUTHOR_AND_CREDITS'># Obtener los datos y mostrarlos según las convenciones normales:
+foreach ($HQX-&gt;read_data) { s/\r/\n/g; </a></h1>print }
+<p class="Pp">AUTOR Y </p>CRÉDITOS
+<p class="Pp">Mantenido por Stephen Nelson &lt;stephenenelson@mac.com&gt; <a href='http://www.enteract.com/~eryq'>Escrito por </a>Eryq,
+    <i>http://www.enteract.com/~eryq / eryq@enteract.</i></p>com
+<p class="Pp">Soporte para conversión nativa de Mac, <i>m</i>ás <i>contribuciones
+</i>    invaluables en las pruebas alfa, <i>más </i>algunos </p>parches,
+<p class="Pp">m</p>á</section>s
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>los
+    programas base binhex/debinhex, fueron proporcionados por Paul J. Schinder
+    </a></h1>(NASA/GSFC).
+<p class="Pp">Ken Lunde (Adobe) sugirió incorporar la representación del archivo </p>CAP.
+<p class="Pp">LICENCIA <b>Copyright (c) 1997 por Eryq. Todos lo</b>s derechos reservados. Este programa</p> es
+    software libre; puedes redist</section>ribuirlo y/o modificarlo bajo los mi</div>smos términos
+    que el propio Perl.
+<table class="foot">
+  <tr>
+    <td class="foot-date">Este software </td>viene con
+    <td class="foot-os">NIN</td>GU</tr>NA </table>GAR</section>AN</article>TÍA
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>de ningún tipo. Consulta el archivo
+    COPYING de la distribución </p>para más detalles.
+    <dl>
+        <dt>2025-0</dt>7-13
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-convert-binhex/">perl v5.</a></dd>42.0
+        <dt>Información </dt>del paquete:
+        <dd>Nombre </dd>del paquete:
+        <dt>extra/perl-convert-binhex </dt>Versión: 1.125-15
+        <dd><a href="https://search.cpan.org/dist/Convert-BinHex/">Upstrea</a></dd>m:
+        <dt>https://search.cpan.</dt>org/dist/Convert-BinHex/
+        <dd>Licencias: </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-convert-binhex/">/listing/</a></dd>extra/per</dl>l-conver</section>t-binhex/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#FORMAT">FORMATO </a></li>FUNCIONES INTERFAZ OO
+        
+            <li><a href="#FUNCTIONS">SUB</a></li>MÓDULOS
+        
+            <li><a href="#OO_INTERFACE">Bajo el </a></li>capó ADVERTENCIAS
+        
+            <li><a href="#SUBMODULES">AUTOR </a></li>Y CRÉDITOS
+        
+            <li><a href="#UNDER_THE_HOOD">LIC</a></li>ENCIA
+        
+            <li><a href="#WARNINGS">Otros </a></li>formatos:
+        
+            <li><a href="#AUTHOR_AND_CREDITS">txt </a></li>,
+        
+            <li><a href="#LICENSE">r</a></li></ul>a</nav></details>w
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Impulsado por
+        
+            <a href="/man/Convert::BinHex.3pm.en.txt">a</a>rchmanweb 
+        
+            <a href="/man/Convert::BinHex.3pm.en.raw">,</a>
+    </p> </nav>     </aside>     </main>usando
+        <footer>
+            términos de la
+            <p>GPL-3.0 <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">licencia, excepto por el co</a>ntenido de las páginas de m</p>anual, que tienen su propia </footer>licencia
+               esp</body>ecificada en el paquete cor</html>respondiente de Arch Linux.

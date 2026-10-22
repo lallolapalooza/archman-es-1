@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PerlIO(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">PerlIO.3perl</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">PerlIO(3perl)</td>
+    <td class="head-vol">Guía de referencia para programadores de Perl</td>
+    <td class="head-rtitle">PerlIO(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">PerlIO - Cargador bajo demanda para capas PerlIO y raíz del espacio de nombres PerlIO::*</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre># Soporta archivos de texto nativos de la plataforma y con CRLF
+open(my $fh, &quot;&lt;:crlf&quot;, &quot;mi.txt&quot;) or die &quot;la apertura falló: $!&quot;;
+# Añadir texto codificado en UTF-8
+open(my $fh, &quot;&gt;&gt;:encoding(UTF-8)&quot;, &quot;algun.log&quot;)
+  or die &quot;la apertura falló: $!&quot;;
+# Abrir portablemente un archivo binario para lectura
+open(my $fh, &quot;&lt;&quot;, &quot;su.jpg&quot;) or die &quot;la apertura falló: $!&quot;;
+binmode($fh) or die &quot;binmode falló: $!&quot;;
+Shell:
+  PERLIO=:perlio perl ....</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Cuando se encuentra una capa indefinida 'foo' en una especificación
+    de capa de <span class="Li">&quot;open&quot;</span> o
+    <span class="Li">&quot;binmode&quot;</span>, el código C realiza el equivalente de:</p>
+<pre>use PerlIO 'foo';</pre>
+<p class="Pp">El código Perl en PerlIO.pm intenta localizar una capa haciendo:</p>
+<pre>require PerlIO::foo;</pre>
+<p class="Pp">De lo contrario, el paquete <span class="Li">&quot;PerlIO&quot;</span>
+    es un marcador de posición para funciones adicionales relacionadas con PerlIO.</p>
+<section class="Ss">
+<h2 class="Ss" id='Capas'><a class='permalink' href='#Capas'>Capas</a></h2>
+<p class="Pp">En términos generales, las capas PerlIO (anteriormente a veces
+    denominadas &quot;disciplinas&quot;) son una pila ordenada aplicada a un
+    manejador de archivo (especificado como una lista separada por espacios o
+    dos puntos, convencionalmente escrita con un prefijo de dos puntos). Cada
+    capa realiza alguna operación en cualquier entrada o salida, excepto cuando
+    se omite, como con
+    <span class="Li">&quot;sysread&quot;</span> o
+    <span class="Li">&quot;syswrite&quot;</span>. Las operaciones de lectura atraviesan
+    la pila en el orden en que se establecen (de izquierda a derecha), y las
+    operaciones de escritura en orden inverso.</p>
+<p class="Pp">También hay capas que en realidad solo configuran indicadores en
+    capas inferiores, o capas que modifican la pila actual pero que no persisten
+    en la pila; estas se denominan pseudocapas.</p>
+<p class="Pp">Al abrir un manejador, se abrirá con las capas especificadas
+    explícitamente en la llamada
+    <b>open()</b> (o los valores predeterminados de la plataforma, si se
+    especifican como dos puntos sin capas posteriores).</p>
+<p class="Pp">Si las capas no se especifican explícitamente, el manejador se
+    abrirá con las capas especificadas por la variable ${^OPEN} (generalmente
+    establecida mediante la pragmática open para un ámbito léxico, o el
+    interruptor de línea de comandos
+    <span class="Li">&quot;-C&quot;</span> o la variable de entorno
+    <span class="Li">&quot;PERL_UNICODE&quot;</span> para el ámbito del programa
+    principal).</p>
+<p class="Pp">Si las capas no se especifican en la llamada
+    <b>open()</b> o en la variable
+    <span class="Li">&quot;${^OPEN}&quot;</span>, el manejador se abrirá con la
+    pila de capas predeterminada configurada para esa arquitectura; véase
+    &quot;Valores predeterminados y cómo anularlos&quot;.</p>
+<p class="Pp">Algunas capas insertarán automáticamente las capas de nivel inferior
+    requeridas si no están presentes; por ejemplo,
+    <span class="Li">&quot;:perlio&quot;</span> insertará
+    <span class="Li">&quot;:unix&quot;</span> debajo de sí misma para E/S de bajo
+    nivel, y
+    <span class="Li">&quot;:encoding&quot;</span> insertará los valores
+    predeterminados de la plataforma para E/S con búfer.</p>
+<p class="Pp">La función <span class="Li">&quot;binmode&quot;</span> puede llamarse
+    en un manejador abierto para insertar capas adicionales en la pila, lo que
+    también puede modificar las capas existentes.
+    <span class="Li">&quot;binmode&quot;</span> llamado sin capas eliminará o
+    desactivará cualquier capa existente que transforme el flujo de bytes,
+    haciendo que el manejador sea adecuado para datos binarios.</p>
+<p class="Pp">Las siguientes capas están definidas actualmente:</p>
+<dl class="Bl-tag">
+  <dt>:unix</dt>
+  <dd>La capa de nivel más bajo que proporciona operaciones básicas de PerlIO en
+      términos de llamadas numéricas de descriptor de archivo de UNIX/POSIX
+      (<b>open()</b>, <b>read()</b>, <b>write()</b>, <b>lseek()</b>,
+      <b>close()</b>). Se utiliza incluso en arquitecturas no Unix, y la mayoría
+      de las otras capas operan sobre ella.</dd>
+  <dt>:stdio</dt>
+  <dd>Capa que llama a
+      <span class="Li">&quot;fread&quot;</span>,
+      <span class="Li">&quot;fwrite&quot;</span> y
+      <span class="Li">&quot;fseek&quot;</span>/<span class="Li">&quot;ftell&quot;</span>,
+      etc. Tenga en cuenta que como esto es el stdio &quot;real&quot;, ignorará
+      cualquier capa debajo de ella y se dirigirá directamente al sistema
+      operativo a través de la biblioteca C como de costumbre. Esta capa
+      implementa E/S de bajo nivel y almacenamiento en búfer, pero rara vez se
+      usa en arquitecturas modernas.</dd>
+  <dt>:perlio</dt>
+  <dd>Una implementación desde cero de almacenamiento en búfer para PerlIO.
+      Proporciona acceso rápido al búfer para
+      <span class="Li">&quot;sv_gets&quot;</span>, que implementa readline/&lt;&gt; de
+      Perl y, en general, intenta minimizar la copia de datos.
+    <p class="Pp"><span class="Li">&quot;:perlio&quot;</span> insertará una capa
+        <span class="Li">&quot;:unix&quot;</span> debajo de sí misma para
+        realizar E/S de bajo nivel.</p>
+  </dd>
+  <dt>:crlf</dt>
+  <dd>Una capa que implementa finales de línea CRLF al estilo DOS/Windows. En
+      lectura, convierte pares de CR, LF en un solo carácter de nueva línea
+      &quot;\n&quot;. En escritura, convierte cada &quot;\n&quot; en un par
+      CR, LF. Tenga en cuenta que esta capa se negará silenciosamente a ser
+      insertada sobre sí misma.
+    <p class="Pp">Actualmente, *no* imita a MS-DOS en cuanto a tratar el Control-Z
+        como marcador de fin de archivo.</p>
+    <p class="Pp">En arquitecturas tipo DOS/Windows donde esta capa forma parte de
+        los valores predeterminados, también actúa como la capa
+        <span class="Li">&quot;:perlio&quot;</span>, y eliminar la traducción
+        CRLF (por ejemplo, con
+        <span class="Li">&quot;:raw&quot;</span>) solo desactiva el indicador de
+        traducción CRLF. Desde Perl 5.14, también puede aplicar otra capa
+        <span class="Li">&quot;:crlf&quot;</span> más tarde, por ejemplo, cuando
+        la traducción CRLF debe ocurrir después de una capa de codificación. En
+        otras arquitecturas, es una capa de traducción CRLF mundana y se puede
+        agregar y eliminar normalmente.</p>
+        <pre># traducir CRLF después de la codificación en Perl 5.14 o más reciente
+binmode $fh, &quot;:raw:encoding(UTF-16LE):crlf&quot;
+  or die &quot;binmode falló: $!&quot;;
+</pre>
+  </dd>
+  <dt>:utf8</dt>
+  <dd>Pseudocapa que declara que el flujo acepta la codificación mejorada
+      *interna* de Perl de caracteres, que es aproximadamente UTF-8 en máquinas
+      ASCII, pero UTF-EBCDIC en máquinas EBCDIC. Esto permite leer o escribir
+      cualquier carácter que Perl pueda representar en el flujo.
+    <p class="Pp">Esta capa (que en realidad establece un indicador en la capa
+        precedente y se establece implícitamente por cualquier capa
+        <span class="Li">&quot;:encoding&quot;</span>) no traduce ni valida secuencias
+        de bytes. En su lugar, indica que el flujo de bytes habrá sido organizado
+        por otras capas para proporcionarlo en la codificación mejorada interna
+        de Perl, que el código Perl (y el código XS correctamente escrito)
+        interpretarán como caracteres Unicode decodificados.</p>
+    <p class="Pp"><b>PRECAUCIÓN</b>: No use esta capa para traducir desde bytes
+        UTF-8, ya que UTF-8 inválido o datos binarios darán como resultado cadenas
+        de Perl mal formadas. Es poco probable que produzca UTF-8 inválido cuando
+        se usa para la salida, aunque producirá UTF-EBCDIC en sistemas EBCDIC. Se
+        prefiere la capa
+        <span class="Li">:encoding(UTF-8)</span> (el guion es significativo), ya
+        que garantizará la traducción entre bytes UTF-8 válidos y caracteres
+        Unicode válidos.</p>
+  </dd>
+  <dt>:bytes</dt>
+  <dd>Este es el inverso de la pseudocapa
+      <span class="Li">&quot;:utf8&quot;</span>. Desactiva el indicador en la
+      capa inferior para que los datos leídos de ella se consideren la codificación
+      degradada interna de Perl, interpretados así como la codificación de un
+      solo byte nativa de Latin-1 o EBCDIC. Del mismo modo, en la salida, Perl
+      advertirá si se escribe un carácter &quot;ancho&quot; (un punto de código
+      fuera del rango 0..255) en dicho flujo.
+    <p class="Pp">Es muy peligroso insertar esto en un manejador que usa una capa
+        <span class="Li">&quot;:encoding&quot;</span>, ya que dicha capa asume
+        trabajar con la codificación mejorada interna de Perl, por lo que es
+        probable que obtenga un resultado corrupto. En su lugar, use
+        <span class="Li">&quot;:raw&quot;</span> o
+        <span class="Li">&quot;:pop&quot;</span> para eliminar las capas de
+        codificación.</p>
+  </dd>
+  <dt>:raw</dt>
+  <dd>La pseudocapa
+      <span class="Li">&quot;:raw&quot;</span> se *define* como idéntica a llamar
+      a <span class="Li">binmode($fh)</span>: el flujo se hace adecuado para
+      pasar datos binarios, es decir, cada byte se pasa tal cual. El flujo seguirá
+      siendo almacenado en búfer (pero esto no siempre fue así antes de Perl 5.14).
+    <p class="Pp">En Perl 5.6 y algunos libros, la capa
+        <span class="Li">&quot;:raw&quot;</span> se documenta como el inverso de
+        la capa
+        <span class="Li">&quot;:crlf&quot;</span>. Ese ya no es el caso; también
+        se deshabilitan otras capas que alterarían la naturaleza binaria del
+        flujo. Si desea finales de línea UNIX en una plataforma que normalmente
+        realiza la traducción CRLF, pero aún desea UTF-8 o valores
+        predeterminados de codificación, lo apropiado es agregar
+        <span class="Li">&quot;:perlio&quot;</span> a la variable de entorno
+        PERLIO, o abrir el manejador explícitamente con esa capa, para reemplazar
+        el plat</dd>
+</dl>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">PerlIO - Perl's I/O abstraction layer</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>
+    use PerlIO;
+    open(my $fh, "&gt;:encoding(UTF-8)", $filename) or die ...;
+    binmode($fh, ":raw");
+    my @layers = PerlIO::get_layers($fh);
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">PerlIO is a mechanism for layering I/O transformations. It allows
+    the input and output streams to be filtered through a series of layers,
+    each performing some transformation on the data. This is primarily used
+    to implement character encoding conversions and other stream manipulations
+    transparently.</p>
+<p class="Pp">The layers are specified as a colon-separated list of names,
+    optionally followed by arguments in parentheses. For example,
+    <span class="Li">&quot;:encoding(UTF-8)&quot;</span> specifies the encoding
+    layer with the argument UTF-8.</p>
+<p class="Pp">The layers are applied in the order they appear in the list.
+    When opening a file for input, the layers are applied from left to right.
+    When opening a file for output, the layers are applied from right to left.
+    This means that the first layer in the list is the one closest to the
+    application, and the last layer is the one closest to the actual I/O
+    device.</p>
+<section class="Ss">
+<h2 class="Ss" id="The_Layer_Stack"><a class='permalink' href='#The_Layer_Stack'>The Layer Stack</a></h2>
+<p class="Pp">The core of PerlIO is the concept of a layer stack. When you open
+    a file with certain flags, or use <span class="Li">binmode()</span>, you are
+    manipulating this stack. Here are some of the built-in layers:</p>
+<dl class="Bl-tag">
+    <dt>:crlf</dt>
+    <dd>This layer performs conversion between platform-specific line endings
+        (CRLF on Windows) and the standard Unix newline character (<span
+        class="Li">\n</span>). When reading, it converts CRLF to <span
+        class="Li">\n</span>. When writing, it converts <span class="Li">\n</span>
+        to CRLF. This layer is often part of the default stack on DOS-like
+        systems.</dd>
+    <dt>:debug</dt>
+    <dd>This is a pseudo-layer that prints out the layer stack and diagnostics
+        when it is "pushed". It's primarily for debugging the layer system
+        itself. It does not modify the data stream.</dd>
+    <dt>:utf8</dt>
+    <dd>This layer is a flag that indicates that the stream is expected to be
+        in UTF-8. It does not perform any translation itself but affects how
+        other layers, like <span class="Li">:encoding</span>, operate. If a
+        layer does not specify encoding handling, but does specify that it
+        operates on characters, then <span class="Li">:utf8</span> is enabled
+        by default. It is also enabled by <span class="Li">:encoding</span>.
+        It is off by default.</dd>
+    <dt>:raw</dt>
+    <dd>This pseudo-layer is used to disable any previous layers that might
+        modify the binary data stream. When <span class="Li">:raw</span> is
+        pushed onto the stack, it typically pops itself and any layers that
+        translate character encodings or line endings (like <span
+        class="Li">:encoding</span> and <span class="Li">:crlf</span>). The
+        implementation of <span class="Li">:raw</span> is as a pseudo-layer
+        which when "pushed" pops itself and then any layers which would modify
+        the binary data stream. (Undoing <span class="Li">:utf8</span> and
+        <span class="Li">:crlf</span> may be implemented by clearing flags
+        rather than popping layers but that is an implementation
+        detail.)</p>
+    <p class="Pp">As a consequence of the fact that <span
+        class="Li">:raw</span> normally pops layers, it usually only makes
+        sense to have it as the only or first element in a layer
+        specification. When used as the first element it provides a known base
+        on which to build e.g.</p>
+    <pre>
+open(my $fh,"&gt;:raw:encoding(UTF-8)",...)
+  or die "open failed: $!";
+</pre>
+    <p class="Pp">will construct a "binary" stream regardless of the platform
+        defaults, but then enable UTF-8 translation.</p>
+    <dt>:pop</dt>
+    <dd>A pseudo-layer that removes the top-most layer. Gives Perl code a way to
+        manipulate the layer stack. Note that <span class="Li">:pop</span> only
+        works on real layers and will not undo the effects of pseudo-layers or
+        flags like <span class="Li">:utf8</span>. An example of a possible use
+        might be:</p>
+    <pre>
+open(my $fh,...) or die "open failed: $!";
+...
+binmode($fh,":encoding(...)") or die "binmode failed: $!";
+# next chunk is encoded
+...
+binmode($fh,":pop") or die "binmode failed: $!";
+# back to un-encoded
+</pre>
+    <p class="Pp">A more elegant (and safer) interface is needed.</p>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Custom_Layers"><a class='permalink' href='#Custom_Layers'>Custom Layers</a></h2>
+<p class="Pp">It is possible to write custom layers in addition to the above
+    builtin ones, both in C/XS and Perl, as a module named
+    <span class="Li">"PerlIO:&lt;layer name&gt;"</span>. Some custom layers
+    come with the Perl distribution.</p>
+<dl class="Bl-tag">
+    <dt>:encoding</dt>
+    <dd>Use <span class="Li">:encoding(ENCODING)</span> to transparently do
+        character set and encoding transformations, for example from Shift-JIS to
+        Unicode. Note that an <span class="Li">":encoding"</span> also
+        enables <span class="Li">:utf8</span>. See PerlIO::encoding
+        for more information.</dd>
+    <dt>:mmap</dt>
+    <dd>A layer which implements "reading" of files by using
+        <span class="Li">mmap()</span> to make a (whole) file appear in the
+        process's address space, and then using that as PerlIO's
+        "buffer". This <i>may</i> be faster in certain circumstances for
+        large files, and may result in less physical memory use when multiple
+        processes are reading the same file.</p>
+    <p class="Pp">Files which are not <span class="Li">mmap()</span>-able revert
+        to behaving like the <span class="Li">:perlio</span> layer. Writes also
+        behave like the <span class="Li">:perlio</span> layer, as
+        <span class="Li">mmap()</span> for write needs extra house-keeping (to
+        extend the file) which negates any advantage.</p>
+    <p class="Pp">The <span class="Li">:mmap</span> layer will not exist if the
+        platform does not support <span class="Li">mmap()</span>. See PerlIO::mmap
+        for more information.</p>
+    <dt>:via</dt>
+    <dd><span class="Li">:via(MODULE)</span> allows a transformation to be applied
+        by an arbitrary Perl module, for example compression / decompression,
+        encryption / decryption. See PerlIO::via for more information.</dd>
+    <dt>:scalar</dt>
+    <dd>A layer implementing "in memory" files using scalar variables,
+        automatically used in place of the platform defaults for IO when opening
+        such a handle. As such, the scalar is expected to act like a file, only
+        containing or storing bytes. See PerlIO::scalar for more
+        information.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Alternatives_to_raw"><a class='permalink' href='#Alternatives_to_raw'>Alternatives to raw</a></h2>
+<p class="Pp">To get a binary stream an alternate method is to use:</p>
+<pre>
+open(my $fh,"&lt;", "whatever") or die "open failed: $!";
+binmode($fh) or die "binmode failed: $!";
+</pre>
+<p class="Pp">This has the advantage of being backward compatible with older
+    versions of Perl that did not use PerlIO or where <span
+    class="Li">:raw</span> was buggy (as it was before Perl 5.14).</p>
+<p class="Pp">To get an unbuffered stream specify an unbuffered layer (e.g.
+    <span class="Li">:unix</span>) in the open call:</p>
+<pre>
+open(my $fh,"&lt;:unix", $path) or die "open failed: $!";
+</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Defaults_and_how_to_override_them"><a class='permalink' href='#Defaults_and_how_to_override_them'>Defaults and how to override them</a></h2>
+<p class="Pp">If the platform is MS-DOS like and normally does CRLF to
+    &quot;\n&quot; translation for text files then the default layers are:</p>
+<pre>:unix:crlf</pre>
+<p class="Pp">Otherwise if <span class="Li">"Configure"</span> found out how to
+    do "fast" IO using the system's stdio (not common on modern
+    architectures), then the default layers are:</p>
+<pre>:stdio</pre>
+<p class="Pp">Otherwise the default layers are</p>
+<pre>:unix:perlio</pre>
+<p class="Pp">Note that the "default stack" depends on the operating system and
+    on the Perl version, and both the compile-time and runtime configurations
+    of Perl. The default can be overridden by setting the environment variable
+    PERLIO to a space or colon separated list of layers, however this cannot
+    be used to set layers that require loading modules like
+    <span class="Li">:encoding</span>.</p>
+<p class="Pp">This can be used to see the effect of/bugs in the various layers
+    e.g.</p>
+<pre>
+cd .../perl/t
+PERLIO=:stdio  ./perl harness
+PERLIO=:perlio ./perl harness
+</pre>
+<p class="Pp">For the various values of PERLIO see "PERLIO" in perlrun.</p>
+<p class="Pp">The following table summarizes the default layers on UNIX-like and
+    DOS-like platforms and depending on the setting of
+    <span class="Li">$ENV{PERLIO}</span>:</p>
+<pre>PERLIO     UNIX-like                   DOS-like
+------     ---------                   --------
+unset / "" :unix:perlio / :stdio [1]   :unix:crlf
+:stdio     :stdio                      :stdio
+:perlio    :unix:perlio                :unix:perlio
+# [1] ":stdio" if Configure found out how to do "fast stdio" (depends
+# on the stdio implementation) and in Perl 5.8, else ":unix:perlio"
+</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Querying_the_layers_of_filehandles"><a class='permalink' href='#Querying_the_layers_of_filehandles'>Querying the layers of filehandles</a></h2>
+<p class="Pp">The following returns the <b>names</b> of the PerlIO layers on a
+    filehandle.</p>
+<pre>
+my @layers = PerlIO::get_layers($fh); # Or FH, *FH, "FH".
+</pre>
+<p class="Pp">The layers are returned in the order an <b>open()</b> or
+    <b>binmode()</b> call would use them, and without colons.</p>
+<p class="Pp">By default the layers from the input side of the filehandle are
+    returned; to get the output side, use the optional
+    <span class="Li">"output"</span> argument:</p>
+<pre>
+my @layers = PerlIO::get_layers($fh, output =&gt; 1);
+</pre>
+<p class="Pp">(Usually the layers are identical on either side of a filehandle
+    but for example with sockets there may be differences.)</p>
+<p class="Pp">There is no <b>set_layers()</b>, nor does <b>get_layers()</b>
+    return a tied array mirroring the stack, or anything fancy like that. This
+    is not accidental or unintentional. The PerlIO layer stack is a bit more
+    complicated than just a stack (see for example the behaviour of
+    <span class="Li">:raw</span>). You are supposed to use <b>open()</b> and
+    <b>binmode()</b> to manipulate the stack.</p>
+<p class="Pp"><b>Implementation details follow, please close your eyes.</b></p>
+<p class="Pp">The arguments to layers are by default returned in parentheses
+    after the name of the layer, and certain layers (like <span
+    class="Li">:utf8</span>) are not real layers but instead flags on real
+    layers; to get all of these returned separately, use the optional
+    <span class="Li">"details"</span> argument:</p>
+<pre>
+my @layer_and_args_and_flags = PerlIO::get_layers($fh, details =&gt; 1);
+</pre>
+<p class="Pp">The result will be up to be three times the number of layers: the
+    first element will be a name, the second element the arguments (unspecified
+    arguments will be <span class="Li">"undef"</span>), the third element the
+    flags, the fourth element a name again, and so forth.</p>
+<p class="Pp"><b>You may open your eyes now.</b></p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHOR"><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Nick Ing-Simmons &lt;nick@ing-simmons.net&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO"><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+<p class="Pp">&quot;binmode&quot; in perlfunc, &quot;open&quot; in perlfunc,
+    perlunicode, perliol, Encode</p>
+</section>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Título de tu Página</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Aquí va el contenido de tu página -->
+    <h1>Hola Mundo</h1>
+    <p>Este es un ejemplo de una estructura básica de HTML.</p>
+
+    <!-- Ejemplo de lista -->
+    <ul>
+        <li>Elemento 1</li>
+        <li>Elemento 2</li>
+        <li>Elemento 3</li>
+    </ul>
+
+    <!-- Ejemplo de enlace -->
+    <a href="https://www.ejemplo.com">Visita Ejemplo.com</a>
+
+    <!-- Ejemplo de imagen -->
+    <img src="ruta/a/tu/imagen.jpg" alt="Descripción de la imagen">
+
+    <!-- Ejemplo de formulario -->
+    <form action="/procesar-formulario" method="post">
+        <label for="nombre">Nombre:</label>
+        <input type="text" id="nombre" name="nombre"><br><br>
+        <input type="submit" value="Enviar">
+    </form>
+
+</body>
+</html>

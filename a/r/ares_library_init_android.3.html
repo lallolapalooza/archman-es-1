@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ares_library_init_android(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">ares_library_init_android(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/c-ares/">c-ares</a></p>
+<p class="lic">Licencias: MIT</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">ARES_LIBRARY_INIT_ANDROID(3)</td>
+    <td class="head-vol">Manual de funciones de biblioteca</td>
+    <td class="head-rtitle">ARES_LIBRARY_INIT_ANDROID(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">ares_library_init_android - inicialización de la biblioteca c-ares para Android</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" SINOPSIS"><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;ares.h&gt;
+int ares_library_init_android(jobject <i>connectivity_manager</i>)
+int ares_library_android_initialized();
+void ares_library_init_jvm(JavaVM *<i>jvm</i>)</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" DESCRIPCIÓN"><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La función <a href='/man/ares_library_init_android.3.en'>ares_library_init_android(3)</a> realiza las inicializaciones internas requeridas por la biblioteca c-ares cuando se utiliza en Android. Esto puede ocurrir en cualquier momento después de <a href='/man/ares_library_init.3.en'>ares_library_init(3)</a>. Debe ocurrir después de <i>ares_library_init_jvm</i>. ares_library_init_android debe llamarse antes de que la resolución DNS funcione en Android 8 (Oreo) o versiones posteriores cuando targetSdkVersion se establece en 26 o superior.</p>
+<p class="Pp">A partir de Android 8 (nivel de API 26), el acceso a la información del servidor DNS se ha vuelto más restrictivo y solo se puede acceder utilizando el Administrador de Conectividad. Es necesario pasar el administrador de conectividad a c-ares a través de JNI. Además, el permiso ACCESS_NETWORK_STATE debe estar presente en la aplicación de Android.</p>
+<p class="Pp">Las versiones de Android anteriores a la 8 no necesitan inicializarse ya que son menos restrictivas. Sin embargo, esta es una limitación en tiempo de ejecución, no en tiempo de compilación. La inicialización adecuada de Android debe realizarse independientemente de la versión de Android de destino.</p>
+<p class="Pp">La desinicialización se realizará a través de <a href='/man/ares_library_cleanup.3.en'>ares_library_cleanup(3)</a>.</p>
+<p class="Pp">La función <b>ares_library_init_jvm</b> permite al llamador registrar la JVM con c-ares. Está destinada a ser llamada durante JNI_OnLoad porque se garantiza que tendrá la JVM en esa función. La JVM es necesaria para utilizar el Administrador de Conectividad registrado con <a href='/man/ares_library_init_android.3.en'>ares_library_init_android(3)</a>. Esto debe llamarse antes de <a href='/man/ares_library_init_android.3.en'>ares_library_init_android(3)</a>.</p>
+<p class="Pp">La función <b>ares_library_android_initialized</b> se puede usar para verificar si c-ares se ha inicializado para su uso con Android.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" VALORES_DE_RETORNO"><a class='permalink' href='#VALORES_DE_RETORNO'>VALORES DE RETORNO</a></h1>
+<p class="Pp">Se devolverá ARES_SUCCESS en caso de éxito, de lo contrario se devolverá un código de error.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" SEGURIDAD_DE_HILOS"><a class='permalink' href='#SEGURIDAD_DE_HILOS'>SEGURIDAD DE HILOS</a></h1>
+<p class="Pp"><b>¡Estas funciones de inicialización no son seguras para hilos!</b> Debe llamarlas una vez que el programa haya comenzado, pero esta llamada debe realizarse antes de que el programa inicie cualquier otro hilo. Esto es necesario para evitar posibles condiciones de carrera en la inicialización de la biblioteca, y también debido al hecho de que podrían llamar a funciones de otras bibliotecas que no son seguras para hilos y podrían entrar en conflicto con cualquier otro hilo que ya esté utilizando estas otras bibliotecas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" JNI"><a class='permalink' href='#JNI'>JNI</a></h1>
+<p class="Pp">Acceso al Administrador de Conectividad a través de Java:</p>
+<p class="Pp">Registre la inicialización nativa de ares.</p>
+<pre>  static JNINativeMethod funcs[] = {
+  { &quot;initialize_native&quot;,     &quot;(Landroid/net/ConnectivityManager;)I&quot;,
+    (void *)&amp;ares_library_init_android}
+  };
+  JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
+  {
+    JNIEnv *env = NULL;
+    jclass  cls = NULL;
+    jint    res;
+    if ((*vm)-&gt;GetEnv(vm, (void **)&amp;env, JNI_VERSION_1_6) != JNI_OK)
+      return -1;
+    cls = (*env)-&gt;FindClass(env, JNIT_CLASS);
+    if (cls == NULL)
+      return -1;
+    res = (*env)-&gt;RegisterNatives(env, cls, funcs, sizeof(funcs)/sizeof(funcs[0]));
+    if (res != 0)
+      return -1;
+    ares_library_init_jvm(vm);
+    return JNI_VERSION_1_6;
+  }</pre>
+Llamando a la función registrada desde Java:
+<pre>  public class MyObject {
+    static {
+      System.loadLibrary(&quot;cares&quot;);
+    }
+    private static native boolean initialize_native(ConnectivityManager
+      connectivity_manager);
+    public static boolean initialize(Context context) {
+      initialize_native((ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE));
+    }
+  }</pre>
+<p class="Pp">Inicializando el Administrador de Conectividad en JNI directamente utilizando un Contexto de Android. Se asume que la JVM ya ha sido registrada a través de <i>JNI_OnLoad</i>.</p>
+<pre>  void initialize(jobject android_context)
+  {
+    jclass obj_cls = jni_get_class(env, &quot;android/content/Context&quot;);
+    jmethodID obj_mid = jni_get_method_id(env, obj_cls, &quot;getSystemService&quot;, &quot;(Ljava/lang/String;)Ljava/lang/Object;&quot;);
+    jfieldID fid = (*env)-&gt;GetStaticFieldID(env, obj_cls, &quot;CONNECTIVITY_SERVICE&quot;, &quot;Ljava/lang/String;&quot;);
+    jstring str = (*env)-&gt;GetStaticObjectField(env, obj_cls, fid);
+    connectivity_manager = (*env)-&gt;CallObjectMethod(env, android_context, obj_mid, str);
+    if (connectivity_manager == NULL)
+      return;
+    ares_library_init_android(connectivity_manager);
+  }</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" DISPONIBILIDAD"><a class='permalink' href='#DISPONIBILIDAD'>DISPONIBILIDAD</a></h1>
+<p class="Pp">Esta función se introdujo por primera vez en la versión 1.15.0 de c-ares.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" VER_TAMBIÉN"><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/ares_library_init.3.en'>ares_library_init(3)</a>, <a href='/man/ares_library_cleanup.3.en'>ares_library_cleanup(3)</a>,</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">13 de septiembre de 2017</td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/c-ares/">extra/c-ares</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.34.5-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://c-ares.org/">https://c-ares.org/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>MIT</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/c-ares/">/listing/extra/c-ares/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#VALORES_DE_RETORNO">VALORES DE RETORNO</a></li>
+        
+            <li><a href="#SEGURIDAD_DE_HILOS">SEGURIDAD DE HILOS</a></li>
+        
+            <li><a href="#JNI">JNI</a></li>
+        
+            <li><a href="#DISPONIBILIDAD">DISPONIBILIDAD</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/ares_library_init_android.3.en.txt">txt</a>, 
+        
+            <a href="/man/ares_library_init_android.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

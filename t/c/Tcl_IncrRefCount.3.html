@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tcl_IncrRefCount(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Tcl_IncrRefCount(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/tcl/">tcl</a></p>
+<p class="lic">Licencias: TCL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Tcl_Obj(3)</td>
+    <td class="head-vol">Procedimientos de la Biblioteca Tcl</td>
+    <td class="head-rtitle">Tcl_Obj(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NOMBRE</a></h1>
+<p class="Pp">Tcl_NewObj, Tcl_DuplicateObj, Tcl_IncrRefCount, Tcl_DecrRefCount, Tcl_IsShared, Tcl_InvalidateStringRep - manipular valores Tcl</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SINOPSIS</a></h1>
+<pre><b>#include &lt;tcl.h&gt;</b>
+
+Tcl_Obj *
+<b>Tcl_NewObj</b>()
+
+Tcl_Obj *
+<b>Tcl_DuplicateObj</b>(<i>objPtr</i>)
+
+<b>Tcl_IncrRefCount</b>(<i>objPtr</i>)
+
+<b>Tcl_DecrRefCount</b>(<i>objPtr</i>)
+
+int
+<b>Tcl_IsShared</b>(<i>objPtr</i>)
+
+<b>Tcl_InvalidateStringRep</b>(<i>objPtr</i>)</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="ARGUMENTS"><a class="permalink" href="#ARGUMENTS">ARGUMENTOS</a></h1>
+<dl class="Bl-tag">
+  <dt>Tcl_Obj <i>*objPtr</i> (in)</dt>
+  <dd>Puntero a un valor; debe haber sido obtenido previamente mediante una llamada a <b>Tcl_NewObj</b>.
+      <br/>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="INTRODUCCION"><a class="permalink" href="#INTRODUCCION">INTRODUCCIÓN</a></h1>
+<p class="Pp">Esta página de manual presenta una introducción a los valores Tcl (llamados <b>Tcl_Obj</b> por razones históricas) y cómo se utilizan. También describe procedimientos generales para gestionar los valores Tcl. Estos procedimientos se utilizan para crear y copiar valores, e incrementar y decrementar el recuento de referencias (punteros) a los valores. Estos procedimientos se utilizan junto con otros que operan en tipos específicos de valores, como <b>Tcl_GetIntFromObj</b> y <b>Tcl_ListObjAppendElement</b>. Los procedimientos individuales se describen junto con las estructuras de datos que manipulan.</p>
+<p class="Pp">Los valores Tcl se representan de dos maneras: una caché y se calculan de forma perezosa. Es decir, cada representación se calcula solo cuando sea necesaria, se calcula a partir de la otra representación y, una vez calculada, se guarda. Además, un cambio en una representación invalida la otra. Por ejemplo, un programa Tcl que realiza cálculos enteros puede operar directamente sobre la representación entera interna de una variable sin tener que convertir constantes entre enteros y cadenas. Solo cuando se necesite una representación de cadena de la variable, por ejemplo, para imprimirla, el programa regenerará la representación de cadena a partir del entero. Aunque los valores contienen una representación interna, su semántica se define en términos de cadenas: siempre se puede obtener una representación actual, y cualquier cambio en el valor se reflejará en esa cadena cuando se obtenga la representación de cadena del valor. Debido a esta invalidación de representación y generación, es peligroso para los escritores de extensiones acceder directamente a los campos <b>Tcl_Obj</b> de los valores. Es mejor acceder a la información de <b>Tcl_Obj</b> utilizando procedimientos como <b>Tcl_GetStringFromObj</b> y <b>Tcl_GetString</b>.</p>
+<p class="Pp">Los valores se asignan en la memoria de la pila y se refieren mediante un puntero a la estructura <b>Tcl_Obj</b>. Los valores se comparten tanto como sea posible. Esto reduce significativamente los requisitos de almacenamiento, ya que algunos valores, como las listas largas, son muy grandes. Además, la mayoría de los valores Tcl se leen y nunca se modifican. Esto es especialmente cierto para los argumentos de los procedimientos, que pueden compartirse entre el llamador y el procedimiento llamado. La asignación y el enlace de argumentos se realizan simplemente asignando un puntero al valor. El recuento de referencias se utiliza para determinar cuándo es seguro recuperar el almacenamiento de un valor.</p>
+<p class="Pp">Los valores Tcl están tipados. La representación interna de un valor está controlada por su tipo. Varios tipos son predefinidos en el núcleo de Tcl, incluyendo entero, doble, lista y bytecode. Los escritores de extensiones pueden extender el conjunto de tipos definiendo sus propias estructuras <b>Tcl_ObjType</b>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="THE_TCL_OBJ_STRUCTURE"><a class="permalink" href="#THE_TCL_OBJ_STRUCTURE">LA ESTRUCTURA DE TCL_OBJ</a></h1>
+<p class="Pp">Cada valor Tcl se representa mediante una estructura <b>Tcl_Obj</b> que se define de la siguiente manera.</p>
+<div class="Bd-indent">
+<pre>typedef struct Tcl_Obj {
+    int <i>refCount</i>;
+    char *<i>bytes</i>;
+    int <i>length</i>;
+    const Tcl_ObjType *<i>typePtr</i>;
+    union {
+        long <i>longValue</i>;
+        double <i>doubleValue</i>;
+        void *<i>otherValuePtr</i>;
+        Tcl_WideInt <i>wideValue</i>;
+        struct {
+            void *<i>ptr1</i>;
+            void *<i>ptr2</i>;
+        } <i>twoPtrValue</i>;
+        struct {
+            void *<i>ptr</i>;
+            unsigned long <i>value</i>;
+        } <i>ptrAndLongRep</i>;
+    } <i>internalRep</i>;
+} <b>Tcl_Obj</b>;</pre>
+</div>
+<p class="Pp">Los miembros <i>bytes</i> y <i>length</i> juntos contienen la representación UTF-8 del valor, que es una cadena contada sin terminación nula (los nulos UTF-8 deben codificarse como una secuencia de dos bytes: 192, 128). <i>bytes</i> apunta al primer byte de la representación de cadena. El miembro <i>length</i> da el número de bytes. El array de bytes debe tener un byte nulo después del último byte de datos, en la posición <i>length</i>; esto permite tratar las representaciones de cadenas como cadenas C normales terminadas en nulo. Los programas C usan <b>Tcl_GetStringFromObj</b> y <b>Tcl_GetString</b> para obtener la representación de cadena de un valor. Si <i>bytes</i> es NULL, la representación de cadena no es válida.</p>
+<p class="Pp">El miembro <i>typePtr</i> apunta a la estructura <b>Tcl_ObjType</b> que describe el tipo. Si <i>typePtr</i> es NULL, la representación interna no es válida.</p>
+<p class="Pp">El miembro <i>internalRep</i> de la unión contiene la representación interna del valor. Esta es o un entero (long), un número de punto flotante de doble precisión, un puntero a un valor que contiene información adicional necesaria para representar el valor por el tipo del valor, un entero <b>Tcl_WideInt</b>, dos punteros arbitrarios o un par formado por un entero unsigned long y un puntero.</p>
+<p class="Pp">El miembro <i>refCount</i> se utiliza para determinar cuándo es seguro liberar el almacenamiento del valor. Almacena el número de referencias activas al valor. Mantener el recuento de referencias correcto es una responsabilidad clave para los escritores de extensiones. El recuento de referencias se discute más adelante en la sección <b>MANEJO DEL ALMACENAMIENTO DE VALORES</b>.</p>
+<p class="Pp">Aunque los escritores de extensiones pueden acceder directamente a los miembros de la estructura <b>Tcl_Obj</b>, es mejor utilizar los procedimientos y macros adecuados. Por ejemplo, los escritores de extensiones nunca deben leer ni actualizar <i>refCount</i> directamente; deberían usar macros como <b>Tcl_IncrRefCount</b> y <b>Tcl_IsShared</b> en su lugar.</p>
+<p class="Pp">Una propiedad clave de los valores Tcl es que poseen dos representaciones. Un valor típicamente comienza conteniendo solo una representación de cadena: no tiene tipo y tiene un <i>typePtr</i> nulo. Un valor que contiene una cadena vacía o una copia de una cadena especificada se crea utilizando <b>Tcl_NewObj</b> o <b>Tcl_NewStringObj</b> respectivamente. La representación de cadena del valor se obtiene con <b>Tcl_GetStringFromObj</b> o <b>Tcl_GetString</b>, y se modifica con <b>Tcl_SetStringObj</b>. Si posteriormente el valor se pasa a un procedimiento como <b>Tcl_GetIntFromObj</b>, que requiere una representación interna específica, el procedimiento creará una y establecerá el <i>typePtr</i> del valor. La representación interna se calcula a partir de la representación de cadena. Las dos representaciones de un valor son duales entre sí: los cambios en una se reflejan en la otra. Por ejemplo, <b>Tcl_ListObjReplace</b> modificará la representación interna de un valor y la siguiente llamada a <b>Tcl_GetStringFromObj</b> o <b>Tcl_GetString</b> reflejará ese cambio.</p>
+<p class="Pp">Las representaciones se recalculan de forma eficiente. Un cambio en una representación realizada por un procedimiento como <b>Tcl_ListObjReplace</b> no se refleja inmediatamente en la otra representación. En su lugar, la otra representación se marca como inválida para que se genere solo si es necesaria más tarde. Los programadores que implementan sus propios tipos de valores no deben preocuparse por cómo se realiza esto y simplemente deben usar procedimientos como <b>Tcl_GetBooleanFromObj</b> o <b>Tcl_ListObjIndex</b>. Los programadores que implementan sus propios tipos de valores deben comprobar las representaciones inválidas y marcarlas como inválidas cuando sea necesario. El procedimiento <b>Tcl_InvalidateStringRep</b> se utiliza para marcar la representación de cadena de un valor como inválida y liberar cualquier almacenamiento asociado con la antigua representación de cadena.</p>
+<p class="Pp">Los valores suelen mantener su tipo durante su vida, aunque a veces deben convertirse de un tipo a otro. Por ejemplo, un programa C puede construir una cadena en un valor mediante llamadas repetidas a <b>Tcl_AppendToObj</b>, y luego pasar el valor a un procedimiento como <b>Tcl_GetIntFromObj</b>, que requiere una representación interna específica. La representación interna se calcula a partir de la representación de cadena. Las dos representaciones de un valor son duales entre sí: los cambios en una se reflejan en la otra. Por ejemplo, <b>Tcl_ListObjReplace</b> modificará la representación interna de un valor y la siguiente llamada a <b>Tcl_GetStringFromObj</b> o <b>Tcl_GetString</b> reflejará ese cambio.</p>
+<p class="Pp">Las representaciones se recalculan de forma eficiente. Un cambio en una representación realizada por un procedimiento como <b>Tcl_ListObjReplace</b> no se refleja inmediatamente en la otra representación. En su lugar, la otra representación se marca como inválida para que se genere solo si es necesaria más tarde. Los programadores que implementan sus propios tipos de valores no deben preocuparse por cómo se realiza esto y simplemente deben usar procedimientos como <b>Tcl_GetBooleanFromObj</b> o <b>Tcl_ListObjIndex</b>. Los programadores que implementan sus propios tipos de valores deben comprobar las representaciones inválidas y marcarlas como inválidas cuando sea necesario. El procedimiento <b>Tcl_InvalidateStringRep</b> se utiliza para marcar la representación de cadena de un valor como inválida y liberar cualquier almacenamiento asociado con la antigua representación de cadena.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="THE_TCL_OBJ_STRUCTURE-1"><a class="permalink" href="#THE_TCL_OBJ_STRUCTURE-1">LA ESTRUCTURA DE TCL_OBJ</a></h1>
+<p class="Pp">Cada valor Tcl se representa mediante una estructura <b>Tcl_Obj</b> que se define de la siguiente manera.</p>
+<div class="Bd-indent">
+<pre>typedef struct Tcl_Obj {
+    int <i>refCount</i>;
+    char *<i>bytes</i>;
+    int <i>length</i>;
+    const Tcl_ObjType *<i>typePtr</i>;
+    union {
+        long <i>longValue</i>;
+        double <i>doubleValue</i>;
+        void *<i>otherValuePtr</i>;
+        Tcl_WideInt <i>wideValue</i>;
+        struct {
+            void *<i>ptr1</i>;
+            void *<i>ptr2</i>;
+        } <i>twoPtrValue</i>;
+        struct {
+            void *<i>ptr</i>;
+            unsigned long <i>value</i>;
+        } <i>ptrAndLongRep</i>;
+    } <i>internalRep</i>;
+} <b>Tcl_Obj</b>;</pre>
+</div>
+<p class="Pp">Los miembros <i>bytes</i> y <i>length</i> juntos contienen la representación UTF-8 del valor, que es una cadena contada sin terminación nula (los nulos UTF-8 deben codificarse como una secuencia de dos bytes: 192, 128). <i>bytes</i> apunta al primer byte de la representación de cadena. El miembro <i>length</i> da el número de bytes. El array de bytes debe tener un byte nulo después del último byte de datos, en la posición <i>length</i>; esto permite tratar las representaciones de cadenas como cadenas C normales terminadas en nulo. Los programas C usan <b>Tcl_GetStringFromObj</b> y <b>Tcl_GetString</b> para obtener la representación de cadena de un valor. Si <i>bytes</i> es NULL, la representación de cadena no es válida.</p>
+<p class="Pp">El miembro <i>typePtr</i> apunta a la estructura <b>Tcl_ObjType</b> que describe el tipo. Si <i>typePtr</i> es NULL, la representación interna no es válida.</p>
+<p class="Pp">El miembro <i>internalRep</i> de la unión contiene la representación interna del valor. Esta es o un entero (long), un número de punto flotante de doble precisión, un puntero a un valor que contiene información adicional necesaria para representar el valor por el tipo del valor, un entero <b>Tcl_WideInt</b>, dos punteros arbitrarios o un par formado por un entero unsigned long y un puntero.</p>
+<p class="Pp">El miembro <i>refCount</i> se utiliza para determinar cuándo es seguro liberar el almacenamiento del valor. Almacena el número de referencias activas al valor. Mantener el recuento de referencias correcto es una responsabilidad clave para los escritores de extensiones. El recuento de referencias se discute más adelante en la sección <b>MANEJO DEL ALMACENAMIENTO DE VALORES</b>.</p>
+<p class="Pp">Aunque los escritores de extensiones pueden acceder directamente a los miembros de la estructura <b>Tcl_Obj</b>, es mejor utilizar los procedimientos y macros adecuados. Por ejemplo, los escritores de extensiones nunca deben leer ni actualizar <i>refCount</i> directamente; deberían usar macros como <b>Tcl_IncrRefCount</b> y <b>Tcl_IsShared</b> en su lugar.</p>
+<p class="Pp">Una propiedad clave de los valores Tcl es que poseen dos representaciones. Un valor típicamente comienza conteniendo solo una representación de cadena: no tiene tipo y tiene un <i>typePtr</i> nulo. Un valor que contiene una cadena vacía o una copia de una cadena especificada se crea utilizando <b>Tcl_NewObj</b> o <b>Tcl_NewStringObj</b> respectivamente. La representación de cadena del valor se obtiene con <b>Tcl_GetStringFromObj</b> o <b>Tcl_GetString</b>, y se modifica con <b>Tcl_SetStringObj</b>. Si posteriormente el valor se pasa a un procedimiento como <b>Tcl_GetIntFromObj</b>, que requiere una representación interna específica, el procedimiento creará una y establecerá el <i>typePtr</i> del valor. La representación interna se calcula a partir de la representación de cadena. Las dos representaciones de un valor son duales entre sí: los cambios en una se reflejan en la otra. Por ejemplo, <b>Tcl_ListObjReplace</b> modificará la representación interna de un valor y la siguiente llamada a <b>Tcl_GetStringFromObj</b> o <b>Tcl_GetString</b> reflejará ese cambio.</p>
+<p class="Pp">Las representaciones se recalculan de forma eficiente. Un cambio en una representación realizada por un procedimiento como <b>Tcl_ListObjReplace</b> no se refleja inmediatamente en la otra representación. En su lugar, la otra representación se marca como inválida para que se genere solo si es necesaria más tarde. Los programadores que implementan sus propios tipos de valores no deben preocuparse por cómo se realiza esto y simplemente deben usar procedimientos como <b>Tcl_GetBooleanFromObj</b> o <b>Tcl_ListObjIndex</b>. Los programadores que implementan sus propios tipos de valores deben comprobar las representaciones inválidas y marcarlas como inválidas cuando sea necesario. El procedimiento <b>Tcl_InvalidateStringRep</b> se utiliza para marcar la representación de cadena de un valor como inválida y liberar cualquier almacenamiento asociado con la antigua representación de cadena.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MANEJO_DEL_ALMACENAMIENTO_DE_LOS_VALORES"><a class="permalink" href="#MANEJO_DEL_ALMACENAMIENTO_DE_LOS_VALORES">MANEJO DEL ALMACENAMIENTO DE LOS VALORES</a></h1>
+<p class="Pp">Los valores Tcl se gestionan usando una técnica de recuento de referencias. Cada valor tiene un miembro <i>refCount</i> que almacena el número de punteros activos actualmente al valor. Cuando un valor se crea inicialmente, su <i>refCount</i> es 1. Los procedimientos que toman prestados punteros a valores Tcl deben incrementar el recuento de referencias del valor. Cuando un puntero ya no se necesita, el recuento de referencias debe decrementarse. Cuando el recuento de referencias de un valor alcanza cero, el valor es destruido y su almacenamiento se recupera.</p>
+<p class="Pp">Los procedimientos <b>Tcl_IncrRefCount</b> y <b>Tcl_DecrRefCount</b> se utilizan para manipular el recuento de referencias de un valor. Normalmente, se usan en pares: el código que adquiere un puntero a un valor llama a <b>Tcl_IncrRefCount</b>, y el código que libera el puntero llama a <b>Tcl_DecrRefCount</b>. Por ejemplo, cuando un procedimiento Tcl devuelve un nuevo valor, debe llamar a <b>Tcl_IncrRefCount</b> en el valor antes de devolverlo.</p>
+<p class="Pp">El procedimiento <b>Tcl_DuplicateObj</b> crea una copia de un valor Tcl. La copia tendrá su propio almacenamiento y un recuento de referencias inicial de 1. Esto es útil cuando se necesita modificar un valor que de otro modo se compartiría. El procedimiento <b>Tcl_IsShared</b> se puede usar para determinar si un valor está siendo compartido por más de un puntero (es decir, si <i>refCount</i> &gt; 1).</p>
+<p class="Pp">Un programa C puede devolver un puntero a un valor Tcl que se crea internamente. El programa es responsable de establecer el recuento de referencias del valor a 1 antes de devolverlo. El código de Tcl que recibe el puntero (generalmente el intérprete que llama al procedimiento de extensión) incrementará el recuento de referencias para indicar que también está interesado en el valor.</p>
+<p class="Pp">A continuación se presenta un ejemplo de cómo gestionar los recuentos de referencias:</p>
+<div class="Bd-indent">
+<pre>Tcl_Obj *myObjPtr;
+
+// Crear un nuevo valor
+myObjPtr = Tcl_NewStringObj("hola", 4);
+
+// Registrar el valor con el intérprete Tcl (esto puede incrementar el refCount)
+Tcl_ObjSetVar2(interp, Tcl_NewStringObj("myVar", 5), NULL, myObjPtr, 0);
+
+// Como resultado de Tcl_ObjSetVar2, myObjPtr puede tener refCount > 1.
+// Si queremos obtener un puntero seguro y poder modificarlo sin afectar
+// el original en myVar, debemos duplicarlo.
+if (Tcl_IsShared(myObjPtr)) {
+    myObjPtr = Tcl_DuplicateObj(myObjPtr);
+    // Ahora myObjPtr apunta a una copia, y su refCount es 1.
+}
+
+// Modificar la copia
+Tcl_AppendToObj(myObjPtr, ", mundo!");
+
+// ... usar la copia ...
+
+// Liberar la copia cuando ya no se necesite
+Tcl_DecrRefCount(myObjPtr);
+</pre>
+</div>
+<p class="Pp">En el ejemplo anterior, se crea un nuevo valor. Si el valor se establece como variable Tcl, su recuento de referencias se incrementará. Si se quiere modificar el valor sin afectar la variable original, primero se debe duplicar. Después de usar la copia, su recuento de referencias debe decrementarse.</p>
+<p class="Pp">El procedimiento <b>Tcl_InvalidateStringRep</b> se utiliza para marcar la representación de cadena de un valor como obsoleta y para liberar la memoria que la representa. Esto es útil cuando la representación interna de un valor cambia, pero la representación de cadena aún no se ha recalculado. Por ejemplo, si una lista se modifica, su representación de cadena ya no es válida y debe ser invalidada. Tcl llama automáticamente a <b>Tcl_InvalidateStringRep</b> en los valores siempre que sus representaciones internas se modifican.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="PROCEDURES"><a class="permalink" href="#PROCEDURES">PROCEDIMIENTOS</a></h1>
+<p class="Pp"><b>Tcl_NewObj</b>, <b>Tcl_DuplicateObj</b>, <b>Tcl_IncrRefCount</b>, <b>Tcl_DecrRefCount</b>, <b>Tcl_IsShared</b> y <b>Tcl_InvalidateStringRep</b> se utilizan para gestionar valores Tcl y sus recuentos de referencias.</p>
+<dl class="Bl-tag">
+  <dt><b>Tcl_NewObj</b></dt>
+  <dd>Crea un nuevo valor Tcl vacío y sin tipo. El recuento de referencias del nuevo valor se inicializa a 1. La representación de cadena del valor es una cadena vacía.</dd>
+  <dt><b>Tcl_DuplicateObj</b>(<i>objPtr</i>)</dt>
+  <dd>Crea y devuelve un nuevo valor Tcl que es una copia exacta de <i>objPtr</i>. El recuento de referencias del nuevo valor se inicializa a 1. El valor original <i>objPtr</i> no se ve afectado, pero su recuento de referencias tampoco se ve alterado.</dd>
+  <dt><b>Tcl_IncrRefCount</b>(<i>objPtr</i>)</dt>
+  <dd>Incrementa el recuento de referencias del valor al que apunta <i>objPtr</i>. Esto se debe utilizar cuando se crea un nuevo puntero a un valor que ya existe o se pasa un puntero a un procedimiento que puede conservarlo. Si se pasa un valor a un comando Tcl que lo conserva, o si un valor se pasa a un procedimiento de extensión que lo retiene, se debe incrementar su recuento de referencias.</dd>
+  <dt><b>Tcl_DecrRefCount</b>(<i>objPtr</i>)</dt>
+  <dd>Decrementa el recuento de referencias del valor al que apunta <i>objPtr</i>. Si el recuento de referencias se reduce a cero, el valor se destruye y su almacenamiento se libera. Esto se debe utilizar cuando un puntero a un valor ya no es necesario. Por ejemplo, después de que un valor se ha utilizado en un comando, su recuento de referencias debe decrementarse, a menos que se vaya a reutilizar el valor o se esté conservando para su uso posterior.</dd>
+  <dt><b>Tcl_IsShared</b>(<i>objPtr</i>)</dt>
+  <dd>Devuelve verdadero (1) si el valor al que apunta <i>objPtr</i> está siendo compartido por más de un puntero (es decir, si su recuento de referencias es mayor que 1), falso (0) en caso contrario.</dd>
+  <dt><b>Tcl_InvalidateStringRep</b>(<i>objPtr</i>)</dt>
+  <dd>Marca la representación de cadena del valor al que apunta <i>objPtr</i> como inválida. También libera cualquier memoria previamente asignada para la representación de cadena. Esto se debe utilizar cuando se modifica la representación interna de un valor, de modo que la representación de cadena ya no es correcta. Tcl se encarga de llamar a este procedimiento internamente cuando sea necesario, pero los escritores de extensiones pueden necesitar llamarlo explícitamente si modifican directamente las representaciones internas de los valores.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">VER TAMBIÉN</a></h1>
+<p class="Pp">Tcl_NewStringObj(3), Tcl_GetStringFromObj(3), Tcl_SetIntMacro(3)</p>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Tcl_IncrRefCount(3) — Tcl</title>
+        <meta name="generator" content="mandoc 1.3.0">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800">
+        <link rel="stylesheet" href="/css/style.css">
+    </head>
+    <body>
+        <div class="container">
+            
+            <main>
+                <article>
+                    
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Tcl_IncrRefCount, Tcl_DecrRefCount, Tcl_IsShared, Tcl_DuplicateObj, Tcl_InvalidateStringRep, Tcl_UpdateStringOfObj, Tcl_Convert rápidos, Tcl_Get_ rápido_Type, Tcl_Set_ rápido_Type, Tcl_FreeObj - gestión de valores de Tcl</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre><b>#include &lt;tcl.h&gt;</b>
+
+void
+<b>Tcl_IncrRefCount</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+void
+<b>Tcl_DecrRefCount</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+int
+<b>Tcl_IsShared</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+<a href="Tcl_Obj.html">Tcl_Obj</a> *
+<b>Tcl_DuplicateObj</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+void
+<b>Tcl_InvalidateStringRep</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+void
+<b>Tcl_UpdateStringOfObj</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+int
+<b>Tcl_ConvertToType</b>(
+    <a href="Tcl_Interp.html">Tcl_Interp</a> *interp,
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr,
+    const <a href="Tcl_ObjType.html">Tcl_ObjType</a> *typePtr
+);
+const <a href="Tcl_ObjType.html">Tcl_ObjType</a> *
+<b>Tcl_GetObjectType</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);
+void
+<b>Tcl_SetObjType</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr,
+    const <a href="Tcl_ObjType.html">Tcl_ObjType</a> *typePtr
+);
+void
+<b>Tcl_FreeObj</b>(
+    <a href="Tcl_Obj.html">Tcl_Obj</a> *objPtr
+);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARGUMENTS'><a class='permalink' href='#ARGUMENTS'>ARGUMENTS</a></h1>
+<dl class="Nd" id="Nd-arguments">
+<dt>in <a href="Tcl_Interp.html">Tcl_Interp</a> *<span class="Des">interp</span></dt>
+<dd>Intérprete de Tcl en el que se va a realizar la conversión de tipo.</dd>
+<dt>in <a href="Tcl_Obj.html">Tcl_Obj</a> *<span class="Des">objPtr</span></dt>
+<dd>Puntero al objeto Tcl cuya representación debe convertirse.</dd>
+<dt>in const <a href="Tcl_ObjType.html">Tcl_ObjType</a> *<span class="Des">typePtr</span></dt>
+<dd>Puntero a la estructura que describe el tipo de objeto deseado. Si es NULL,
+  se intentará eliminar el tipo del objeto.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">Tcl utiliza una representación de objetos para manejar los
+    valores. Cada objeto tiene un tipo, una representación de cadena y
+    potencialmente otras representaciones internas (por ejemplo, entera, doble,
+    lista). Las representaciones de cadena se generan bajo demanda y se almacenan
+    en caché en el objeto. Las representaciones internas, como la entera o la
+    doble, se generan bajo demanda. Cuando se accede a un objeto, Tcl intenta
+    acceder a la representación interna más adecuada. Por ejemplo, cuando se
+    necesita una representación entera de un objeto, Tcl llama a
+    <b>Tcl_GetIntFromObj</b>. Si el objeto ya tiene una representación entera,
+    se devuelve. De lo contrario, Tcl intenta convertir la representación de
+    cadena del objeto en una representación entera. Si la conversión tiene
+    éxito, el objeto se actualiza con la nueva representación y su tipo se
+    establece en el tipo entero.</p>
+<p class="Pp">El procedimiento <b>Tcl_ConvertToType</b> se puede utilizar para
+    forzar que un objeto se convierta en un tipo específico. Si `typePtr` apunta
+    a una estructura `Tcl_ObjType` válida, Tcl intentará convertir la representación
+    interna del objeto al tipo especificado. Si `typePtr` es NULL, Tcl intentará
+    eliminar la representación interna del objeto, dejando solo la
+    representación de cadena. Esto se puede usar para liberar el almacenamiento
+    ocupado por representaciones internas innecesarias.</p>
+<p class="Pp">Los procedimientos <b>Tcl_IncrRefCount</b> y
+    <b>Tcl_DecrRefCount</b> se utilizan para gestionar las referencias a los
+    objetos. Cuando se crea una nueva referencia a un objeto, se llama a
+    <b>Tcl_IncrRefCount</b> para incrementar su recuento de referencias. Cuando
+    una referencia ya no es necesaria, se llama a <b>Tcl_DecrRefCount</b> para
+    disminuir el recuento. Si el recuento de referencias cae a cero, el objeto se
+    libera. Esto permite compartir objetos de forma segura entre diferentes
+    partes del sistema Tcl.</p>
+<p class="Pp"><b>Tcl_IsShared</b> devuelve verdadero si un objeto es compartido
+    (es decir, tiene un recuento de referencias mayor que 1). <b>Tcl_DuplicateObj</b>
+    crea una copia duplicada de un objeto. Si un objeto se comparte y se va a
+    modificar, se debe duplicar primero para evitar afectar a otras referencias al
+    objeto original.</p>
+<p class="Pp"><b>Tcl_InvalidateStringRep</b> marca la representación de cadena
+    de un objeto como obsoleta. Esto fuerza la regeneración de la cadena la
+    próxima vez que se acceda a ella. <b>Tcl_UpdateStringOfObj</b> actualiza la
+    representación de cadena de un objeto a partir de su representación interna
+    actual.</p>
+<p class="Pp"><b>Tcl_GetObjectType</b> devuelve el tipo actual de un objeto.
+    <b>Tcl_SetObjType</b> establece el tipo de un objeto. Esto generalmente lo
+    hacen los procedimientos de conversión de tipos cuando establecen una nueva
+    representación interna para un objeto.</p>
+<p class="Pp"><b>Tcl_FreeObj</b> libera la memoria asociada a un objeto. Esto
+    generalmente lo llama <b>Tcl_DecrRefCount</b> cuando el recuento de
+    referencias de un objeto cae a cero.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE_OF_THE_LIFETIME_OF_A_VALUE'><a class='permalink' href='#EXAMPLE_OF_THE_LIFETIME_OF_A_VALUE'>EJEMPLO DE LA VIDA DE UN VALOR</a></h1>
+<p class="Pp">Como ejemplo de la vida de un valor, considere la siguiente
+    secuencia de comandos:</p>
+<div class="Bd-indent">
+<pre><b>set x 123</b></pre>
+</div>
+<p class="Pp">Esto asigna a <i>x</i> un valor sin tipo cuyo miembro
+    <i>bytes</i> apunta a <b>123</b> y cuyo miembro <i>length</i> contiene 3. El
+    miembro <i>typePtr</i> del valor es NULL.</p>
+<div class="Bd-indent">
+<pre><b>puts &quot;x es $x&quot;</b></pre>
+</div>
+<p class="Pp">La representación de cadena de <i>x</i> es válida (ya que
+    <i>bytes</i> no es NULL) y se recupera para el comando.</p>
+<div class="Bd-indent">
+<pre><b>incr x</b></pre>
+</div>
+<p class="Pp">El comando <b>incr</b> primero obtiene un entero del valor de
+    <i>x</i> llamando a <b>Tcl_GetIntFromObj</b>. Este procedimiento comprueba si
+    el valor ya es un valor entero. Como no lo es, convierte el valor
+    estableciendo la representación interna del valor en el entero <b>123</b> y
+    estableciendo el <i>typePtr</i> del valor para que apunte a la estructura de
+    tipo entero Tcl_ObjType. Ambas representaciones son ahora válidas.
+    <b>incr</b> incrementa la representación interna entera del valor y luego
+    invalida su representación de cadena (llamando a
+    <b>Tcl_InvalidateStringRep</b>) ya que la representación de cadena ya no
+    corresponde a la representación interna.</p>
+<div class="Bd-indent">
+<pre><b>puts &quot;x es ahora $x&quot;</b></pre>
+</div>
+<p class="Pp">Se necesita la representación de cadena del valor de <i>x</i> y se
+    vuelve a calcular. La representación de cadena es ahora <b>124</b> y ambas
+    representaciones son nuevamente válidas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='STORAGE_MANAGEMENT_OF_VALUES'><a class='permalink' href='#STORAGE_MANAGEMENT_OF_VALUES'>GESTIÓN DEL ALMACENAMIENTO DE VALORES</a></h1>
+<p class="Pp">Los valores de Tcl se asignan en el heap y se comparten tanto como
+    sea posible para reducir los requisitos de almacenamiento. Se utiliza el
+    recuento de referencias para determinar cuándo un valor ya no es necesario y
+    puede liberarse de forma segura. Un valor recién creado por
+    <b>Tcl_NewObj</b> o <b>Tcl_NewStringObj</b> tiene <i>refCount</i> 0. La macro
+    <b>Tcl_IncrRefCount</b> incrementa el recuento de referencias cuando se crea
+    una nueva referencia al valor. La macro <b>Tcl_DecrRefCount</b> decrementa
+    el recuento cuando una referencia ya no es necesaria y, si el recuento de
+    referencias del valor cae a cero, libera su almacenamiento. Un valor compartido
+    por diferentes códigos o estructuras de datos tiene <i>refCount</i> mayor
+    que 1. Incrementar el recuento de referencias de un valor garantiza que no se
+    liberará demasiado pronto ni que su valor cambiará accidentalmente.</p>
+<p class="Pp">Como ejemplo, el intérprete de bytecode comparte valores de
+    argumentos entre procedimientos Tcl que llaman y que son llamados para evitar
+    tener que copiar valores. Asigna los valores de los argumentos de la llamada a
+    las variables de parámetros formales del procedimiento. Al hacerlo, llama a
+    <b>Tcl_IncrRefCount</b> para incrementar el recuento de referencias de cada
+    argumento, ya que ahora existe una nueva referencia a él desde el parámetro
+    formal. Cuando el procedimiento llamado regresa, el intérprete llama a
+    <b>Tcl_DecrRefCount</b> para decrementar el recuento de referencias de cada
+    argumento. Cuando el recuento de referencias de un valor cae por debajo o igual
+    a cero, <b>Tcl_DecrRefCount</b> recupera su almacenamiento. La mayoría de los
+    procedimientos de comando no tienen que preocuparse por el recuento de
+    referencias, ya que utilizan el valor de un valor inmediatamente y no retienen
+    un puntero al valor después de que regresan. Sin embargo, si retienen un
+    puntero a un valor en una estructura de datos, deben tener cuidado de
+    incrementar su recuento de referencias, ya que el puntero retenido es una
+    nueva referencia.</p>
+<p class="Pp">Los procedimientos de comando que modifican directamente los valores,
+    como los de <b>lappend</b> y <b>linsert</b>, deben tener cuidado de copiar
+    un valor compartido antes de cambiarlo. Primero deben verificar si el valor
+    está compartido llamando a <b>Tcl_IsShared</b>. Si el valor está compartido,
+    deben copiar el valor utilizando <b>Tcl_DuplicateObj</b>; esto devuelve un
+    nuevo duplicado del valor original que tiene <i>refCount</i> 0. Si el valor
+    no está compartido, el procedimiento de comando "posee" el valor y puede
+    modificarlo directamente de forma segura. Por ejemplo, el siguiente código
+    aparece en el procedimiento de comando que implementa <b>linsert</b>. Este
+    procedimiento modifica el valor de la lista que se le pasa en <i>objv[1]</i>
+    insertando <i>objc-3</i> nuevos elementos antes de <i>index</i>.</p>
+<div class="Bd-indent">
+<pre>listPtr = objv[1];
+if (<b>Tcl_IsShared</b>(listPtr)) {
+    listPtr = <b>Tcl_DuplicateObj</b>(listPtr);
+}
+result = Tcl_ListObjReplace(interp, listPtr, index, 0,
+        (objc-3), &amp;(objv[3]));</pre>
+</div>
+<p class="Pp">Como otro ejemplo, el procedimiento de comando de <b>incr</b> debe
+    verificar si el valor de la variable está compartido antes de incrementar el
+    entero en su representación interna. Si está compartido, necesita duplicar el
+    valor para evitar cambiar accidentalmente los valores en otras estructuras de
+    datos.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">Tcl_ConvertToType(3), Tcl_GetIntFromObj(3),
+    Tcl_ListObjAppendElement(3), Tcl_ListObjIndex(3), Tcl_ListObjReplace(3),
+    Tcl_RegisterObjType(3)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='KEYWORDS'><a class='permalink' href='#KEYWORDS'>PALABRAS CLAVE</a></h1>
+<p class="Pp">representación interna, valor, creación de valor, tipo de valor,
+    recuento de referencias, representación de cadena, conversión de tipos</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">8.5</td>
+    <td class="foot-os">Tcl</td>
+  </tr>
+</table>
+
+</article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/tcl/">extra/tcl</a></dd>
+        <dt>Versión:</dt>
+        <dd>8.6.16-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://tcl.sourceforge.net/">http://tcl.sourceforge.net/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>TCL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/tcl/">/listing/extra/tcl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#ARGUMENTS">ARGUMENTOS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#EXAMPLE_OF_THE_LIFETIME_OF_A_VALUE">EJEMPLO DE LA VIDA DE UN VALOR</a></li>
+        
+            <li><a href="#STORAGE_MANAGEMENT_OF_VALUES">GESTIÓN DEL ALMACENAMIENTO DE VALORES</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#KEYWORDS">PALABRAS CLAVE</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Tcl_IncrRefCount.3.es.txt">txt</a>, 
+        
+            <a href="/man/Tcl_IncrRefCount.3.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

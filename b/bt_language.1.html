@@ -1,0 +1,407 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>bt_language(1) — Páginas man del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">bt_language(1)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-text-bibtex/">perl-text-bibtex</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">BT_LANGUAGE(1)</td>
+    <td class="head-vol">btparse</td>
+    <td class="head-rtitle">BT_LANGUAGE(1)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">bt_language - el lenguaje de datos BibTeX, tal como es reconocido por
+  btparse</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre># Gramática léxica, modo 1: nivel superior
+AT                    \@
+NEWLINE               \n
+COMMENT               \%~[\n]*\n
+WHITESPACE            [\ \r\t]+
+JUNK                  ~[\@\n\ \r\t]+
+# Gramática léxica, modo 2: dentro de una entrada
+NEWLINE               \n
+COMMENT               \%~[\n]*\n
+WHITESPACE            [\ \r\t]+
+NUMBER                [0-9]+
+NAME                  [a-z0-9\!\$\&amp;\*\+\-\.\/\:\;\&lt;\&gt;\?\[\]\^\_\`\|]+
+LBRACE                \{
+RBRACE                \}
+LPAREN                \(
+RPAREN                \)
+EQUALS                =
+HASH                  \#
+COMMA                 ,
+QUOTE                 \"
+# Gramática léxica, modo 3: cadenas
+# (muy complicada -- ver el texto)
+# Gramática sintáctica:
+bibfile : ( entry )*
+entry : AT NAME body
+body : STRING                    # para entradas de comentario
+     | ENTRY_OPEN contents ENTRY_CLOSE
+contents : ( NAME | NUMBER ) COMMA fields   # para entradas regulares
+         | fields                # para entradas de definición de macro
+         | value                 # para entradas de preámbulo
+fields : field { COMMA fields }
+       | 
+field : NAME EQUALS value
+value : simple_value ( HASH simple_value )*
+simple_value : STRING
+             | NUMBER
+             | NAME</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Uno de los problemas de BibTeX es que no existe una especificación
+    formal del lenguaje. Esto significa que los usuarios que exploran los
+    rincones más oscuros del lenguaje se quedan en gran medida por su cuenta,
+    y los programadores que implementan sus propios analizadores (parsers) se
+    quedan completamente por su cuenta, a menos que observen el comportamiento
+    de la implementación original.</p>
+<p class="Pp">Otros implementadores de analizadores (Nelson Beebe de
+    <span class="Li">"bibclean"</span> , en particular) se han tomado la
+    molestia de explicar el lenguaje aceptado por su analizador, y en ese
+    espíritu se presenta lo siguiente.</p>
+<p class="Pp">Si no está familiarizado con los misterios de los lenguajes regulares y
+    libres de contexto, no lo tendrá fácil para entender esto. Esto no es
+    <i>no</i> una introducción al lenguaje BibTeX; cualquier libro de LaTeX sería
+    más adecuado para aprender el lenguaje de datos en sí mismo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LEXICAL_GRAMMAR'><a class='permalink' href='#LEXICAL_GRAMMAR'>GRAMÁTICA LÉXICA</a></h1>
+<p class="Pp">El analizador léxico tiene tres modos distintos: nivel superior, dentro
+    de una entrada y cadena. En términos generales, el nivel superior es el
+    modo inicial; entramos en el modo de dentro de una entrada al ver un <span class="Li">"@"</span> en el
+    nivel superior; y al ver el <span class="Li">"}"</span> o
+    <span class="Li">")"</span> que termina la entrada, volvemos al
+    nivel superior. Entramos en el modo cadena al ver un
+    <span class="Li">"</span> o una
+    <span class="Li">"{"</span> que no delimita una entrada
+    desde el modo de dentro de una entrada. Tenga en cuenta que el lenguaje
+    léxico es a la vez no regular (porque las llaves deben equilibrarse) y
+    sensible al contexto (porque <span class="Li">"{"</span> puede significar
+    cosas diferentes dependiendo de su contexto sintáctico). Dicho esto,
+    usaremos expresiones regulares para describir los elementos léxicos, porque
+    son el punto de partida utilizado por el propio analizador léxico. El resto
+    de la gramática léxica se explicará informalmente en el texto.</p>
+<p class="Pp">Desde el nivel superior, se reconocen los siguientes tokens de acuerdo
+    con las expresiones regulares de la derecha:</p>
+<pre>AT                    \@
+NEWLINE               \n
+COMMENT               \%~[\n]*\n
+WHITESPACE            [\ \r\t]+
+JUNK                  ~[\@\n\ \r\t]+</pre>
+<p class="Pp">(Tenga en cuenta que esta es la sintaxis de expresiones regulares de
+    PCCTS, que debería ser bastante familiar para los usuarios de otros motores
+    de regex. Una peculiaridad es que una clase de caracteres se niega como <span class="Li">"~[...]"</span>
+    en lugar de <span class="Li">"[^...]"</span>.)</p>
+<p class="Pp">Al ver <span class="Li">"at"</span> en el nivel superior,
+    entramos en el modo de dentro de una entrada. Los espacios en blanco, la
+    basura (junk), los saltos de línea y los comentarios se omiten todos, y los
+    dos últimos incrementan un contador de líneas. (La basura se reconoce
+    explícitamente para permitir el esquema de "comentario implícito" de
+    <span class="Li">"bibtex"</span>.)</p>
+<p class="Pp">Desde el modo de dentro de una entrada, reconocemos el salto de línea, el
+    comentario y el espacio en blanco de la misma manera que en el modo de nivel
+    superior. Además, se reconocen los siguientes tokens:</p>
+<pre>NUMBER                [0-9]+
+NAME                  [a-z0-9\!\$\&amp;\*\+\-\.\/\:\;\&lt;\&gt;\?\[\]\^\_\`\|]+
+LBRACE                \{
+RBRACE                \}
+LPAREN                \(
+RPAREN                \)
+EQUALS                =
+HASH                  \#
+COMMA                 ,
+QUOTE                 \"</pre>
+<p class="Pp">En este punto, el analizador léxico empieza a sonar sospechosamente
+    como una gramática libre de contexto, en lugar de una colección de
+    expresiones regulares independientes. Sin embargo, es necesario mantener
+    esta complejidad en el analizador porque ciertos caracteres (<span class="Li">"{"</span> y
+    <span class="Li">"(""</span> en particular) tienen significados léxicos muy diferentes
+    dependiendo de los tokens que los han precedido en el flujo de entrada.</p>
+<p class="Pp">En particular, <span class="Li">"{"</span> y
+    <span class="Li">"("</span> se tratan como "abridores de
+    entrada" si siguen a un token <span class="Li">"at"</span> y a un token <span class="Li">"name"</span> , a menos que el valor del token
+    <span class="Li">"name"</span> sea
+    <span class="Li">"comment"</span>. (Tenga en cuenta el cambio de nivel superior a dentro de una entrada
+    entre los dos tokens.) En el caso de <span class="Li">@comment</span>
+    , el delimitador se considera que inicia una cadena, y entramos en el
+    modo cadena. De lo contrario, el delimitador se guarda, y cuando vemos un
+    <span class="Li">"}"</span> o un
+    <span class="Li">")"</span> correspondiente, se considera un "cerrador de
+    entrada". (Las llaves se equilibran automáticamente aquí porque el
+    analizador léxico de cadenas se encarga de contar la profundidad de las
+    llaves.)</p>
+<p class="Pp">En cualquier otro lugar, <span class="Li">"{"</span> se considera que inicia una cadena, y entramos en el modo cadena.
+    <span class="Li">"</span> siempre inicia una cadena,
+    independientemente del contexto. Los otros tokens
+    (<span class="Li">"name"</span>,
+    <span class="Li">"number"</span>,
+    <span class="Li">"equals"</span>,
+    <span class="Li">"hash"</span>y
+    <span class="Li">"comma"</span>) se reconocen
+  incondicionalmente.</p>
+<p class="Pp">Tenga en cuenta que <span class="Li">"name"</span> es un token comodín
+    utilizado para tipos de entrada, claves de citación, nombres de campo y
+    nombres de macro; como BibTeX tiene reglas ligeramente diferentes (y en gran
+    medida no documentadas) para estos varios elementos, se necesita un poco de
+    astucia para que las cosas funcionen. Como punto de partida, considere la
+    definición de BibTeX de lo que está permitido para una clave de entrada: una
+    secuencia de cualquier carácter <i>excepto</i></p>
+<pre>" # % ' ( ) , = { }</pre>
+<p class="Pp">más espacio. Hay un par de problemas con este esquema.
+    Primero, sin especificar el conjunto de caracteres del que provienen esos
+    "10 mágicos", es un poco difícil saber qué se permite exactamente.
+    Segundo, permitir caracteres <span class="Li">"@"</span> podría llevar a
+    una sintaxis de BibTeX confusa (no confunde a BibTeX, pero podría confundir
+    a un lector humano). Finalmente, permitir ciertos caracteres que son
+    especiales para TeX significa que BibTeX puede generar código TeX inválido:
+    intente poner una barra invertida (<span class="Li">"\"</span>) o una virgulilla (<span class="Li">"~"</span>) en una clave de citación. (Esta última
+    excepción es bastante específica de la aplicación de "generar código (La)TeX
+    a partir de una base de datos BibTeX", pero dado que esa es la aplicación
+    principal para las bases de datos BibTeX, presumiblemente será la
+    aplicación principal para
+    <b>btparse</b>, al menos inicialmente. Por lo tanto, tiene sentido prestar atención a
+    este problema.)</p>
+<p class="Pp">En <b>btparse</b>, entonces, un nombre se define como cualquier secuencia de
+    letras, dígitos, guiones bajos y los siguientes caracteres:</p>
+<pre>! $ &amp; * + - . / : ; &lt; &gt; ? [ ] ^ _ ` |</pre>
+<p class="Pp">Esta lista se derivó eliminando los "10 mágicos" de BibTeX
+    del conjunto de caracteres ASCII imprimibles de 7 bits (32-126), y luego
+    eliminando además <span class="Li">"@"</span>,
+    <span class="Li">"\"</span>y
+    <span class="Li">"~"</span>. Esto significa que <b>btparse</b>
+    no permite algunas de las claves de entrada más extrañas que BibTeX
+    aceptaría, como
+    <span class="Li">"\foo@bar"</span>, pero aún permite una cadena con
+    dígitos iniciales. De hecho, de la definición anterior parece que
+    <b>btparse</b> aceptaría una cadena de todos dígitos como un "nombre;" no es el
+    caso, sin embargo, ya que el analizador léxico reconoce tal cadena de
+    dígitos como un número primero. Hay dos problemas aquí: las claves de
+    entrada de BibTeX pueden ser de hecho completamente numéricas, y los nombres
+    de campo no pueden comenzar con un dígito. (Esas son dos de las diferencias
+    no tan obvias en el manejo de claves y nombres de campo por parte de BibTeX.)
+    Los trucos utilizados para lidiar con estos problemas se implementan en el
+    analizador sintáctico (parser) en lugar del analizador léxico, por lo que están descritos
+    en &quot;GRAMÁTICA SINTÁCTICA&quot; a continuación.</p>
+<p class="Pp">El analizador léxico de cadenas reconoce
+    los tokens <span class="Li">&quot;lbrace&quot;</span>,
+    <span class="Li">&quot;rbrace&quot;</span>,
+    <span class="Li">&quot;lparen&quot;</span> y
+    <span class="Li">&quot;rparen&quot;</span> para contar la profundidad de llaves
+    o paréntesis. Esto es necesario para saber cuándo aceptar una cadena
+    delimitada por llaves o paréntesis. (Nótese que una cadena delimitada por
+    paréntesis solo se permite después de <span class="Li">@comment</span>;
+    esta no es una construcción normal de BibTeX.) Además, convierte cada carácter
+    de espacio en blanco no espacial (nueva línea, retorno de carro y tabulación)
+    en un solo espacio. (Las secuencias de espacios en blanco no se colapsan;
+    ese es el dominio del post-procesamiento de cadenas, que está bien alejado
+    del escáner o del analizador.) Finalmente, acepta <span class="Li">&quot;&quot;&quot;</span>
+    para delimitar cadenas delimitadas por comillas. Aparte de esas restricciones,
+    el analizador léxico de cadenas acepta cualquier cosa hasta el delimitador
+    de fin de cadena.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='GRAMÁTICA_SINTÁCTICA'><a class='permalink' href='#GRAMÁTICA_SINTÁCTICA'>GRAMÁTICA SINTÁCTICA</a></h1>
+<p class="Pp">(El lenguaje utilizado para describir la gramática aquí es la forma
+    extendida de Backus-Naur (EBNF) utilizada por PCCTS. Los terminales se
+    representan con cadenas en mayúsculas, los no terminales con cadenas en
+    minúsculas; los nombres de los terminales son los mismos que los dados en la
+    gramática léxica anterior.
+    <span class="Li">&quot;( foo )*&quot;</span> significa cero o más repeticiones
+    de la producción <span class="Li">&quot;foo&quot;</span>, y
+    <span class="Li">&quot;{ foo }&quot;</span> significa una <span class="Li">&quot;foo&quot;</span>
+    opcional.)</p>
+<p class="Pp">Un archivo es solo una secuencia de cero o más entradas:</p>
+<pre>bibfile : ( entry )*</pre>
+<p class="Pp">Una entrada es una arroba, un nombre (el &quot;tipo de
+    entrada&quot;) y el cuerpo de la entrada:</p>
+<pre>entry : AT NAME body</pre>
+<p class="Pp">Un cuerpo es una cadena (esta alternativa solo se intenta si el
+    tipo de entrada es <span class="Li">&quot;comment&quot;</span>) o el
+    contenido de la entrada:</p>
+<pre>body : STRING                    # para entradas de comentario
+     | ENTRY_OPEN contents ENTRY_CLOSE</pre>
+<p class="Pp">(<span class="Li">&quot;ENTRY_OPEN&quot;</span> y
+    <span class="Li">&quot;ENTRY_CLOSE&quot;</span> son
+    <span class="Li">&quot;{&quot;</span> y
+    <span class="Li">&quot;}&quot;</span> o
+    <span class="Li">&quot;(&quot;</span> y
+    <span class="Li">&quot;)&quot;</span>, dependiendo de lo que se vea en la entrada
+    para una entrada particular.)</p>
+<p class="Pp">Hay tres producciones posibles para el no terminal
+    &quot;contents&quot;. Solo una se aplica a cualquier entrada dada, dependiendo
+    del meta-tipo de entrada (que a su vez depende del tipo de entrada).
+    Actualmente, <b>btparse</b> soporta cuatro meta-tipos de entrada: comentario,
+    preámbulo, definición de macro y regular. Las dos primeras corresponden a las
+    entradas <span class="Li">@comment</span> y <span class="Li">@preamble</span>;
+    &quot;definición de macro&quot; es para entradas <span class="Li">@string</span>;
+    y &quot;regular&quot; es para todos los demás tipos de entrada. (La biblioteca
+    se extenderá para manejar los tipos de entrada <span class="Li">@modify</span>
+    y <span class="Li">@alias</span>, y los meta-tipos correspondientes de
+    &quot;modify&quot; y &quot;alias&quot;, cuando se lance BibTeX 1.0 y se conozca
+    la sintaxis exacta.) El concepto de &quot;meta-tipo&quot; es necesario para que
+    todos los tipos de entrada que no se reconocen específicamente caigan en el
+    meta-tipo &quot;regular&quot;. También es conveniente no tener que hacer
+    <span class="Li">&quot;strcmp&quot;</span> el tipo de entrada todo el tiempo.</p>
+<pre>contents : ( NAME | NUMBER ) COMMA fields     # para entradas regulares
+         | fields                # para entradas de definición de macro
+         | value                 # para entradas de preámbulo</pre>
+<p class="Pp">Nótese que la clave de entrada no es solo un
+    <span class="Li">&quot;NAME&quot;</span>, sino
+    <span class="Li">&quot;( NAME | NUMBER)&quot;</span>. Esto es necesario
+    porque BibTeX permite claves de entrada totalmente numéricas, pero el
+    analizador léxico de <b>btparse</b> reconoce tales cadenas de dígitos como
+    tokens <span class="Li">&quot;NUMBER&quot;</span>.</p>
+<p class="Pp"><span class="Li">&quot;fields&quot;</span> es una lista separada
+    por comas de campos, con una coma final opcional:</p>
+<pre>fields : field { COMMA fields }
+       |</pre>
+<p class="Pp">Un <span class="Li">&quot;field&quot;</span> es una única asignación
+    de &quot;campo = valor&quot;:</p>
+<pre>field : NAME EQUALS value</pre>
+<p class="Pp">Nótese que <span class="Li">&quot;NAME&quot;</span> aquí es una
+    versión restringida del token &quot;name&quot; descrito en &quot;GRAMÁTICA
+    LÉXICA&quot; anterior. Cualquier token &quot;name&quot; será aceptado por el
+    analizador, pero se verifica inmediatamente para asegurar que no comience con
+    un dígito; si es así, se activa un error de sintaxis artificial. (Esto es para
+    compatibilidad con BibTeX, que no permite que los nombres de campo comiencen
+    con un dígito.)</p>
+<p class="Pp">Un <span class="Li">&quot;value&quot;</span> es una serie de valores
+    simples unidos por caracteres <span class="Li">'#'</span>:</p>
+<pre>value : simple_value ( HASH simple_value )*</pre>
+<p class="Pp">Un valor simple es una cadena, un número o un nombre (para
+    invocaciones de macro):</p>
+<pre>simple_value : STRING
+             | NUMBER
+             | NAME</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp">btparse</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Greg Ward &lt;gward@python.net&gt;</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">btparse, versión 0.91</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-text-bibtex/">extra/perl-text-bibtex</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.91-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Text-BibTeX">https://metacpan.org/release/Text-BibTeX</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-text-bibtex/">/listing/extra/perl-text-bibtex/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#LEXICAL_GRAMMAR">GRAMÁTICA LÉXICA</a></li>
+        
+            <li><a href="#SYNTACTIC_GRAMMAR">GRAMÁTICA SINTÁCTICA</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/bt_language.1.es.txt">txt</a>, 
+        
+            <a href="/man/bt_language.1.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

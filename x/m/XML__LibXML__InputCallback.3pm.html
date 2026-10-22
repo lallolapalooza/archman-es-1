@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>XML::LibXML::InputCallback(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">XML__LibXML__InputCallback(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-xml-libxml/">perl-xml-libxml</a></p>
+<p class="lic">Licencias: GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">XML::LibXML::InputCallback(3)</td>
+    <td class="head-vol">Documentación Perl aportada por el usuario</td>
+    <td class="head-rtitle">XML::LibXML::InputCallback(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">XML::LibXML::InputCallback - Clase XML::LibXML para Callbacks de Entrada</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SINOPSIS"><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>use XML::LibXML;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCIÓN"><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Puede obtener resultados inesperados si intenta cargar documentos externos durante el análisis de libxml2 si la ubicación del recurso no es HTTP, FTP o una ubicación relativa, sino una ruta absoluta, por ejemplo. Para sortear esta limitación, puede agregar su propio manejador de entrada para abrir, leer y cerrar tipos particulares de ubicaciones o clases de URI. Usando estos manejadores de callback de entrada, puede manejar sus propios esquemas de URI personalizados, por ejemplo.</p>
+<p class="Pp">Los callbacks de entrada se utilizan cada vez que XML::LibXML tiene que obtener algo más que entidades analizadas externamente de algún lugar. Se implementan utilizando una pila de callbacks en la capa Perl, de forma análoga a la pila de callbacks nativa de libxml2.</p>
+<p class="Pp">La clase XML::LibXML::InputCallback registra transparentemente los callbacks de entrada para los procesos de análisis de libxml2.</p>
+<section class="Ss">
+<h2 class="Ss" id="¿Cómo_funciona_XML::LibXML::InputCallback?"><a class='permalink' href='#¿Cómo_funciona_XML::LibXML::InputCallback?'>¿Cómo funciona XML::LibXML::InputCallback?</a></h2>
+<p class="Pp">La biblioteca libxml2 ofrece una implementación de callback solo como funciones globales. Para solucionar los problemas derivados de tener solo callbacks globales, por ejemplo, si la misma pila de callbacks global está siendo manipulada por diferentes aplicaciones que se ejecutan juntas en un solo entorno de servidor web Apache, XML::LibXML::InputCallback viene con una parte orientada a objetos y una parte orientada a funciones.</p>
+<p class="Pp">Usando la parte orientada a funciones, se puede manipular la pila de callbacks global de libxml2. Estas funciones pueden usarse como interfaz para los callbacks en la Capa C y XS. En la parte orientada a objetos, se implementan operaciones para trabajar con la pila de callbacks "pseudo-localizada". Actualmente, puede registrar y anular el registro de callbacks en la capa Perl e inicializarlos por cada analizador.</p>
+<p class="Pp"><i>Grupos de Callbacks</i></p>
+<p class="Pp">Los callbacks de entrada de libxml2 vienen en grupos. Un grupo contiene un coincidor de URI (<i>match</i>), un constructor de flujo de datos (<i>open</i>), un lector de flujo de datos (<i>read</i>) y un destructor de flujo de datos (<i>close</i>). Los callbacks se pueden manipular solo por grupo.</p>
+<p class="Pp"><i>El Proceso de Análisis</i></p>
+<p class="Pp">El proceso de análisis funciona en un flujo de datos XML, a lo largo del cual se pueden incrustar enlaces a otros recursos. Pueden ser enlaces a DTDs externas o XIncludes, por ejemplo. Estos recursos se identifican mediante URIs. La implementación de callback de libxml2 asume que un grupo de callbacks puede manejar una cierta cantidad de URIs y un cierto esquema de URI. Por defecto, se registran manejadores de callback para <i>file://*</i>, <i>file:://*.gz</i>, <i>http://*</i> y <i>ftp://*</i>.</p>
+<p class="Pp">Los grupos de callbacks en la pila de callbacks se procesan de arriba a abajo, lo que significa que los grupos de callbacks registrados más tarde se procesarán antes que los registrados anteriormente.</p>
+<p class="Pp">Mientras se analiza el flujo de datos, el analizador libxml2 verifica si un grupo de callbacks registrado manejará una URI; si no lo hará, la URI se interpretará como <i>file://URI</i>. Para manejar una URI, el callback <i>match</i> deberá devolver '1'. Si eso sucede, el manejo de la URI se pasará a ese grupo de callbacks. A continuación, la URI se pasará al callback <i>open</i>, que debería devolver una <i>referencia</i> al flujo de datos si abrió el archivo con éxito, '0' en caso contrario. Si la apertura del flujo fue exitosa, el callback <i>read</i> se llamará repetidamente hasta que devuelva una cadena vacía. Después del callback de lectura, se llamará al callback <i>close</i> para cerrar el flujo.</p>
+<p class="Pp"><i>Organización de grupos de callbacks en XML::LibXML::InputCallback</i></p>
+<p class="Pp">Los grupos de callbacks se implementan como una pila (Array), cada entrada contiene una referencia a un array de los callbacks. Para la biblioteca libxml2, la implementación de callback de XML::LibXML::InputCallback aparece como un solo grupo de callbacks. Sin embargo, la implementación de Perl permite administrar diferentes pilas de callbacks por cada analizador libxml2.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Usando_XML::LibXML::InputCallback"><a class='permalink' href='#Usando_XML::LibXML::InputCallback'>Usando XML::LibXML::InputCallback</a></h2>
+<p class="Pp">Después de la instanciación del objeto usando el constructor sin parámetros, puede registrar grupos de callbacks.</p>
+<pre>my $input_callbacks = XML::LibXML::InputCallback-&gt;new();
+$input_callbacks-&gt;register_callbacks([ $match_cb1, $open_cb1,
+                                       $read_cb1, $close_cb1 ] );
+$input_callbacks-&gt;register_callbacks([ $match_cb2, $open_cb2,
+                                       $read_cb2, $close_cb2 ] );
+$input_callbacks-&gt;register_callbacks( [ $match_cb3, $open_cb3,
+                                        $read_cb3, $close_cb3 ] );
+$parser-&gt;input_callbacks( $input_callbacks );
+$parser-&gt;parse_file( $some_xml_file );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="¿Qué_pasa_con_el_antiguo_sistema_de_callbacks_anterior_a_XML::LibXML::InputCallback?"><a class='permalink' href='#¿Qué_pasa_con_el_antiguo_sistema_de_callbacks_anterior_a_XML::LibXML::InputCallback?'>¿Qué pasa con el antiguo sistema de callbacks anterior a XML::LibXML::InputCallback?</a></h2>
+<p class="Pp">En las versiones de XML::LibXML anteriores a la 1.59, es decir, sin el módulo XML::LibXML::InputCallback, podía definir sus callbacks de forma global o local. Todavía puede hacerlo usando XML::LibXML::InputCallback y, además, ¡puede definir los callbacks por cada analizador!</p>
+<p class="Pp">Si utiliza la antigua interfaz de callbacks a través de callbacks globales, XML::LibXML::InputCallback los tratará con una prioridad menor que los registrados usando la nueva interfaz. Los callbacks globales no anularán los grupos de callbacks registrados usando la nueva interfaz. Los callbacks locales se adjuntan a una instancia de analizador específica, por lo tanto, se tratan con la máxima prioridad. Si el callback <i>match</i> del grupo de callbacks registrado como variable local es idéntico a uno de los grupos de callbacks registrados usando la nueva interfaz, ese grupo de callbacks será reemplazado.</p>
+<p class="Pp">Los usuarios de la antigua implementación de callbacks cuyo callback <i>open</i> devolvía una cadena simple, tendrán que adaptar su código para devolver una referencia a esa cadena después de actualizar a la versión >= 1.59. ¡El nuevo sistema de callbacks solo puede manejar que el callback <i>open</i> devuelva una referencia!</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCIÓN_DE_LA_INTERFAZ"><a class='permalink' href='#DESCRIPCIÓN_DE_LA_INTERFAZ'>DESCRIPCIÓN DE LA INTERFAZ</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="Variables_Globales"><a class='permalink' href='#Variables_Globales'>Variables Globales</a></h2>
+<dl class="Bl-tag">
+  <dt>$_CUR_CB</dt>
+  <dd>Almacena el callback actual y puede usarse como atajo para acceder a la pila de callbacks.</dd>
+  <dt>@_GLOBAL_CALLBACKS</dt>
+  <dd>Almacena todos los grupos de callbacks para el proceso de análisis actual.</dd>
+  <dt>@_CB_STACK</dt>
+  <dd>Almacena el grupo de callbacks actualmente en uso. Se utiliza para evitar errores del analizador al tratar con datos XML anidados.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Callbacks_Globales"><a class='permalink' href='#Callbacks_Globales'>Callbacks Globales</a></h2>
+<dl class="Bl-tag">
+  <dt>_callback_match</dt>
+  <dd>Implementa la interfaz para el callback <i>match</i> a nivel C y para la selección del grupo de callbacks a partir de los callbacks definidos a nivel Perl.</dd>
+  <dt>_callback_open</dt>
+  <dd>Reenvía el callback <i>open</i> de libxml2 a la función de callback correspondiente a nivel Perl.</dd>
+  <dt>_callback_read</dt>
+  <dd>Reenvía la solicitud de lectura a la función de callback correspondiente a nivel Perl y devuelve el resultado a libxml2.</dd>
+  <dt>_callback_close</dt>
+  <dd>Reenvía el callback <i>close</i> de libxml2 a la función de callback correspondiente a nivel Perl.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Métodos_de_clase"><a class='permalink' href='#Métodos_de_clase'>Métodos de clase</a></h2>
+<dl class="Bl-tag">
+  <dt id="new()"><a class="permalink" href="#new()"><b>new()</b></a></dt>
+  <dd>Un constructor simple.</dd>
+  <dt id="register_callbacks("><a class="permalink" href="#register_callbacks(">register_callbacks(
+    [ $match_cb, $open_cb, $read_cb, $close_cb ])</a></dt>
+  <dd>¡Los cuatro callbacks <i>deben</i> proporcionarse como una referencia de array en el orden <i>match</i>, <i>open</i>, <i>read</i>, <i>close</i>!</dd>
+  <dt id="unregister_callbacks("><a class="permalink" href="#unregister_callbacks(">unregister_callbacks(
+    [ $match_cb, $open_cb, $read_cb, $close_cb ])</a></dt>
+  <dd>Sin argumentos, <span class="Li">unregister_callbacks()</span> eliminará el último grupo de callbacks registrado de la pila. Si se proporcionan cuatro callbacks como referencia de array, el grupo de callbacks a anular se identificará por el callback <i>match</i> y se eliminará de la pila de callbacks. Tenga en cuenta que si varios callbacks <i>match</i> idénticos están</dd>
+</dl>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            <p>
+                Páginas del manual de Arch Linux - <a href="mailto:webmaster@archlinux.org">webmaster@archlinux.org</a>
+            </p>
+        </footer>
+    </body>
+</html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>XML::LibXML::InputCallback(3pm) — Arch Linux manual pages</title>
+        <link rel="stylesheet" href="https://www.archlinux.org/static/man/style.css">
+    </head>
+    <body>
+        <main id="manual-page">
+            <article>
+                <section class="Sh">
+                    <h1 class="Sh" id="NAME">NAME</h1>
+                    <p class="Nd">XML::LibXML::InputCallback - Handles custom URI input callbacks.</p>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="SYNOPSIS">SYNOPSIS</h1>
+                    <pre>
+  use XML::LibXML;
+
+  # Define the four callback functions
+  sub match_uri { ... }
+  sub open_uri { ... }
+  sub read_uri { ... }
+  sub close_uri { ... }
+
+  my $input_callbacks = XML::LibXML::InputCallback-&gt;new();
+  $input_callbacks-&gt;register_callbacks([ \&amp;match_uri, \&amp;open_uri,
+                                         \&amp;read_uri, \&amp;close_uri ] );
+
+  my $parser = XML::LibXML::Parser-&gt;new();
+  $parser-&gt;input_callbacks( $input_callbacks );
+
+  # Parse a file or string that uses the custom URI scheme
+  my $dom = $parser-&gt;parse_file( $some_uri_with_custom_scheme );
+  my $dom = $parser-&gt;parse_string( $xml_string );</pre>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="DESCRIPTION">DESCRIPTION</h1>
+                    <p class="Pp">XML::LibXML::InputCallback allows you to register
+                        custom callback functions that will be used by libxml2 to
+                        retrieve XML documents from URIs other than regular file paths
+                        or HTTP. This is useful for loading XML from databases,
+                        memory buffers, or other custom sources.</p>
+                    <p class="Pp">The callbacks are registered as a group. If any callback
+                        within the group fails or returns an error, all callbacks
+                        in that group will be unregistered and removed from the
+                        libxml2 callback stack.</p>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="INTERFACE_DESCRIPTION">INTERFACE DESCRIPTION</h1>
+                    <p class="Pp">The following methods are available:</p>
+                    <dl class="Bl-tag">
+                        <dt id="new()"><a class="permalink" href="#new()"><b>new()</b></a></dt>
+                        <dd>Creates a new XML::LibXML::InputCallback object.</dd>
+                        <dt id="register_callbacks(()"><a class="permalink" href="#register_callbacks(()">register_callbacks(
+                            $callbacks )</a></dt>
+                        <dd>Registers a group of four callback functions. The callbacks must be
+                            provided as an array reference in the following order:
+                            <dl class="Bl-tag">
+                                <dt id="match_uri()"><a class="permalink" href="#match_uri()">match_uri(
+                                    $uri )</a></dt>
+                                <dd>This function is called with the URI that libxml2 is trying to
+                                    access. It should return true if this callback group
+                                    should handle the URI, and false otherwise. It is used
+                                    to determine which callback group to use for a given
+                                    URI.</dd>
+                                <dt id="open_uri()"><a class="permalink" href="#open_uri()">open_uri(
+                                    $uri )</a></dt>
+                                <dd>This function is called when the <code class="Li">match_uri</code>
+                                    callback returned true. It should open the resource
+                                    represented by the URI and return a filehandle-like
+                                    object (an IO::Handle or similar) that can be read from.
+                                    If an error occurs, it should return <code class="Li">undef</code>.</dd>
+                                <dt id="read_uri()"><a class="permalink" href="#read_uri()">read_uri(
+                                    $handle, $length )</a></dt>
+                                <dd>This function is called to read data from the opened resource. It
+                                    receives the handle returned by <code class="Li">open_uri</code>
+                                    and the maximum number of bytes to read (<code class="Li">$length</code>).
+                                    It should return the data read as a string. If the end of
+                                    the resource is reached, it should return an empty
+                                    string (<code class="Li">''</code>).</dd>
+                                <dt id="close_uri()"><a class="permalink" href="#close_uri()">close_uri(
+                                    $handle )</a></dt>
+                                <dd>This function is called to close the resource. It receives the
+                                    handle returned by <code class="Li">open_uri</code> and should
+                                    perform any necessary cleanup, such as closing a file
+                                    or freeing memory.</dd>
+                            </dl>
+                            <p class="Pp">If any of these callbacks fail (return <code class="Li">undef</code>
+                                or throw an exception), the entire callback group will be
+                                removed from the parser. If multiple callback groups are
+                                defined, and they are defined in different callback groups,
+                                ALL of them will be deleted from the stack.</p>
+                        </dd>
+                        <dt id="init_callbacks("><a class="permalink" href="#init_callbacks(">init_callbacks(
+                            $parser )</a></dt>
+                        <dd>Initializes the callback system for the provided parser before starting a
+                            parsing process.</dd>
+                        <dt id="cleanup_callbacks()"><a class="permalink" href="#cleanup_callbacks()"><b>cleanup_callbacks()</b></a></dt>
+                        <dd>Resets global variables and the libxml2 callback stack.</dd>
+                        <dt id="lib_init_callbacks()"><a class="permalink" href="#lib_init_callbacks()"><b>lib_init_callbacks()</b></a></dt>
+                        <dd>Used internally for callback registration at C-level.</dd>
+                        <dt id="lib_cleanup_callbacks()"><a class="permalink" href="#lib_cleanup_callbacks()"><b>lib_cleanup_callbacks()</b></a></dt>
+                        <dd>Used internally for callback resetting at the C-level.</dd>
+                    </dl>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="EXAMPLE_CALLBACKS">EXAMPLE CALLBACKS</h1>
+                    <p class="Pp">The following example is a purely fictitious example that uses a
+                        MyScheme::Handler object that responds to methods similar to an
+                        IO::Handle.</p>
+                    <pre>
+# Define the four callback functions
+sub match_uri {
+    my $uri = shift;
+    return $uri =~ /^myscheme:/; # trigger our callback group at a 'myscheme' URIs
+}
+sub open_uri {
+    my $uri = shift;
+    my $handler = MyScheme::Handler-&gt;new($uri);
+    return $handler;
+}
+# The returned $buffer will be parsed by the libxml2 parser
+sub read_uri {
+    my $handler = shift;
+    my $length = shift;
+    my $buffer;
+    read($handler, $buffer, $length);
+    return $buffer; # $buffer will be an empty string '' if read() is done
+}
+# Close the handle associated with the resource.
+sub close_uri {
+    my $handler = shift;
+    close($handler);
+}
+# Register them with a instance of XML::LibXML::InputCallback
+my $input_callbacks = XML::LibXML::InputCallback-&gt;new();
+$input_callbacks-&gt;register_callbacks([ \&amp;match_uri, \&amp;open_uri,
+                                       \&amp;read_uri, \&amp;close_uri ] );
+# Register the callback group at a parser instance
+$parser-&gt;input_callbacks( $input_callbacks );
+# $some_xml_file will be parsed using our callbacks
+$parser-&gt;parse_file( $some_xml_file );</pre>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="AUTHORS">AUTHORS</h1>
+                    <p class="Pp">Matt Sergeant, Christian Glahn, Petr Pajas</p>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="VERSION">VERSION</h1>
+                    <p class="Pp">2.0210</p>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="COPYRIGHT">COPYRIGHT</h1>
+                    <p class="Pp">2001-2007, AxKit.com Ltd.</p>
+                    <p class="Pp">2002-2006, Christian Glahn.</p>
+                    <p class="Pp">2006-2009, Petr Pajas.</p>
+                </section>
+                <section class="Sh">
+                    <h1 class="Sh" id="LICENSE">LICENSE</h1>
+                    <p class="Pp">This program is free software; you can redistribute it and/or
+                        modify it under the same terms as Perl itself.</p>
+                </section>
+            </article>
+            <table class="foot">
+                <tr>
+                    <td class="foot-date">2025-07-14</td>
+                    <td class="foot-os">perl v5.42.0</td>
+                </tr>
+            </table>
+        </main>
+        <aside id="sidebar">
+            <section class="search">
+                <form action="/search" class="search direct-search" role="search">
+                    <input type="search" placeholder="Search manual page" name="q" value="">
+                    <input type="submit" name="go" value="Go">
+                </form>
+            </section>
+            <section class="package-info">
+                <p>Package information:</p>
+                <dl>
+                    <dt>Package name:</dt>
+                    <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-xml-libxml/">extra/perl-xml-libxml</a></dd>
+                    <dt>Version:</dt>
+                    <dd>2.0210-4</dd>
+                    <dt>Upstream:</dt>
+                    <dd><a href="https://search.cpan.org/dist/XML-LibXML">https://search.cpan.org/dist/XML-LibXML</a></dd>
+                    <dt>Licenses:</dt>
+                    <dd>GPL</dd>
+                    <dt>Manuals:</dt>
+                    <dd><a href="/listing/extra/perl-xml-libxml/">/listing/extra/perl-xml-libxml/</a></dd>
+                </dl>
+            </section>
+            <details>
+                <summary>Table of contents</summary>
+                <nav class="toc">
+                    <ul>
+                        <li><a href="#NAME">NAME</a></li>
+                        <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+                        <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+                        <li><a href="#INTERFACE_DESCRIPTION">INTERFACE DESCRIPTION</a></li>
+                        <li><a href="#EXAMPLE_CALLBACKS">EXAMPLE CALLBACKS</a></li>
+                        <li><a href="#AUTHORS">AUTHORS</a></li>
+                        <li><a href="#VERSION">VERSION</a></li>
+                        <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+                        <li><a href="#LICENSE">LICENSE</a></li>
+                    </ul>
+                </nav>
+            </details>
+            <nav class="other-formats">
+                <p>Other formats:
+                    <a href="/man/XML::LibXML::InputCallback.3pm.en.txt">txt</a>,
+                    <a href="/man/XML::LibXML::InputCallback.3pm.en.raw">raw</a>
+                </p>
+            </nav>
+        </aside>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

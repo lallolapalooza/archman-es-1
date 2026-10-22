@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>X11::Protocol::Ext::MIT_SHM(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">X11__Protocol__Ext__MIT_SHM(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-x11-protocol-other/">perl-x11-protocol-other</a></p>
+<p class="lic">Licencias: GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">X11::Protocol::Ext::MIT_SHM(3)</td>
+    <td class="head-vol">Documentación Perl contribuida por el usuario</td>
+    <td class="head-rtitle">X11::Protocol::Ext::MIT_SHM(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">X11::Protocol::Ext::MIT_SHM - imágenes en memoria compartida estilo SysV</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use X11::Protocol;
+my $X = X11::Protocol-&gt;new;
+$X-&gt;init_extension('MIT-SHM')
+  or print &quot;Extensión MIT-SHM no disponible&quot;;
+use IPC::SysV;
+my $shmid = shmget (IPC::SysV::IPC_PRIVATE(),
+                    100000,  # bytes
+                    IPC::SysV::IPC_CREAT() | 0666);
+my $shmseg = $X-&gt;new_rsrc;
+$X-&gt;MitShmAttach ($shmseg, $shmid, 0);
+my ($depth, $visual, $size) =  $X-&gt;MitShmGetImage
+      ($window, 0,0, 16,16, ~0, 'ZPixmap', $shmseg, 0);
+my $image_bytes;
+shmread ($shmid, $image_bytes, 0, 16*16*$bpp) || die &quot;$!&quot;;
+# $image_bytes son los 16x16 píxeles superiores izquierdos de la pantalla</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La extensión MIT-SHM permite que un cliente y un servidor que se
+    ejecutan en la misma máquina transfieran datos de imagen a través de segmentos
+    de memoria compartida System-V.</p>
+<p class="Pp">El cliente crea un segmento de memoria con
+    <span class="Li">shmget()</span> (ver &quot;shmget&quot; en perlfunc y
+    &quot;SysV IPC&quot; en perlipc) y solicita al servidor que se adjunte a él y
+    luego lea o escriba con equivalentes a los GetImage y PutImage centrales.</p>
+<p class="Pp">El objetivo es evitar el envío de imágenes grandes a través de la
+    conexión de E/S cuando se está en la misma máquina. La memoria es más rápida y
+    puede ayudar a evitar límites de tamaño de solicitud para imágenes muy
+    grandes.</p>
+<p class="Pp">El orden de bytes, el relleno, etc., requeridos o generados en las
+    imágenes se especifican por el servidor
+    <span class="Li">&quot;$X-&gt;{'image_byte_order'}&quot;</span>,
+    <span class="Li">&quot;$X-&gt;{'pixmap_formats'}&quot;</span>, etc., lo mismo
+    que para el núcleo <span class="Li">GetImage()</span> y
+    <span class="Li">PutImage()</span>. Depende del cliente adaptarse al diseño
+    del servidor, lo que puede ser un poco tedioso.</p>
+<section class="Ss">
+<h2 class="Ss" id='Shm_from_Perl'><a class='permalink' href='#Shm_from_Perl'>Shm desde Perl</a></h2>
+<p class="Pp">Un segmento de memoria compartida se puede crear desde Perl con
+    <span class="Li">shmget()</span>, luego leer o escribir su contenido con
+    <span class="Li">shmread()</span> y <span class="Li">shmwrite()</span>. Estas
+    funciones adjuntan y desadjuntan cada vez con las llamadas al sistema
+    <span class="Li">shmat()</span> y <span class="Li">shmdt()</span>, lo cual está
+    bien para capturar todo pero será un poco lento para muchos accesos
+    pequeños.</p>
+<p class="Pp"><span class="Li">&quot;IPC::SysV&quot;</span> (versión 2 o superior)
+    ofrece un <span class="Li">shmat()</span> para mantener el bloque adjunto y
+    <span class="Li">memread()</span> y <span class="Li">memwrite()</span> para
+    acceder a él (ver IPC::SysV). Ver IPC::SharedMem para un envoltorio orientado
+    a objetos alrededor de esto también.</p>
+<p class="Pp">Por cierto, si <span class="Li">shmget()</span> no está disponible
+    en el sistema, el <span class="Li">shmget()</span> de Perl falla. Siempre es
+    posible que devuelva <span class="Li">&quot;undef&quot;</span> también por falta
+    de memoria, etc. Con eso, no estar en la misma máquina, no tener permisos
+    identificables, etc., hay varios casos en los que será necesario un recurso a
+    la E/S simple.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Shm_Permissions'><a class='permalink' href='#Shm_Permissions'>Permisos Shm</a></h2>
+<p class="Pp">Un segmento de memoria compartida SysV tiene bits de permiso de
+    propietario/grupo/otros similares a un archivo. El servidor solo se adjuntará
+    a los segmentos a los que el UID/GID del cliente solicitante tenga permiso para
+    leer o escribir.</p>
+<p class="Pp">El servidor generalmente puede determinar el UID/GID de un cliente
+    en una conexión local, como un socket Unix (X11::Protocol::Connection::UNIXSocket,
+    y <span class="Li">&quot;SO_PEERCRED&quot;</span> en <a href='/man/socket.7.en'>socket(7)</a>),
+    y quizás en un bucle de retorno localhost TCP. De lo contrario, el servidor
+    trata al cliente como &quot;otro&quot; y solo se adjuntará a segmentos
+    legibles por todos (o legibles/escribibles por todos).</p>
+<p class="Pp">Puede hacer que un segmento shm sea legible por todos para garantizar
+    que el servidor pueda leerlo. Si los datos para un PutImage, etc., provienen
+    ya de un archivo legible por todos o son públicos, no debería importar mucho
+    quién más lea el segmento. Recuerde solicitar solo lectura en
+    <span class="Li">MitShmAttach()</span> para que el servidor no necesite
+    también escritura.</p>
+<p class="Pp">Probablemente no sea necesario arriesgarse a relajar los permisos
+    para escribir segmentos. Es probable que si el UID/GID del cliente no se puede
+    identificar, sea porque la conexión no es local y el servidor está en una
+    máquina diferente, por lo que la memoria compartida no se puede usar de
+    todos modos.</p>
+<p class="Pp">Es habitual que el servidor se ejecute como root, de ahí sus propias
+    verificaciones de permisos, pero también es posible que el servidor sea un
+    usuario normal. En ese caso, los segmentos shm a los que puede acceder estarán
+    limitados de la manera habitual para el usuario con el que se esté
+    ejecutando.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REQUESTS'><a class='permalink' href='#REQUESTS'>SOLICITUDES</a></h1>
+<p class="Pp">Las siguientes solicitudes están disponibles después de una
+    <span class="Li">init_extension()</span> por &quot;EXTENSIONS&quot; en
+    X11::Protocol.</p>
+<pre>my $bool = $X-&gt;init_extension('MIT-SHM');</pre>
+<p class="Pp">En lo siguiente, <span class="Li">$shmid</span> es el ID de memoria
+    compartida (un entero) obtenido del kernel con
+    <span class="Li">shmget()</span>. <span class="Li">$shmseg</span> es un XID
+    (asignado normalmente por el cliente
+    <span class="Li">&quot;$X-&gt;new_rsrc()&quot;</span>) en el servidor que representa
+    la conexión del servidor al bloque.</p>
+<dl class="Bl-tag">
+  <dt>&quot;($server_major, $server_minor, $uid, $gid, $shared_pixmaps,
+    $pixmap_format) = $X-&gt;MitShmQueryVersion ()&quot;</dt>
+  <dd>Devuelve información sobre la extensión MIT-SHM. A diferencia de otras
+      extensiones, no hay negociación de versión cliente/servidor.
+    <p class="Pp"><span class="Li">$server_major</span> y
+        <span class="Li">$server_minor</span> son el número de versión de la
+        extensión implementada por el servidor.</p>
+    <p class="Pp"><span class="Li">$uid</span> y <span class="Li">$gid</span>
+        (enteros) son el ID de usuario y el ID de grupo efectivos del servidor
+        (<span class="Li">geteuid()</span> y
+        <span class="Li">getegid()</span>). Cero significa root.</p>
+    <p class="Pp"><span class="Li">$shared_pixmaps</span> es distinto de cero si
+        se admiten mapas de bits en memoria compartida (ver
+        <span class="Li">MitShmCreatePixmap()</span> abajo).
+        <span class="Li">$pixmap_format</span> (un ImageFormat) es
+        &quot;XYPixmap&quot; o &quot;ZPixmap&quot; para el diseño requerido en dicho
+        mapa de bits.</p>
+  </dd>
+  <dt>&quot;$X-&gt;MitShmAttach ($shmseg, $shmid, $readonly)&quot;</dt>
+  <dd>Adjunta el servidor a un segmento de memoria compartida dado.
+      <span class="Li">$shmseg</span> es un nuevo XID para representar la memoria
+      adjunta.
+        <pre>my $shmseg = $X-&gt;new_rsrc;
+$X-&gt;MitShmAttach ($shmseg, $shmid, 0); # lectura/escritura
+</pre>
+    <p class="Pp"><span class="Li">$shmid</span> es el ID de memoria compartida a
+        adjuntar, tal como se obtuvo de <span class="Li">shmget()</span> (ver
+        &quot;shmget&quot; en perlfunc).</p>
+    <p class="Pp"><span class="Li">$readonly</span> es 1 para que el servidor se
+        adjunte en modo de solo lectura, o 0 para lectura/escritura. El modo de
+        solo lectura es suficiente para
+        <span class="Li">MitShmPutImage()</span>, pero se requiere lectura/escritura
+        para <span class="Li">MitShmGetImage()</span> y
+        <span class="Li">MitShmCreatePixmap()</span>.</p>
+  </dd>
+  <dt>&quot;$X-&gt;MitShmDetach ($shmseg)&quot;</dt>
+  <dd>Desconecta el servidor de la memoria compartida <span class="Li">$shmseg</span>
+      (un XID) y libera ese XID.
+        <pre>$X-&gt;MitShmDetach ($shmseg);
+</pre>
+  </dd>
+  <dt>&quot;$X-&gt;MitShmPutImage ($drawable, $gc, $depth, $total_width,
+    $total_height, $src_x, $src_y, $src_width, $src_height, $dst_x, $dst_y,
+    $format, $send_event, $shmseg, $offset)&quot;</dt>
+  <dd>Coloca datos de imagen de <span class="Li">$shmseg</span> (un XID) en
+      <span class="Li">$drawable</span>. Los parámetros son similares a los del
+      núcleo <span class="Li">PutImage()</span>.
+    <p class="Pp"><span class="Li">$depth</span> es la profundidad de la imagen. Para
+        el formato <span class="Li">&quot;Bitmap&quot;</span> esto debe ser 1 y
+        entonces se dibujan los colores de primer plano y de fondo de
+        <span class="Li">$gc</span>. Para los formatos <span class="Li">&quot;XYPixmap&quot;</span>
+        y <span class="Li">&quot;ZPixmap&quot;</span>,
+        <span class="Li">$depth</span> debe ser la profundidad de
+        <span class="Li">$drawable</span>.</p>
+    <p class="Pp"><span class="Li">$total_width</span>,
+        <span class="Li">$total_height</span> es el tamaño completo de la imagen
+        en la memoria compartida.
+        <span class="Li">$src_x</span>,
+        <span class="Li">$src_y</span> y
+        <span class="Li">$src_width</span>,
+        <span class="Li">$src_height</span> son la porción a dibujar.
+        <span class="Li">$dst_x</span>,
+        <span class="Li">$dst_y</span> es dónde colocarlo en
+        <span class="Li">$drawable</span>.</p>
+    <p class="Pp"><span class="Li">$format</span> es &quot;Bitmap&quot;,
+        &quot;XYPixmap&quot; o &quot;ZPixmap&quot; (un ImageFormat).</p>
+    <p class="Pp"><span class="Li">$send_event</span> es 1 para que se envíe un
+        <span class="Li">&quot;MitShmCompletionEvent&quot;</span> al cliente cuando
+        finaliza el dibujo (ver &quot;EVE</dd>
+</dl>
+</div>
+</section>
+
+                
+            </article>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="stylesheet" href="/css/man.css">
+        <title>X11::Protocol::Ext::MIT_SHM(3pm)</title>
+    </head>
+    <body>
+        
+        <main>
+            <article>
+                <section class="Sh">
+    <h1 class="Sh" id="NAME">NAME</h1>
+    <p class="Pp">X11::Protocol::Ext::MIT_SHM - Shared Memory Extension</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="SYNOPSIS">SYNOPSIS</h1>
+    <pre>  use X11::Protocol::Ext::MIT_SHM;
+  my $x = X11::Protocol-&gt;new;
+  # ...
+  # Query version
+  my ($major, $minor, $pixmap, $image) = $x-&gt;MitShmQueryVersion;
+  # Check support
+  if ($image) {
+    # ...
+  }
+  # Get image
+  my ($depth, $visual, $size) = $x-&gt;MitShmGetImage ($drawable, $x, $y, $width, $height, $planemask, $format, $shmseg, $offset);
+  # Create pixmap
+  my $pixmap = $x-&gt;new_rsrc;
+  $x-&gt;MitShmCreatePixmap ($pixmap, $drawable, $depth, $width, $height, $shmseg, $offset);
+  # Put image
+  $x-&gt;MitShmPutImage ($drawable, $x, $y, $width, $height, $planemask, $format, $shmseg, $offset);
+  # Attach to shared memory
+  $x-&gt;MitShmAttach ($shmseg, $shmid, $offset);
+  # Detach from shared memory
+  $x-&gt;MitShmDetach ($shmseg);
+  # Put image and get completion event
+  $x-&gt;MitShmPutImage ($drawable, $x, $y, $width, $height, $planemask, $format, $shmseg, $offset, 1);
+  # Get completion event
+  my $ev = $x-&gt;wait_for_event;
+  if ($ev-&gt;isa (&quot;X11::Protocol::Event::MitShmCompletion&quot;)) {
+    # ...
+  }</pre>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="DESCRIPTION">DESCRIPTION</h1>
+    <p class="Pp">This extension allows X clients to transfer images and pixmaps
+        to and from the X server using shared memory, which is much faster than
+        the normal protocol requests.</p>
+    <p class="Pp">The extension must be initialized with
+        <span class="Li">MitShmQueryVersion()</span>. This tells you whether the
+        extension is supported, and whether it supports pixmaps and image
+        transfers.</p>
+    <p class="Pp">Shared memory segments are created using the standard
+        <span class="Li">shmget(2)</span> system call and attached to the client
+        or server process using <span class="Li">shmat(2)</span>. The client must
+        then attach the segment to the X server using
+        <span class="Li">MitShmAttach()</span>. The client can then use the
+        shared memory segment to send images to the server using
+        <span class="Li">MitShmPutImage()</span> or receive images using
+        <span class="Li">MitShmGetImage()</span>. Shared memory pixmaps can also
+        be created using <span class="Li">MitShmCreatePixmap()</span>.</p>
+    <p class="Pp">When the client or server writes to the shared memory, the
+        contents of the image or pixmap are updated.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="REQUESTS">REQUESTS</h1>
+    <dl class="Bl-tag">
+        <dt>&quot;$major, $minor, $pixmap_support, $image_support = $X-&gt;MitShmQueryVersion&quot;</dt>
+        <dd>Query the shared memory extension version and capabilities.
+            <p class="Pp"><span class="Li">$major</span> and <span class="Li">$minor</span>
+                are the major and minor version numbers of the extension.
+                <span class="Li">$pixmap_support</span> is true if shared memory
+                pixmaps are supported. <span class="Li">$image_support</span> is
+                true if shared memory images are supported.</p>
+        </dd>
+        <dt>&quot;$X-&gt;MitShmAttach ($shmseg, $shmid, $offset)&quot;</dt>
+        <dd>Attach a shared memory segment to the X server.
+            <p class="Pp"><span class="Li">$shmseg</span> is a new XID that will
+                represent the shared memory segment on the server.
+                <span class="Li">$shmid</span> is the shared memory identifier
+                obtained from <span class="Li">shmget(2)</span>.
+                <span class="Li">$offset</span> is a byte offset into the shared
+                memory where the image data begins.</p>
+            <p class="Pp">The shared memory segment must be created with read-write
+                permissions for the server. If <span class="Li">$offset</span> is
+                not zero, the data is assumed to be aligned within the shared
+                memory segment.</p>
+        </dd>
+        <dt>&quot;$X-&gt;MitShmDetach ($shmseg)&quot;</dt>
+        <dd>Detach a shared memory segment from the X server.
+            <p class="Pp"><span class="Li">$shmseg</span> is the XID of the shared
+                memory segment to detach.</p>
+        </dd>
+        <dt>&quot;$X-&gt;MitShmPutImage ($drawable, $x, $y, $width, $height, $planemask, $format, $shmseg, $offset, $send_event)&quot;</dt>
+        <dd>Copy an image from shared memory to a drawable.
+            <p class="Pp"><span class="Li">$drawable</span> is the drawable to
+                copy the image to. <span class="Li">$x</span>, <span class="Li">$y</span>,
+                <span class="Li">$width</span>, <span class="Li">$height</span>
+                define the destination region. <span class="Li">$planemask</span>
+                is a bit mask for which bit planes of the pixels are wanted.
+                <span class="Li">$format</span> is either &quot;XYPixmap&quot; or
+                &quot;ZPixmap&quot; for the layout of the image data in shared
+                memory. <span class="Li">$shmseg</span> is the XID of the shared
+                memory segment. <span class="Li">$offset</span> is a byte offset
+                into the shared memory where the image data starts.
+                <span class="Li">$send_event</span> is a boolean, true if a
+                <span class="Li">MitShmCompletionEvent</span> should be sent to
+                the client when the server has finished copying the image.</p>
+        </dd>
+        <dt>&quot;($depth, $visual, $size) = $X-&gt;MitShmGetImage ($drawable, $x, $y, $width, $height, $planemask, $format, $shmseg, $offset)&quot;</dt>
+        <dd>Copy an image from a drawable to shared memory.
+            <p class="Pp">The parameters are similar to
+                <span class="Li">MitShmPutImage()</span>, except that the image
+                is read from <span class="Li">$drawable</span> instead of written
+                to it. The data is written into the shared memory segment
+                <span class="Li">$shmseg</span> at the specified
+                <span class="Li">$offset</span>.</p>
+            <p class="Pp">The returned <span class="Li">$depth</span> is the depth
+                of the drawable, <span class="Li">$visual</span> is its visual ID
+                (or &quot;None&quot; for a pixmap), and <span class="Li">$size</span>
+                is the number of bytes written.</p>
+        </dd>
+        <dt>&quot;$X-&gt;MitShmCreatePixmap ($pixmap, $drawable, $depth, $width, $height, $shmseg, $offset)&quot;</dt>
+        <dd>Create a pixmap with contents in shared memory.
+            <p class="Pp"><span class="Li">$pixmap</span> is a new XID that will
+                represent the shared memory pixmap. <span class="Li">$drawable</span>
+                is used to determine the screen for the new pixmap.
+                <span class="Li">$depth</span>, <span class="Li">$width</span>,
+                <span class="Li">$height</span> define the dimensions of the
+                pixmap. <span class="Li">$shmseg</span> is the XID of the shared
+                memory segment. <span class="Li">$offset</span> is a byte offset
+                into the shared memory where the pixmap data begins.</p>
+            <p class="Pp">The pixmap's contents can be modified by writing directly
+                to the shared memory segment.</p>
+        </dd>
+    </dl>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="EVENTS">EVENTS</h1>
+    <p class="Pp"><span class="Li">&quot;MitShmCompletionEvent&quot;</span> is sent
+        to the client when requested in an <span class="Li">MitShmPutImage()</span>.
+        It indicates that the server has finished processing the image data from
+        shared memory.</p>
+    <pre>name             &quot;MitShmCompletionEvent&quot;
+synthetic        true if from a SendEvent
+code             integer opcode
+sequence_number  integer
+drawable       XID, target drawable from request
+shmseg         XID, shared memory segment from request
+offset         integer, byte offset from request
+major_opcode   integer, MIT-SHM extension code
+minor_opcode   integer, 3 for MitShmPutImage</pre>
+    <p class="Pp">The <span class="Li">major_opcode</span> and
+        <span class="Li">minor_opcode</span> fields identify the originating
+        request. This event is analogous to the core protocol's
+        <span class="Li">&quot;GraphicsExposure&quot;</span> and
+        <span class="Li">&quot;NoExposure&quot;</span> events, but is specific to
+        the <span class="Li">MitShmPutImage()</span> request.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="ERRORS">ERRORS</h1>
+    <p class="Pp">The extension defines a <span class="Li">&quot;ShmSeg&quot;</span>
+        error type, which is raised if an invalid shared memory segment XID is
+        used in a request.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="SEE_ALSO">SEE ALSO</h1>
+    <p class="Pp">X11::Protocol, <span class="Li">&quot;shmget&quot;</span> in
+        perlfunc, <span class="Li">&quot;SysV IPC&quot;</span> in perlipc,
+        IPC::SysV, IPC::SharedMem.</p>
+    <p class="Pp">X11::Protocol::Ext::Damage</p>
+    <p class="Pp"><i>/usr/share/doc/x11proto-xext-dev/shm.txt.gz</i>,
+        <i>/usr/share/X11/doc/hardcopy/Xext/mit-shm.PS.gz</i>,
+        <i>ftp://ftp.xfree86.org/pub/mirror/X.Org/pub/R6.6/xc/doc/hardcopy/Xext/mit-shm.PS.gz</i></p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="HOME_PAGE">HOME PAGE</h1>
+    <p class="Pp"><a href="http://user42.tuxfamily.org/x11-protocol-other/index.html">http://user42.tuxfamily.org/x11-protocol-other/index.html</a></p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id="LICENSE">LICENSE</h1>
+    <p class="Pp">Copyright 2011 Kevin Ryde</p>
+    <p class="Pp">X11-Protocol-Other is free software; you can redistribute it
+        and/or modify it under the terms of the GNU General Public License as
+        published by the Free Software Foundation; either version 3, or (at your
+        option) any later version.</p>
+    <p class="Pp">X11-Protocol-Other is distributed in the hope that it will be
+        useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+        Public License for more details.</p>
+    <p class="Pp">You should have received a copy of the GNU General Public License
+        along with X11-Protocol-Other. If not, see
+        <a href="http://www.gnu.org/licenses/">http://www.gnu.org/licenses/</a>.</p>
+</section>
+<table class="foot">
+    <tr>
+        <td class="foot-date">2025-07-14</td>
+        <td class="foot-os">perl v5.42.0</td>
+    </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-x11-protocol-other/">extra/perl-x11-protocol-other</a></dd>
+        <dt>Versión:</dt>
+        <dd>31-5</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/X11-Protocol-Other/">https://search.cpan.org/dist/X11-Protocol-Other/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-x11-protocol-other/">/listing/extra/perl-x11-protocol-other/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#REQUESTS">PETICIONES</a></li>
+        
+            <li><a href="#EVENTS">EVENTOS</a></li>
+        
+            <li><a href="#ERRORS">ERRORES</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#HOME_PAGE">PÁGINA DE INICIO</a></li>
+        
+            <li><a href="#LICENSE">LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/X11::Protocol::Ext::MIT_SHM.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/X11::Protocol::Ext::MIT_SHM.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

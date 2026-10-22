@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>borg-create(1) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">borg-create(1)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/borg/">borg</a></p>
+<p class="lic">Licencias: BSD</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">BORG-CREATE(1)</td>
+    <td class="head-vol">borg backup tool</td>
+    <td class="head-rtitle">BORG-CREATE(1)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">borg-create - Crear un nuevo archivo</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">borg [opciones comunes] create [opciones] ARCHIVO [RUTA...]</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este comando crea un archivo de respaldo que contiene todos los
+    archivos encontrados al recorrer recursivamente todas las rutas especificadas.
+    Las rutas se añaden al archivo tal como se proporcionan, lo que significa que si
+    se desean rutas relativas, el comando debe ejecutarse desde el directorio
+    correcto.</p>
+<p class="Pp">El hack de slashdot en las rutas (raíces de recursión) se activa
+    usando <b>/./</b>: <b>/esto/se/elimina/./esto/se/archiva</b> significa
+    procesar ese objeto del sistema de archivos, pero eliminar el prefijo del lado
+    izquierdo de <b>./</b> de los elementos archivados (en este caso,
+    <b>esto/se/archiva</b> será la ruta en el elemento archivado).</p>
+<p class="Pp">Cuando se proporciona '-' como ruta, Borg leerá datos de la entrada
+    estándar y creará un archivo llamado 'stdin' en el archivo creado a partir de
+    esos datos. En algunos casos, es más apropiado usar
+    <b>--content-from-command</b>. Consulte la sección &quot;Lectura desde
+    stdin&quot; a continuación para obtener más detalles.</p>
+<p class="Pp">El archivo consumirá casi nada de espacio en disco para archivos o
+    partes de archivos que ya se han almacenado en otros archivos.</p>
+<p class="Pp">El nombre del archivo debe ser único. No debe terminar en
+    '.checkpoint' o '.checkpoint.N' (con N siendo un número), ya que estos
+    nombres se utilizan para puntos de control y se tratan de forma especial.</p>
+<p class="Pp">En el nombre del archivo, puede usar los siguientes marcadores de
+    posición: {now}, {utcnow}, {fqdn}, {hostname}, {user} y algunos otros.</p>
+<p class="Pp">La velocidad de respaldo aumenta al no reprocesar archivos que ya
+    forman parte de archivos existentes y que no han sido modificados. La detección
+    de archivos no modificados se realiza comparando varios valores de metadatos
+    de archivo con valores anteriores guardados en la caché de archivos.</p>
+<p class="Pp">Esta comparación puede operar en diferentes modos según lo dado por
+    <b>--files-cache</b>:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>ctime,size,inode (por defecto)</li>
+  <li>mtime,size,inode (comportamiento por defecto de las versiones de borg
+    anteriores a 1.1.0rc4)</li>
+  <li>ctime,size (ignora el número de inodo)</li>
+  <li>mtime,size (ignora el número de inodo)</li>
+  <li>rechunk,ctime (todos los archivos se consideran modificados - rechunk,
+    caché ctime)</li>
+  <li>rechunk,mtime (todos los archivos se consideran modificados - rechunk,
+    caché mtime)</li>
+  <li>disabled (desactiva la caché de archivos, todos los archivos se consideran
+      modificados - rechunk)</li>
+</ul>
+</div>
+<p class="Pp">número de inodo: mejor seguridad, pero a menudo inestable en sistemas
+    de archivos de red</p>
+<p class="Pp">Normalmente, la detección de modificaciones de archivos tendrá en
+    cuenta la información del inodo para mejorar la fiabilidad de la detección de
+    cambios en los archivos. Esto es problemático para los archivos ubicados en
+    SSHFS y sistemas de archivos de red similares que no proporcionan números de
+    inodo estables; dichos archivos siempre se considerarán modificados. Puede
+    usar modos sin <i>inode</i> en este caso para mejorar el rendimiento, pero la
+    fiabilidad de la detección de cambios podría reducirse.</p>
+<p class="Pp">ctime vs. mtime: seguridad vs. velocidad</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>ctime es una forma bastante segura de detectar cambios en un archivo
+      (metadatos y contenido) ya que no puede ser establecido desde el espacio de
+      usuario. Sin embargo, un cambio solo de metadatos ya actualizará el ctime,
+      por lo que puede haber algún re-chunking/hashing innecesario incluso sin
+      cambios de contenido. Algunos sistemas de archivos no admiten ctime (tiempo
+      de cambio). Por ejemplo, realizar un chown o chmod a un archivo cambiará su
+      ctime.</li>
+  <li>mtime generalmente funciona y solo se actualiza si el contenido del archivo
+      cambió. Pero mtime puede ser establecido arbitrariamente desde el espacio de
+      usuario, por ejemplo, para establecer mtime de nuevo al mismo valor que
+      tenía antes de que ocurriera un cambio de contenido. Esto puede ser usado
+      maliciosamente así como bien intencionado, pero en ambos casos los modos de
+      caché basados en mtime pueden ser problemáticos.</li>
+</ul>
+</div>
+<p class="Pp">La opción <b>--files-changed</b> controla cómo Borg detecta si un
+    archivo ha cambiado durante la copia de seguridad:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>ctime (por defecto): Usa ctime para detectar cambios. Esta es la opción más
+      segura.</li>
+  <li>mtime: Usa mtime para detectar cambios.</li>
+  <li>disabled: Desactiva completamente la detección de &quot;el archivo ha
+      cambiado mientras lo respaldábamos&quot;. Esto no se recomienda a menos que
+      sepa lo que está haciendo, ya que podría provocar copias de seguridad
+      inconsistentes si los archivos cambian durante el proceso de copia de
+      seguridad.</li>
+</ul>
+</div>
+<p class="Pp">Los puntos de montaje de los sistemas de archivos o las instantáneas
+    del sistema de archivos deben ser los mismos para cada creación de un nuevo
+    archivo para garantizar un funcionamiento rápido. Esto se debe a que la caché
+    de archivos que se utiliza para determinar los archivos modificados rápidamente
+    utiliza nombres de archivo absolutos. Si esto no es posible, considere crear
+    un montaje bind a una ubicación estable.</p>
+<p class="Pp">La opción <b>--progress</b> muestra (de izquierda a derecha)
+    Original, Comprimido y Deducplicado (O, C y D, respectivamente), luego el
+    número de archivos (N) procesados hasta el momento, seguido de la ruta que se
+    está procesando actualmente.</p>
+<p class="Pp">Cuando use <b>--stats</b>, obtendrá algunas estadísticas sobre
+    cuántos datos se agregaron - el tamaño deducplicado &quot;Este Archivo&quot;
+    allí es el más interesante, ya que es cuánto crecerá su repositorio. Tenga en
+    cuenta que las estadísticas &quot;Todos los archivos&quot; se refieren al estado
+    después de la creación. Además, las opciones <b>--stats</b> y <b>--dry-run</b>
+    son mutuamente excluyentes porque los datos no se comprimen ni se
+    deduplicican realmente durante una ejecución de prueba.</p>
+<p class="Pp">Para obtener más ayuda sobre los patrones de inclusión/exclusión,
+    consulte la salida del comando <i>borg_patterns</i>.</p>
+<p class="Pp">Para obtener más ayuda sobre los marcadores de posición, consulte la
+    salida del comando <i>borg_placeholders</i>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OPTIONS'><a class='permalink' href='#OPTIONS'>OPCIONES</a></h1>
+<p class="Pp">Vea <a href='/man/borg-common.1.en'>borg-common(1)</a> para las opciones
+    comunes de los comandos Borg.</p>
+<section class="Ss">
+<h2 class="Ss" id='arguments'><a class='permalink' href='#arguments'>argumentos</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="ARCHIVE"><a class="permalink" href="#ARCHIVE"><b>ARCHIVO</b></a></dt>
+  <dd>nombre del archivo a crear (debe ser también un nombre de directorio
+      válido)</dd>
+  <dt id="PATH"><a class="permalink" href="#PATH"><b>RUTA</b></a></dt>
+  <dd>rutas a archivar</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='options'><a class='permalink' href='#options'>opciones</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="n"><a class="permalink" href="#n"><b>-n<i>,</i><b>
+    --dry-run</b></b></a></dt>
+  <dd>no crear un archivo de respaldo</dd>
+  <dt id="s"><a class="permalink" href="#s"><b>-s<b>,</b><b>
+    --stats</b></b></a></dt>
+  <dd>imprimir estadísticas del archivo creado</dd>
+  <dt id="list"><a class="permalink" href="#list"><b>--list</b></a></dt>
+  <dd>mostrar lista detallada de elementos (archivos, directorios, ...)</dd>
+  <dt id="filter"><a class="permalink" href="#filter"><b>--filter</b><i>&#x00A0;STATUSCHARS</i></a></dt>
+  <dd>mostrar solo elementos con los caracteres de estado dados (ver descripción)</dd>
+  <dt id="json"><a class="permalink" href="#json"><b>--json</b></a></dt>
+  <dd>mostrar estadísticas como JSON. Implica <b>--stats</b>.</dd>
+  <dt id="no"><a class="permalink" href="#no"><b>--no-cache-sync</b></a></dt>
+  <dd>experimental: no sincronizar la caché. Implica no usar la caché de
+      archivos.</dd>
+  <dt id="stdin"><a class="permalink" href="#stdin"><b>--stdin-name</b><i>&#x00A0;NOMBRE</i></a></dt>
+  <dd>usar NOMBRE en el archivo para los datos de stdin (por defecto:
+      'stdin')</dd>
+  <dt id="stdin~2"><a class="permalink" href="#stdin~2"><b>--stdin-user</b><i>&#x00A0;USUARIO</i></a></dt>
+  <dd>establecer el usuario USUARIO en el archivo para los datos de stdin (por
+      defecto: 'root')</dd>
+  <dt id="stdin~3"><a class="permalink" href="#stdin~3"><b>--stdin-group</b><i>&#x00A0;GRUPO</i></a></dt>
+  <dd>establecer el grupo GRUPO en el archivo para los datos de stdin (por
+      defecto: 'wheel')</dd>
+  <dt id="stdin~4"><a class="permalink" href="#stdin~4"><b>--stdin-mode</b><i>&#x00A0;M</i></a></dt>
+  <dd>establecer el modo M en el archivo para los datos de stdin (por defecto:
+      0660)</dd>
+  <dt id="content"><a class="permalink" href="#content"><b>--content-from-command</b></a></dt>
+  <dd>interpretar RUTA como un comando y almacenar su stdout. Ver también la
+      sección Lectura desde stdin a continuación.</dd>
+  <dt id="paths"><a class="permalink" href="#paths"><b>--paths-from-stdin</b></a></dt>
+  <dd>leer una lista de rutas separadas por DELIMITADOR para respaldar desde
+      stdin. Todo el control es externo: respaldará todos los archivos dados, ni
+      más ni menos.</dd>
+  <dt id="paths~2"><a class="permalink" href="#paths~2"><b>--paths-from-command</b></a></dt>
+  <dd>interpretar RUTA como un comando y tratar su salida como
+      <b>--paths-from-stdin</b></dd>
+  <dt id="paths~3"><a class="permalink" href="#paths~3"><b>--paths-delimiter</b><i>&#x00A0;DELIM</i></a></dt>
+  <dd>establecer el delimitador de ruta para <b>--paths-from-stdin</b> y
+      <b>--paths-from-command</b> (por defecto: <b>\n</b>)</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Include/Exclude_options'><a class='permalink' href='#Include/Exclude_options'>Opciones de inclusión/exclusión</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="e"><a class="permalink" href="#e"><b>-e</b><i>&#x00A0;PATRON,<b></b></i><b><b>&#x00A0;--exclude</b></b><i><b>&#x00A0;PATRON</b></i></a></dt>
+  <dd>excluir rutas que coincidan con PATRON</dd>
+  <dt id="exclude"><a class="permalink" href="#exclude"><b>--exclude-from</b><i>&#x00A0;FILENAME</i></a></dt>
+  <dd>leer patrones de exclusión del archivo FILENAME</dd>
+  <dt id="i"><a class="permalink" href="#i"><b>-i</b><i>&#x00A0;PATTERN,<b></b></i><b><b>&#x00A0;--include</b></b><i><b>&#x00A0;PATTERN</b></i></a></dt>
+  <dd>incluir rutas que coincidan con PATRON</dd>
+  <dt id="include"><a class="permalink" href="#include"><b>--include-from</b><i>&#x00A0;FILENAME</i></a></dt>
+  <dd>leer patrones de inclusión del archivo FILENAME</dd>
+  <dt id="C"><a class="permalink" href="#C"><b>-C</b><i>&#x00A0;DIRECTORY,<b></b></i><b><b>&#x00A0;--chdir</b></b><i><b>&#x00A0;DIRECTORY</b></i></a></dt>
+  <dd>cambiar al directorio DIRECTORY antes de archivar. Vea también el
+      &quot;hack de slashdot&quot; en la sección DESCRIPCIÓN.</dd>
+  <dt id="g"><a class="permalink" href="#g"><b>-g</b><i>&#x00A0;GROUP,<b></b></i><b><b>&#x00A0;--exclude-caches</b></b></a></dt>
+  <dd>excluir subárboles de caché (por ejemplo, de archivos de compilación,
+      navegadores web, etc.). Borg intenta detectar las cachés basándose en el
+      nombre del directorio y su contenido. Esto es una heurística, ¡así que
+      úselo con cuidado!</dd>
+  <dt id="g~2"><a class="permalink" href="#g~2"><b>-g</b><i>&#x00A0;GROUP,<b></b></i><b><b>&#x00A0;--exclude-from-caches</b></b></a></dt>
+  <dd>como <b>--exclude-caches</b>, pero los patrones de exclusión se leen de
+      un archivo.</dd>
+  <dt id="g~3"><a class="permalink" href="#g~3"><b>-g</b><i>&#x00A0;GROUP,<b></b></i><b><b>&#x00A0;--exclude-git</b></b></a></dt>
+  <dd>excluir todos los directorios git (.git). Borg también excluirá todos los
+      archivos dentro del directorio .git.</dd>
+  <dt id="g~4"><a class="permalink" href="#g~4"><b>-g</b><i>&#x00A0;GROUP,<b></b></i><b><b>&#x00A0;--exclude-vcs</b></b></a></dt>
+  <dd>excluir todos los directorios de sistemas de control de versiones (VCS)
+      conocidos (por ejemplo, .git, .hg, .svn, .bzr). Borg también excluirá todos
+      los archivos dentro de los directorios de VCS.</dd>
+  <dt id="g~5"><a class="permalink" href="#g~5"><b>-g</b><i>&#x00A0;GROUP,<b></b></i><b><b>&#x00A0;--exclude-from-vcs</b></b></a></dt>
+  <dd>como <b>--exclude-vcs</b>, pero los patrones de exclusión se leen de un
+      archivo.</dd>
+  <dt id="a"><a class="permalink" href="#a"><b>-a</b><i>&#x00A0;ACL,<b></b></i><b><b>&#x00A0;--acl-get</b></b></a></dt>
+  <dd>guardar el sistema de control de acceso (ACL) si está disponible y lo admite
+      el sistema de archivos.</dd>
+  <dt id="p"><a class="permalink" href="#p"><b>-p</b><i>&#x00A0;PERMISSIONS,<b></b></i><b><b>&#x00A0;--permissions</b></b></a></dt>
+  <dd>guardar los permisos del archivo (y el propietario/grupo) si está
+      disponible y lo admite el sistema de archivos. El modo de archivo se
+      guarda por defecto.</dd>
+  <dt id="x"><a class="permalink" href="#x"><b>-x</b><i>&#x00A0;XATTR,<b></b></i><b><b>&#x00A0;--xattr-get</b></b><i><b>&#x00A0;[NAMESPACE:]NAME</b></i></a></dt>
+  <dd>guardar atributos extendidos (xattrs). Si no se especifica
+      NAMESPACE:NAME, se guardarán todos los xattrs disponibles. Puede especificar
+      varios valores de <b>--xattr-get</b>.</dd>
+  <dt id="o"><a class="permalink" href="#o"><b>-o</b><i>&#x00A0;MOUNTPOINTS,<b></b></i><b><b>&#x00A0;--one-file-system</b></b></a></dt>
+  <dd>no cruzar los límites del sistema de archivos.</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Files_cache_options'><a class='permalink' href='#Files_cache_options'>Opciones de caché de archivos</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="f"><a class="permalink" href="#f"><b>-f</b><i>&#x00A0;FILE,<b></b></i><b><b>&#x00A0;--files-cache</b></b><i><b>&#x00A0;MODE</b></i></a></dt>
+  <dd>modo de caché de archivos: ctime,size,inode | mtime,size,inode |
+      ctime,size | mtime,size | rechunk,ctime | rechunk,mtime | disabled. El
+      valor por defecto es ctime,size,inode.</dd>
+  <dt id="F"><a class="permalink" href="#F"><b>-F</b><i>&#x00A0;MODE,<b></b></i><b><b>&#x00A0;--files-changed</b></b><i><b>&#x00A0;MODE</b></i></a></dt>
+  <dd>modo de detección de cambios de archivos: ctime | mtime | disabled. El
+      valor por defecto es ctime.</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Compression_options'><a class='permalink' href='#Compression_options'>Opciones de compresión</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="c"><a class="permalink" href="#c"><b>-c</b><i>&#x00A0;METHOD,<b></b></i><b><b>&#x00A0;--compression</b></b><i><b>&#x00A0;METHOD</b></i></a></dt>
+  <dd>método de compresión: lz4, lzma, zstd, zlib, lzop, or none. El valor
+      por defecto es zstd. Para lzma, puede especificar el nivel de compresión
+      (por ejemplo, lzma:10). Para zstd, también puede especificar el nivel
+      (por ejemplo, zstd:3). Con zlib, puede especificar el nivel (por ejemplo,
+      zlib:6).</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Progress_and_monitoring_options'><a class='permalink' href='#Progress_and_monitoring_options'>Opciones de progreso y monitorización</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="p~2"><a class="permalink" href="#p~2"><b>-p</b><i>&#x00A0;PROGRESS,<b></b></i><b><b>&#x00A0;--progress</b></b></a></dt>
+  <dd>mostrar el progreso de la copia de seguridad. Puede ser 0 (desactivado), 1
+      (barra de progreso), 2 (barra de progreso y lista detallada de
+      elementos).</dd>
+</dl>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Checkpoint_options'><a class='permalink' href='#Checkpoint_options'>Opciones de punto de control</a></h2>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="r"><a class="permalink" href="#r"><b>-r</b><i>&#x00A0;SCRIPT,<b></b></i><b><b>&#x00A0;--checkpoint-script</b></b><i><b>&#x00A0;SCRIPT</b></i></a></dt>
+  <dd>ejecutar SCRIPT antes de crear un archivo de punto de control. El script
+      recibe el nombre del repositorio y el nombre del archivo como argumentos.</dd>
+  <dt id="c~2"><a class="permalink" href="#c~2"><b>-c</b><i>&#x00A0;COMMAND,<b></b></i><b><b>&#x00A0;--checkpoint-command</b></b><i><b>&#x00A0;COMMAND</b></i></a></dt>
+  <dd>ejecutar COMMAND antes de crear un archivo de punto de control. Vea
+      <b>--checkpoint-script</b>.</dd>
+  <dt id="m"><a class="permalink" href="#m"><b>-m</b><i>&#x00A0;MESSAGE,<b></b></i><b><b>&#x00A0;--checkpoint-message</b></b><i><b>&#x00A0;MESSAGE</b></i></a></dt>
+  <dd>establecer un mensaje para el archivo de punto de control. Puede usar
+      marcadores de posición como {now}, {utcnow}, {fqdn}, {hostname},
+      {user}.</dd>
+  <dt id="c~3"><a class="permalink" href="#c~3"><b>-c</b><i>&#x00A0;MESSAGE,<b></b></i><b><b>&#x00A0;--checkpoint-interval</b></b><i><b>&#x00A0;SECONDS</b></i></a></dt>
+  <dd>establecer un intervalo de punto de control de SECONDS. Si se establece en
+      0, los puntos de control están desactivados.</dd>
+  <dt id="c~4"><a class="permalink" href="#c~4"><b>-c</b><i>&#x00A0;MESSAGE,<b></b></i><b><b>&#x00A0;--checkpoint-interval-bytes</b></b><i><b>&#x00A0;BYTES</b></i></a></dt>
+  <dd>establecer un intervalo de punto de control de BYTES. Si se establece en
+      0, los puntos de control están desactivados.</dd>
+</dl>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Reading_from_stdin'><a class='permalink' href='#Reading_from_stdin'>LECTURA DESDE STDIN</a></h1>
+<p class="Pp">Si proporciona '-' como una de las rutas a archivar, Borg leerá el
+    contenido del archivo desde la entrada estándar y creará un archivo llamado
+    'stdin' en el archivo de respaldo. Esto es útil para canalizar la salida de
+    otros programas a Borg.</p>
+<p class="Pp">Por ejemplo, para archivar el resultado de un comando:</p>
+<div class="Bd-indent">
+<pre>
+$ comando | borg create /ruta/al/repositorio::mi-archivo -
+</pre>
+</div>
+<p class="Pp">En este caso, el archivo 'stdin' se creará dentro del archivo
+    'mi-archivo'. Borg intentará deducir el tipo de archivo y los metadatos de
+    la entrada estándar.</p>
+<p class="Pp">Si desea más control sobre el nombre del archivo creado a partir de
+    stdin, el propietario, el grupo o los permisos, puede usar las opciones
+    <b>--stdin-name</b>, <b>--stdin-user</b>, <b>--stdin-group</b> y
+    <b>--stdin-mode</b>.</p>
+<p class="Pp">Para archivar la salida de un comando como si fuera una lista de
+    rutas de archivos, use <b>--paths-from-command</b> en lugar de '-' como
+    ruta. Por ejemplo, para archivar todos los archivos de texto en el directorio
+    actual:</p>
+<div class="Bd-indent">
+<pre>
+$ find . -name '*.txt' | borg create /ruta/al/repositorio::mi-archivo --paths-from-command
+</pre>
+</div>
+<p class="Pp">Por defecto, las rutas se separan por saltos de línea. Puede especificar
+    un delimitador diferente con <b>--paths-delimiter</b>.</p>
+<p class="Pp">Si desea archivar el contenido de stdin como un archivo llamado
+    'stdin' en el repositorio, pero no desea que Borg intente adivinar los
+    metadatos (por ejemplo, si está canalizando un archivo binario y desea
+    mantener sus metadatos originales), puede usar la opción
+    <b>--content-from-command</b>.</p>
+<div class="Bd-indent">
+<pre>
+$ borg create --content-from-command /ruta/al/repositorio::mi-archivo /ruta/al/archivo
+</pre>
+</div>
+<p class="Pp">En este caso, Borg tratará la ruta proporcionada como un archivo y
+    leerá su contenido. Si la ruta es '-' (stdin), entonces Borg leerá desde stdin
+    y creará un archivo llamado 'stdin' en el repositorio. Esto es útil si desea
+    archivar la salida de un comando como un archivo en el repositorio, pero desea
+    que Borg maneje la lectura de la entrada estándar.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLOS</a></h1>
+<div class="Bd-indent">
+<pre>
+Crear un archivo de respaldo llamado &quot;backup-2023-10-27_10:00:00&quot;
+del directorio &quot;/home/user/documents&quot; en el repositorio
+&quot;/mnt/backup/repository&quot;:
+
+$ borg create --stats --progress /mnt/backup/repository::backup-{now:%Y-%m-%d_%H:%M:%S} \
+    /home/user/documents
+
+Excluir todos los directorios .git y archivar el directorio
+&quot;/home/user/projects&quot;:
+
+$ borg create --stats --progress --exclude-git /mnt/backup/repository::projects-backup \
+    /home/user/projects
+
+Archivar el contenido de stdin como un archivo llamado &quot;logs&quot;
+en el repositorio, con permisos 644 y propiedad de root:root:
+
+$ cat /var/log/messages | borg create --stats --stdin-name logs \
+    --stdin-user root --stdin-group root --stdin-mode 0644 \
+    /mnt/backup/repository::log-archive
+</pre>
+</div>
+</section>
+</div>
+
+</section>
+            </article>
+        </main>
+    </body>
+</html>
+ href="#exclude"&gt;<b>--exclude-from</b><i>EXCLUDEFI</i></a></dt>LE
+  <dd>leer patrones de exclusión de EXCLUDEFILE, uno por </dd>línea
+  <dt id="pattern"><a class="permalink" href="#pattern"><b>--pattern</b><i>PATTE</i></a></dt>RN
+  <dd>incluir/excluir rutas que coincidan con </dd>PATTERN
+  <dt id="patterns"><a class="permalink" href="#patterns"><b>--patterns-from</b><i>PATTERNFI</i></a></dt>LE
+  <dd>leer patrones de inclusión/exclusión de PATTERNFILE, uno por </dd>línea
+  <dt id="exclude~2"><a class="permalink" href="#exclude~2"><b>--exclude-cac</b></a></dt>hes
+  <dd>excluir directorios que contengan un archivo CACHEDIR.TAG (
+      <a href='http://www.bford.info/cachedir/spec.html'>http://www.bford.info/cachedir/spec.</a>html </dd>)
+  <dt id="exclude~3"><a class="permalink" href="#exclude~3"><b>--exclude-if-present</b><i>NA</i></a></dt>ME
+  <dd>excluir directorios que estén etiquetados por contener un objeto del
+      sistema de archivos con el nombre NAME </dd>dado
+  <dt id="keep"><a class="permalink" href="#keep"><b>--keep-exclude-t</b></a></dt>ags
+  <dd>si se especifican objetos de etiqueta con <b>--exclude-if-present, </b>no omitir
+      los propios objetos de etiqueta del archivo de copia de </dd>seguridad
+  <dt id="exclude~4"><a class="permalink" href="#exclude~4"><b>--exclude-nod</b></a></dt>ump
+  <dd>excluir</dd> archivo</dl>s marca</div>dos como</section> NODUMP
+<section class="Ss">
+<h2 class="Ss" id='Filesystem_options'><a class='permalink' href='#Filesystem_options'>Opciones del   sistema de </a></h2>archivos
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="x"><a class="permalink" href="#x"><b>-x<b>,</b><b>
+    --one-file-syst</b></b></a></dt>em
+  <dd>permanecer en el mismo sistema de archivos y no almacenar puntos de
+      montaje de otros sistemas de archivos; esto podría comportarse de forma
+      diferente a lo que espera, vea la descripción más </dd>abajo.
+  <dt id="numeric"><a class="permalink" href="#numeric"><b>--numeric-ow</b></a></dt>ner
+  <dd>obsoleto, use <b>--numeric-ids </b>en su </dd>lugar
+  <dt id="numeric~2"><a class="permalink" href="#numeric~2"><b>--numeric-i</b></a></dt>ds
+  <dd>almacenar solo identificadores numéricos de usuario y </dd>grupo
+  <dt id="noatime"><a class="permalink" href="#noatime"><b>--noati</b></a></dt>me
+  <dd>no almacenar atime en el </dd>archivo
+  <dt id="atime"><a class="permalink" href="#atime"><b>--ati</b></a></dt>me
+  <dd>almacenar atime en el </dd>archivo
+  <dt id="noctime"><a class="permalink" href="#noctime"><b>--nocti</b></a></dt>me
+  <dd>no almacenar ctime en el </dd>archivo
+  <dt id="nobirthtime"><a class="permalink" href="#nobirthtime"><b>--nobirthti</b></a></dt>me
+  <dd>no almacenar birthtime (fecha de creación) en el </dd>archivo
+  <dt id="nobsdflags"><a class="permalink" href="#nobsdflags"><b>--nobsdfla</b></a></dt>gs
+  <dd>obsoleto, use <b>--noflags </b>en su </dd>lugar
+  <dt id="noflags"><a class="permalink" href="#noflags"><b>--nofla</b></a></dt>gs
+  <dd>no leer ni almacenar flags (por ejemplo, NODUMP, IMMUTABLE) en el </dd>archivo
+  <dt id="noacls"><a class="permalink" href="#noacls"><b>--noac</b></a></dt>ls
+  <dd>no leer ni almacenar ACLs en el </dd>archivo
+  <dt id="noxattrs"><a class="permalink" href="#noxattrs"><b>--noxatt</b></a></dt>rs
+  <dd>no leer ni almacenar xattrs en el </dd>archivo
+  <dt id="sparse"><a class="permalink" href="#sparse"><b>--spar</b></a></dt>se
+  <dd>detectar huecos dispersos (sparse) en la entrada (soportado solo por el
+      chunker de tamaño </dd>fijo)
+  <dt id="files"><a class="permalink" href="#files"><b>--files-cache</b><i>MO</i></a></dt>DE
+  <dd>operar la caché de archivos en MODE. predeterminado: ctime,size,</dd>inode
+  <dt id="files~2"><a class="permalink" href="#files~2"><b>--files-changed</b><i>MO</i></a></dt>DE
+  <dd>especificar cómo detectar si un archivo ha cambiado durante la copia de
+      seguridad (ctime, mtime, disabled). predeterminado: </dd>ctime
+  <dt id="read"><a class="permalink" href="#read"><b>--read-speci</b></a></dt>al
+  <dd>abrir y leer archivos de dispositivo de</dd> bloque y de carácter, así como
+      </dl>FIFOs, como si fueran archivos normales</div>. También sigue enlaces
+      simbólic</section>os que apunten a este tipo de archivos.
+<section class="Ss">
+<h2 class="Ss" id='Archive_options'><a class='permalink' href='#Archive_options'>Opciones del   </a></h2>archivo
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="comment"><a class="permalink" href="#comment"><b>--comment</b><i>COMME</i></a></dt>NT
+  <dd>añadir un texto de comentario al </dd>archivo
+  <dt id="timestamp"><a class="permalink" href="#timestamp"><b>--timestamp</b><i>TIMESTA</i></a></dt>MP
+  <dd>especificar manualmente la fecha/hora de creación del archivo (UTC,
+      formato yyyy-mm-ddThh:mm:ss). Alternativamente, indique un archivo o
+      directorio de </dd>referencia.
+  <dt id="c"><a class="permalink" href="#c"><b>-c</b><i>SECONDS,<b></b></i><b><b>--checkpoint-interval</b></b><i><b>SECON</b></i></a></dt>DS
+  <dd>escribir un punto de control cada SECONDS segundos (Predeterminado: </dd>1800)
+  <dt id="chunker"><a class="permalink" href="#chunker"><b>--chunker-params</b><i>PARA</i></a></dt>MS
+  <dd>especificar los parámetros del chunker (ALGO, CHUNK_MIN_EXP,
+      CHUNK_MAX_EXP, HASH_MASK_BITS, HASH_WINDOW_SIZE). predeterminado:
+      buzhash,19,23,21,</dd>4095
+  <dt id="C"><a class="permalink" href="#C"><b>-C</b><i>COMPRESSION,<b></b></i><b><b>--compression</b></b><i><b>COMPRESSI</b></i></a></dt>ON
+  <dd>seleccionar el algo</dd>ritmo de compresión</dl>, vea la salida del</div> comando "borg
+    </section>  help compression"</section> para más detalles.
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLO</a></h1>S
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre># Respaldar ~/Documents en un archivo llamado "my-documents"
+$ borg create /path/to/repo::my-documents ~/Documents
+# igual, pero listar todos los archivos a medida que los procesamos
+$ borg create --list /path/to/repo::my-documents ~/Documents
+# Respaldar /mnt/disk/docs, pero eliminando el prefijo de ruta usando el truco de slashdot
+$ borg create /path/to/repo::docs /mnt/disk/./docs
+# Respaldar ~/Documents y ~/src pero excluyendo archivos pyc
+$ borg create /path/to/repo::my-files \
+    ~/Documents                       \
+    ~/src                             \
+    --exclude '*.pyc'
+# Respaldar los directorios de inicio excluyendo las miniaturas de imágenes (es decir, solo
+# se excluye /home/&lt;un directorio&gt;/.thumbnails, no /home/*/*/.thumbnails etc.)
+$ borg create /path/to/repo::my-files /home \
+    --exclude 'sh:home/*/.thumbnails'
+# Respaldar el sistema de archivos raíz en un archivo llamado "root-YYYY-MM-DD"
+# usar compresión zlib (buena, pero lenta) - el predeterminado es lz4 (rápida, baja ratio de compresión)
+$ borg create -C zlib,6 --one-file-system /path/to/repo::root-{now:%Y-%m-%d} /
+# Respaldar hacia un host remoto (estilo "push") vía ssh al puerto 2222,
+# iniciando sesión como usuario "borg" y almacenando en /path/to/repo
+$ borg create ssh://borg@backup.example.org:2222/path/to/repo::{fqdn}-root-{now} /
+# Respaldar un host remoto localmente (estilo "pull") usando sshfs
+$ mkdir sshfs-mount
+$ sshfs root@example.com:/ sshfs-mount
+$ cd sshfs-mount
+$ borg create /path/to/repo::example.com-root-{now:%Y-%m-%d} .
+$ cd ..
+$ fusermount -u sshfs-mount
+# Hacer un gran esfuerzo en deduplicación de granularidad fina (gran sobrecarga de
+# gestión de chunks, necesita mucha RAM y espacio en disco, vea la fórmula en la
+# documentación de internals - mismos parámetros que borg &lt; 1.0 o attic):
+$ borg create --chunker-params buzhash,10,23,16,4095 /path/to/repo::small /smallstuff
+# Respaldar un dispositivo crudo (no debe estar activo/en uso/montado en ese momento)
+$ borg create --read-special --chunker-params fixed,4194304 /path/to/repo::my-sdx /dev/sdX
+# Respaldar una imagen de disco dispersa (sparse) (no debe estar activa/en uso/montada en ese momento)
+$ borg create --sparse --chunker-params fixed,4194304 /path/to/repo::my-disk my-disk.raw
+# Sin compresión (none)
+$ borg create --compression none /path/to/repo::arch ~
+# Súper rápido, baja compresión (lz4, predeterminado)
+$ borg create /path/to/repo::arch ~
+# Menos rápido, mayor compresión (zlib, N = 0..9)
+$ borg create --compression zlib,N /path/to/repo::arch ~
+# Aún más lento, aún mayor compresión (lzma, N = 0..9)
+$ borg create --compression lzma,N /path/to/repo::arch ~
+# Solo comprimir datos comprimibles con lzma,N (N = 0..9)
+$ borg create --compression auto,lzma,N /path/to/repo::arch ~
+# Usar nombre de host corto, nombre de usuario y hora actual en el nombre del archivo
+$ borg create /path/to/repo::{hostname}-{user}-{now} ~
+# Similar, usar el mismo formato de fecha y hora que es el predeterminado desde borg 1.1
+$ borg create /path/to/repo::{hostname}-{user}-{now:%Y-%m-%dT%H:%M:%S} ~
+# Como arriba, pero añadiendo nanosegundos
+$ borg create /path/to/repo::{hostname}-{user}-{now:%Y-%m-%dT%H:%M:%S.%f} ~
+# Respaldar rutas relativas moviéndose primero al directorio correcto
+$ cd /home/user/Documents
+# El directorio raíz del archivo será "projectA"
+$ borg create /path/to/repo::daily-projectA-{now:%Y-%m-%d} projectA
+# Usar un comando externo para determinar los archivos a archivar
+# Usar --paths-from-stdin con find para respaldar solo archivos de menos de 1MB de tamaño
+$ find ~ -size -1000k | borg create --paths-from-stdin /path/to/repo::small-files-only
+# Usar --paths-from-command con find para respaldar solo archivos de un usuario dado
+$ borg create --paths-from-command /path/to/repo::joes-files -- find /srv/samba/shared -user joe
+# Usar --paths-from-stdin con --paths-delimiter (por ejemplo, para nombres de archivo con saltos de línea)
+$ find ~ -size -1000k -print0 | borg create \
+    --paths-from-stdin \
+    --paths-delimiter "\0" \
+    /path/to/repo::smallfiles-handle-new</pre>l</div>i</div>n</section>e
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTA</a></h1>S
+<p class="Pp">Los <b>patrones </b>--exclude no son como en tar. En tar
+    <b>--exclude </b>.bundler/gems excluiría foo/.bundler/gems. En borg no
+    lo hará, necesita usar <b>--exclude </b>'*/.bundler/gems' para obtener el mismo
+    </p>efecto.
+<p class="Pp">Además de usar <b>patrones </b>--exclude, es posible <b>usar --exclude-if-present </b>para especificar el nombre de un objeto del
+    sistema de archivos (por ejemplo, un nombre de archivo o carpeta) que, al
+    estar contenido dentro de otra carpeta, evitará que la carpeta contenedora
+    sea respaldada. Por omisión, la carpeta contenedora y todo su contenido se
+    omitirán de la copia de seguridad. Sin embargo, si desea incluir solo los
+    objetos especificados por
+    <b>--exclude-if-present </b>en su copia de seguridad, y no incluir ningún
+    otro contenido de la carpeta contenedora, esto se puede habilitar usando la
+    opción
+    <b>--keep-exclude</b>-tags</p>.
+<p class="Pp">La opción <b>-x </b>o <b>--one-file-system </b>excluye
+    directorios que son puntos de montaje (y todo lo que hay en ellos). Detecta
+    puntos de montaje comparando el número de dispositivo de la salida de <b>stat()</b> del directorio y de su directorio padre. Específicamente, excluye
+    directorios para los cuales <b>stat() </b>reporta un número de dispositivo diferente del
+    número de dispositivo de su padre. En general: tenga en cuenta que hay
+    directorios con números de dispositivo diferentes a los de su padre que el
+    kernel no considera puntos de montaje, y viceversa. Ejemplos en Linux de
+    esto son los montajes bind (posiblemente el mismo número de dispositivo,
+    pero siempre un punto de montaje) y todos los subvolúmenes de un sistema de
+    archivos Btrfs (números de dispositivo diferentes al del padre pero no
+    necesariamente puntos de montaje). Ejemplos en macOS son los montajes APFS
+    de una instalación típica de macOS. Por lo tanto, al usar
+    <b>--one-file-system, </b>debería verificar dos veces que la copia de seguridad
+    funciona como se </p>pretendía.
+<section class="Ss">
+<h2 class="Ss" id='Item_flags'><a class='permalink' href='#Item_flags'>Flags de   </a></h2>elementos
+<p class="Pp"><b>--list </b>imprime una lista de todos los archivos, directorios y otros
+    elementos del sistema de archivos que consideró (sin importar si tuvieron
+    cambios de contenido o no). Para cada elemento, antepone un flag de una
+    letra que indica el tipo y/o el estado del </p>elemento.
+<p class="Pp">Si está interesado solo en un subconjunto de esa salida, puede
+    dar, por ejemplo, <b>--filter=AME </b>y solo mostrará archivos normales con estado A, M
+    o E (vea más abajo)</p>.
+<p class="Pp">Un carácter en mayúscula representa el esta<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class="permalink" href="#NOMBRE">NOMBRE</a></h1>
+<p class="Pp">borg create - crear un nuevo archivo de borg</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SINOPSIS"><a class="permalink" href="#SINOPSIS">SINOPSIS</a></h1>
+<p class="Pp"><code class="Nm">borg create</code> [<code class="Op">OPTIONS</code>]
+    <code class="Nm">REPO::ARCHIVE</code> [PATH...]</p>
+<p class="Pp"><code class="Nm">borg create</code> [<code class="Op">OPTIONS</code>]
+    <code class="Nm">REPO::ARCHIVE</code> --paths-from-stdin</p>
+<p class="Pp"><code class="Nm">borg create</code> [<code class="Op">OPTIONS</code>]
+    <code class="Nm">REPO::ARCHIVE</code> --paths-from-command CMD [ARGS...]</p>
+<p class="Pp"><code class="Nm">borg create</code> [<code class="Op">OPTIONS</code>]
+    <code class="Nm">REPO::ARCHIVE</code> --content-from-command CMD [ARGS...]</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCIÓN"><a class="permalink" href="#DESCRIPCIÓN">DESCRIPCIÓN</a></h1>
+<p class="Pp">Crea un nuevo archivo (archivo) en el repositorio <code class="Nm">REPO</code>
+    con el nombre <code class="Nm">ARCHIVE</code>. Copia los archivos en <code class="Nm">PATH</code>
+    (y recursivamente sus subdirectorios) a <code class="Nm">ARCHIVE</code>. Si no
+    se especifican <code class="Nm">PATH</code>s, borg intentará leer los
+    elementos de entrada del estándar de entrada, ver <a href="#Reading_backup_data_from_stdin">Lectura de datos de copia de seguridad desde stdin</a>.</p>
+<p class="Pp">Borg hace todo lo posible para hacer que las copias de seguridad
+    sean eficientes. Esto incluye el uso de deduplicación de datos (solo se
+    almacenan bloques de datos únicos), compresión y almacenamiento de metadatos
+    de archivos de manera eficiente. Borg también intenta usar información de
+    archivos existentes en el repositorio para evitar la relectura de datos que
+    ya están allí.</p>
+<p class="Pp">El valor de la opción <code class="Op">--files-cache</code> puede
+    influir en cómo se gestionan los datos y los metadatos. La configuración
+    predeterminada es <code class="Op">--files-cache = mtime</code>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="OPCIONES"><a class="permalink" href="#OPCIONES">OPCIONES</a></h1>
+<p class="Pp">Las opciones generales que se aplican a todos los mandatos de borg
+    se describen en <a href='/man/borg-common.1.en'>borg-common(1)</a>.</p>
+<p class="Pp">Las opciones específicas del mandato <code class="Nm">create</code>
+    son:</p>
+<dl class="Bl-tag">
+<dt><code class="Op">--files-cache</code> <code class="Cm">MODE</code></dt>
+<dd>El modo de la caché de archivos. Los modos disponibles son:
+<ul class="Bl-bullet">
+<li><code class="Cm">disabled</code>: no se usa la caché de archivos. Esto puede
+    acelerar las copias de seguridad, pero impide la deduplicación.</li>
+<li><code class="Cm">metadata</code>: la caché solo almacena metadatos de archivos
+    existentes. Esto es útil para la deduplicación de metadatos y para detectar
+    cambios en los metadatos.</li>
+<li><code class="Cm">mtime</code>: la caché almacena metadatos de archivos y
+    tiempos de modificación. Esta es la configuración predeterminada y proporciona
+    un buen equilibrio entre rendimiento y deduplicación.</li>
+<li><code class="Cm">inode</code>: la caché almacena metadatos de archivos, tiempos
+    de modificación y números de inodo. Esto puede ser útil en sistemas de
+    archivos que no son compatibles con mtime de forma fiable o para detectar
+    cambios más precisos.</li>
+</ul>
+</dd>
+<dt><a id="option-chunks-cache-type"></a><code class="Op">--chunks-cache-type</code> <code class="Cm">TYPE</code></dt>
+<dd>Tipo de caché de bloques utilizada para almacenar bloques de datos en el
+    repositorio. Los tipos disponibles son:
+<ul class="Bl-bullet">
+<li><code class="Cm">btrfs</code>: utiliza la funcionalidad de deduplicación de
+    COW de Btrfs. Esto solo funcionará si el repositorio está en un sistema de
+    archivos Btrfs.</li>
+<li><code class="Cm">reflink</code>: utiliza la funcionalidad reflink de sistemas
+    de archivos compatibles (como ext4 o XFS).</li>
+<li><code class="Cm">hardlink</code>: utiliza hardlinks para la deduplicación.
+    Esto solo funcionará si el repositorio está en un sistema de archivos
+    compatible con hardlinks.</li>
+<li><code class="Cm">copy</code>: copia todos los bloques de datos al repositorio.
+    Esta es la configuración predeterminada.</li>
+</ul>
+</dd>
+<dt><code class="Op">--content-from-command</code></dt>
+<dd>Ejecuta el comando especificado y envía su salida estándar a borg. Borg
+    fallará si el comando falla (devuelve un código de salida distinto de cero).
+    Esto es útil para crear copias de seguridad de datos generados dinámicamente
+    o de fuentes que no son archivos normales.</dd>
+<dt><code class="Op">--paths-from-command</code></dt>
+<dd>Ejecuta el comando especificado y trata su salida estándar como una lista de
+    rutas de archivos a incluir en la copia de seguridad. Borg fallará si el
+    comando falla (devuelve un código de salida distinto de cero).</dd>
+<dt><code class="Op">--paths-from-stdin</code></dt>
+<dd>Lee una lista de rutas de archivos del estándar de entrada y las incluye en
+    la copia de seguridad. Cada ruta debe estar en una línea separada.</dd>
+<dt><code class="Op">--stdin-name</code> <code class="Cm">NAME</code></dt>
+<dd>Establece el nombre del archivo creado a partir de la entrada estándar. El
+    valor predeterminado es <code class="Cm">stdin</code>.</dd>
+<dt><code class="Op">--compression</code> <code class="Cm">ALGORITHM</code></dt>
+<dd>Algoritmo de compresión a utilizar. Los algoritmos disponibles son:
+    <code class="Cm">none</code>, <code class="Cm">lz4</code>, <code class="Cm">zstd</code>,
+    <code class="Cm">zlib</code>, <code class="Cm">lzma</code>. El valor
+    predeterminado es <code class="Cm">zstd</code>.</dd>
+<dt><code class="Op">--exclude</code> <code class="Cm">PATTERN</code></dt>
+<dd>Excluye archivos que coincidan con el patrón especificado. Se pueden
+    especificar varios patrones <code class="Op">--exclude</code>.</dd>
+<dt><code class="Op">--exclude-from</code> <code class="Cm">FILE</code></dt>
+<dd>Lee patrones de exclusión del archivo especificado. Se pueden especificar
+    varios archivos <code class="Op">--exclude-from</code>.</dd>
+<dt><code class="Op">--include</code> <code class="Cm">PATTERN</code></dt>
+<dd>Incluye archivos que coincidan con el patrón especificado. Esto se puede
+    utilizar para incluir selectivamente archivos que de otro modo serían
+    excluidos por las reglas de exclusión.</dd>
+<dt><code class="Op">--dry-run</code></dt>
+<dd>No realiza ninguna operación de copia de seguridad real. Solo muestra qué
+    archivos se copiarían de otro modo.</dd>
+<dt><code class="Op">--progress</code></dt>
+<dd>Muestra una barra de progreso mientras se crea la copia de seguridad.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="EJEMPLOS"><a class="permalink" href="#EJEMPLOS">EJEMPLOS</a></h1>
+<p class="Pp">Crear un archivo llamado <code class="Nm">backup_2023-10-27</code>
+    en el repositorio <code class="Nm">myrepo</code> a partir del directorio
+    <code class="Nm">/home/user</code>:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>borg create myrepo::backup_2023-10-27 /home/user</pre>
+</div>
+</div>
+<p class="Pp">Crear un archivo a partir de la entrada estándar:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>cat files.txt | borg create myrepo::myarchive --paths-from-stdin</pre>
+</div>
+</div>
+<p class="Pp">Crear un archivo a partir de la salida de un comando:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>borg create myrepo::myarchive --paths-from-command find /data -name '*.txt'</pre>
+</div>
+</div>
+<p class="Pp">Crear un archivo a partir de la salida de un comando, con un
+    nombre de archivo especificado:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>backup-vm --id myvm --stdout | borg create REPO::ARCHIVE -</pre>
+</div>
+</div>
+<p class="Pp">Crear un archivo a partir de la salida de un comando, con manejo
+    de errores mejorado:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>borg create --content-from-command REPO::ARCHIVE -- backup-vm --id myvm --stdout</pre>
+</div>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="NOTAS"><a class="permalink" href="#NOTAS">NOTAS</a></h1>
+<p class="Pp">Los códigos de estado de los archivos son:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+<li>'A' = archivo regular, añadido (ver también <i>a_status_oddity</i>
+    en el FAQ)</li>
+<li>'M' = archivo regular, modificado</li>
+<li>'U' = archivo regular, sin cambios</li>
+<li>'C' = archivo regular, cambió mientras lo estábamos respaldando</li>
+<li>'E' = archivo regular, ocurrió un error al acceder/leer <i>este</i>
+      archivo</li>
+</ul>
+</div>
+<p class="Pp">Un carácter en minúscula significa un tipo de archivo distinto
+    de un archivo regular, borg generalmente solo almacena sus metadatos:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+<li>'d' = directorio</li>
+<li>'b' = dispositivo de bloques</li>
+<li>'c' = dispositivo de caracteres</li>
+<li>'h' = archivo regular, enlace duro (a inodos ya vistos)</li>
+<li>'s' = enlace simbólico</li>
+<li>'f' = fifo</li>
+</ul>
+</div>
+<p class="Pp">Otras banderas usadas incluyen:</p>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+<li>'i' = los datos de copia de seguridad se leyeron de la entrada estándar
+    (stdin)</li>
+<li>'-' = ejecución de prueba, el elemento <i>no</i> se respaldó</li>
+<li>'x' = excluido, el elemento <i>no</i> se respaldó</li>
+<li>'?' = código de estado faltante (si ves esto, ¡por favor, informa de un
+    error!)</li>
+</ul>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Lectura_de_datos_de_copia_de_seguridad_desde_stdin'><a class='permalink' href='#Lectura_de_datos_de_copia_de_seguridad_desde_stdin'>Lectura de datos de copia de seguridad desde stdin</a></h2>
+<p class="Pp">Hay dos métodos para leer desde stdin. O bien especificar <b>-</b>
+    como ruta y canalizar directamente a borg:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>backup-vm --id myvm --stdout | borg create REPO::ARCHIVE -</pre>
+</div>
+</div>
+<p class="Pp">O utilizar <b>--content-from-command</b> para que Borg gestione la
+    ejecución del comando y la canalización. Si lo hace, el primer argumento de
+    PATH se interpreta como el comando a ejecutar y cualquier argumento adicional
+    se trata como argumentos para el comando:</p>
+<div class="Bd-indent">
+<div class="Bd-indent">
+<pre>borg create --content-from-command REPO::ARCHIVE -- backup-vm --id myvm --stdout</pre>
+</div>
+</div>
+<p class="Pp"><b>--</b> se utiliza para asegurar que <b>--id</b> y <b>--stdout</b>
+    no sean considerados argumentos para <b>borg</b> sino para
+  <b>backup-vm</b>.</p>
+<p class="Pp">La diferencia entre los dos enfoques es que la canalización a borg
+    crea un archivo incluso si el comando que canaliza a borg sale con un fallo.
+    En este caso, <b>se puede terminar con una salida truncada siendo respaldada</b>.
+    Usar <b>--content-from-command</b>, en contraste, garantiza que borg falle
+    sin crear un archivo si el comando falla. El comando se considera fallido
+    cuando devuelve un código de salida distinto de cero.</p>
+<p class="Pp">Leer desde stdin produce solo un flujo de datos sin metadatos de
+    archivo asociados, y la caché de archivos no es necesaria en absoluto. Por lo
+    tanto, es seguro deshabilitarla con <b>--files-cache disabled</b> y
+    acelerar un poco la creación de la copia de seguridad.</p>
+<p class="Pp">Por defecto, el contenido leído desde stdin se almacena en un
+    archivo llamado 'stdin'. Use <b>--stdin-name</b> para cambiar el nombre.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Alimentar_todas_las_rutas_de_archivo_desde_externamente'><a class='permalink' href='#Alimentar_todas_las_rutas_de_archivo_desde_externamente'>Alimentar todas las rutas de archivo desde externamente</a></h2>
+<p class="Pp">Por lo general, usted le da una ruta de inicio (raíz de recursión) a
+    borg y luego borg itera automáticamente, encuentra y respalda todos los
+    objetos del sistema de archivos contenidos allí (considerando opcionalmente
+    reglas de inclusión/exclusión).</p>
+<p class="Pp">Si necesita más control y quiere darle a borg cada ruta de objeto
+    individual del sistema de archivos (quizás implementando su propia recursión
+    o sus propias reglas), puede usar <b>--paths-from-stdin</b> o
+    <b>--paths-from-command</b> (con este último, borg fallará al crear un
+    archivo si el comando falla).</p>
+<p class="Pp">Borg admite rutas con el truco slashdot para eliminar prefijos de
+    ruta aquí también. Por lo tanto, tenga cuidado de no activarlo
+    involuntariamente.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/borg-common.1.en'>borg-common(1)</a>, <a href='/man/borg-delete.1.en'>borg-delete(1)</a>,
+    <a href='/man/borg-prune.1.en'>borg-prune(1)</a>, <a href='/man/borg-check.1.en'>borg-check(1)</a>, <a href='/man/borg-patterns.1.en'>borg-patterns(1)</a>,
+    <a href='/man/borg-placeholders.1.en'>borg-placeholders(1)</a>, <a href='/man/borg-compression.1.en'>borg-compression(1)</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">El Colectivo Borg</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-12-01</td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/borg/">extra/borg</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.4.3-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://borgbackup.github.io/">https://borgbackup.github.io/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>BSD</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/borg/">/listing/extra/borg/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#OPCIONES">OPCIONES</a></li>
+        
+            <li><a href="#EJEMPLOS">EJEMPLOS</a></li>
+        
+            <li><a href="#NOTAS">NOTAS</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AUTOR">AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/borg-create.1.en.txt">txt</a>, 
+        
+            <a href="/man/borg-create.1.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

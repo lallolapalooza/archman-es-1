@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ares_parse_caa_reply(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">ares_parse_caa_reply(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/c-ares/">c-ares</a></p>
+<p class="lic">Licencias: MIT</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">ARES_PARSE_CAA_REPLY(3)</td>
+    <td class="head-vol">Manual de funciones de biblioteca</td>
+    <td class="head-rtitle">ARES_PARSE_CAA_REPLY(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">ares_parse_caa_reply - Analizar una respuesta a una consulta DNS de tipo CAA</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" SINOPSIS"><a class='permalink' href='# SINOPSIS'>SINOPSIS</a></h1>
+<pre>#include &lt;ares.h&gt;
+int ares_parse_caa_reply(const unsigned char* <i>abuf</i>, int <i>alen</i>,
+                         struct ares_caa_reply **<i>caa_out</i>);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" DESCRIPCIÓN"><a class='permalink' href='# DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La función <b>ares_parse_caa_reply</b> analiza la respuesta a una
+    consulta de tipo CAA en una lista enlazada (un elemento por subcadena) de
+    estructuras <i>struct ares_caa_reply</i>. Los parámetros <i>abuf</i> y <i>alen</i> proporcionan el contenido de la respuesta. El resultado se almacena en memoria asignada y un puntero a ella se almacena en la variable apuntada por <i>caa_out</i>. Es responsabilidad del llamador liberar la estructura resultante <i>caa_out</i> cuando ya no sea necesaria, utilizando la función <a href='/man/ares_free_data.3.en'>ares_free_data(3)</a>.</p>
+<p class="Pp">La estructura <a href='/man/ares_caa_reply.3.en'>ares_caa_reply(3)</a> contiene los siguientes
+    campos:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>struct ares_caa_reply {
+  struct ares_caa_reply *next;
+  int                    critical;
+  unsigned char         *property;
+  size_t                 plength; /* plength excluye el nulo */
+  unsigned char         *value;
+  size_t                 length;  /* length excluye el nulo */
+};</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" VALORES_DE_RETORNO"><a class='permalink' href='# VALORES_DE_RETORNO'>VALORES DE RETORNO</a></h1>
+<p class="Pp"><b>ares_parse_caa_reply</b> puede devolver cualquiera de los siguientes
+    valores:</p>
+<dl class="Bl-tag">
+  <dt id="ARES_SUCCESS"><a class="permalink" href="#ARES_SUCCESS"><b>ARES_SUCCESS</b></a></dt>
+  <dd>La respuesta se analizó correctamente.</dd>
+  <dt id="ARES_EBADRESP"><a class="permalink" href="#ARES_EBADRESP"><b>ARES_EBADRESP</b></a></dt>
+  <dd>La respuesta estaba malformada.</dd>
+  <dt id="ARES_ENODATA"><a class="permalink" href="#ARES_ENODATA"><b>ARES_ENODATA</b></a></dt>
+  <dd>La respuesta no contenía una respuesta a la consulta.</dd>
+  <dt id="ARES_ENOMEM"><a class="permalink" href="#ARES_ENOMEM"><b>ARES_ENOMEM</b></a></dt>
+  <dd>Se agotó la memoria.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" EJEMPLO"><a class='permalink' href='# EJEMPLO'>EJEMPLO</a></h1>
+<pre>#include &lt;arpa/inet.h&gt;
+#include &lt;time.h&gt;
+#include &lt;sys/time.h&gt;
+#include &lt;netdb.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &quot;ares.h&quot;
+static void dns_callback(void *arg,
+                         int status,
+                         int timeouts,
+                         unsigned char *abuf,
+                         int alen)
+  {
+    struct ares_caa_reply *caa_out;
+    int err;
+    err = ares_parse_caa_reply (abuf, alen, &amp;caa_out);
+    if (err == ARES_SUCCESS)
+      {
+        struct ares_caa_reply *caa_curr;
+        for (caa_curr=caa_out; caa_curr; caa_curr=caa_curr-&gt;next)
+          printf (&quot;%s. CAA %i %s \&quot;%s\&quot;\n&quot;, arg,
+                                            caa_curr-&gt;critical,
+                                            caa_curr-&gt;property,
+                                            caa_curr-&gt;value);
+      }
+    else
+      {
+        printf (&quot;err=%i\n&quot;, err);
+      }
+    ares_free_data (caa_out);
+  }
+static void main_loop(ares_channel_t **channel)
+  {
+    int nfds, count;
+    fd_set readers, writers;
+    struct timeval tv, *tvp;
+    while (1)
+      {
+        FD_ZERO (&amp;readers);
+        FD_ZERO (&amp;writers);
+        nfds = ares_fds (*channel, &amp;readers, &amp;writers);
+        if (nfds == 0)
+          break;
+        tvp = ares_timeout (*channel, NULL, &amp;tv);
+        count = select (nfds, &amp;readers, &amp;writers, NULL, tvp);
+        ares_process (*channel, &amp;readers, &amp;writers);
+      }
+  }
+int main(int argc, char **argv)
+  {
+    const char *sversion;
+    int iversion;
+    int err;
+    sversion = ares_version (&amp;iversion);
+    printf (&quot;c-ares version %s\n&quot;, sversion);
+    char *domain = &quot;wikipedia.org&quot;;
+    if (argc &gt; 1)
+      domain = argv[1];
+    ares_channel_t *channel;
+    if ((err = ares_init (&amp;channel)) != ARES_SUCCESS)
+      {
+        printf (&quot;ares_init() failed (%i)\n&quot;, err);
+        exit (EXIT_FAILURE);
+      }
+    ares_query (channel, domain,
+                1,   /* ns_c_in */
+                257, /* T_CAA */
+                dns_callback, domain);
+    main_loop (&amp;channel);
+    ares_destroy (channel);
+    exit (EXIT_SUCCESS);
+  }</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" DISPONIBILIDAD"><a class='permalink' href='# DISPONIBILIDAD'>DISPONIBILIDAD</a></h1>
+<p class="Pp">Esta función se introdujo por primera vez en la versión 1.17.0 de c-ares.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id=" VER_TAMBIÉN"><a class='permalink' href='# VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/ares_query.3.en'>ares_query(3)</a> <a href='/man/ares_free_data.3.en'>ares_free_data(3)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">16 de septiembre de 2020</td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/c-ares/">extra/c-ares</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.34.5-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://c-ares.org/">https://c-ares.org/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>MIT</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/c-ares/">/listing/extra/c-ares/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#VALORES_DE_RETORNO">VALORES DE RETORNO</a></li>
+        
+            <li><a href="#EJEMPLO">EJEMPLO</a></li>
+        
+            <li><a href="#DISPONIBILIDAD">DISPONIBILIDAD</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/ares_parse_caa_reply.3.en.txt">txt</a>, 
+        
+            <a href="/man/ares_parse_caa_reply.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

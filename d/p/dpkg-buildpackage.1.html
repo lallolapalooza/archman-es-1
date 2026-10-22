@@ -1,0 +1,715 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>dpkg-buildpackage(1) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">dpkg-buildpackage(1)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">dpkg-buildpackage(1)</td>
+    <td class="head-vol">Suite dpkg</td>
+    <td class="head-rtitle">dpkg-buildpackage(1)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">dpkg-buildpackage - construye paquetes binarios o de origen a partir de fuentes</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp"><b>dpkg-buildpackage</b> [<i>opción</i>...] [<b>--</b>]
+    [<i>nombre-de-archivo</i>.dsc|<i>directorio</i>]</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>dpkg-buildpackage</b> es un programa que automatiza el proceso de construcción de un paquete Debian.</p>
+<p class="Pp">Los argumentos <i>nombre-de-archivo</i>.dsc y <i>directorio</i> se admiten desde dpkg 1.22.7. Su semántica es experimental.</p>
+<p class="Pp">Consiste en los siguientes pasos:</p>
+<dl class="Bl-tag">
+  <dt><b>1.</b></dt>
+  <dd>Ejecuta el gancho <b>preinit</b> antes de leer cualquier archivo de origen. Si se ha especificado un archivo
+      <b>.dsc</b> , lo desempaqueta de nuevo y cambia al directorio correspondiente; si se ha especificado un <i>directorio</i> , cambia a ese directorio; de lo contrario, espera que el directorio actual contenga el árbol de fuentes. Prepara el entorno de compilación estableciendo varias variables de entorno (véase <b>ENTORNO</b>), ejecuta el gancho <b>init</b> y llama a <b>dpkg-source --before-build</b> (a menos que se haya utilizado <b>-T</b> o
+      <b>--target</b> ).</dd>
+  <dt><b>2.</b></dt>
+  <dd>Comprueba que las dependencias y conflictos de compilación se satisfacen (a menos que se especifique <b>-d</b> o <b>--no-check-builddeps</b> ).</dd>
+  <dt><b>3.</b></dt>
+  <dd>Si se han seleccionado uno o más objetivos específicos con la opción <b>-T</b> o
+      <b>--target</b> , llama a esos objetivos y se detiene aquí. De lo contrario, ejecuta el gancho <b>preclean</b> y llama a <b>fakeroot debian/rules
+      clean</b> para limpiar el árbol de compilación (a menos que se especifique <b>-nc</b> o
+      <b>--no-pre-clean</b> ).</dd>
+  <dt><b>4.</b></dt>
+  <dd>Ejecuta el gancho <b>source</b> y llama a <b>dpkg-source -b</b> para generar el paquete de origen (si se ha solicitado una compilación de <b>source</b> con
+      <b>--build</b> u opciones equivalentes, y si no se ha especificado ningún archivo <b>.dsc</b> ).</dd>
+  <dt><b>5.</b></dt>
+  <dd>Ejecuta el gancho <b>build</b> y llama a <b>debian/rules</b>
+      <i>objetivo-de-compilación</i>, luego ejecuta el gancho <b>binary</b> seguido de
+      <b>fakeroot debian/rules</b> <i>objetivo-binario</i> (a menos que se haya solicitado una compilación solo de origen con <b>--build=source</b> u opciones equivalentes). Tenga en cuenta que <i>objetivo-de-compilación</i> y <i>objetivo-binario</i> son <b>build</b> y <b>binary</b> (caso por defecto, o si se ha solicitado una compilación <b>any</b>
+      y <b>all</b> con <b>--build</b> u opciones equivalentes), o <b>build-arch</b> y <b>binary-arch</b> (si se ha solicitado una compilación <b>any</b>
+      y no <b>all</b> con <b>--build</b> u opciones equivalentes), o <b>build-indep</b> y <b>binary-indep</b> (si se ha solicitado una compilación
+      <b>all</b> y no <b>any</b> con <b>--build</b>
+      u opciones equivalentes).</dd>
+  <dt><b>6.</b></dt>
+  <dd>Ejecuta el gancho <b>buildinfo</b> y llama a <b>dpkg-genbuildinfo</b> para generar un archivo <b>.buildinfo</b> . Varias opciones de <b>dpkg-buildpackage</b>
+      se reenvían a <b>dpkg-genbuildinfo</b>. Si se ha especificado un archivo <i>.dsc</i> , se hará referencia a él en el archivo
+      <b>.buildinfo</b> generado, ya que podemos determinar la procedencia del árbol de fuentes.</dd>
+  <dt><b>7.</b></dt>
+  <dd>Ejecuta el gancho <b>changes</b> y llama a <b>dpkg-genchanges</b> para generar un archivo <b>.changes</b> . El nombre del archivo <b>.changes</b> dependerá del tipo de compilación y será lo más específico que sea necesario, pero no más; el nombre será:</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="source-name"><a class="permalink" href="#source-name"><i>nombre-del-origen</i><b>_</b><i>versión-binaria</i><b>_</b><i>arquitectura</i><b>.changes</b></a></dt>
+  <dd>para una compilación que incluya <b>any</b></dd>
+  <dt id="source-name~2"><a class="permalink" href="#source-name~2"><i>nombre-del-origen</i><b>_</b><i>versión-binaria</i><b>_</b><b>all.changes</b></a></dt>
+  <dd>de lo contrario, para una compilación que incluya <b>all</b></dd>
+  <dt id="source-name~3"><a class="permalink" href="#source-name~3"><i>nombre-del-origen</i><b>_</b><i>versión-del-origen</i><b>_</b><b>source.changes</b>.</a></dt>
+  <dd>de lo contrario, para una compilación que incluya <b>source</b></dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Muchas opciones de <b>dpkg-buildpackage</b> se reenvían a
+    <b>dpkg-genchanges</b>.</p>
+</div>
+<dl class="Bl-tag">
+  <dt><b>8.</b></dt>
+  <dd>Ejecuta el gancho <b>postclean</b> y, si se especifica <b>-tc</b> o <b>--post-clean</b>
+      , volverá a llamar a <b>fakeroot debian/rules clean</b> .</dd>
+  <dt><b>9.</b></dt>
+  <dd>Llama a <b>dpkg-source --after-build</b>.</dd>
+  <dt><b>10.</b></dt>
+  <dd>Ejecuta el gancho <b>check</b> y llama a un verificador de paquetes para el archivo
+      <b>.changes</b> (si se especifica un comando en
+      <b>DEB_CHECK_COMMAND</b> o con <b>--check-command</b>).</dd>
+  <dt><b>11.</b></dt>
+  <dd>Ejecuta el gancho <b>sign</b> y firma utilizando el backend OpenPGP (siempre que no sea una compilación UNRELEASED, o se especifique <b>--no-sign</b> ) para firmar el archivo <b>.dsc</b> (si existe, a menos que se especifique <b>-us</b> o
+      <b>--unsigned-source</b> ), el archivo <b>.buildinfo</b> (a menos que se especifique
+      <b>-ui</b>, <b>--unsigned-buildinfo</b>, <b>-uc</b> o
+      <b>--unsigned-changes</b> ) y el archivo <b>.changes</b> (a menos que se especifique <b>-uc</b> o <b>--unsigned-changes</b> ).</dd>
+  <dt><b>12.</b></dt>
+  <dd>Si se ha especificado un archivo <b>.dsc</b> , elimina el directorio de fuentes extraído.</dd>
+  <dt><b>13.</b></dt>
+  <dd>Ejecuta el gancho <b>done</b> .</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OPTIONS'><a class='permalink' href='#OPTIONS'>OPCIONES</a></h1>
+<p class="Pp">Todas las opciones largas pueden especificarse tanto en la línea de comandos como en los archivos de configuración del sistema y del usuario de <b>dpkg-buildpackage</b> . Cada línea del archivo de configuración es una opción (exactamente igual que la opción de la línea de comandos pero sin los guiones iniciales) o un comentario (si comienza con ‘<b>#</b>’).</p>
+<dl class="Bl-tag">
+  <dt id="build="><a class="permalink" href="#build="><b>--build=</b><i>tipo</i></a></dt>
+  <dd>Especifica el <i>tipo</i> de compilación a partir de una lista de componentes separados por comas (desde dpkg 1.18.5). Todos los componentes especificados se combinan para seleccionar el único tipo de compilación a utilizar, lo que implica una única ejecución de compilación con un único archivo <i>.changes</i> generado. Se pasa a <b>dpkg-genchanges</b>.
+    <p class="Pp">Los valores permitidos son:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="source"><a class="permalink" href="#source"><b>source</b></a></dt>
+  <dd>Construye el paquete de origen.
+    <p class="Pp"><b>Nota</b>: Al usar este valor de forma independiente y si lo que desea es simplemente (re)construir el paquete de origen a partir de un árbol de fuentes limpio, usar <b>dpkg-source</b> directamente siempre es una mejor opción, ya que no requiere que se instalen dependencias de compilación que de otro modo serían necesarias para poder llamar al objetivo <b>clean</b> .</p>
+  </dd>
+  <dt id="any"><a class="permalink" href="#any"><b>any</b></a></dt>
+  <dd>Construye los paquetes binarios específicos de la arquitectura.</dd>
+  <dt id="all"><a class="permalink" href="#all"><b>all</b></a></dt>
+  <dd>Construye los paquetes binarios independientes de la arquitectura.</dd>
+  <dt id="binary"><a class="permalink" href="#binary"><b>binary</b></a></dt>
+  <dd>Construye los paquetes binarios específicos e independientes de la arquitectura. Este es un alias para <b>any,all</b>.</dd>
+  <dt id="full"><a class="permalink" href="#full"><b>full</b></a></dt>
+  <dd>Construye todo. Este es un alias para <b>source,any,all</b>, e idéntico al caso por defecto cuando no se especifica ninguna opción de compilación.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt id="g"><a class="permalink" href="#g"><b>-g</b></a></dt>
+  <dd>Equivalente a <b>--build=source,all</b> (desde dpkg 1.17.11).</dd>
+  <dt id="G"><a class="permalink" href="#G"><b>-G</b></a></dt>
+  <dd>Equivalente a <b>--build=source,any</b> (desde dpkg 1.17.11).</dd>
+  <dt id="b"><a class="permalink" href="#b"><b>-b</b></a></dt>
+  <dd>Equivalente a <b>--build=binary</b> o <b>--build=any,all</b>.</dd>
+  <dt id="B"><a class="permalink" href="#B"><b>-B</b></a></dt>
+  <dd>Equivalente a <b>--build=any</b>.</dd>
+  <dt id="A"><a class="permalink" href="#A"><b>-A</b></a></dt>
+  <dd>Equivalente a <b>--build=all</b>.</dd>
+  <dt id="S"><a class="permalink" href="#S"><b>-S</b></a></dt>
+  <dd>Equivalente a <b>--build=source</b>.</dd>
+  <dt id="F"><a class="permalink" href="#F"><b>-F</b></a></dt>
+  <dd>Equivalente a <b>--build=full</b>, <b>--build=source,binary</b> o
+      <b>--build=source,any,all</b> (desde dpkg 1.15.8).</dd>
+  <dt id="target="><a class="permalink" href="#target="><b>--target=</b><i>objetivo</i>[,...]</a></dt>
+  <dd></dd>
+  <dt id="target"><a class="permalink" href="#target"><b>--target</b>
+    <i>objetivo</i>[,...]</a></dt>
+  <dd></dd>
+  <dt id="T"><a class="permalink" href="#T"><b>-T</b>,
+    <b>--rules-target=</b><i>objetivo</i>[,...]</a></dt>
+  <dd>Llama a <b>debian/rules</b> <i>objetivo</i> una vez por cada objetivo especificado, después de haber configurado el entorno de compilación (excepto por llamar a <b>dpkg-source
+      --before-build</b>), y detiene el proceso de compilación del paquete aquí (desde dpkg 1.15.0, opción larga desde dpkg 1.18.8, soporte para múltiples objetivos desde dpkg 1.18.16). Si también se indica <b>--as-root</b> , el comando se ejecuta como root (véase <b>--root-command</b>). Tenga en cuenta que los objetivos conocidos que son
+      que se requiere que se ejecute como root no necesitan esta opción (es decir, los objetivos <b>clean</b>,
+      <b>binary</b>, <b>binary-arch</b> y <b>binary-indep</b> ).</dd>
+  <dt id="as"><a class="permalink" href="#as"><b>--as-root</b></a></dt>
+  <dd>Solo tiene significado junto con <b>--target</b> (desde dpkg 1.15.0).
+      Requiere que el objetivo se ejecute con permisos de root.</dd>
+  <dt id="si"><a class="permalink" href="#si"><b>-si</b></a></dt>
+  <dd></dd>
+  <dt id="sa"><a class="permalink" href="#sa"><b>-sa</b></a></dt>
+  <dd></dd>
+  <dt id="sd"><a class="permalink" href="#sd"><b>-sd</b></a></dt>
+  <dd></dd>
+  <dt id="v"><a class="permalink" href="#v"><b>-v</b><i>version</i></a></dt>
+  <dd></dd>
+  <dt id="C"><a class="permalink" href="#C"><b>-C</b><i>changes-description</i></a></dt>
+  <dd></dd>
+  <dt id="m"><a class="permalink" href="#m"><b>-m</b><i>maintainer-address</i></a></dt>
+  <dd></dd>
+  <dt id="e"><a class="permalink" href="#e"><b>-e</b><i>maintainer-address</i></a></dt>
+  <dd>Se pasan sin cambios a <b>dpkg-genchanges</b>. Véase su página de manual.</dd>
+  <dt id="build"><a class="permalink" href="#build"><b>--build-by=</b><i>maintainer-address</i></a></dt>
+  <dd></dd>
+  <dt id="source~2"><a class="permalink" href="#source~2"><b>--source-by=</b><i>maintainer-address</i>
+    (desde dpkg 1.21.10)</a></dt>
+  <dd>Se pasa como <b>-m</b> a <b>dpkg-genchanges</b>. Véase su página de manual.</dd>
+  <dt id="release"><a class="permalink" href="#release"><b>--release-by=</b><i>maintainer-address</i></a></dt>
+  <dd></dd>
+  <dt id="changed"><a class="permalink" href="#changed"><b>--changed-by=</b><i>maintainer-address</i>
+    (desde dpkg 1.21.10)</a></dt>
+  <dd>Se pasa como <b>-e</b> a <b>dpkg-genchanges</b>. Véase su página de manual.</dd>
+  <dt id="a"><a class="permalink" href="#a"><b>-a</b>, <b>--host-arch</b>
+    <i>architecture</i></a></dt>
+  <dd>Especifica la arquitectura de Debian para la que se compila (opción larga desde dpkg
+      1.17.17). La arquitectura de la máquina en la que se compila se determina
+      automáticamente, y también es la predeterminada para la máquina anfitriona.</dd>
+  <dt id="t"><a class="permalink" href="#t"><b>-t</b>, <b>--host-type</b>
+    <i>gnu-system-type</i></a></dt>
+  <dd>Especifica el tipo de sistema GNU para el que se compila (opción larga desde dpkg 1.17.17).
+      Se puede usar en lugar de <b>--host-arch</b> o como complemento para
+      anular el tipo de sistema GNU predeterminado de la arquitectura de Debian anfitriona.</dd>
+  <dt id="target~2"><a class="permalink" href="#target~2"><b>--target-arch</b>
+    <i>architecture</i></a></dt>
+  <dd>Especifica la arquitectura de Debian para la que compilarán los binarios generados (desde
+      dpkg 1.17.17). El valor predeterminado es la máquina anfitriona.</dd>
+  <dt id="target~3"><a class="permalink" href="#target~3"><b>--target-type</b>
+    <i>gnu-system-type</i></a></dt>
+  <dd>Especifica el tipo de sistema GNU para el que compilarán los binarios generados (desde dpkg
+      1.17.17). Se puede usar en lugar de <b>--target-arch</b> o como
+      complemento para anular el tipo de sistema GNU predeterminado de la arquitectura de destino de Debian.</dd>
+  <dt id="P"><a class="permalink" href="#P"><b>-P</b>,
+    <b>--build-profiles=</b><i>profile</i>[<b>,</b>...]</a></dt>
+  <dd>Especifica el(los) perfil(es) para los que se compila, como una lista separada por comas (desde dpkg
+      1.17.2, opción larga desde dpkg 1.18.8). El comportamiento predeterminado es compilar
+      sin ningún perfil específico. También los establece (como una lista separada por espacios) en la variable de entorno
+      <b>DEB_BUILD_PROFILES</b> lo que permite, por ejemplo, que los archivos
+      <b>debian/rules</b> usen esta información para compilaciones
+    condicionales.</dd>
+  <dt id="j"><a class="permalink" href="#j"><b>-j</b>,
+    <b>--jobs</b>[=<i>jobs</i>|<b>auto</b>]</a></dt>
+  <dd>Especifica el número de trabajos que se pueden ejecutar simultáneamente (desde dpkg
+      1.14.7, opción larga desde dpkg 1.18.8). El número de trabajos coincide con el
+      número de procesadores en línea si se especifica <b>auto</b> (desde dpkg
+      1.17.10), o es un número ilimitado si no se especifica <i>jobs</i> . El comportamiento
+      predeterminado es <b>auto</b> (desde dpkg 1.18.11) en modo no forzado (desde
+      dpkg 1.21.10), y como tal siempre es más seguro usarlo con cualquier paquete,
+      incluidos aquellos que no son seguros para compilaciones paralelas. Establecer el número de
+      trabajos a <b>1</b> restaurará la ejecución en serie.
+    <p class="Pp">Añadirá <b>parallel=</b><i>jobs</i> o <b>parallel</b> a la variable de entorno
+        <b>DEB_BUILD_OPTIONS</b> lo que permite que los archivos debian/rules
+        opten por usar esta información para sus propios fines. El valor
+        <i>jobs</i> anulará la opción <b>parallel=</b><i>jobs</i> o
+        <b>parallel</b> en la variable de entorno <b>DEB_BUILD_OPTIONS</b> . Tenga en cuenta que el valor <b>auto</b> será reemplazado por el
+        número real de procesadores activos actualmente, y como tal no se propagará
+        a ningún proceso secundario. Si no se puede inferir el número de procesadores en línea,
+        el código recurrirá a usar la ejecución en serie (desde dpkg 1.18.15), aunque esto solo debería ocurrir en sistemas exóticos y no soportados.</p>
+  </dd>
+  <dt id="J"><a class="permalink" href="#J"><b>-J</b>,
+    <b>--jobs-try</b>[=<i>jobs</i>|<b>auto</b>]</a></dt>
+  <dd>Esta opción (desde dpkg 1.18.2, opción larga desde dpkg 1.18.8) es
+      equivalente a <b>-j</b> anterior.
+    <p class="Pp">Dado que el comportamiento de <b>-j</b> cambió en dpkg 1.21.10 a
+        modo de opt-in, puede usar esta opción en su lugar si necesita
+        garantizar la semántica a través de las series de versiones de dpkg.</p>
+  </dd>
+  <dt id="jobs"><a class="permalink" href="#jobs"><b>--jobs-force</b>[=<i>jobs</i>|<b>auto</b>]</a></dt>
+  <dd>Esta opción (desde dpkg 1.21.10) es equivalente a la opción <b>--jobs</b> excepto que habilitará el modo paralelo forzado, añadiendo la opción <b>make</b>
+      <b>-j</b> con el número calculado de trabajos paralelos a la variable de entorno
+      <b>MAKEFLAGS</b> .
+    <p class="Pp">Esto debería hacer que todas las invocaciones subsecuentes de make hereden
+        la opción, forzando así la configuración paralela en el empaquetado (y
+        posiblemente en el sistema de compilación original si usa <a href='/man/make.1.en'>make(1)</a>)
+        independientemente de su soporte para compilaciones paralelas, lo que podría causar fallos de compilación.</p>
+    <p class="Pp"><b>Nota</b>: Cualquier Makefile que no sea seguro para compilaciones paralelas debe
+        considerarse defectuoso. Estos deberían hacerse seguros para compilaciones paralelas, o
+        marcarse como no seguros con el objetivo <a href='/man/make.1.en'>make(1)</a> <b>.NOTPARALLEL</b>
+        .</p>
+  </dd>
+  <dt id="D"><a class="permalink" href="#D"><b>-D</b>,
+    <b>--check-builddeps</b></a></dt>
+  <dd>Comprueba las dependencias y conflictos de compilación; aborta si no se satisfacen (opción larga
+      desde dpkg 1.18.8). Este es el comportamiento predeterminado.</dd>
+  <dt id="d"><a class="permalink" href="#d"><b>-d</b>,
+    <b>--no-check-builddeps</b></a></dt>
+  <dd>No comprueba las dependencias y conflictos de compilación (opción larga desde dpkg
+      1.18.8).</dd>
+  <dt id="ignore"><a class="permalink" href="#ignore"><b>--ignore-builtin-builddeps</b></a></dt>
+  <dd>No comprueba las dependencias y conflictos de compilación incorporados (desde dpkg
+      1.18.2). Estas son las dependencias de compilación implícitas específicas de la distribución
+      que normalmente se requieren en un entorno de compilación, el llamado conjunto de paquetes Build-Essential.</dd>
+  <dt id="rules"><a class="permalink" href="#rules"><b>--rules-requires-root</b></a></dt>
+  <dd>No respeta el campo <b>Rules-Requires-Root</b> , recurriendo a su valor
+      predeterminado heredado <b>binary-targets</b> (desde dpkg 1.19.1).</dd>
+  <dt id="nc"><a class="permalink" href="#nc"><b>-nc</b>,
+    <b>--no-pre-clean</b></a></dt>
+  <dd>No limpia el árbol de fuentes antes de compilar (opción larga desde dpkg
+      1.18.8). Implica <b>-b</b> si no se ha seleccionado nada más entre
+      <b>-F</b>, <b>-g</b>, <b>-G</b>, <b>-B</b>, <b>-A</b> o <b>-S</b>.
+      Implica <b>-d</b> con <b>-S</b> (desde dpkg 1.18.0).</dd>
+  <dt id="pre"><a class="permalink" href="#pre"><b>--pre-clean</b></a></dt>
+  <dd>Limpia el árbol de fuentes antes de compilar (desde dpkg 1.18.8). Este es el
+      comportamiento predeterminado.</dd>
+  <dt id="tc"><a class="permalink" href="#tc"><b>-tc</b>,
+    <b>--post-clean</b></a></dt>
+  <dd>Limpia el árbol de fuentes (usando <i>gain-root-command</i> <b>debian/rules
+      clean</b>) después de que se haya compilado el paquete (opción larga desde dpkg
+      1.18.8).</dd>
+  <dt id="no"><a class="permalink" href="#no"><b>--no-post-clean</b></a></dt>
+  <dd>No limpia el árbol de fuentes después de que se haya compilado el paquete (desde dpkg
+      1.19.1). Este es el comportamiento predeterminado.</dd>
+  <dt id="sanitize"><a class="permalink" href="#sanitize"><b>--sanitize-env</b></a></dt>
+  <dd>Sanea el entorno de compilación (desde dpkg 1.20.0). Esto restablecerá o
+      eliminará variables de entorno, umask y cualquier otro atributo del proceso que
+      podrían afectar adversamente la compilación de paquetes. Debido a que el
+      punto de entrada oficial para compilar paquetes es <b>debian/rules</b>, los paquetes
+      no pueden depender de que estos ajustes estén en su lugar, y por lo tanto deberían funcionar incluso
+      cuando no lo estén. Qué se sanea es específico del proveedor.</dd>
+  <dt id="r"><a class="permalink" href="#r"><b>-r</b>,
+    <b>--root-command=</b><i>gain-root-command</i></a></dt>
+  <dd>Cuando <b>dpkg-buildpackage</b> necesita ejecutar parte del proceso de compilación
+      como root, antepone al comando que ejecuta <i>gain-root-command</i>
+      si se ha especificado uno (opción larga desde dpkg 1.18.8). De lo contrario, si
+      no se ha especificado ninguno, se usará <b>fakeroot</b> por defecto, si el
+      comando está presente. <i>gain-root-command</i> debe empezar con el nombre de
+      un programa en el <b>PATH</b> y recibirá como argumentos el nombre del
+      comando real a ejecutar y los argumentos que debe recibir.
+      <i>gain-root-command</i> puede incluir parámetros (deben estar
+      separados por espacios) pero no meta-caracteres de shell. <i>gain-root-command</i>
+      podría ser típicamente <b>fakeroot</b>, <b>sudo</b>, <b>super</b> o
+      <b>really</b>. <b>su</b> no es adecuado, ya que solo puede invocar el
+      shell del usuario con <b>-c</b> en lugar de pasar los argumentos individualmente al
+      comando que se va a ejecutar.</dd>
+  <dt id="R"><a class="permalink" href="#R"><b>-R</b>,
+    <b>--rules-file=</b><i>rules-file</i></a></dt>
+  <dd>Compilar un paquete de Debian normalmente implica invocar <b>debian/rules</b> como
+      un comando con varios parámetros estándar (desde dpkg 1.14.17, opción
+      larga desde dpkg 1.18.8). Con esta opción es posible usar otra
+      invocación de programa para compilar el paquete (puede incluir parámetros separados por espacios). Alternativamente, se puede usar para ejecutar el archivo de reglas
+      estándar con otro programa make (por ejemplo, usando
+      <b>/usr/local/bin/make -f debian/rules</b> como <i>rules-file</i>).</dd>
+  <dt id="check"><a class="permalink" href="#check"><b>--check-command=</b><i>check-command</i></a></dt>
+  <dd>Comando usado para comprobar el archivo <b>.changes</b> en sí mismo y cualquier artefacto
+      compilado referenciado en el archivo (desde dpkg 1.17.6). El comando debe recibir la
+      ruta del archivo <b>.changes</b> como argumento. Este comando normalmente será
+      <b>lintian</b>.</dd>
+  <dt id="check~2"><a class="permalink" href="#check~2"><b>--check-option=</b><i>opt</i></a></dt>
+  <dd>Pasa la opción <i>opt</i> al <i>check-command</i> especificado con
+      <b>DEB_CHECK_COMMAND</b> o <b>--check-command</b> (desde dpkg 1.17.6).
+      Se puede usar varias veces.</dd>
+  <dt id="hook"><a class="permalink" href="#hook"><b>--hook-</b><i>hook-name</i><b>=</b><i>hook-command</i></a></dt>
+  <dd>Establece el código de shell especificado <i>hook-command</i> como el hook
+      <i>hook-name</i>, que se ejecutará en los momentos especificados en los pasos de ejecución
+      (desde dpkg 1.17.6). Los hooks siempre se ejecutarán incluso si la
+      acción siguiente no se realiza (excepto para el hook <b>binary</b> ). Todos
+      los hooks se ejecutarán en el directorio de fuentes descomprimido.
+    <p class="Pp">Algunos hooks pueden recibir información adicional a través de
+        variables de entorno (desde dpkg 1.22.0). Todos los hooks reciben el nombre del hook en la <b>DPKG_BUILDPACKAGE_HOOK_NAME</b> variable de entorno (desde
+        dpkg 1.22.0).</p>
+    <p class="Pp"><b>Nota</b>: Los ganchos pueden afectar al proceso de compilación y causar
+        fallos de compilación si sus comandos fallan, así que cuidado con las
+        consecuencias no deseadas.</p>
+    <p class="Pp">Los nombres de gancho <i>hook-name</i> soportados actualmente son:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="preinit"><a class="permalink" href="#preinit"><b>preinit</b></a></dt>
+  <dd></dd>
+  <dt id="init"><a class="permalink" href="#init"><b>init</b></a></dt>
+  <dd></dd>
+  <dt id="preclean"><a class="permalink" href="#preclean"><b>preclean</b></a></dt>
+  <dd></dd>
+  <dt id="source~3"><a class="permalink" href="#source~3"><b>source</b></a></dt>
+  <dd>Obtiene <b>DPKG_BUILDPACKAGE_HOOK_SOURCE_OPTIONS</b> con las listas de opciones separadas por espacios que se pasarán a la
+      llamada a <b>dpkg-source</b> .</dd>
+  <dt id="build~2"><a class="permalink" href="#build~2"><b>build</b></a></dt>
+  <dd>Obtiene <b>DPKG_BUILDPACKAGE_HOOK_BUILD_TARGET</b> con el nombre del objetivo
+      <b>debian/rules</b> build que se ha llamado. Antes de dpkg 1.22.7 la variable
+      solo se establecía si el objetivo era llamado.</dd>
+  <dt id="binary~2"><a class="permalink" href="#binary~2"><b>binary</b></a></dt>
+  <dd>Obtiene <b>DPKG_BUILDPACKAGE_HOOK_BINARY_TARGET</b> con el nombre del objetivo
+      <b>debian/rules</b> binary que se ha llamado, pero solo si fue llamado.</dd>
+  <dt id="buildinfo"><a class="permalink" href="#buildinfo"><b>buildinfo</b></a></dt>
+  <dd>Obtiene <b>DPKG_BUILDPACKAGE_HOOK_BUILDINFO_OPTIONS</b> con las listas de opciones separadas por espacios que se pasarán a la
+      llamada a
+      <b>dpkg-genbuildinfo</b> .</dd>
+  <dt id="changes"><a class="permalink" href="#changes"><b>changes</b></a></dt>
+  <dd>Obtiene <b>DPKG_BUILDPACKAGE_HOOK_CHANGES_OPTIONS</b> con las listas de opciones separadas por espacios que se pasarán a la
+      llamada a
+      <b>dpkg-genchanges</b> .</dd>
+  <dt id="postclean"><a class="permalink" href="#postclean"><b>postclean</b></a></dt>
+  <dd></dd>
+  <dt id="check~3"><a class="permalink" href="#check~3"><b>check</b></a></dt>
+  <dd>Obtiene <b>DPKG_BUILDPACKAGE_HOOK_CHECK_OPTIONS</b> con las listas de opciones separadas por espacios que se pasarán a la
+      llamada al comando de verificación.</dd>
+  <dt id="sign"><a class="permalink" href="#sign"><b>sign</b></a></dt>
+  <dd></dd>
+  <dt id="done"><a class="permalink" href="#done"><b>done</b></a></dt>
+  <dd></dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">El <i>hook-command</i> admite el siguiente formato de cadena de sustitución,
+    que se le aplicará antes de la ejecución:</p>
+<dl class="Bl-tag">
+  <dt><b>%%</b></dt>
+  <dd>Un carácter % único.</dd>
+  <dt><b>%a</b><b></b></dt>
+  <dd>Un valor booleano (0 o 1), que indica si la siguiente acción se está
+      realizando.</dd>
+  <dt><b>%p</b><b></b></dt>
+  <dd>El nombre del paquete fuente.</dd>
+  <dt><b>%v</b><b></b></dt>
+  <dd>La versión del paquete fuente.</dd>
+  <dt><b>%s</b><b></b></dt>
+  <dd>La versión del paquete fuente (sin la época).</dd>
+  <dt><b>%u</b><b></b></dt>
+  <dd>La versión upstream.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt id="buildinfo~2"><a class="permalink" href="#buildinfo~2"><b>--buildinfo-file=</b><i>nombre-de-archivo</i></a></dt>
+  <dd>Establece el <i>nombre-de-archivo</i> para el archivo <b>.buildinfo</b> generado (desde
+      dpkg 1.21.0).</dd>
+  <dt id="buildinfo~3"><a class="permalink" href="#buildinfo~3"><b>--buildinfo-option=</b><i>opt</i></a></dt>
+  <dd>Pasa la opción <i>opt</i> a <b>dpkg-genbuildinfo</b> (desde dpkg 1.18.11).
+      Se puede usar varias veces.</dd>
+  <dt id="sign~2"><a class="permalink" href="#sign~2"><b>--sign-backend=</b><i>sign-backend</i></a></dt>
+  <dd>Especifica una interfaz de backend OpenPGP a usar al invocar el
+      <i>sign-command</i> (desde dpkg 1.21.10).
+    <p class="Pp">El valor por defecto es <b>auto</b>, donde se usará el mejor backend
+        disponible actualmente. Los backends OpenPGP específicos soportados, en
+        orden de preferencia, son:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="sop"><a class="permalink" href="#sop"><b>sop</b></a></dt>
+  <dd>(cualquier implementación Stateless OpenPGP conforme)</dd>
+  <dt id="sq"><a class="permalink" href="#sq"><b>sq</b></a></dt>
+  <dd>(de Sequoia-PGP)</dd>
+  <dt id="gpg"><a class="permalink" href="#gpg"><b>gpg</b></a></dt>
+  <dd>(de GnuPG)</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt id="p"><a class="permalink" href="#p"><b>-p</b>,
+    <b>--sign-command=</b><i>sign-command</i></a></dt>
+  <dd>Cuando <b>dpkg-buildpackage</b> necesite ejecutar un comando de backend OpenPGP
+      para firmar un archivo de control de fuentes (<b>.dsc</b>), un <b>.buildinfo</b> o un
+      <b>.changes</b> ejecutará <i>sign-command</i> (buscando en el
+      <b>PATH</b> si es necesario) en lugar del comando de backend por defecto o
+      autodetectado (opción larga desde dpkg 1.18.8). <i>sign-command</i> recibirá todos los argumentos específicos del backend de acuerdo con el <b>--sign-backend</b>
+      seleccionado. <i>sign-command</i> no debe contener espacios ni ningún otro metacarácter del shell.</dd>
+  <dt id="k"><a class="permalink" href="#k"><b>-k</b>,
+    <b>--sign-keyid=</b><i>key-id</i></a></dt>
+  <dd></dd>
+  <dt id="sign~3"><a class="permalink" href="#sign~3"><b>--sign-key=</b><i>key-id</i></a></dt>
+  <dd>Especifica un ID de clave OpenPGP (una huella digital o un ID de usuario)
+      para la clave secreta a usar al firmar paquetes (<b>--sign-key</b> desde dpkg
+      1.18.8, <b>--sign-keyid</b> desde dpkg 1.21.10).</dd>
+  <dt id="sign~4"><a class="permalink" href="#sign~4"><b>--sign-keyfile=</b><i>key-file</i></a></dt>
+  <dd>Especifica un <i>key-file</i> OpenPGP que contiene la clave secreta a usar al
+      firmar paquetes (desde dpkg 1.21.10).
+    <p class="Pp"><b>Nota</b>: Por razones de seguridad es mejor mantener el <i>key-file</i> bloqueado con una contraseña.</p>
+  </dd>
+  <dt id="us"><a class="permalink" href="#us"><b>-us</b>,
+    <b>--unsigned-source</b></a></dt>
+  <dd>No firmar el paquete fuente (opción larga desde dpkg 1.18.8).</dd>
+  <dt id="ui"><a class="permalink" href="#ui"><b>-ui</b>,
+    <b>--unsigned-buildinfo</b></a></dt>
+  <dd>No firmar el <b>.buildinfo</b> (desde dpkg 1.18.19).</dd>
+  <dt id="uc"><a class="permalink" href="#uc"><b>-uc</b>,
+    <b>--unsigned-changes</b></a></dt>
+  <dd>No firmar los <b>.buildinfo</b> y <b>.changes</b> (opción larga
+      desde dpkg 1.18.8).</dd>
+  <dt id="no~2"><a class="permalink" href="#no~2"><b>--no-sign</b></a></dt>
+  <dd>No firmar ningún archivo, esto incluye el paquete fuente, el
+      <b>.buildinfo</b> y el <b>.changes</b> (desde dpkg
+    1.18.20).</dd>
+  <dt id="force"><a class="permalink" href="#force"><b>--force-sign</b></a></dt>
+  <dd>Forzar la firma de los archivos resultantes (desde dpkg 1.17.0), independientemente de <b>-us</b>, <b>--unsigned-source</b>, <b>-ui</b>,
+      <b>--unsigned-buildinfo</b>, <b>-uc</b>, <b>--unsigned-changes</b> u otras
+      heurísticas internas.</dd>
+  <dt id="sn"><a class="permalink" href="#sn"><b>-sn</b></a></dt>
+  <dd></dd>
+  <dt id="ss"><a class="permalink" href="#ss"><b>-ss</b></a></dt>
+  <dd></dd>
+  <dt id="sA"><a class="permalink" href="#sA"><b>-sA</b></a></dt>
+  <dd></dd>
+  <dt id="sk"><a class="permalink" href="#sk"><b>-sk</b></a></dt>
+  <dd></dd>
+  <dt id="su"><a class="permalink" href="#su"><b>-su</b></a></dt>
+  <dd></dd>
+  <dt id="sr"><a class="permalink" href="#sr"><b>-sr</b></a></dt>
+  <dd></dd>
+  <dt id="sK"><a class="permalink" href="#sK"><b>-sK</b></a></dt>
+  <dd></dd>
+  <dt id="sU"><a class="permalink" href="#sU"><b>-sU</b></a></dt>
+  <dd></dd>
+  <dt id="sR"><a class="permalink" href="#sR"><b>-sR</b></a></dt>
+  <dd></dd>
+  <dt id="i"><a class="permalink" href="#i"><b>-i</b>,
+    <b>--diff-ignore</b>[=<i>regex</i>]</a></dt>
+  <dd></dd>
+  <dt id="I"><a class="permalink" href="#I"><b>-I</b>,
+    <b>--tar-ignore</b>[=<i>pattern</i>]</a></dt>
+  <dd></dd>
+  <dt id="z"><a class="permalink" href="#z"><b>-z</b>,
+    <b>--compression-level=</b><i>level</i></a></dt>
+  <dd></dd>
+  <dt id="Z"><a class="permalink" href="#Z"><b>-Z</b>,
+    <b>--compression=</b><i>compressor</i></a></dt>
+  <dd>Se pasan sin cambios a <b>dpkg-source</b>. Vea su página de manual.</dd>
+  <dt id="source~4"><a class="permalink" href="#source~4"><b>--source-option=</b><i>opt</i></a></dt>
+  <dd>Pasa la opción <i>opt</i> a <b>dpkg-source</b> (desde dpkg 1.15.6). Se puede usar
+      varias veces.</dd>
+  <dt id="changes~2"><a class="permalink" href="#changes~2"><b>--changes-file=</b><i>nombre-de-archivo</i></a></dt>
+  <dd>Establece el <i>nombre-de-archivo</i> para el archivo <b>.changes</b> generado (desde dpkg
+      1.21.0).</dd>
+  <dt id="changes~3"><a class="permalink" href="#changes~3"><b>--changes-option=</b><i>opt</i></a></dt>
+  <dd>Pasa la opción <i>opt</i> a <b>dpkg-genchanges</b> (desde dpkg 1.15.6). Se puede
+      usar varias veces.</dd>
+  <dt id="admindir="><a class="permalink" href="#admindir="><b>--admindir=</b><i>dir</i></a></dt>
+  <dd></dd>
+  <dt id="admindir"><a class="permalink" href="#admindir"><b>--admindir</b>
+    <i>dir</i></a></dt>
+  <dd>Cambia la ubicación de la base de datos de <b>dpkg</b> (desde dpkg 1.14.0). La
+      ubicación por defecto es <i>/var/lib/dpkg</i>.</dd>
+  <dt><b>-?</b>, <b>--help</b></dt>
+  <dd>Muestra el mensaje de uso y termina.</dd>
+  <dt id="version"><a class="permalink" href="#version"><b>--version</b></a></dt>
+  <dd>Muestra la versión y termina.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENVIRONMENT'><a class='permalink' href='#ENVIRONMENT'>ENTORNO</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='External_environment'><a class='permalink' href='#External_environment'>Entorno   externo</a></h2>
+<dl class="Bl-tag">
+  <dt id="DEB_CHECK_COMMAND"><a class="permalink" href="#DEB_CHECK_COMMAND"><b>DEB_CHECK_COMMAND</b></a></dt>
+  <dd>Si está establecido, se usará como el comando para verificar el <b>.changes</b> (desde dpkg 1.17.6). Lo anula la <b>--check-command</b> opción.</dd>
+  <dt id="DEB_SIGN_KEYID"><a class="permalink" href="#DEB_SIGN_KEYID"><b>DEB_SIGN_KEYID</b></a></dt>
+  <dd>Si está establecido, se usará para firmar los <b>.changes</b>, <b>.buildinfo</b> y
+      <b>.dsc</b> (desde dpkg 1.17.2). Lo anula la
+      <b>--sign-keyid</b> opción.</dd>
+  <dt id="DEB_SIGN_KEYFILE"><a class="permalink" href="#DEB_SIGN_KEYFILE"><b>DEB_SIGN_KEYFILE</b></a></dt>
+  <dd>Si está establecido, se usará para firmar los <b>.changes</b>, <b>.buildinfo</b> y
+      <b>.dsc</b> (desde dpkg 1.21.10). Lo anula la
+      <b>--sign-keyfile</b> opción.</dd>
+  <dt id="DEB_BUILD_OPTIONS"><a class="permalink" href="#DEB_BUILD_OPTIONS"><b>DEB_BUILD_OPTIONS</b></a></dt>
+  <dd>Si está establecido, contendrá una lista de opciones separadas por espacios que afectan al
+      comportamiento de algunas herramientas de dpkg involucradas en la construcción de paquetes, y podría afectar
+      al proceso de construcción del paquete si el código en <i>debian/rules</i> las respeta.
+      Estas opciones pueden tener parámetros especificados inmediatamente después de un signo igual (‘<b>=</b>‘). Para las opciones que admiten múltiples
+      parámetros, estos no se separarán por espacios, ya que estos están reservados
+      para separar opciones.
+    <p class="Pp">Las siguientes son las opciones conocidas y soportadas por las herramientas de
+        dpkg, otras opciones respetadas por <i>debian/rules</i> podrían ser definidas por
+        políticas específicas de la distribución.</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="parallel="><a class="permalink" href="#parallel="><b>parallel=</b><i>N</i></a></dt>
+  <dd>El <i>debian/rules</i> en el empaquetado podría usar esta opción para configurar
+      el proceso de construcción para usar <i>N</i> trabajos en paralelo. Lo anulan las opciones
+      <b>--jobs</b> y <b>--jobs-force</b> .</dd>
+  <dt id="nocheck"><a class="permalink" href="#nocheck"><b>nocheck</b></a></dt>
+  <dd><b>dpkg-buildpackage</b> ignorará la variable <b>DEB_CHECK_COMMAND</b>
+      . No se espera que el <i>debian/rules</i> en el empaquetado ejecute
+      suites de pruebas durante la construcción.</dd>
+  <dt id="noopt"><a class="permalink" href="#noopt"><b>noopt</b></a></dt>
+  <dd>Si <i>debian/rules</i> cal<section class="Sh">
+<h1 class="Sh" id='OPTIONS'><a class='permalink' href='#OPTIONS'>OPTIONS</a></h1>
+<dl class="Bl-tag">
+  <dt id="no-parallel"><a class="permalink" href="#no-parallel"><b>no-parallel</b></a></dt>
+  <dd>Inhibit parallel builds. It is passed to the <b>make</b> command.</dd>
+  <dt id="make-args"><a class="permalink" href="#make-args"><b>make-args=</b><i>arg1 arg2 ...</i></a></dt>
+  <dd>Pass the given arguments to the <b>make</b> command, overriding
+      <b>make</b> arguments passed on the command line. It is possible to specify
+      spaces and shell metacharacters and initial arguments for <i>make</i>.
+      See also <b>dpkg-buildpackage</b>(1) for the behaviour of this option.</dd>
+  <dt id="build-arch-dep"><a class="permalink" href="#build-arch-dep"><b>build-arch-dep</b></a></dt>
+  <dd>Build binary package(s) which are architecture dependent and
+      architecture independent.</dd>
+  <dt id="build-indep"><a class="permalink" href="#build-indep"><b>build-indep</b></a></dt>
+  <dd>Build binary package(s) which are architecture independent.</dd>
+  <dt id="build-arch"><a class="permalink" href="#build-arch"><b>build-arch</b></a></dt>
+  <dd>Build binary package(s) which are architecture dependent.</dd>
+  <dt id="build"><a class="permalink" href="#build"><b>build</b></a></dt>
+  <dd>Build binary package(s) which are architecture dependent and
+      architecture independent. This is the default build target.</dd>
+  <dt id="debian-flavor"><a class="permalink" href="#debian-flavor"><b>debian-flavor=</b><i>flavor</i></a></dt>
+  <dd>Use the specified package flavor when building the package. See
+      <i>dpkg-buildflags</i>(1) for further details.</dd>
+  <dt id="dpkg-buildflags"><a class="permalink" href="#dpkg-buildflags"><b>dpkg-buildflags</b></a></dt>
+  <dd>Use <b>dpkg-buildflags</b> to set up the build flags, those will be set
+      to not enable any optimizations.</dd>
+  <dt id="nostrip"><a class="permalink" href="#nostrip"><b>nostrip</b></a></dt>
+  <dd>The <i>debian/rules</i> in the packaging should ensure that objects do not
+      get the debugging information stripped. If <i>debian/rules</i> includes
+      the <b>mk/buildtools.mk</b> make fragment the <b>STRIP</b> make variable
+      will respect this option.</dd>
+  <dt id="terse"><a class="permalink" href="#terse"><b>terse</b></a></dt>
+  <dd><b>dpkg-buildpackage</b> will append the <b>--no-print-directory</b>
+      <a href='/man/make.1.en'>make(1)</a> flag to the <b>MAKEFLAGS</b> environment variable. The
+      <i>debian/rules</i> in the packaging should reduce verbosity, while not
+      being completely quiet.</dd>
+  <dt id="hardening="><a class="permalink" href="#hardening="><b>hardening=</b><i>feature-spec</i></a></dt>
+  <dd></dd>
+  <dt id="reproducible="><a class="permalink" href="#reproducible="><b>reproducible=</b><i>feature-spec</i></a></dt>
+  <dd></dd>
+  <dt id="abi="><a class="permalink" href="#abi="><b>abi=</b><i>feature-spec</i></a></dt>
+  <dd></dd>
+  <dt id="future="><a class="permalink" href="#future="><b>future=</b><i>feature-spec</i></a></dt>
+  <dd></dd>
+  <dt id="qa="><a class="permalink" href="#qa="><b>qa=</b><i>feature-spec</i></a></dt>
+  <dd></dd>
+  <dt id="optimize="><a class="permalink" href="#optimize="><b>optimize=</b><i>feature-spec</i></a></dt>
+  <dd></dd>
+  <dt id="sanitize="><a class="permalink" href="#sanitize="><b>sanitize=</b><i>feature-spec</i></a></dt>
+  <dd>These are feature areas that control build flag features. See
+      <a href='/man/dpkg-buildflags.1.en'>dpkg-buildflags(1)</a> for further details.</dd>
+</dl>
+</div>
+<section class="Ss">
+<h2 class="Ss" id='Environment_variables'><a class='permalink' href='#Environment_variables'>Environment variables</a></h2>
+<dl class="Bl-tag">
+  <dt id="DEB_BUILD_PROFILES"><a class="permalink" href="#DEB_BUILD_PROFILES"><b>DEB_BUILD_PROFILES</b></a></dt>
+  <dd>If set, it will be used as the active build profile(s) for the package
+      being built (since dpkg 1.17.2). It is a space separated list of profile
+      names. Overridden by the <b>-P</b> option.</dd>
+  <dt id="DPKG_COLORS"><a class="permalink" href="#DPKG_COLORS"><b>DPKG_COLORS</b></a></dt>
+  <dd>Sets the color mode (since dpkg 1.18.5). The currently accepted values
+      are: <b>auto</b> (default), <b>always</b> and <b>never</b>.</dd>
+  <dt id="DPKG_NLS"><a class="permalink" href="#DPKG_NLS"><b>DPKG_NLS</b></a></dt>
+  <dd>If set, it will be used to decide whether to activate Native Language
+      Support, also known as internationalization (or i18n) support (since dpkg
+      1.19.0). The accepted values are: <b>0</b> and <b>1</b> (default).</dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Internal_environment'><a class='permalink' href='#Internal_environment'>Internal   environment</a></h1>
+<p class="Pp">Even if <b>dpkg-buildpackage</b> exports some variables,
+    <b>debian/rules</b> should not rely on their presence and should instead use
+    the respective interface to retrieve the needed values, because that file is
+    the main entry point to build packages and running it standalone should be
+    supported.</p>
+<dl class="Bl-tag">
+  <dt id="DEB_BUILD_*"><a class="permalink" href="#DEB_BUILD_*"><b>DEB_BUILD_*</b></a></dt>
+  <dd></dd>
+  <dt id="DEB_HOST_*"><a class="permalink" href="#DEB_HOST_*"><b>DEB_HOST_*</b></a></dt>
+  <dd></dd>
+  <dt id="DEB_TARGET_*"><a class="permalink" href="#DEB_TARGET_*"><b>DEB_TARGET_*</b></a></dt>
+  <dd><b>dpkg-architecture</b> is called with the <b>-a</b> and <b>-t</b>
+      parameters forwarded. Any variable that is output by its <b>-s</b> option
+      is integrated in the build environment.</dd>
+  <dt id="DEB_RULES_REQUIRES_ROOT"><a class="permalink" href="#DEB_RULES_REQUIRES_ROOT"><b>DEB_RULES_REQUIRES_ROOT</b></a></dt>
+  <dd>This variable is set to the value obtained from the
+      <b>Rules-Requires-Root</b> field, the dpkg-build-api level or from the
+      command-line. When set, it will be a valid value for the
+      <b>Rules-Requires-Root</b> field. It is used to notify <b>debian/rules</b>
+      whether the <b>rootless-builds.txt</b> specification is supported.</dd>
+  <dt id="DEB_GAIN_ROOT_CMD"><a class="permalink" href="#DEB_GAIN_ROOT_CMD"><b>DEB_GAIN_ROOT_CMD</b></a></dt>
+  <dd>This variable is set to <i>gain-root-command</i> when the field
+      <b>Rules-Requires-Root</b> is set to a value different to <b>no</b> and
+      <b>binary-targets</b>.</dd>
+  <dt id="SOURCE_DATE_EPOCH"><a class="permalink" href="#SOURCE_DATE_EPOCH"><b>SOURCE_DATE_EPOCH</b></a></dt>
+  <dd>This variable is set to the Unix timestamp since the epoch of the latest
+      entry in <i>debian/changelog</i>, if it is not already defined.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FILES'><a class='permalink' href='#FILES'>FILES</a></h1>
+<dl class="Bl-tag">
+  <dt><i>/etc/dpkg/buildpackage.conf</i></dt>
+  <dd>System wide configuration file</dd>
+  <dt><i>$XDG_CONFIG_HOME</i><i>/dpkg/buildpackage.conf</i> or</dt>
+  <dd></dd>
+  <dt><i>$HOME</i><i>/.config/dpkg/buildpackage.conf</i></dt>
+  <dd>User configuration file.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Compiler_flags_are_no_longer_exported'><a class='permalink' href='#Compiler_flags_are_no_longer_exported'>Compiler   flags are no longer exported</a></h2>
+<p class="Pp">Between dpkg 1.14.17 and 1.16.1, <b>dpkg-buildpackage</b> exported
+    compiler flags (<b>CFLAGS</b>, <b>CXXFLAGS</b>, <b>FFLAGS</b>,
+    <b>CPPFLAGS</b> and <b>LDFLAGS</b>) with values as returned by
+    <b>dpkg-buildflags</b>. This is no longer the case.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Default_build_targets'><a class='permalink' href='#Default_build_targets'>Default   build targets</a></h2>
+<p class="Pp"><b>dpkg-buildpackage</b> is using the <b>build-arch</b> and
+    <b>build-indep</b> targets since dpkg 1.16.2. Before dpkg 1.22.7, there was
+    code to try to detect the missing targets and fallback on the <b>build</b>
+    target. Those targets are thus mandatory.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SECURITY'><a class='permalink' href='#SECURITY'>SECURITY</a></h1>
+<p class="Pp">Building binary or source packages should only be performed over
+    trusted source data.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">It should be possible to specify spaces and shell metacharacters
+    and initial arguments for <i>gain-root-command</i> and
+  <i>sign-command</i>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp"><i>/usr/share/doc/dpkg/spec/rootless-builds.txt</i>,
+    <a href='/man/dpkg-source.1.en'>dpkg-source(1)</a>, <a href='/man/dpkg-architecture.1.en'>dpkg-architecture(1)</a>,
+    <a href='/man/dpkg-buildflags.1.en'>dpkg-buildflags(1)</a>, <a href='/man/dpkg-genbuildinfo.1.en'>dpkg-genbuildinfo(1)</a>,
+    <a href='/man/dpkg-genchanges.1.en'>dpkg-genchanges(1)</a>, <a href='/man/fakeroot.1.en'>fakeroot(1)</a>, <a href='/man/lintian.1.en'>lintian(1)</a>,
+    <a href='https://datatracker.ietf.org/doc/draft-dkg-openpgp-stateless-cli/'>https://datatracker.ietf.org/doc/draft-dkg-openpgp-stateless-cli/</a>,
+    <a href='/man/sq.1.en'>sq(1)</a>, <a href='/man/gpg.1.en'>gpg(1)</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-06-30</td>
+    <td class="foot-os">1.22.21-dirty</td>
+  </tr>
+</table>
+
+</section>

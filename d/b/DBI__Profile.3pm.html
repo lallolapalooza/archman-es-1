@@ -1,0 +1,693 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBI::Profile(3pm) — Páginas de manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBI__Profile(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBI::Profile(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">DBI::Profile(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">DBI::Profile - Perfilado de rendimiento y creación de benchmarks para el
+  DBI</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">La forma más fácil de habilitar el perfilado de DBI es establecer la variable de entorno DBI_PROFILE
+    a 2 y luego ejecutar su código como de costumbre:</p>
+<pre>DBI_PROFILE=2 prog.pl</pre>
+<p class="Pp">Esto perfilará su programa y luego emitirá un resumen textual
+    agrupado por consulta cuando el programa finalice. También puede habilitar el perfilado estableciendo
+    el atributo Profile de cualquier manejador de DBI:</p>
+<pre>$dbh-&gt;{Profile} = 2;</pre>
+<p class="Pp">Luego, el resumen se imprimirá cuando el manejador sea destruido.</p>
+<p class="Pp">Son posibles muchos otros valores además de - ver "HABILITAR UN
+    PERFIL" más abajo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">El módulo DBI::Profile proporciona una interfaz sencilla para recopilar y
+    informar datos de rendimiento y benchmarks del DBI.</p>
+<p class="Pp">Para una interfaz más elaborada, adecuada para programas más grandes, ver
+    DBI::ProfileDumper y dbiprof. Para aplicaciones de Apache/mod_perl ver
+    DBI::ProfileDumper::Apache.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OVERVIEW'><a class='permalink' href='#OVERVIEW'>RESUMEN</a></h1>
+<p class="Pp">La recopilación de datos de rendimiento para el DBI se basa en varios
+    conceptos que es importante entender claramente.</p>
+<dl class="Bl-tag">
+  <dt id="Method"><a class="permalink" href="#Method">Despacho de métodos</a></dt>
+  <dd>Cada llamada a un método en un manejador de DBI pasa por una única función de 'despacho'
+      que gestiona todos los aspectos comunes de las llamadas a métodos de DBI, como el
+      manejo del atributo RaiseError.</dd>
+  <dt>Recopilación de datos</dt>
+  <dd>Si el perfilado está habilitado para un manejador, el código de despacho toma una
+      marca de tiempo de alta resolución poco después de ser invocado. Luego, después de llamar al
+      método correspondiente y justo antes de retornar, toma otra
+      marca de tiempo de alta resolución y llama a una función para registrar la información.
+      A esa función se le pasan las dos marcas de tiempo junto con el manejador de DBI y el
+      nombre del método que fue llamado. Ese dato sobre una sola llamada a un método de DBI
+      se denomina una <i>muestra de perfil</i>.</dd>
+  <dt>Filtrado de datos</dt>
+  <dd>Si la llamada al método fue invocada por el DBI o por un controlador, la llamada se
+      ignora para el perfilado porque el tiempo empleado será contabilizado por la
+      llamada 'externa' original de su código.
+    <p class="Pp">Por ejemplo, las llamadas que el método <b>selectrow_arrayref()</b>
+        hace a <b>prepare()</b> y <b>execute()</b> etc. no se
+        cuentan individualmente porque el tiempo empleado en esos métodos se asignará al <b>selectrow_arrayref()</b> método cuando retorne.
+        Si esto no se hiciera, sería muy fácil contar doble el tiempo
+        empleado dentro del DBI.</p>
+  </dd>
+  <dt>Árbol de almacenamiento de datos</dt>
+  <dd>Los datos del perfil se acumulan como 'hojas en un árbol'. El 'camino' a través de
+      las ramas del árbol hasta una hoja particular se determina dinámicamente
+      para cada muestra. Esta es una característica clave del perfilado de DBI.
+    <p class="Pp">Para cada llamada a un método perfilada, el DBI recorre el Path y
+        usa cada valor en el Path para entrar y hacer crecer el árbol de Data.</p>
+    <p class="Pp">Por ejemplo, si el Path es</p>
+        <pre>[ 'foo', 'bar', 'baz' ]
+</pre>
+    <p class="Pp">entonces los nuevos datos de la muestra de perfil se <i>fusionarán</i> en
+        el árbol en</p>
+        <pre>$h-&gt;{Profile}-&gt;{Data}-&gt;{foo}-&gt;{bar}-&gt;{baz}
+</pre>
+    <p class="Pp">Pero no es muy útil fusionar todos los datos de la llamada en un solo
+        nodo hoja (excepto para obtener un total general de 'tiempo empleado dentro del DBI').
+        Es más común querer que el Path incluya valores dinámicos como el
+        texto de la sentencia actual y/o el nombre del método llamado para mostrar en qué
+        se empleó el tiempo dentro del DBI.</p>
+    <p class="Pp">El Path puede contener algunos valores 'mágicos' que son
+        reemplazados automáticamente por valores dinámicos correspondientes cuando se
+        usan. Estos valores mágicos siempre comienzan con un carácter de puntuación.</p>
+    <p class="Pp">Por ejemplo, un valor de
+        '<span class="Li">"!MethodName"</span>' en el Path hace que la
+        entrada correspondiente en Data sea el nombre del método que fue
+        llamado. Por ejemplo, si el Path fuera:</p>
+        <pre>[ 'foo', '!MethodName', 'bar' ]
+</pre>
+    <p class="Pp">y se llamara al método <b>selectall_arrayref()</b> , entonces los
+        datos de la muestra de perfil para esa llamada se fusionarán en el árbol
+      en:</p>
+        <pre>$h-&gt;{Profile}-&gt;{Data}-&gt;{foo}-&gt;{selectall_arrayref}-&gt;{bar}
+</pre>
+  </dd>
+  <dt id="Profile"><a class="permalink" href="#Profile">Datos del perfil</a></dt>
+  <dd>Los datos del perfil se almacenan en las 'hojas' del árbol como referencias a un
+      array de valores numéricos. Por ejemplo:
+        <pre>[
+  106,                  # 0: conteo de muestras en este nodo
+  0.0312958955764771,   # 1: duración total
+  0.000490069389343262, # 2: primera duración
+  0.000176072120666504, # 3: duración más corta
+  0.00140702724456787,  # 4: duración más larga
+  1023115819.83019,     # 5: hora de la primera muestra
+  1023115819.86576,     # 6: hora de la última muestra
+]
+</pre>
+    <p class="Pp">Después de la primera muestra, las muestras posteriores siempre actualizan los elementos
+        0, 1 y 6, y pueden actualizar 3 o 4 dependiendo de la duración de la
+        llamada muestreada.</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENABLING_A_PROFILE'><a class='permalink' href='#ENABLING_A_PROFILE'>HABILITAR UN PERFIL</a></h1>
+<p class="Pp">El perfilado se habilita para un manejador asignando al atributo
+    Profile. Por ejemplo:</p>
+<pre>$h-&gt;{Profile} = DBI::Profile-&gt;new();</pre>
+<p class="Pp">El atributo Profile contiene una referencia bendita a un objeto hash
+    que contiene los datos del perfil y los atributos relacionados con él.</p>
+<p class="Pp">Se espera que la clase a la que el objeto Profile es bendito
+    proporcione al menos un método DESTROY que volcará los datos del perfil en el
+    manejador de archivo de traza de DBI (STDERR por defecto).</p>
+<p class="Pp">Todos estos ejemplos tienen el mismo efecto entre sí:</p>
+<pre>$h-&gt;{Profile} = 0;
+$h-&gt;{Profile} = "/DBI::Profile";
+$h-&gt;{Profile} = DBI::Profile-&gt;new();
+$h-&gt;{Profile} = {};
+$h-&gt;{Profile} = { Path =&gt; [] };</pre>
+<p class="Pp">De manera similar, estos ejemplos tienen el mismo efecto entre sí:</p>
+<pre>$h-&gt;{Profile} = 6;
+$h-&gt;{Profile} = "6/DBI::Profile";
+$h-&gt;{Profile} = "!Statement:!MethodName/DBI::Profile";
+$h-&gt;{Profile} = { Path =&gt; [ '!Statement', '!MethodName' ] };</pre>
+<p class="Pp">Si se da una referencia a hash no bendita, el módulo DBI::Profile
+    es automáticamente <span class="Li">"require"</span>'d y
+    la referencia es bendita en esa clase.</p>
+<p class="Pp">Si se da una cadena, se procesa de esta manera:</p>
+<pre>($path, $module, $args) = split /\//, $string, 3
+@path = split /:/, $path
+@args = split /:/, $args
+eval "require $module" if $module
+$module ||= "DBI::Profile"
+$module-&gt;new( Path =&gt; \@Path, @args )</pre>
+<p class="Pp">Así que el primer valor se usa para seleccionar el Path a usar (ver
+    más abajo). El segundo valor, si está presente, se usa como el nombre de un módulo que
+    será cargado y su método <span class="Li">"new"</span> será
+    llamado. Si no está presente, por defecto es DBI::Profile. Cualquier otro valor se
+    pasa como argumento al método <span class="Li">"new"</span> .
+    Por ejemplo:
+    "<span class="Li">"2/DBIx::OtherProfile/Foo:42"</span>".</p>
+<p class="Pp">Se pueden usar números como una forma abreviada de habilitar valores comunes de
+    Path. La forma más sencilla de explicar cómo se interpretan los valores es
+    mostrar el código:</p>
+<pre>push @Path, "DBI"           if $path_elem &amp; 0x01;
+push @Path, "!Statement"    if $path_elem &amp; 0x02;
+push @Path, "!MethodName"   if $path_elem &amp; 0x04;
+push @Path, "!MethodClass"  if $path_elem &amp; 0x08;
+push @Path, "!Caller2"      if $path_elem &amp; 0x10;</pre>
+<p class="Pp">Así que "2" es lo mismo que "!Statement" y
+    "6" (2+4) es lo mismo que "!Statement:!Method". Esos son
+    los dos valores más comúnmente usados. Usar un número negativo invertirá el
+    camino. Así que "-6" agrupará por nombre de método y luego por sentencia.</p>
+<p class="Pp">La división y el análisis de los valores de cadena asignados al atributo
+    Profile puede parecer un poco extraño, pero hay una buena razón para ello. Recuerde
+    que los atributos pueden estar incrustados en la cadena del Nombre de Fuente de Datos que puede
+    pasarse a un script como un parámetro. Por ejemplo:</p>
+<pre>dbi:DriverName(Profile=&gt;2):dbname
+dbi:DriverName(Profile=&gt;{Username}:!Statement/MyProfiler/Foo:42):dbname</pre>
+<p class="Pp">Y también, si la variable de entorno <span class="Li">"DBI_PROFILE"</span>
+    está establecida, el DBI organiza que cada manejador de controlador
+    comparta el mismo objeto de perfil. Cuando perl finalice, se generará un único resumen de perfil que reflejará
+    (tan cerca de lo práctico) el uso total del DBI
+    por la aplicación.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THE_PROFILE_OBJECT'><a class='permalink' href='#THE_PROFILE_OBJECT'>EL OBJETO PERFIL</a></h1>
+<p class="Pp">El núcleo de DBI espera que el valor del atributo Profile sea una referencia
+    a hash y si los siguientes valores no existen, los creará según sea
+    necesario:</p>
+<section class="Ss">
+<h2 class="Ss" id='Data'><a class='permalink' href='#Data'>Datos</a></h2>
+<p class="Pp">Una referencia a un hash que contiene los datos del perfil recopilados.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Path'><a class='permalink' href='#Path'>Ruta</a></h2>
+<p class="Pp">El valor Ruta es una referencia a un arreglo. Cada elemento controla
+    el valor a usar en el nivel correspondiente del árbol de Datos del perfil.</p>
+<p class="Pp">Si el valor de Ruta es cualquier cosa que no sea una referencia a un arreglo, se
+    trata como si fuera:</p>
+<pre>[ '!Statement' ]</pre>
+<p class="Pp">Los elementos del arreglo Ruta pueden ser de uno de los siguientes tipos:</p>
+<p class="Pp"><i>Constante Especial</i></p>
+<p class="Pp"><b>!Statement</b></p>
+<p class="Pp">Usa el texto de la sentencia actual. Típicamente ese es el valor del
+    atributo Sentencia para el manejador con el que se llamó al método. Algunos métodos, como <b>commit()</b> y <b>rollback()</b>, no están relacionados con una
+    sentencia en particular. Para esos métodos !Statement registra una cadena vacía.</p>
+<p class="Pp">Para los manejadores de sentencias esto es siempre simplemente la cadena que
+    se dio a <b>prepare()</b> cuando se creó el manejador. Para los manejadores de base de datos
+    esta es la sentencia que fue preparada o ejecutada por última vez en ese manejador
+    de base de datos. Eso puede llevar a un poco de 'imprecisión' porque, por ejemplo, las llamadas al
+    método <b>quote()</b> para construir una nueva sentencia típicamente estarán
+    asociadas con la sentencia anterior. En la práctica esto no es un problema
+    significativo y el mecanismo de Ruta dinámica se puede usar para configurar tus propias
+  reglas.</p>
+<p class="Pp"><b>!MethodName</b></p>
+<p class="Pp">Usa el nombre del método DBI al que se relaciona la
+  muestra del perfil.</p>
+<p class="Pp"><b>!MethodClass</b></p>
+<p class="Pp">Usa el nombre completamente calificado del método DBI, incluyendo el
+    paquete, al que se relaciona la muestra del perfil. Esto te muestra dónde
+    fue implementado el método. Por ejemplo:</p>
+<pre>'DBD::_::db::selectrow_arrayref' =&gt;
+    0.022902s
+'DBD::mysql::db::selectrow_arrayref' =&gt;
+    2.244521s / 99 = 0.022445s avg (first 0.022813s, min 0.022051s, max 0.028932s)</pre>
+<p class="Pp">El "DBD::_::db::selectrow_arrayref" muestra que el
+    controlador ha heredado el método selectrow_arrayref proporcionado por el DBI.</p>
+<p class="Pp">Pero notarás que solo hay una llamada a
+    DBD::_::db::selectrow_arrayref pero otras 99 a
+    DBD::mysql::db::selectrow_arrayref. Actualmente la primera llamada no registra
+    la verdadera ubicación. Eso puede cambiar.</p>
+<p class="Pp"><b>!Caller</b></p>
+<p class="Pp">Usa una cadena que muestra el nombre del archivo y el número de línea del código
+    que llama al método.</p>
+<p class="Pp"><b>!Caller2</b></p>
+<p class="Pp">Usa una cadena que muestra el nombre del archivo y el número de línea del código
+    que llama al método, como con !Caller, pero también incluye el nombre del archivo y el número de línea
+    del código que llamó a ese. Se omiten las llamadas de los paquetes DBI:: y DBD::.</p>
+<p class="Pp"><b>!File</b></p>
+<p class="Pp">Igual que !Caller arriba excepto que solo se incluye el nombre del archivo,
+    no el número de línea.</p>
+<p class="Pp"><b>!File2</b></p>
+<p class="Pp">Igual que !Caller2 arriba excepto que solo se incluyen los nombres de archivo,
+    no el número de línea.</p>
+<p class="Pp"><b>!Time</b></p>
+<p class="Pp">Usa el valor actual de <b>time()</b>. Raramente usado. Ver el más útil <span class="Li">"!Time~N"</span> abajo.</p>
+<p class="Pp"><b>!Time~N</b></p>
+<p class="Pp">Donde <span class="Li">"N"</span> es un entero. Usa el
+    valor actual de <b>time()</b> pero con precisión reducida. El valor usado se
+    determina de esta manera:</p>
+<pre>int( time() / N ) * N</pre>
+<p class="Pp">Esta es una forma útil de segregar un perfil en intervalos de tiempo. Por
+    ejemplo:</p>
+<pre>[ '!Time~60', '!Statement' ]</pre>
+<p class="Pp"><i>Referencia a Código</i></p>
+<p class="Pp">La subrutina recibe el manejador en el que fue llamada y el nombre del método DBI.
+    La Sentencia actual está en <span class="Li">$_</span>. La
+    cadena de la sentencia no debe ser modificada, así que la mayoría de las subs comienzan con
+    <span class="Li">"local $_ = $_;"</span>.</p>
+<p class="Pp">La lista de valores que retorna se usa en ese punto de la
+    Ruta del Perfil. Cualquier valor indefinido se trata como la cadena
+    "<span class="Li">"undef"</span>".</p>
+<p class="Pp">La sub puede 'vetar' (rechazar) una muestra del perfil incluyendo una
+    referencia a undef (<span class="Li">"\undef"</span>) en la
+    lista retornada. Eso puede ser útil cuando quieres perfilar solo las sentencias
+    que coinciden con cierto patrón, o perfilar solo ciertos métodos.</p>
+<p class="Pp"><i>Especificador de Subrutina</i></p>
+<p class="Pp">Un elemento de Ruta que comienza con
+    '<span class="Li">"&amp;"</span>' se trata como el nombre de una
+    subrutina en el espacio de nombres DBI::ProfileSubs y se reemplaza con la
+    referencia de código correspondiente.</p>
+<p class="Pp">Actualmente esto solo funciona cuando la Ruta es especificada por la
+    variable de entorno
+    <span class="Li">"DBI_PROFILE"</span> .</p>
+<p class="Pp">También, actualmente, la única subrutina en el espacio de nombres DBI::ProfileSubs
+    es <span class="Li">'&amp;norm_std_n3'</span>. Esa es una subrutina muy útil
+    al perfilar código que no usa marcadores de posición. Ver
+    DBI::ProfileSubs para más información.</p>
+<p class="Pp"><i>Especificador de Atributo</i></p>
+<p class="Pp">Una cadena encerrada en llaves, como
+    '<span class="Li">"{Username}"</span>', especifica que el valor
+    actual del atributo correspondiente del manejador de base de datos debe usarse en ese
+    punto de la Ruta.</p>
+<p class="Pp"><i>Referencia a un Escalar</i></p>
+<p class="Pp">Especifica que el valor actual del escalar referenciado sea usado
+    en ese punto de la Ruta. Esto proporciona una forma eficiente de obtener
+    valores 'contextuales' en tu perfil.</p>
+<p class="Pp"><i>Otros Valores</i></p>
+<p class="Pp">Cualquier otro valor se convierte a cadena y se usa literalmente.</p>
+<p class="Pp">(Las referencias, y los valores que comienzan con caracteres de puntuación, están
+    reservados.)</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REPORTING'><a class='permalink' href='#REPORTING'>INFORMES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Report_Format'><a class='permalink' href='#Report_Format'>Formato   del   Informe</a></h2>
+<p class="Pp">Los datos del perfil acumulados actualmente pueden ser formateados y emitidos
+    usando</p>
+<pre>print $h-&gt;{Profile}-&gt;format;</pre>
+<p class="Pp">Para descartar los datos del perfil y empezar a recopilar datos nuevos puedes
+    hacer:</p>
+<pre>$h-&gt;{Profile}-&gt;{Data} = undef;</pre>
+<p class="Pp">El formato de resultados por defecto se ve así:</p>
+<pre>DBI::Profile: 0.001015s 42.7% (5 calls) programname @ YYYY-MM-DD HH:MM:SS
+'' =&gt;
+    0.000024s / 2 = 0.000012s avg (first 0.000015s, min 0.000009s, max 0.000015s)
+'SELECT mode,size,name FROM table' =&gt;
+    0.000991s / 3 = 0.000330s avg (first 0.000678s, min 0.000009s, max 0.000678s)</pre>
+<p class="Pp">Lo cual muestra el tiempo total pasado dentro del DBI, con un conteo del
+    número total de llamadas a métodos y el nombre del script que se está ejecutando, luego
+    una versión formateada del árbol de datos del perfil.</p>
+<p class="Pp">Si los resultados están siendo formateados cuando el proceso perl está
+    saliendo (lo cual es usualmente el caso cuando se usa la variable de entorno DBI_PROFILE)
+    entonces también se muestra el porcentaje de tiempo que el proceso pasó dentro del DBI. Si
+    el proceso no está saliendo entonces el porcentaje se calcula usando el
+    tiempo entre la primera y la última llamada al DBI.</p>
+<p class="Pp">En el ejemplo de arriba las rutas en el árbol son solo de un nivel de
+    profundidad y usan el texto de la Sentencia como valor (ese es el comportamiento por defecto).</p>
+<p class="Pp">Los datos del perfil fusionados en las 'hojas' del árbol se presentan
+    como tiempo total pasado, conteo, tiempo promedio pasado (que es simplemente el tiempo total
+    dividido por el conteo), luego el tiempo pasado en la primera llamada, el tiempo
+    pasado en la llamada más rápida, y finalmente el tiempo pasado en la llamada
+    más lenta.</p>
+<p class="Pp">Los tiempos 'avg', 'first', 'min' y 'max' no son particularmente
+    útiles cuando la ruta de datos del perfil solo contiene el texto de la sentencia. Aquí hay
+    un extracto de un ejemplo más detallado usando tanto el texto de la sentencia como el
+    nombre del método en la ruta:</p>
+<pre>'SELECT mode,size,name FROM table' =&gt;
+    'FETCH' =&gt;
+        0.000076s
+    'fetchrow_hashref' =&gt;
+        0.036203s / 108 = 0.000335s avg (first 0.000490s, min 0.000152s, max 0.002786s)</pre>
+<p class="Pp">Aquí puedes ver que el 'avg', 'first', 'min' y 'max' para las 108
+    llamadas a <b>fetchrow_hashref()</b> se vuelven bastante más interesantes. También los
+    datos para FETCH solo muestran un valor de tiempo porque solo fue llamado una vez.</p>
+<p class="Pp">Actualmente los datos del perfil se emiten ordenados por los nombres de las ramas.
+    Eso puede cambiar en una versión posterior para que los nodos hoja sean ordenados por el
+    tiempo total por nodo hoja.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Report_Destination'><a class='permalink' href='#Report_Destination'>Destino   del   Informe</a></h2>
+<p class="Pp">El método por defecto de informar es que el método DESTROY del
+    objeto Perfil formatee los resultados y los escriba usando:</p>
+<pre>DBI-&gt;trace_msg($results, 0);  # ver $ON_DESTROY_DUMP abajo</pre>
+<p class="Pp">para escribirlos en el manejador de archivo de traza del DBI <b>trace()</b> (que por defecto
+    es STDERR). Para dirigir el manejador de archivo de traza del DBI a escribir en un archivo sin
+    habilitar el trazado, el método <b>trace()</b> puede ser llamado con un nivel de traza
+    de 0. Por ejemplo:</p>
+<pre>DBI-&gt;trace(0, $filename);</pre>
+<p class="Pp">El mismo efecto se puede lograr sin cambiar el código configurando la
+    variable de entorno <span class="Li">"DBI_TRACE"</span> a <span class="Li">"0=filename"</span>.</p>
+<p class="Pp">La <span class="Li">$DBI::Profile::ON_DESTROY_DUMP</span>
+    variable contiene una referencia a código que es llamada para realizar la
+    emisión de los resultados formateados. El valor por defecto es:</p>
+<pre>$ON_DESTROY_DUMP = sub { DBI-&gt;trace_msg($results, 0) };</pre>
+<p class="Pp">Aparte de facilitar el envío del volcado a otro lugar, también puede
+    ser útil como una forma sencilla de deshabilitar el volcado de resultados.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CHILD_HANDLES'><a class='permalink' href='#CHILD_HANDLES'>MANEJADORES   HIJOS</a></h1>
+<p class="Pp">Los manejadores hijos heredan una referencia al valor del atributo Perfil
+    de su padre. Así que si el perfilado está habilitado para un manejador de base de datos, entonces por
+    defecto los manejadores de sentencias creados a partir de él todos contribuyen al mismo
+    árbol de datos del perfil fusionado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROFILE_OBJECT_METHODS'><a class='permalink' href='#PROFILE_OBJECT_METHODS'>MÉTODOS   DEL   OBJETO   PERFIL</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='format'><a class='permalink' href='#format'>format</a></h2>
+<p class="Pp">Ver "INFORMES".</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_node_path_list'><a class='permalink' href='#as_node_path_list'>as_node_path_list</a></h2>
+<pre>@ary = $dbh-&gt;{Profile}-&gt;as_node_path_list();
+@ary = $dbh-&gt;{Profile}-&gt;as_node_path_list($node, $path);</pre>
+<p class="Pp">Retorna los datos recopilados ($dbh-&gt;{Profile}{Data}) reestructurados
+    en una lista de referencias a arreglos, una para cada nodo hoja en el árbol de Datos. Esta
+    estructura 'plana' es a menudo mucho más simple para que las aplicaciones trabajen con ella.</p>
+<p class="Pp">El primer elemento de cada referencia a arreglo es una referencia al nodo
+    hoja. Los elementos restantes son el 'camino' a través del árbol de datos hasta ese
+    nodo.</p>
+<p class="Pp">Por ejemplo, dado un árbol de datos como este:</p>
+<pre>{key1a}{key2a}[node1]
+{key1a}{key2b}[node2]
+{key1b}{key2a}{key3a}[node3]</pre>
+<p class="Pp">El <b>as_node_path_list()</b> método retornará esta lista:</p>
+<pre>[ [node1], 'key1a', 'key2a' ]
+[ [node2], 'key1a', 'key2b' ]
+[ [node3], 'key1b', 'key2a', 'key3a' ]</pre>
+<p class="Pp">Los nodos están ordenados por clave, en profundidad primero.</p>
+<p class="Pp">El <span class="Li">$node</span> argumenton puede usarse para centrarse en
+    un subárbol. Si no se especifica, por defecto es
+    <span class="Li">$dbh</span>-&gt;{Profile}{Data}.</p>
+<p class="Pp">El <span class="Li">$path</span> argumento puede usarse para especificar
+    una lista de elementos de ruta que se añadirán a cada elemento de la lista
+    devuelta. Si no se especifica, por defecto es una referencia a un array vacío.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_text'><a class='permalink' href='#as_text'>as_text</a></h2>
+<pre>@txt = $dbh-&gt;{Profile}-&gt;as_text();
+$txt = $dbh-&gt;{Profile}-&gt;as_text({
+    node      =&gt; undef,
+    path      =&gt; [],
+    separator =&gt; " &gt; ",
+    format    =&gt; '%1$s: %11$fs / %10$d = %2$fs avg (first %12$fs, min %13$fs, max %14$fs)'."\n";
+    sortsub   =&gt; sub { ... },
+);</pre>
+<p class="Pp">Devuelve los datos recopilados ($dbh-&gt;{Profile}{Data}) reformatados
+    en una lista de cadenas formateadas. En contexto escalar, la lista se devuelve como
+    una única cadena concatenada.</p>
+<p class="Pp">Se puede usar un hashref para pasar argumentos, los valores por defecto se
+    muestran en el ejemplo de arriba.</p>
+<p class="Pp">El <span class="Li">"node"</span> y &lt;path&gt;
+    argumentos se pasan a <b>as_node_path_list()</b>.</p>
+<p class="Pp">El <span class="Li">"separator"</span> argumento se usa
+    para unir los elementos de la ruta para cada nodo hoja.</p>
+<p class="Pp">El <span class="Li">"sortsub"</span> argumento se usa
+    para pasar una referencia a un sub que ordenará la lista. Al subrutina se le
+    pasará una referencia al array devuelto por <b>as_node_path_list()</b> y
+    debería ordenar el contenido del array en su lugar. El valor de retorno del
+    sub se ignora. Por ejemplo, para ordenar los nodos por la clave de segundo nivel, podrías usar:</p>
+<pre>sortsub =&gt; sub { my $ary=shift; @$ary = sort { $a-&gt;[2] cmp $b-&gt;[2] } @$ary }</pre>
+<p class="Pp">El <span class="Li">"format"</span> argumento es una
+    <span class="Li">"sprintf"</span> cadena de formato que especifica el
+    formato a usar para cada nodo hoja. Utiliza el mecanismo de índice explícito de parámetros de formato
+    para especificar qué argumentos deberían aparecer en cada lugar de la
+    cadena. Los argumentos para sprintf son:</p>
+<pre> 1:  ruta al nodo, unida con el separador
+ 2:  duración promedio (duración total/recuento)
+     (3 a 9 actualmente no se usan)
+10:  recuento
+11:  duración total
+12:  primera duración
+13:  duración más pequeña
+14:  duración más grande
+15:  hora de la primera llamada
+16:  hora de la primera llamada</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CUSTOM_DATA_MANIPULATION'><a class='permalink' href='#CUSTOM_DATA_MANIPULATION'>MANIPULACIÓN   PERSONALIZADA DE DATOS</a></h1>
+<p class="Pp">Recuerda que
+    <span class="Li">"$h-&gt;{Profile}-&gt;{Data}"</span> es una
+    referencia a los datos recopilados. Ya sea a un array 'hoja' (cuando la Ruta está
+    vacía, es decir, la variable de entorno DBI_PROFILE es 1), o una referencia a un hash que contiene
+    valores que son o bien más referencias a hashes o referencias a arrays hoja.</p>
+<p class="Pp">A veces es útil poder resumir algunos o todos los
+    datos recopilados. La <b>dbi_profile_merge_nodes()</b> función puede usarse para
+    fusionar valores de nodos hoja.</p>
+<section class="Ss">
+<h2 class="Ss" id='dbi_profile_merge_nodes'><a class='permalink' href='#dbi_profile_merge_nodes'>dbi_profile_merge_nodes</a></h2>
+<pre>use DBI qw(dbi_profile_merge_nodes);
+$time_in_dbi = dbi_profile_merge_nodes(my $totals=[], @$leaves);</pre>
+<p class="Pp">Fusiona un nodo de datos de perfil. Dada una referencia a un array de destino,
+    y cero o más referencias a datos de perfil, fusiona los datos de perfil
+    en el array de destino. Por ejemplo:</p>
+<pre>$time_in_dbi = dbi_profile_merge_nodes(
+    my $totals=[],
+    [ 10, 0.51, 0.11, 0.01, 0.22, 1023110000, 1023110010 ],
+    [ 15, 0.42, 0.12, 0.02, 0.23, 1023110005, 1023110009 ],
+);</pre>
+<p class="Pp"><span class="Li">$totals</span> contendrá entonces</p>
+<pre>[ 25, 0.93, 0.11, 0.01, 0.23, 1023110000, 1023110010 ]</pre>
+<p class="Pp">y <span class="Li">$time_in_dbi</span> será 0.93;</p>
+<p class="Pp">El segundo argumento no tiene por qué ser solo nodos hoja. Si se le da una
+    referencia a un hash, el hash se busca recursivamente en busca de nodos hoja y
+    todos los que se encuentren se fusionan.</p>
+<p class="Pp">Por ejemplo, para obtener el tiempo pasado 'dentro' del DBI durante una petición http,
+    tu código de registro ejecutado al final de la petición (es decir, mod_perl
+    LogHandler) podría usar:</p>
+<pre>my $time_in_dbi = 0;
+if (my $Profile = $dbh-&gt;{Profile}) { # if DBI profiling is enabled
+    $time_in_dbi = dbi_profile_merge_nodes(my $total=[], $Profile-&gt;{Data});
+    $Profile-&gt;{Data} = {}; # reset the profile data
+}</pre>
+<p class="Pp">Si el perfilado ha sido habilitado entonces
+    <span class="Li">$time_in_dbi</span> contendrá el tiempo pasado dentro del DBI
+    para ese manejador (y cualquier otro manejador que comparta los mismos datos de perfil)
+    desde la última petición.</p>
+<p class="Pp">Antes de DBI 1.56 la <b>dbi_profile_merge_nodes()</b> función
+    se llamaba <b>dbi_profile_merge()</b>. Ese nombre todavía existe como un
+  alias.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CUSTOM_DATA_COLLECTION'><a class='permalink' href='#CUSTOM_DATA_COLLECTION'>RECOPILACIÓN   PERSONALIZADA DE DATOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Using_The_Path_Attribute'><a class='permalink' href='#Using_The_Path_Attribute'>Usando   El Atributo Path</a></h2>
+<pre>XXX ejemplo para añadir más tarde usando una llamada selectall_arrayref
+XXX anidada dentro de un bucle de fetch donde la primera columna del
+XXX bucle exterior está vinculada al Path del perfil usando
+XXX bind_column(1, \${ $dbh-&gt;{Profile}-&gt;{Path}-&gt;[0] })
+XXX para que acabes con perfiles separados para cada bucle
+XXX (¡las parches son bienvenidas para añadir esto a la documentación :)</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Adding_Your_Own_Samples'><a class='permalink' href='#Adding_Your_Own_Samples'>Añadiendo   Tus Propias Muestras</a></h2>
+<p class="Pp">La <b>dbi_profile()</b> función puede usarse para añadir datos de muestra
+    extra en el árbol de datos de perfil. Por ejemplo:</p>
+<pre>use DBI;
+use DBI::Profile (dbi_profile dbi_time);
+my $t1 = dbi_time(); # floating point high-resolution time
+... execute code you want to profile here ...
+my $t2 = dbi_time();
+dbi_profile($h, $statement, $method, $t1, $t2);</pre>
+<p class="Pp">El <span class="Li">$h</span> parámetro es el manejador con el que la muestra de perfil
+    extra debería estar asociada. El
+    <span class="Li">$statement</span> parámetro es la cadena a usar donde la
+    Ruta especifica !Statement. Si <span class="Li">$statement</span> es undef
+    entonces <span class="Li">$h</span>-&gt;{Statement} será usado. De manera similar
+    <span class="Li">$method</span> es la cadena a usar si la Ruta especifica
+    !MethodName. No hay valor por defecto para
+  <span class="Li">$method</span>.</p>
+<p class="Pp">El <span class="Li">$h</span>-&gt;{Profile}{Path} atributo es
+    procesado por <b>dbi_profile()</b> de la manera habitual.</p>
+<p class="Pp">El <span class="Li">$h</span> parámetro es usualmente un manejador DBI
+    pero también puede ser una referencia a un hash, en cuyo caso el
+    <b>dbi_profile()</b> actúa sobre cada valor definido en el hash. Esta es una
+    manera eficiente de actualizar múltiples perfiles con una sola muestra, y es usada
+    por el módulo DashProfiler.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SUBCLASSING'><a class='permalink' href='#SUBCLASSING'>SUBCLASEADO</a></h1>
+<p class="Pp">Los módulos de perfil alternativos deben subclasear DBI::Profile para ayudar
+    a asegurar que funcionen con futuras versiones del DBI.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEATS'><a class='permalink' href='#CAVEATS'>ADVERTENCIAS</a></h1>
+<p class="Pp">Las aplicaciones que generan muchas cadenas de sentencias diferentes
+    (típicamente porque no usan placeholders) y perfilan con !Statement
+    en la Ruta (el valor por defecto) consumirán memoria en la estructura de Datos de Perfil
+    por cada sentencia. Usa una referencia a código en la Ruta para devolver una forma editada
+    (simplificada) de la sentencia.</p>
+<p class="Pp">Si un método lanza una excepción por sí mismo (no vía RaiseError) entonces
+    no será contado en el perfil.</p>
+<p class="Pp">Si una subrutina HandleError lanza una excepción (en lugar de
+    devolver 0 y dejar que RaiseError lo haga) entonces la llamada al método no será
+    contada en el perfil.</p>
+<p class="Pp">El tiempo pasado en DESTROY se añade al perfil del manejador
+    padre.</p>
+<p class="Pp">El tiempo pasado en los métodos DBI-&gt;*() no se cuenta. El tiempo pasado
+    en el método de conexión del controlador,
+    <span class="Li">$drh</span>-&gt;<b>connect()</b>, cuando es llamado por
+    DBI-&gt;connect se cuenta si la variable de entorno DBI_PROFILE está
+  establecida.</p>
+<p class="Pp">El tiempo pasado en obtener variables atadas,
+    <span class="Li">$DBI::errstr</span>, se cuenta.</p>
+<p class="Pp">El tiempo pasado en FETCH para <span class="Li">$h</span>-&gt;{Profile}
+    no se cuenta, así que obtener los datos de perfil no los altera.</p>
+<p class="Pp">DBI::PurePerl no soporta perfilado (aunque en teoría podría).</p>
+<p class="Pp">Para consultas asíncronas, el tiempo pasado mientras la consulta se está ejecutando en
+    el backend no se cuenta.</p>
+<p class="Pp">Algunas plataformas no soportan la <b>gettimeofday()</b> función de tiempo de alta
+    resolución usada por el DBI (y disponible vía la
+    <b>dbi_time()</b> función). En cuyo caso obtendrás tiempo con resolución
+    entera que es mayormente inútil.</p>
+<p class="Pp">En plataformas Windows la <b>dbi_time()</b> función está limitada a
+    resolución de milisegundos. Lo cual no es suficientemente fino para nuestras necesidades, pero
+    aún así mucho mejor que la resolución entera. Esta resolución limitada significa
+    que las llamadas rápidas a métodos a menudo registrarán como tomando 0 tiempo. Y los tiempos en
+    general tendrán mucho más 'jitter' dependiendo de dónde dentro del 'milisegundo actual'
+    se tomaron los tiempos de inicio y fin.</p>
+<p class="Pp">Esta documentación podría ser más clara. Probablemente necesita ser
+    reordenada para empezar con varios ejemplos y construir desde ahí. Intentar
+    explicar los conceptos primero parece doloroso y llevar a tantas referencias
+    hacia adelante. (¡Las parches son bienvenidas!)</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/perl-dbi</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.647-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.org/dist/DBI/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-dbi/">/listing/extra/perl-dbi/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#OVERVIEW">DESCRIPCIÓN GENERAL</a></li>
+        
+            <li><a href="#ENABLING_A_PROFILE">HABILITAR UN PERFIL</a></li>
+        
+            <li><a href="#THE_PROFILE_OBJECT">EL OBJETO PERFIL</a></li>
+        
+            <li><a href="#REPORTING">INFORMES</a></li>
+        
+            <li><a href="#CHILD_HANDLES">MANEJADORES HIJOS</a></li>
+        
+            <li><a href="#PROFILE_OBJECT_METHODS">MÉTODOS DEL OBJETO PERFIL</a></li>
+        
+            <li><a href="#CUSTOM_DATA_MANIPULATION"&gt;MANIPULACIÓN DE DATOS PERSONALIZADA</a></li>
+        
+            <li><a href="#CUSTOM_DATA_COLLECTION">COLECCIÓN DE DATOS PERSONALIZADA</a></li>
+        
+            <li><a href="#SUBCLASSING">SUBCLASEADO</a></li>
+        
+            <li><a href="#CAVEATS">ADVERTENCIAS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBI::Profile.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/DBI::Profile.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto para el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

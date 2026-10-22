@@ -1,0 +1,383 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>daxctl-reconfigure-device(1) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">daxctl-reconfigure-device(1)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/ndctl/">ndctl</a></p>
+<p class="lic">Licencias: LGPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DAXCTL-RECONFIGURE-DEVICE(1)</td>
+    <td class="head-vol">Manual de daxctl</td>
+    <td class="head-rtitle">DAXCTL-RECONFIGURE-DEVICE(1)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">daxctl-reconfigure-device - Reconfigura un dispositivo dax en un modo diferente</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre><i>daxctl reconfigure-device</i> &lt;dax0.0&gt; [&lt;dax1.0&gt;...&lt;daxY.Z&gt;] [&lt;opciones&gt;]</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Reconfigura el modo operativo de un dispositivo dax. Esto se puede usar para convertir un dispositivo <i>devdax</i> normal al modo <i>system-ram</i> , el cual organiza que el rango dax se conecte en caliente al sistema como memoria normal.</p>
+<div class="Bd-indent">
+<br/>
+<b>Nota</b>
+<p class="Pp">Esta es una operación destructiva. Cualquier dato en el dispositivo dax
+    <b>será</b> perdido.
+  <br/>
+  Nota</p>
+</div>
+<div class="Bd-indent">
+<br/>
+<b>La reconfiguración del dispositivo depende del modelo de dispositivo dax-bus. Véase</b>
+<p class="Pp">daxctl-migrate-device-model(1)
+  <br/>
+  para más información. Si se está usando dax-class (a través del controlador dax_pmem_compat), la reconfiguración fallará con un error como el siguiente:</p>
+</div>
+<div class="Bd-indent">
+<pre># daxctl reconfigure-device --mode=system-ram --region=0 all
+libdaxctl: daxctl_dev_disable: dax3.0: error: device model is dax-class
+dax3.0: disable failed: Operation not supported
+error reconfiguring devices: Operation not supported
+reconfigured 0 devices</pre>
+</div>
+<p class="Pp"><i>daxctl-reconfigure-device</i> nominalmente espera que pondrá en línea nuevos bloques de memoria como <i>movibles</i>, de modo que los datos del kernel no acaben en esta memoria. Sin embargo, hay otros agentes potenciales que pueden estar configurados para poner automáticamente en línea nueva memoria conectada en caliente a medida que aparece. Más notablemente, estos son la configuración
+    <i>/sys/devices/system/memory/auto_online_blocks</i> o las reglas udev del sistema. Si algún agente compite para poner en línea secciones de memoria, daxctl comprueba si los bloques se pusieron en línea como memoria <i>movible</i> . Si no fue el caso, y se encuentra que los bloques de memoria están en una zona diferente, se muestra una advertencia. Si se desea que un agente diferente controle la puesta en línea de los bloques de memoria y la zona de memoria asociada, se recomienda usar la opción --no-online descrita más abajo. Esto abreviará la operación de reconfiguración del dispositivo a solo conectar en caliente la memoria, y se abstendrá de ponerla en línea.</p>
+<p class="Pp">En caso de que daxctl detecte que existe una política del kernel para poner en línea bloques automáticamente (a través de /sys/devices/system/memory/auto_online_blocks), entonces la reconfiguración a system-ram resultará en un fallo. Esto se puede anular con <i>--force</i>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THEORY_OF_OPERATION'><a class='permalink' href='#THEORY_OF_OPERATION'>TEORÍA DE OPERACIÓN</a></h1>
+<p class="Pp">El subsistema device-dax del kernel expone dispositivos de caracteres que proporcionan acceso DAX (mapeos directos sin el buffer de la caché de páginas) a una región de memoria dada. Los dispositivos se nombran /dev/daxX.Y donde X es un id de región y Y es un id de instancia dentro de esa región. Hay 2 mecanismos que provocan que aparezcan instancias de device-dax:</p>
+<div class="Bd-indent"> 1. Espacio de nombres de Memoria Persistente (PMEM) configurado en modo
+  "devdax". Véase "ndctl create-namspace --help" y
+  <i>CONFIG_DEV_DAX_PMEM</i>
+  <a href='https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/dax/Kconfig'>https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/dax/Kconfig</a>.
+  En este caso la instancia de device-dax tiene un tamaño estático igual a su región de memoria anfitriona, la cual está limitada al rango de direcciones físicas del espacio de nombres anfitrión.</div>
+<div class="Bd-indent"> 2. Memoria Soft Reserved enumerada por el firmware de la plataforma.
+  En los sistemas EFI esto se comunica a través del atributo EFI_MEMORY_SP "Propósito Especial". Véase <i>CONFIG_DEV_DAX_HMEM</i>
+  <a href='https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/dax/Kconfig'>https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/dax/Kconfig</a>.
+  En este caso la(s) instancia(s) de device-dax asociada(s) con la región de memoria dada pueden ser redimensionadas y divididas en múltiples dispositivos.</div>
+<p class="Pp">En el caso de Soft Reservation, la expectativa para las plataformas basadas en EFI + ACPI es que además del atributo EFI_MEMORY_SP, el firmware también crea dominios de proximidad ACPI distintos para cualquier rango de direcciones que tenga características de rendimiento diferentes a la "System RAM" por defecto. Así, el SRAT definirá el dominio de proximidad, el SLIT comunica la distancia relativa a otros dominios de proximidad, y el HMAT se rellena con datos de latencia nominal de lectura/escritura y ancho de banda de lectura/escritura. Esos datos del HMAT se emiten al log del kernel en el arranque, y también se exportan a sysfs. Véase
+    <i>NUMAPERF</i>
+    <a href='https://www.kernel.org/doc/html/latest/admin-guide/mm/numaperf.html'>https://www.kernel.org/doc/html/latest/admin-guide/mm/numaperf.html</a>,
+  para la representación en tiempo de ejecución de los detalles de rendimiento de CPU a nodo de memoria.</p>
+<p class="Pp">Fuera de los detalles de rendimiento NUMA enlazados arriba, el otro método para detectar la presencia de memoria "Soft Reserved" es volcar
+  /proc/iomem y buscar rangos "Soft Reserved". Si el kernel no fue compilado con CONFIG_EFI_SOFT_RESERVE, es anterior a la introducción de CONFIG_EFI_SOFT_RESERVE (v5.5), o fue arrancado con la línea de comando efi=nosoftreserve, entonces device-dax no se adjuntará y la expectativa es que la memoria aparezca como un nodo NUMA solo de memoria. De lo contrario, la memoria aparece como una instancia de device-dax y DAXCTL(1) puede usarse para particionarla opcionalmente y devolver la memoria al kernel como "System RAM", o el dispositivo puede mapearse directamente como el backend de un asignador de memoria de espacio de usuario como <i>LIBVMEM</i> <a href='https://pmem.io/vmem/libvmem/'>https://pmem.io/vmem/libvmem/</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLOS</a></h1>
+<div class="Bd-indent">•Reconfigurar dax0.0 al modo system-ram, no poner en línea la memoria</div>
+<div class="Bd-indent">
+<pre># daxctl reconfigure-device --mode=system-ram --no-online dax0.0
+[
+  {
+    "chardev":"dax0.0",
+    "size":16777216000,
+    "target_node":2,
+    "mode":"system-ram"
+  }
+]</pre>
+</div>
+<div class="Bd-indent">•Reconfigurar dax0.0 al modo devdax, intentar poner la memoria fuera de línea</div>
+<div class="Bd-indent">
+<pre># daxctl reconfigure-device --human --mode=devdax --force dax0.0
+{
+  "chardev":"dax0.0",
+  "size":"15.63 GiB (16.78 GB)",
+  "target_node":2,
+  "mode":"devdax"
+}</pre>
+</div>
+<div class="Bd-indent">•Reconfigurar todos los dispositivos dax en la región 0 al modo system-ram</div>
+<div class="Bd-indent">
+<pre># daxctl reconfigure-device --mode=system-ram --region=0 all
+[
+  {
+    "chardev":"dax0.0",
+    "size":16777216000,
+    "target_node":2,
+    "mode":"system-ram"
+  },
+  {
+    "chardev":"dax0.1",
+    "size":16777216000,
+    "target_node":3,
+    "mode":"system-ram"
+  }
+]</pre>
+</div>
+<div class="Bd-indent">•Ejecutar un proceso llamado <i>some-service</i> usando numactl para restringir sus nodos de CPU a <i>0</i> y <i>1</i>, y las asignaciones de memoria al nodo 2 (determinado usando daxctl_dev_get_target_node() o
+  <i>daxctl list</i>)</div>
+<div class="Bd-indent">
+<pre># daxctl reconfigure-device --mode=system-ram dax0.0
+[
+  {
+    "chardev":"dax0.0",
+    "size":16777216000,
+    "target_node":2,
+    "mode":"system-ram"
+  }
+]
+# numactl --cpunodebind=0-1 --membind=2 -- some-service --opt1 --opt2</pre>
+</div>
+<div class="Bd-indent">•Cambiar el tamaño de un dispositivo dax</div>
+<div class="Bd-indent">
+<pre># daxctl reconfigure-device dax0.1 -s 16G
+reconfigured 1 device
+# daxctl reconfigure-device dax0.1 -s 0
+reconfigured 1 device</pre>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OPTIONS'><a class='permalink' href='#OPTIONS'>OPCIONES</a></h1>
+<p class="Pp">-r, --region=</p>
+<div class="Bd-indent">Restringe la operación a los dispositivos pertenecientes a la(s) región(es) especificada(s). Una región device-dax es un rango contiguo de memoria que aloja uno o más dispositivos /dev/daxX.Y, donde X es el id de la región y Y es el id de instancia del dispositivo.</div>
+<p class="Pp">-s, --size=</p>
+<div class="Bd-indent">Para las regiones que soportan la creación de dispositivos dax, cambia el tamaño del dispositivo en bytes. Esta opción soporta los sufijos "k" o "K" para KiB, "m" o "M" para MiB, "g" o "G" para GiB y "t" o "T" para TiB.
+<div class="Bd-indent">
+<pre>El tamaño debe ser un múltiplo de la alineación de la región.</pre>
+</div>
+<div class="Bd-indent">
+<pre>Esta opción es mutuamente exclusiva con -m o --mode.</pre>
+</div>
+</div>
+<p class="Pp">-a, --align</p>
+<div class="Bd-indent">Las aplicaciones que quieran establecer mapeos de memoria dax con entradas de tabla de páginas mayores que el tamaño de página base del sistema (4K en x86) necesitan un dispositivo que esté suficientemente alineado. Por defecto es 2M. Nótese que el modo "devdax" fuerza que todos los mapeos estén alineados a este valor, es decir, fallan los intentos de mapeo no alineados.
+<div class="Bd-indent">
+<pre>Esta opción es mutuamente exclusiva con -m o --mode.</pre>
+</div>
+</div>
+<p class="Pp">-m, --mode=</p>
+<div class="Bd-indent">Especifica el modo al que se debe reconfigurar el dispositivo(s) dax.
+<div class="Bd-indent">•"system-ram": conectar en caliente el dispositivo a la
+  memoria del sistema.</div>
+<div class="Bd-indent">•"devdax": cambiar al modo normal de
+  "device dax". Esto requiere que el kernel soporte el
+  desconectado en caliente <i>kmem</i> basado en memoria. Si esto no está disponible, un reinicio es
+  la única forma de volver al <i>devdax</i> modo.</div>
+</div>
+<p class="Pp">-N, --no-online</p>
+<div class="Bd-indent">Por defecto, las secciones de memoria proporcionadas por los dispositivos system-ram
+  se conectarán en línea automáticamente e inmediatamente con la
+  <i>online_movable</i> política. Use esta opción para desactivar el comportamiento automático
+  de conexión en línea.</div>
+<p class="Pp">-C, --check-config</p>
+<div class="Bd-indent">Obtener los parámetros de reconfiguración del archivo de configuración global de daxctl.
+  Esto se usa típicamente cuando daxctl-reconfigure-device es llamado
+  desde un archivo de unidad de dispositivo de systemd-udevd. La reconfiguración procede solo si
+  los parámetros de coincidencia en una <i>reconfigure-device</i> sección de la configuración
+  coinciden con el dispositivo dax especificado en la línea de comando. Vea la <i>RECONFIGURACIÓN
+  PERSISTENTE</i> sección para más detalles.</div>
+<p class="Pp">--no-movable</p>
+<div class="Bd-indent"><i>--movable</i> es el valor por defecto. Esto puede ser anulado
+  para conectar en línea nueva memoria de tal manera que no sea <i>movable</i>. Esto permite que cualquier
+  asignación potencialmente sea servida desde esta memoria. Esto puede excluir
+  la eliminación posterior. Con el <i>--movable</i> comportamiento (que es el valor por defecto),
+  las asignaciones del kernel no considerarán esta memoria, y será reservada para
+  uso de aplicaciones.</div>
+<p class="Pp">-f, --force</p>
+<div class="Bd-indent">
+<div class="Bd-indent">•Al convertir del modo "system-ram"
+  a "devdax", se espera que todas las secciones de memoria sean primero
+  desconectadas. Por defecto, daxctl no tocará la memoria en línea. Sin embargo
+  con esta opción, intente desconectar la memoria del nodo NUMA asociado
+  con el dispositivo dax antes de convertirlo de nuevo al modo "devdax".</div>
+<div class="Bd-indent">•Adicionalmente, si se detecta una política del kernel para conectar en línea automáticamente
+  los bloques, la reconfiguración a system-ram falla. Con esta opción, el
+  fallo puede ser anulado para permitir la reconfiguración independientemente de la política
+  del kernel. Hacer esto puede resultar en una reconfiguración exitosa, pero puede no
+  ser posible desconectar posteriormente la memoria sin un reinicio.</div>
+</div>
+<p class="Pp">-u, --human</p>
+<div class="Bd-indent">Por defecto el comando producirá datos enteros crudos
+  amigables para la máquina. En su lugar, con esta bandera, los números que representan el tamaño
+  del almacenamiento se formatearán como cadenas legibles para humanos con unidades, otros campos
+  se convierten a cadenas hexadecimales.</div>
+<p class="Pp">-v, --verbose</p>
+<div class="Bd-indent">Emitir más mensajes de depuración</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PERSISTENT_RECONFIGURATION'><a class='permalink' href='#PERSISTENT_RECONFIGURATION'>RECONFIGURACIÓN   PERSISTENTE</a></h1>
+<p class="Pp">El <i>modo</i> de un dispositivo daxctl no es persistente a través de
+    los reinicios por defecto. Esto se debe a que el dispositivo en sí no contiene ningún
+    metadatos que indiquen en qué modo fue configurado, o en el que se pretende usar.
+    El modo por defecto para tal dispositivo en el arranque es <i>devdax</i>.</p>
+<p class="Pp">El administrador puede establecer una política de tal manera que ciertos dispositivos dax
+    sean siempre reconfigurados en una configuración objetivo en cada arranque. Esto
+    se logra a través de un archivo de configuración de daxctl.</p>
+<p class="Pp">El archivo de configuración puede tener múltiples secciones que influyen en diferentes
+    aspectos de la operación de daxctl. La sección de interés para la reconfiguración
+    persistente es <i>reconfigure-device</i>. El formato de esto es
+    el siguiente:</p>
+<div class="Bd-indent">
+<pre>[reconfigure-device &lt;unique_subsection_name&gt;]
+nvdimm.uuid = &lt;NVDIMM namespace uuid&gt;
+mode = &lt;desired reconfiguration mode&gt; (default: system-ram)
+online = &lt;true|false&gt; (default: true)
+movable = &lt;true|false&gt; (default: true)</pre>
+</div>
+<p class="Pp">Aquí hay un ejemplo de un fragmento de configuración para gestionar tres espacios de nombres
+    devdax, uno se deja en modo devdax, el segundo se cambia a modo system-ram
+    con opciones por defecto (online, movable), y el tercero se establece en
+    modo system-ram, la memoria se conecta en línea, pero no es movable.</p>
+<p class="Pp">Note que el <i>nombre de la subsección</i> puede ser arbitrario, y solo
+    se usa para identificar una sección de configuración específica. No tiene que coincidir con el
+    <i>dispositivo</i> <i>nombre</i> (por ejemplo <i>dax0.0</i> etc).</p>
+<div class="Bd-indent">
+<pre>[reconfigure-device dax0]
+nvdimm.uuid = ed93e918-e165-49d8-921d-383d7b9660c5
+mode = devdax
+[reconfigure-device dax1]
+nvdimm.uuid = f36d02ff-1d9f-4fb9-a5b9-8ceb10a00fe3
+mode = system-ram
+[reconfigure-device dax2]
+nvdimm.uuid = f36d02ff-1d9f-4fb9-a5b9-8ceb10a00fe3
+mode = system-ram
+online = true
+movable = false</pre>
+</div>
+<p class="Pp">El siguiente ejemplo puede usarse para crear un espacio de nombres en modo devdax,
+    y simultáneamente añadir el espacio de nombres recién creado al archivo de configuración
+    para la conversión a system-ram.</p>
+<div class="Bd-indent">
+<pre>ndctl create-namespace --mode=devdax | \
+        jq -r "\"[reconfigure-device $(uuidgen)]\", \"nvdimm.uuid = \(.uuid)\", \"mode = system-ram\"" &gt;&gt; $config_path</pre>
+</div>
+<p class="Pp">La ubicación por defecto para los archivos de configuración de daxctl está bajo
+    /etc/daxctl.conf.d/, y cualquier archivo con un <i>.conf</i> sufijo en esta
+    ubicación es considerado. Es aceptable tener múltiples archivos que contengan
+    secciones de configuración estilo ini, pero el par {sección, subsección} debe ser
+    único en todos los archivos de configuración bajo /etc/daxctl.conf.d/.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Copyright © 2016 - 2022, Intel Corporation. Licencia GPLv2:
+    GNU GPL version 2 <i></i> <a href='http://gnu.org/licenses/gpl.html'>http://gnu.org/licenses/gpl.html</a>. Este es
+    software libre: usted es libre de cambiarlo y redistribuirlo. NO HAY
+    GARANTÍA, en la medida permitida por la ley.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VEA   TAMBIÉN</a></h1>
+<p class="Pp">daxctl-list(1),daxctl-migrate-device-model[1]</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-18</td>
+    <td class="foot-os">daxctl</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/ndctl/">extra/ndctl</a></dd>
+        <dt>Versión:</dt>
+        <dd>79-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://github.com/pmem/ndctl">https://github.com/pmem/ndctl</a></dd>
+        <dt>Licencias:</dt>
+        <dd>LGPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/ndctl/">/listing/extra/ndctl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#THEORY_OF_OPERATION">TEORÍA DE OPERACIÓN</a></li>
+        
+            <li><a href="#EXAMPLES">EJEMPLOS</a></li>
+        
+            <li><a href="#OPTIONS">OPCIONES</a></li>
+        
+            <li><a href="#PERSISTENT_RECONFIGURATION">RECONFIGURACIÓN PERSISTENTE</a></li>
+        
+            <li><a href="#COPYRIGHT">DERECHOS DE AUTOR</a></li>
+        
+            <li><a href="#SEE_ALSO">VEA TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/daxctl-reconfigure-device.1.en.txt">txt</a>, 
+        
+            <a href="/man/daxctl-reconfigure-device.1.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto para el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Regexp::Common(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Regexp__Common(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Regexp::Common(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Regexp::Common(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Regexp::Common - Proporciona expresiones regulares comúnmente solicitadas</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre># USO ESTÁNDAR 
+use Regexp::Common;
+while (&lt;&gt;) {
+    /$RE{num}{real}/               and print q{un número};
+    /$RE{quoted}/                  and print q{una cadena entre comillas ['&quot;`]};
+   m[$RE{delimited}{-delim=&gt;'/'}]  and print q{una secuencia /.../};
+    /$RE{balanced}{-parens=&gt;'()'}/ and print q{paréntesis balanceados};
+    /$RE{profanity}/               and print q{una palabra #*@%-ing};
+}
+# INTERFAZ BASADA EN SUBRUTINA
+use Regexp::Common 'RE_ALL';
+while (&lt;&gt;) {
+    $_ =~ RE_num_real()              and print q{un número};
+    $_ =~ RE_quoted()                and print q{una cadena entre comillas ['&quot;`]};
+    $_ =~ RE_delimited(-delim=&gt;'/')  and print q{una secuencia /.../};
+    $_ =~ RE_balanced(-parens=&gt;'()'} and print q{paréntesis balanceados};
+    $_ =~ RE_profanity()             and print q{una palabra #*@%-ing};
+}
+# COINCIDENCIA EN LÍNEA...
+if ( $RE{num}{int}-&gt;matches($text) ) {...}
+# ...Y SUSTITUCIÓN
+my $cropped = $RE{ws}{crop}-&gt;subs($uncropped);
+# PATRONES PERSONALIZADOS
+use Regexp::Common 'pattern';
+pattern name   =&gt; ['name', 'mine'],
+        create =&gt; '(?i:J[.]?\s+A[.]?\s+Perl-Hacker)',
+        ;
+my $name_matcher = $RE{name}{mine};
+pattern name    =&gt; [ 'lineof', '-char=_' ],
+        create  =&gt; sub {
+                       my $flags = shift;
+                       my $char = quotemeta $flags-&gt;{-char};
+                       return '(?:^$char+$)';
+                   },
+        match   =&gt; sub {
+                       my ($self, $str) = @_;
+                       return $str !~ /[^$self-&gt;{flags}{-char}]/;
+                   },
+        subs   =&gt; sub {
+                       my ($self, $str, $replacement) = @_;
+                       $_[1] =~ s/^$self-&gt;{flags}{-char}+$//g;
+                  },
+        ;
+my $asterisks = $RE{lineof}{-char=&gt;'*'};
+# DECIDIR QUÉ PATRONES CARGAR.
+use Regexp::Common qw /comment number/;  # Patrones de comentario y número.
+use Regexp::Common qw /no_defaults/;     # No cargar ningún patrón.
+use Regexp::Common qw /!delimited/;      # Todos, pero los patrones delimitados.</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Por defecto, este módulo exporta un único hash
+    (<span class="Li">%RE</span>) que almacena o genera expresiones regulares
+    comúnmente necesarias (ver &quot;Lista de patrones disponibles&quot;).</p>
+<p class="Pp">Existe una sintaxis alternativa, basada en subrutinas, descrita
+    en &quot;Interfaz basada en subrutina&quot;.</p>
+<section class="Ss">
+<h2 class="Ss" id='Sintaxis_general_para_solicitar_patrones'><a class='permalink' href='#Sintaxis_general_para_solicitar_patrones'>Sintaxis   general para solicitar patrones</a></h2>
+<p class="Pp">Para acceder a un patrón particular, <span class="Li">%RE</span>
+    se trata como un hash jerárquico de hashes (de hashes...), donde cada clave
+    sucesiva es un identificador. Por ejemplo, para acceder al patrón que coincide
+    con números reales, se especifica:</p>
+<pre>$RE{num}{real}</pre>
+<p class="Pp">y para acceder al patrón que coincide con enteros:</p>
+<pre>$RE{num}{int}</pre>
+<p class="Pp">Las capas más profundas del hash se utilizan para especificar
+    *flags*: argumentos que modifican el patrón resultante de alguna manera. Las
+    claves utilizadas para acceder a estas capas se prefijan con un signo menos y
+    pueden tener un valor; si se proporciona un valor, se hace usando una clave
+    multidimensional. Por ejemplo, para acceder al patrón que coincide con
+    números reales en base 2 con comas incrustadas separando grupos de tres
+    dígitos (por ejemplo, 10,101,110.110101101):</p>
+<pre>$RE{num}{real}{-base =&gt; 2}{-sep =&gt; ','}{-group =&gt; 3}</pre>
+<p class="Pp">Gracias a la magia de Perl, estas capas de flags pueden especificarse
+    en cualquier orden (¡e incluso intercaladas entre las claves identificadoras!)
+    por lo que se podría obtener el mismo patrón con:</p>
+<pre>$RE{num}{real}{-sep =&gt; ','}{-group =&gt; 3}{-base =&gt; 2}</pre>
+<p class="Pp">o:</p>
+<pre>$RE{num}{-base =&gt; 2}{real}{-group =&gt; 3}{-sep =&gt; ','}</pre>
+<p class="Pp">o incluso:</p>
+<pre>$RE{-base =&gt; 2}{-group =&gt; 3}{-sep =&gt; ','}{num}{real}</pre>
+<p class="Pp">etc.</p>
+<p class="Pp">Tenga en cuenta, sin embargo, que el orden relativo entre las claves
+    identificadoras *es* significativo. Es decir:</p>
+<pre>$RE{list}{set}</pre>
+<p class="Pp">no sería lo mismo que:</p>
+<pre>$RE{set}{list}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Sintaxis_de_flags'><a class='permalink' href='#Sintaxis_de_flags'>Sintaxis   de flags</a></h2>
+<p class="Pp">En versiones anteriores a la 2.113, los flags también podían escribirse
+    como <span class="Li">&quot;{&quot;-flag=valor&quot;}&quot;</span>. Esto ya no
+    funciona, aunque
+    <span class="Li">&quot;{&quot;-flag$;valor&quot;}&quot;</span> todavía lo hace.
+    Sin embargo, <span class="Li">&quot;{-flag =&gt; 'valor'}&quot;</span> es la
+    sintaxis preferida.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Flags_universales'><a class='permalink' href='#Flags_universales'>Flags   universales</a></h2>
+<p class="Pp">Normalmente, los flags son específicos para un solo patrón. Sin
+    embargo, hay dos flags que todos los patrones pueden especificar.</p>
+<dl class="Bl-tag">
+  <dt>&quot;-keep&quot;</dt>
+  <dd>Por defecto, los patrones proporcionados por <span class="Li">%RE</span> no
+      contienen paréntesis de captura. Sin embargo, si se especifica el flag
+      <span class="Li">&quot;-keep&quot;</span> (no requiere valor), entonces se
+      capturan las subcadenas significativas que coincide el patrón. Por ejemplo:
+        <pre>if ($str =~ $RE{num}{real}{-keep}) {
+        $number   = $1;
+        $whole    = $3;
+        $decimals = $5;
+}
+</pre>
+    <p class="Pp">Se necesita cuidado especial si un patrón
+        &quot;kept&quot; se interpola en una expresión regular más grande, ya que la
+        presencia de otros paréntesis de captura probablemente cambiará las
+        variables de &quot;número&quot; en las que se guardan las subcadenas
+        significativas.</p>
+    <p class="Pp">Ver también &quot;Añadiendo nuevas expresiones regulares&quot;,
+        que describe cómo crear nuevos patrones con corchetes de captura
+        &quot;opcionales&quot; que responden a <span class="Li">&quot;-keep&quot;</span>.</p>
+  </dd>
+  <dt>&quot;-i&quot;</dt>
+  <dd>Algunos patrones o subpatrones solo coinciden con letras minúsculas o
+      mayúsculas. Si se desea hacer coincidir sin distinción entre mayúsculas y
+      minúsculas, una opción es usar el modificador de regexp
+      <span class="Li">&quot;/i&quot;</span>, o la secuencia especial
+      <span class="Li">&quot;(?i)&quot;</span>. Pero si se usa la interfaz
+      funcional, no se tiene esta opción. El switch <span class="Li">&quot;-i&quot;</span>
+      resuelve este problema; al usarlo, el patrón realizará una coincidencia sin
+      distinción entre mayúsculas y minúsculas.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Interfaz_OO_y_coincidencia/sustitución_en_línea'><a class='permalink' href='#Interfaz_OO_y_coincidencia/sustitución_en_línea'>Interfaz   OO y coincidencia/sustitución en línea</a></h2>
+<p class="Pp">Los patrones devueltos por <span class="Li">%RE</span> son objetos,
+    así que en lugar de escribir:</p>
+<pre>if ($str =~ /$RE{some}{pattern}/ ) {...}</pre>
+<p class="Pp">puedes escribir:</p>
+<pre>if ( $RE{some}{pattern}-&gt;matches($str) ) {...}</pre>
+<p class="Pp">Para la coincidencia, esto no parece tener gran ventaja aparte de
+    la legibilidad (pero ver abajo).</p>
+<p class="Pp">Para sustituciones, tiene otras ventajas significativas. Frecuentemente
+    querrás realizar una sustitución en una cadena sin cambiar la original. La
+    mayoría de la gente usa esto:</p>
+<pre>$changed = $original;
+$changed =~ s/$RE{some}{pattern}/$replacement/;</pre>
+<p class="Pp">Los más hábiles usan:</p>
+<pre>($changed = $original) =~ s/$RE{some}{pattern}/$replacement/;</pre>
+<p class="Pp"><span class="Li">Regexp::Common</span> te permite escribir
+    esto:</p>
+<pre>$changed = $RE{some}{pattern}-&gt;subs($original=&gt;$replacement);</pre>
+<p class="Pp">Aparte de reducir la ansiedad por la precedencia, este enfoque tiene
+    las ventajas añadidas de que el comportamiento de la sustitución puede ser
+    optimizado a partir de la expresión regular, y la cadena de reemplazo puede
+    ser proporcionada por defecto (ver &quot;Añadiendo nuevas expresiones
+    regulares&quot;).</p>
+<p class="Pp">Por ejemplo, en la implementación de esta sustitución:</p>
+<pre>$cropped = $RE{ws}{crop}-&gt;subs($uncropped);</pre>
+<p class="Pp">la cadena vacía por defecto se proporciona automáticamente, y la
+    sustitución se optimiza para usar:</p>
+<pre>$uncropped =~ s/^\s+//;
+$uncropped =~ s/\s+$//;</pre>
+<p class="Pp">en lugar de:</p>
+<pre>$uncropped =~ s/^\s+|\s+$//g;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Interfaz_basada_en_subrutinas'><a class='permalink' href='#Interfaz_basada_en_subrutinas'>Interfaz   basada en subrutinas</a></h2>
+<p class="Pp">La interfaz basada en hashes se eligió porque permite interpolar
+    expresiones regulares sin esfuerzo, y porque también permite
+    &quot;curryarlas&quot;. Por ejemplo:</p>
+<pre>my $num = $RE{num}{int};
+my $commad     = $num-&gt;{-sep=&gt;','}{-group=&gt;3};
+my $duodecimal = $num-&gt;{-base=&gt;12};</pre>
+<p class="Pp">Sin embargo, el uso de hashes vinculados hace que el acceso a los
+    patrones de <span class="Li">Regexp::Common</span> sea más lento de lo que
+    podría ser. En contextos donde la impaciencia prevalece sobre la pereza,
+    <span class="Li">Regexp::Common</span> proporciona una interfaz adicional
+    basada en subrutinas.</p>
+<p class="Pp">Para cada entrada (sub-)en el hash <span class="Li">%RE</span>
+    (<span class="Li">&quot;$RE{key1}{key2}{etc}&quot;</span>), hay una subrutina
+    exportable correspondiente:
+    <span class="Li">RE_key1_key2_etc()</span>. El nombre de cada subrutina es la
+    combinación separada por guiones bajos del nombre de la clave.</p>
+</section>
+</div>
+</section>
+            </article>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>use Regexp::Common;
+my $re = Regexp::Common::RE_num();
+$string =~ /$re/;
+# or
+use Regexp::Common qw( RE_num RE_date );
+$string =~ RE_num();
+$string =~ RE_date(-sep=&gt;'-');
+# or
+use Regexp::Common 'RE_ALL';
+$string =~ RE_comment();
+# or
+use Regexp::Common 'RE_num_ALL';
+$string =~ RE_num_int();
+$string =~ RE_num_real();</pre>
+<p class="Pp">This module provides a convenient way to use complex and often-used
+    regular expressions. It is not intended to be a complete collection of all
+    possible regular expressions, but rather to provide a useful starting point
+    and a framework for adding your own.</p>
+<p class="Pp">The core of the module is a hash named <span class="Li">%RE</span>
+    where each key is the name of a pattern, and the value is a reference to a
+    regular expression object. For example, <span class="Li">$RE{number}</span>
+    is a reference to a regular expression that matches numbers.</p>
+<p class="Pp">The patterns can be retrieved from the hash using the standard
+    Perl notation <span class="Li">&quot;${RE}{key}&quot;</span>. In addition,
+    the module provides a set of exportable subroutines that are shortcuts for
+    retrieving these regular expressions. Thus, instead of writing:</p>
+<pre>use Regexp::Common;
+$string =~ /$RE{number}/;</pre>
+<p class="Pp">you can write:</p>
+<pre>use Regexp::Common qw( RE_num );
+$string =~ RE_num();</pre>
+<p class="Pp">When called, these subroutines return ordinary
+    <span class="Li">&quot;qr&quot;</span>'d regular expressions.</p>
+<p class="Pp">Furthermore, you can pass arguments to these subroutines. These
+    arguments are used to customize the generated regular expression. For
+    example, <span class="Li">RE_num_real(-base=&gt;8)</span> will return a
+    regular expression that matches real numbers in base 8.</p>
+<p class="Pp">The arguments are passed as a hash. The keys of the hash are flags
+    that modify the behavior of the pattern. The available flags depend on the
+    specific pattern. Most patterns support a <span class="Li">&quot;-keep&quot;</span>
+    flag, which causes the entire match to be captured in group 0. This is the
+    default behaviour.</p>
+<p class="Pp">The arguments are processed by the underlying pattern definition.
+    When a pattern is defined with flags, they are passed to the subroutine
+    that generates the regex. The subroutine can then use these flags to alter
+    the resulting regex. The arguments are passed to the subroutine in its
+    argument list.</p>
+<p class="Pp">Note that the arguments are concatenated using the
+    <span class="Li">no-op</span> function, which is the default behavior for
+    concatenation of the <i>non-flag</i> keys that locate the same pattern in
+    <span class="Li">%RE</span>. Flags are passed to the subroutine in its
+    argument list. Thus:</p>
+<pre>use Regexp::Common qw( RE_ws_crop RE_num_real RE_profanity );
+$str =~ RE_ws_crop() and die &quot;Surrounded by whitespace&quot;;
+$str =~ RE_num_real(-base=&gt;8, -sep=&gt;&quot; &quot;) or next;
+$offensive = RE_profanity(-keep);
+$str =~ s/$offensive/$bad{$1}++; &quot;&lt;expletive deleted&gt;&quot;/ge;</pre>
+<p class="Pp">Note that, unlike the hash-based interface (which returns
+    objects), these subroutines return ordinary
+    <span class="Li">&quot;qr&quot;</span>'d regular expressions. Hence they do
+    not curry, nor do they provide the OO match and substitution inlining
+    described in the previous section.</p>
+<p class="Pp">It is also possible to export subroutines for all available
+    patterns like so:</p>
+<pre>use Regexp::Common 'RE_ALL';</pre>
+<p class="Pp">Or you can export all subroutines with a common prefix of keys
+    like so:</p>
+<pre>use Regexp::Common 'RE_num_ALL';</pre>
+<p class="Pp">which will export <span class="Li">&quot;RE_num_int&quot;</span>
+    and <span class="Li">&quot;RE_num_real&quot;</span> (and if you have create
+    more patterns who have first key <i>num</i>, those will be exported as
+    well). In general, <i>RE_key1_..._keyn_ALL</i> will export all subroutines
+    whose pattern names have first keys <i>key1</i> ... <i>keyn</i>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Adding_new_regular_expressions'><a class='permalink' href='#Adding_new_regular_expressions'>Añadiendo nuevas expresiones regulares</a></h2>
+<p class="Pp">Puedes añadir tus propias expresiones regulares al hash
+    <span class="Li">%RE</span> en tiempo de ejecución, usando la subrutina
+    exportable <span class="Li">&quot;pattern&quot;</span>. Espera una lista de
+    pares clave/valor similar a un hash que especifica el comportamiento del
+    patrón. Los diversos pares de argumentos posibles son:</p>
+<dl class="Bl-tag">
+  <dt>&quot;name =&gt; [ @list ]&quot;</dt>
+  <dd>Un argumento requerido que especifica el nombre del patrón, y cualquier
+      bandera que pueda tomar, a través de una referencia a una lista de
+      cadenas. Por ejemplo:
+        <pre>pattern name =&gt; [qw( line of -char )],
+        # otros argumentos aquí
+        ;
+</pre>
+    <p class="Pp">Esto especifica una entrada
+        <span class="Li">&quot;$RE{line}{of}&quot;</span>, que puede tomar una
+        bandera <span class="Li">&quot;-char&quot;</span>.</p>
+    <p class="Pp">Las banderas también pueden especificarse con un valor por
+        defecto, que se utiliza siempre que la bandera se especifica sin un
+        valor explícito (pero no cuando se omite la bandera). Por ejemplo:</p>
+        <pre>pattern name =&gt; [qw( line of -char=_ )],
+        # el carácter por defecto es '_'
+        # otros argumentos aquí
+        ;
+</pre>
+  </dd>
+  <dt>&quot;create =&gt; $sub_ref_or_string&quot;</dt>
+  <dd>Un argumento requerido que especifica ya sea una cadena que será devuelta
+      como el patrón:
+        <pre>pattern name =&gt; [qw( line of underscores )],
+        create =&gt; q/(?:^_+$)/
+        ;
+</pre>
+    <p class="Pp">o una referencia a una subrutina que será llamada para crear
+        el patrón:</p>
+        <pre>pattern name =&gt; [qw( line of -char=_ )],
+        create =&gt; sub {
+                        my ($self, $flags) = @_;
+                        my $char = quotemeta $flags-&gt;{-char};
+                        return '(?:^$char+$)';
+                    },
+        ;
+</pre>
+    <p class="Pp">Si se usa la versión de subrutina, la subrutina será llamada
+        con tres argumentos: una referencia al objeto de patrón en sí, una
+        referencia a un hash que contiene las banderas y sus valores, y una
+        referencia a un array que contiene las claves que no son banderas.</p>
+    <p class="Pp">Lo que la subrutina devuelva se convertirá en cadena como
+        patrón.</p>
+    <p class="Pp">Sin importar cómo se cree el patrón, se procesa
+        inmediatamente para incluir o excluir paréntesis de captura (de acuerdo
+        con el valor de la bandera <span class="Li">&quot;-keep&quot;</span>).
+        Para especificar tales paréntesis de captura "opcionales" dentro de la
+        expresión regular asociada con
+        <span class="Li">&quot;create&quot;</span>, usa la notación
+        <span class="Li">&quot;(?k:...)&quot;</span>. Cualquier paréntesis de
+        este tipo se convertirá en <span class="Li">&quot;(...)&quot;</span>
+        cuando se especifique la bandera <span class="Li">&quot;-keep&quot;</span>,
+        o en <span class="Li">&quot;(?:...)&quot;</span> cuando no se haga. Es
+        una convención de Regexp::Common que los paréntesis de captura más
+        externos capturen siempre el patrón completo, pero esto no se impone.</p>
+  </dd>
+  <dt>&quot;match =&gt; $sub_ref&quot;</dt>
+  <dd>Un argumento opcional que especifica una subrutina que será llamada cuando
+      se invoque el método
+      <span class="Li">&quot;$RE{...}-&gt;matches(...)&quot;</span> de este
+      patrón.
+    <p class="Pp">La subrutina debe esperar dos argumentos: una referencia al
+        objeto de patrón en sí, y la cadena a comparar.</p>
+    <p class="Pp">Debería devolver los mismos tipos de valores que devuelve
+        <span class="Li">&quot;m/.../&quot;</span>.</p>
+        <pre>pattern name =&gt; [qw( line of -char )],
+        create =&gt; sub {...},
+        match =&gt; sub {
+                        my ($self, $str) = @_;
+                        $str !~ /[^$self-&gt;{flags}{-char}]/;
+                   },
+        ;
+</pre>
+  </dd>
+  <dt>&quot;subs =&gt; $sub_ref&quot;</dt>
+  <dd>Un argumento opcional que especifica una subrutina que será llamada cuando
+      se invoque el método
+      <span class="Li">&quot;$RE{...}-&gt;subs(...)&quot;</span> de este
+      patrón.
+    <p class="Pp">La subrutina debe esperar tres argumentos: una referencia al
+        objeto de patrón en sí, la cadena a modificar y el valor a sustituir en
+        ella. El tercer argumento puede ser
+        <span class="Li">&quot;undef&quot;</span>, indicando que se requiere la
+        sustitución por defecto.</p>
+    <p class="Pp">La subrutina debe devolver los mismos tipos de valores que
+        devuelve una
+        <span class="Li">&quot;s/.../.../&quot;</span>.</p>
+    <p class="Pp">Por ejemplo:</p>
+        <pre>pattern name =&gt; [ 'lineof', '-char=_' ],
+        create =&gt; sub {...},
+        subs =&gt; sub {
+                     my ($self, $str, $ignore_replacement) = @_;
+                     $_[1] =~ s/^$self-&gt;{flags}{-char}+$//g;
+                   },
+        ;
+</pre>
+    <p class="Pp">Nótese que tal subrutina casi siempre necesitará modificar
+        <span class="Li">$_[1]</span> directamente.</p>
+  </dd>
+  <dt>&quot;version =&gt; $minimum_perl_version&quot;</dt>
+  <dd>Si se proporciona este argumento, especifica la versión mínima de perl
+      requerida para usar el nuevo patrón. Los intentos de usar el patrón con
+      versiones anteriores de perl generarán un diagnóstico fatal.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Loading_specific_sets_of_patterns.'><a class='permalink' href='#Loading_specific_sets_of_patterns.'>Cargando conjuntos específicos de patrones.</a></h2>
+<p class="Pp">Por defecto, todos los conjuntos de patrones listados a continuación
+    están disponibles. Sin embargo, es posible indicar qué conjuntos de patrones
+    deben estar disponibles; los conjuntos deseados se deben dar como argumentos
+    a <span class="Li">&quot;use&quot;</span>. Alternativamente, también es
+    posible indicar qué conjuntos de patrones no deben estar disponibles; esos
+    conjuntos se darán como argumento a la declaración
+    <span class="Li">&quot;use&quot;</span>, pero irán precedidos de un signo de
+    exclamación. El argumento <i>no_defaults</i> indica que no se pondrá
+    ninguno de los patrones por defecto a disposición. Esto es útil, por ejemplo,
+    si todo lo que deseas es la subrutina
+    <span class="Li">pattern()</span>.</p>
+<p class="Pp">Ejemplos:</p>
+<pre>use Regexp::Common qw /comment number/;  # Patrones de comentarios y números.
+use Regexp::Common qw /no_defaults/;     # No cargar ningún patrón.
+use Regexp::Common qw /!delimited/;      # Todos, excepto patrones delimitados.</pre>
+<p class="Pp">También es posible cargar tu propio conjunto de patrones. Si tienes
+    un módulo <span class="Li">&quot;Regexp::Common::my_patterns&quot;</span>
+    que hace que los patrones estén disponibles, puedes hacer que estén
+    disponibles con</p>
+<pre>use Regexp::Common qw /my_patterns/;</pre>
+<p class="Pp">Nótese que los patrones por defecto seguirán estando disponibles; solo
+    si usas <i>no_defaults</i>, o mencionas explícitamente uno de los conjuntos
+    por defecto, los valores por defecto no mencionados no estarán disponibles.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='List_of_available_patterns'><a class='permalink' href='#List_of_available_patterns'>Lista de patrones disponibles</a></h2>
+<p class="Pp">Los patrones listados a continuación están actualmente disponibles. Cada
+    conjunto de patrones tiene su propia página de manual que describe los
+    detalles. Para cada conjunto de patrones llamado <i>name</i>, la página de
+    manual <i>Regexp::Common::name</i> describe los detalles.</p>
+<p class="Pp">Actualmente están disponibles:</p>
+<dl class="Bl-tag">
+  <dt id="Regexp::Common::balanced"><a class="permalink" href="#Regexp::Common::balanced">Regexp::Common::balanced</a></dt>
+  <dd>Proporciona expresiones regulares para cadenas con delimitadores
+      parentesizados balanceados.</dd>
+  <dt id="Regexp::Common::comment"><a class="permalink" href="#Regexp::Common::comment">Regexp::Common::comment</a></dt>
+  <dd>Proporciona expresiones regulares para comentarios de varios idiomas (43
+      idiomas actualmente).</dd>
+  <dt id="Regexp::Common::delimited"><a class="permalink" href="#Regexp::Common::delimited">Regexp::Common::delimited</a></dt>
+  <dd>Proporciona expresiones regulares para cadenas delimitadas.</dd>
+  <dt id="Regexp::Common::lingua"><a class="permalink" href="#Regexp::Common::lingua">Regexp::Common::lingua</a></dt>
+  <dd>Proporciona expresiones regulares para palíndromos.</dd>
+  <dt id="Regexp::Common::list"><a class="permalink" href="#Regexp::Common::list">Regexp::Common::list</a></dt>
+  <dd>Proporciona expresiones regulares para listas.</dd>
+  <dt id="Regexp::Common::net"><a class="permalink" href="#Regexp::Common::net">Regexp::Common::net</a></dt>
+  <dd>Proporciona expresiones regulares para direcciones IPv4, IPv6 y MAC.</dd>
+  <dt id="Regexp::Common::number"><a class="permalink" href="#Regexp::Common::number">Regexp::Common::number</a></dt>
+  <dd>Proporciona expresiones regulares para números (enteros y reales).</dd>
+  <dt id="Regexp::Common::profanity"><a class="permalink" href="#Regexp::Common::profanity">Regexp::Common::profanity</a></dt>
+  <dd>Proporciona expresiones regulares para groserías.</dd>
+  <dt id="Regexp::Common::whitespace"><a class="permalink" href="#Regexp::Common::whitespace">Regexp::Common::whitespace</a></dt>
+  <dd>Proporciona expresiones regulares para espacios en blanco al principio y al
+      final.</dd>
+  <dt id="Regexp::Common::zip"><a class="permalink" href="#Regexp::Common::zip">Regexp::Common::zip</a></dt>
+  <dd>Proporciona expresiones regulares para códigos postales.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Forthcoming_patterns_and_features'><a class='permalink' href='#Forthcoming_patterns_and_features'>Próximos patrones y características</a></h2>
+<p class="Pp">Las futuras versiones del módulo también proporcionarán patrones
+    para lo siguiente:</p>
+<pre>* direcciones de correo electrónico
+* etiquetas HTML/XML
+* más comparadores numéricos,
+* encabezados de correo (incluidos los multilínea),
+* más URLs
+* números de teléfono de varios países
+* moneda (formato universal de 3 letras, nombres de moneda, Latin-1)
+* fechas
+* formatos binarios (por ejemplo, UUencoded, MIMEd)</pre>
+<p class="Pp">Si tienes otros patrones o generadores de patrones que crees que
+    serían de utilidad general, por favor envíalos al mantenedor, preferiblemente
+    como código fuente usando la subrutina
+    <span class="Li">&quot;pattern&quot;</span>. Las contribuciones que incluyan
+    un conjunto de pruebas serán especialmente bienvenidas.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DIAGNOSTICS'><a class='permalink' href='#DIAGNOSTICS'>DIAGNÓSTICOS</a></h1>
+<dl class="Bl-tag">
+  <dt>&quot;Can't export unknown subroutine %s&qu</dt>
+</dl>
+</section>
+<article class="man-page">
+    <section class="Sh">
+        <h1 class="Sh" id='DIAGNOSTICS'><a class='permalink' href='#DIAGNOSTICS'>DIAGNOSTICS</a></h1>
+        <dl class="Bl-tag">
+            <dt>'No such subroutine: &quot;%s&quot;'</dt>
+            <dd>La interfaz basada en subrutinas no reconoció la subrutina solicitada.
+                A menudo causado por un error tipográfico o un nombre especificado incompletamente.</dd>
+            <dt>"Can't create unknown regex: $RE{...}"</dt>
+            <dd>Regexp::Common no tiene un generador para el patrón solicitado. A menudo
+                indica un parámetro mal escrito o faltante.</dd>
+            <dt>"Perl %f no soporta el patrón $RE{...}. Necesitas Perl %f o
+                posterior"</dt>
+            <dd>El patrón solicitado requiere características avanzadas de expresiones regulares (por ejemplo, recursión)
+                que no están disponibles en tu versión de Perl. Es hora de actualizar.</dd>
+            <dt>"pattern() requiere argumento: name =&gt; [ @list ]"</dt>
+            <dd>Cada especificación de patrón definida por el usuario debe tener un nombre.</dd>
+            <dt>"pattern() requiere argumento: create =&gt;
+                $sub_ref_or_string"</dt>
+            <dd>Cada especificación de patrón definida por el usuario debe proporcionar un mecanismo de creación de patrón:
+                ya sea una cadena de patrón o una referencia a una subrutina que
+                devuelve la cadena de patrón.</dd>
+            <dt>"Base must be between 1 and 36"</dt>
+            <dd>El patrón
+                <span class="Li">"$RE{num}{real}{-base=>'</span><span class="Li"><i>N</i></span><span class="Li">'}</span>
+                utiliza los caracteres [0-9A-Z] para representar los dígitos de varias bases.
+                Por lo tanto, solo produce expresiones regulares para bases de hasta
+                hexatricensimal.</dd>
+            <dt>"Must specify delimiter in $RE{delimited}"</dt>
+            <dd>El patrón no tiene un delimitador predeterminado. Necesitas escribir:
+                <span class="Li">"$RE{delimited}{-delim=></span><span class="Li"><i>X</i></span><span class="Li">'}</span>
+                para algún carácter <i>X</i></dd>
+        </dl>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='ACKNOWLEDGEMENTS'><a class='permalink' href='#ACKNOWLEDGEMENTS'>AGRADECIMIENTOS</a></h1>
+        <p class="Pp">Mi más sincero agradecimiento a las muchas personas que han animado y contribuido
+            a este proyecto, especialmente: Elijah, Jarkko, Tom, Nat, Ed y
+            Vivek.</p>
+        <p class="Pp">Más agradecimientos para: Alexandr Ciornii, Blair Zajac, Bob
+            Stockdale, Charles Thomas, Chris Vertonghen, los CPAN Testers, David Hand,
+            Fany, Geoffrey Leach, Hermann-Marcus Behrens, Jerome Quelin, Jim Cromie,
+            Lars Wilke, Linda Julien, Mike Arms, Mike Castle, Mikko, Murat Uenalan,
+            Rafaël Garcia-Suarez, Ron Savage, Sam Vilain, Slaven Rezic, Smylers,
+            Tim Maher, y todos los demás que he olvidado.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+        <p class="Pp">Damian Conway (damian@conway.org)</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='MAINTENANCE'><a class='permalink' href='#MAINTENANCE'>MANTENIMIENTO</a></h1>
+        <p class="Pp">Este paquete es mantenido por Abigail
+            (<i>regexp-common@abigail.freedom.nl</i>).</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='BUGS_AND_IRRITATIONS'><a class='permalink' href='#BUGS_AND_IRRITATIONS'>ERRORES E IRRITACIONES</a></h1>
+        <p class="Pp">Seguro que habrá muchos.</p>
+        <p class="Pp">Para empezar, faltan muchas expresiones regulares comunes. Envíalas a
+            <i>regexp-common@abigail.freedom.nl</i>.</p>
+        <p class="Pp">Hay algunos problemas con las páginas POD al instalar este módulo usando una versión de Perl anterior a la 5.6.0; es posible que algunas páginas de manual no se instalen o no se instalen correctamente con una versión de Perl tan antigua. Podrías considerar actualizar tu Perl.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='NOT_A_BUG'><a class='permalink' href='#NOT_A_BUG'>NO ES UN ERROR</a></h1>
+        <dl class="Bl-tag">
+            <dt>&#x2022;</dt>
+            <dd>Los diversos patrones no están anclados. Es decir, un patrón como
+                <span class="Li">"$RE {num} {int}"</span> coincidirá con
+                "abc4def", porque una subcadena del sujeto coincide. Esto es
+                intencional y no un error. Si quieres que el patrón esté anclado, usa algo como:
+                <pre>my $integer = $RE {num} {int};
+$subj =~ /^$integer$/ and print "Matches!\n";
+</pre>
+            </dd>
+        </dl>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='LICENSE_and_COPYRIGHT'><a class='permalink' href='#LICENSE_and_COPYRIGHT'>LICENCIA Y COPYRIGHT</a></h1>
+        <p class="Pp">Este software es Copyright (c) 2001 - 2024, Damian Conway y
+            Abigail.</p>
+        <p class="Pp">Este módulo es software libre, y puede ser utilizado bajo cualquiera de las siguientes licencias:</p>
+        <pre>1) La Licencia Artística de Perl. Ver el archivo COPYRIGHT.AL.
+2) La Licencia Artística de Perl 2.0. Ver el archivo COPYRIGHT.AL2.
+3) La Licencia BSD. Ver el archivo COPYRIGHT.BSD.
+4) La Licencia MIT. Ver el archivo COPYRIGHT.MIT.</pre>
+    </section>
+</article>
+<table class="foot">
+    <tr>
+        <td class="foot-date">2025-07-14</td>
+        <td class="foot-os">perl v5.42.0</td>
+    </tr>
+</table>

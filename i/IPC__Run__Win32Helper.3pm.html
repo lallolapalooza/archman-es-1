@@ -1,0 +1,165 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>IPC::Run::Win32Helper(3pm) — Páginas manuales </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">IPC__Run__Win32Helper(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-ipc-run/">perl-ipc-run</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">IPC::Run::</td>Win32Helper(3)
+    <td class="head-vol">Documentación de Perl aportada por el </td>usuario
+    <td class="head-rtitle">IPC::R</td>un::Wi</tr>n32Hel</table>per(3)
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">IPC::Run::Win32Helper - ru</p>tinas auxiliares para IPC:</section>:Run en plataformas Win32.
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<pre>use IPC::Run::Win3</pre>2Helper;   # Export</section>a todo por defecto
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp">IPC::Run necesita usar sockets para redirigir la E/S de los subprocesos para que el <b>bucle select() funcione en Win32. Esto parece funcionar solo e</b>n WinNT y Win2K en este momento, no estoy seguro de si alguna</p> vez funcionará en Win95 o Win98. Si tienes experiencia en es</section>te área, por favor contáctame en barries@slaysys.com, gracias.
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS'><a class='permalink' href='#FUNCTIONS'>FUNCIONE</a></h1>S
+<dl class="Bl-tag">
+  <dt id="optimize()"><a class="permalink" href="#optimize()"><b>optimize</b></a></dt>()
+  <dd>La mayoría de las invocaciones comunes de <span class="Li">run()</span> (<i>n</i>o
+      <span class="Li">harness()</span>, <span class="Li">start()</span>, o
+      <span class="Li">finish()</span>) ahora usan archivos temporales para redirigir la entrada y la salida en lugar de procesos pumper.
+    <p class="Pp">Se usan archivos temporales al enviar a los procesos hijos si la entrada se toma de un escalar sin subrutinas de filtro. Este es el único momento en que podemos asumir que el padre no está interactuando con la entrada redirigida del hijo mientras se </p>ejecuta.
+    <p class="Pp">Se usan archivos temporales al recibir de los hijos cuando la salida es hacia un escalar o subrutina con o sin filtros, pero solo si el hijo en cuestión cierra sus entradas o toma la entrada de ESCALARES sin filtrar o archivos con nombre. Normalmente, un hijo hereda su STDIN de su padre; para cerrarlo, usa "0&lt;&amp;-" o la
+        <span class="Li">opción "noinherit </span>=&gt; 1". Si los datos se envían al hijo desde referencias CODE, manejadores de archivos o desde escalares a través de filtros, entonces las salidas del hijo no se optimizarán porque
+        <span class="Li">optimize()</span> asume que el padre está interactuando con el hijo. Está bien si la salida está filtrada o manejada por una subrutina, sin </p>embargo.
+    <p class="Pp">Esto asume que todos los archivos con nombre son archivos reales (a diferencia de tuberías con nombre) y no cambiarán; y que un proceso no se está comunicando con el hijo indirectamente (a través de medios no visibles para IPC::Run). Estas pueden ser suposiciones inválidas, pero son el 99% de los casos. Escríbeme si necesitas una opción para habilitar o deshabilitar las optimizaciones; sospecho que funcionará como el <span class="Li">modificador </span>binary()</p>.
+    <p class="Pp">Para detectar casos que podrías querer optimizar cerrando entradas, intenta establecer la variable de entorno <span class="Li">"IP</span>CRUNDEBUG"
+        <span class="Li">al valor </span>especial </p>"notopt":
+        <pre>C:&gt; set IPCRUNDEBUG</pre>=notopt
+C:&gt; my_app_t</dd>hat_uses_IPC_Run.pl
+  <dt id="optimizer()"><a class="permalink" href="#optimizer()"><b>optimizer()</b>
+    </a></dt>racionalizaciones
+  <dd>Solo en ese caso limitado podemos estar seguros de que está bien agrupar toda la entrada en un archivo temporal. Si STDIN proviene de un ESCALAR o de un archivo o manejador con nombre (de nuevo, solo en <span class="Li">run()</span>), entonces se asume que las salidas hacia referencias CODE también son lo suficientemente seguras para agruparlas a través de un archivo temporal, de lo contrario solo se agrupan las salidas hacia referencias SCALAR. Esto puede causar un poco de dolor si el proceso padre se beneficia o depende de un poco de "devoluciones tempranas" que llegan antes de que el programa hijo salga. Mientras la salida se redirija a una referencia SCALAR, esto no será visible. Cuando la salida se redirige a una subrutina o (obsoletos) filtros, la subrutina no recibirá ningún dato hasta después de que el proceso hijo salga, y es probable que reciba trozos de datos más grandes de una vez.
+    <p class="Pp">La razón de la optimización es que, sin ella, se usan procesos "pumper" para superar las inconsistencias de la API de Win32. Necesitamos usar tuberías anónimas para conectarnos a los stdin, stdout y stderr de los procesos hijos, pero <b>select()</b> no funciona en estas. <b>select()</b> solo funciona en sockets en Win32. Entonces, para cada manejador de hijo redirigido, normalmente hay un proceso "pumper" que se conecta al padre usando un socket--para que el padre pueda
+        <b>hacer </b>select() en ese descriptor de archivo--y al hijo en una tubería anónima--para que el hijo pueda leer/escribir una </p>tubería.
+    <p class="Pp">Usar un socket para conectarse directamente al hijo (como sugiere al menos un artículo de MSDN) parece causar que la salida final de la mayoría de los hijos se pierda. Creo que esto se debe a que los procesos hijos raramente cierran explícitamente su stdout y stderr, y la dll de winsock no parece vaciar la salida cuando un proceso que la usa sale sin cerrarlos </p>explícitamente.
+    <p class="Pp">Debido a estos pumpers y la lentitud inherente de
+        <b>CreateProcess() </b>en Win32, los procesos hijos con redirecciones son bastante lentos de lanzar; así que esta rutina busca el caso muy común de leer/escribir hacia/desde referencias a escalares en una <b>rutina </b>run() y convierte tales lecturas y escrituras en lecturas y escrituras de archivos </p>temporales.
+    <p class="Pp">Dichos archivos se marcan como FILE_ATTRIBUTE_TEMPORARY para aumentar la velocidad y como FILE_FLAG_DELETE_ON_CLOSE para que se limpien cuando el proceso hijo salga (para archivos de entrada). Se usan los permisos predeterminados del usuario tanto para los archivos temporales como para el directorio que los contiene, espero que tus permisos de Win32 sean lo suficientemente seguros para ti. Los archivos se crean con los valores predeterminados de Win32API::File de FILE_SHARE_READ|FILE_SHARE_W</p>RITE.
+    <p class="Pp">Establecer el nivel de depuración en "details" o "gory" dará información detallada sobre el pr</p>oceso de optimización; establecerlo en "basic" o superior indicará si una llamada dada está o</dd>ptimizada o no. Establecerlo en "notopt" resaltará aquellas llamadas que no están optimizadas.
+  <dt id="win32_parse_cmd_line"><a class="permalink" href="#win32_parse_cmd_line">win32_parse_cmd_l</a></dt>ine
+  <dd>
+    <pre>@words = win32_parse_cmd_line( q{foo bar 'baz baz' "bat bat"}</pre> );
+    <p class="Pp">devuelve 4 palabras. Esto analiza como el shell bourne (ver el fragmento sobre <b>shellwords()</b> en Text::ParseWords), asumiendo que estamos tratando de ser un poco multiplataforma aquí. La única diferencia es que "\" *no* se trata como un escape excepto cuando precede a puntuación, ya que se usa en todas partes en especificaciones de rutas </p>DOS.
+    <p class="Pp">POR HACER: ¿quitar escapes de acento </p>circunflejo?
+    <p class="Pp">POR HACER: usar
+        <a href='https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args#parsing-c-command-line-arguments'>https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args#parsing-c-command-line-argu</a></p>ments
+    <p class="Pp">POR HACER: ¿globbing? probablemente no (es anti-DOS)</p>.
+    <p class="Pp">POR HACER: ¿emulación de shebang? Probablemente, pero quizás eso debería ser parte de Run.pm para que todos los procesos generados se </p>beneficien.
+    <p class="Pp">LIMITACIONES: shellwords muere silenciosamente con entrada malformada </p>como
+        <pre>a</pre>\</dd>"
+  <dt id="win32_spawn"><a class="permalink" href="#win32_spawn">win32_spa</a></dt>wn
+  <dd>Genera un proceso hijo, posiblemente con STDIN, STDOUT y STDERR (descriptores de archivo 0, 1 y 2, respectivamente) redirigidos.
+    <p class="Pp"><b>LIMITACI</b>O</p>NES.
+    <p class="Pp">No se pueden redirigir descriptores de archivo superiores debido a la falta de soporte para esto en el entorno </p>Win32.
+    <p class="Pp">Esto se puede solucionar marcando un manejador como heredable en el padre (o dejándolo marcado; esto es el valor predeterminado en perl), obteniendo su manejador Win32 con
+        <span class="Li">Win32API::GetOSFHandle(FH)</span> o
+        <span class="Li">Win32API::FdGetOsFHandle($fd)</span> y pasándolo al hijo usando la línea de comandos, el entorno o cualquier otro mecanismo de IPC (es un simple entero). El hijo puede entonces usar
+        <span class="Li">OsFHandleOpen()</span> o
+        <span class="Li">OsFHandleOpenFd()</span> y posiblemente
+        <span class="Li">"&lt;open FOO
+     </span>   ""&amp;BAR"&gt;&gt; o
+        <span class="Li">"&lt;open FOO</span> ""&amp;$fd&gt;&gt;
+ </p>       segú</dd>n sea nece</dl>sario. ¡Ay</section>, el dolor!
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTO</a></h1>R
+<p class="Pp">Barries Slaymaker &lt;barries</p>@slaysys.com&gt;. Financiado p</section>or Perforce Software, Inc.
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE </a></h1>AUTOR
+<p class="Pp">Copyright 2001, Barrie Slaymaker, Todos los derechos </p>reservados.
+<p class="Pp">Puedes usar esto b</p>ajo los términos d</section>e la GPL 2.0 o la L</div>icencia Artística.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-08</td>-29
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search"&gt;
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-ipc-run/">extra/perl-i</a></dd>pc-run
+        <dt>Vers</dt>ión:
+        <dd>20250809.</dd>0-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://search.cpan.org/dist/IPC-Run">https://search.cpan.</a></dd>org/dist/IPC-Run
+        <dt>Licen</dt>cias:
+        <dd>GPL, </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-ipc-run/">/listin</a></dd>g/extra</dl>/perl-i</section>pc-run/
+
+<details>
+    <summary>Índic</summary>e
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#FUNCTIONS">FUN</a></li>CIONES
+        
+            <li><a href="#AUTHOR">A</a></li>UTOR
+        
+            <li><a href="#COPYRIGHT">DER</a></li>ECHO</ul>S D</nav>E AU</details>TOR
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/IPC::Run::Win32Helper.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/IPC::Run::Win32Helper.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> de Arch Linux correspondiente.

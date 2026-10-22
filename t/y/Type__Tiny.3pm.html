@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Type::Tiny(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Type__Tiny(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-type-tiny/">perl-type-tiny</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Type::Tiny(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Type::Tiny(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Type::Tiny - restricción de tipo diminuta pero compatible con Moo(se)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use v5.36;
+
+package Horse {
+  use Moo;
+  use Types::Standard qw( Str Int Enum ArrayRef Object );
+  use Type::Params qw( signature_for );
+  use namespace::autoclean;
+
+  has name =&gt; (
+    is       =&gt; 'ro',
+    isa      =&gt; Str,
+    required =&gt; 1,
+  );
+
+  has gender =&gt; (
+    is       =&gt; 'ro',
+    isa      =&gt; Enum[qw( f m )],
+  );
+
+  has age =&gt; (
+    is       =&gt; 'rw',
+    isa      =&gt; Int-&gt;where( '$_ &gt;= 0' ),
+  );
+
+  has children =&gt; (
+    is       =&gt; 'ro',
+    isa      =&gt; ArrayRef[Object],
+    default  =&gt; sub { return [] },
+  );
+
+  # firma del método
+  signature_for add_child =&gt; (
+    method     =&gt; Object,
+    positional =&gt; [ Object ],
+  );
+
+  sub add_child ( $self, $child ) {
+    push $self-&gt;children-&gt;@*, $child;
+    return $self;
+  }
+}
+
+package main;
+
+my $boldruler = Horse-&gt;new(
+  name    =&gt; &quot;Bold Ruler&quot;,
+  gender  =&gt; 'm',
+  age     =&gt; 16,
+);
+
+my $secretariat = Horse-&gt;new(
+  name    =&gt; &quot;Secretariat&quot;,
+  gender  =&gt; 'm',
+  age     =&gt; 0,
+);
+
+$boldruler-&gt;add_child( $secretariat );</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='STATUS'><a class='permalink' href='#STATUS'>ESTADO</a></h1>
+<p class="Pp">Este módulo está cubierto por la política de estabilidad de Type-Tiny.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esto documenta los detalles internos de la clase Type::Tiny.
+    Type::Tiny::Manual es un mejor punto de partida si eres nuevo.</p>
+<p class="Pp">Type::Tiny es una pequeña clase para crear objetos de restricción
+    de tipo similares a Moose que son compatibles con Moo, Moose y Mouse.</p>
+<pre>use Scalar::Util qw(looks_like_number);
+use Type::Tiny;
+
+my $NUM = &quot;Type::Tiny&quot;-&gt;new(
+   name       =&gt; &quot;Number&quot;,
+   constraint =&gt; sub { looks_like_number($_) },
+   message    =&gt; sub { &quot;$_ no es un número&quot; },
+);
+
+package Ermintrude {
+   use Moo;
+   has favourite_number =&gt; (is =&gt; &quot;ro&quot;, isa =&gt; $NUM);
+}
+
+package Bullwinkle {
+   use Moose;
+   has favourite_number =&gt; (is =&gt; &quot;ro&quot;, isa =&gt; $NUM);
+}
+
+package Maisy {
+   use Mouse;
+   has favourite_number =&gt; (is =&gt; &quot;ro&quot;, isa =&gt; $NUM);
+}</pre>
+<p class="Pp">Type::Tiny se ajusta a Type::API::Constraint,
+    Type::API::Constraint::Coercible, Type::API::Constraint::Constructor, y
+    Type::API::Constraint::Inlinable.</p>
+<p class="Pp">¿Quizás ahora no necesitemos tener versiones separadas MooseX,
+    MouseX y MooX para todo? Podemos esperar...</p>
+<section class="Ss">
+<h2 class="Ss" id='Constructor'><a class='permalink' href='#Constructor'>Constructor</a></h2>
+<dl class="Bl-tag">
+  <dt id="new(_attributes)"><a class="permalink" href="#new(_attributes)">new(%atributos)</a></dt>
+  <dd>Función constructora estilo Moose.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Attributes'><a class='permalink' href='#Attributes'>Atributos</a></h2>
+<p class="Pp">Los atributos son valores nombrados que pueden pasarse al constructor.
+    Para cada atributo, hay un método lector correspondiente. Por ejemplo:</p>
+<pre>my $type = Type::Tiny-&gt;new( name =&gt; &quot;Foo&quot; );
+print $type-&gt;name, &quot;\n&quot;;   # dice &quot;Foo&quot;</pre>
+<p class="Pp"><i>Atributos importantes</i></p>
+<p class="Pp">Estos son los atributos que probablemente más te interesará
+    proporcionar al crear tus propias restricciones de tipo, y los que más
+    interesará leer al tratar con objetos de restricción de tipo.</p>
+<dl class="Bl-tag">
+  <dt>&quot;constraint&quot;</dt>
+  <dd>Coderef para validar un valor (<span class="Li">$_</span>) contra la restricción
+      de tipo. El coderef no se llamará a menos que se sepa que el valor pasa
+      cualquier restricción de tipo padre (ver
+      <span class="Li">&quot;parent&quot;</span> abajo).</dd>
+  <dd>Alternativamente, se puede pasar una cadena de código Perl que verifique
+      <span class="Li">$_</span> como parámetro al constructor, y se convertirá a
+      un coderef.</dd>
+  <dd>Por defecto es <span class="Li">&quot;sub { 1 }&quot;</span> - es decir, un
+      coderef que pasa todos los valores.</dd>
+  <dt>&quot;parent&quot;</dt>
+  <dd>Atributo opcional; restricción de tipo padre. Por ejemplo, una restricción
+      de tipo &quot;Integer&quot; podría tener un padre &quot;Number&quot;.</dd>
+  <dd>Si se proporciona, debe ser un objeto Type::Tiny.</dd>
+  <dt>&quot;inlined&quot;</dt>
+  <dd>Un coderef que devuelve una cadena de código Perl adecuada para incrustar
+      este tipo. Opcional.</dd>
+  <dd>(Se llamará al coderef en contexto de lista y puede devolver una lista de
+      cadenas que se unirán con
+      <span class="Li">&quot;&amp;&amp;&quot;</span>. Si el primer elemento de la
+      lista es undef, se sustituirá con la verificación de incrustación del
+      padre del tipo).</dd>
+  <dd>Si el &quot;constraint&quot; (arriba) es un coderef generado a través de
+      Sub::Quote, entonces Type::Tiny *puede* generar
+      &quot;inlined&quot; automáticamente para ti. Si el &quot;constraint&quot;
+      (arriba) es una cadena, podrá hacerlo.</dd>
+  <dt>&quot;name&quot;</dt>
+  <dd>El nombre de la restricción de tipo. Estos deben cumplir ciertas reglas de
+      nomenclatura (deben comenzar con una letra mayúscula y continuar usando solo
+      letras, dígitos 0-9 y guiones bajos).</dd>
+  <dd>Opcional; si no se proporciona, será una restricción de tipo anónima.</dd>
+  <dt>&quot;display_name&quot;</dt>
+  <dd>Un nombre para mostrar de la restricción de tipo cuando se convierte a
+      cadena. Estos no tienen que cumplir ninguna regla de nomenclatura.
+      Opcional; se calculará un nombre predeterminado a partir del
+      <span class="Li">&quot;name&quot;</span>.</dd>
+  <dt>&quot;library&quot;</dt>
+  <dd>El nombre del paquete de la biblioteca de tipos a la que está asociado este
+      tipo. Opcional. Solo informativo: establecer este atributo no instala el
+      tipo en el paquete.</dd>
+  <dt>&quot;deprecated&quot;</dt>
+  <dd>Booleano opcional que indica si una restricción de tipo está obsoleta.
+      Type::Library emitirá una advertencia si intentas importar una restricción
+      de tipo obsoleta, pero por lo demás el tipo continuará funcionando
+      normalmente. No habrá advertencias de obsolescencia cada vez que valides
+      un valor, por ejemplo. Si se omite, se usará el estado de obsolescencia
+      del padre (o falso si no hay padre).</dd>
+  <dt>&quot;message&quot;</dt>
+  <dd>Coderef que devuelve un mensaje de error cuando <span class="Li">$_</span> no
+      valida contra la restricción de tipo. Opcional (hay un valor predeterminado
+      vagamente sensato).</dd>
+  <dt>&quot;coercion&quot;</dt>
+  <dd>Un objeto Type::Coercion asociado con este tipo.</dd>
+  <dd>En términos generales, este atributo no debe pasarse al constructor; debes
+      confiar en el objeto de coerción predeterminado construido de forma perezosa.</dd>
+  <dd>Puedes pasar <span class="Li">&quot;coercion =&gt;
+      1&quot;</span> al constructor para heredar coerciones del padre de la
+      restricción. (Esto requiere que la restricción padre tenga una coerción).</dd>
+  <dd>Si se pasa un arrayref al constructor
+      (<span class="Li">&quot;coercion =&gt; [ ... ]&quot;</span>), el objeto de
+      coerción se construirá de forma perezosa y este array se pasará a su
+      método
+      <span class="Li">&quot;add_type_coercions&quot;</span>. Si se pasa un coderef
+      al constructor (<span class="Li">&quot;coercion =&gt; sub { ... }&quot;</span>),
+      el objeto de coerción se construirá de forma perezosa y este código se usará
+      como una coerción desde <b>Any</b>.</dd>
+  <dt>&quot;sorter&quot;</dt>
+  <dd>Un coderef que puede recibir dos valores que se ajustan a esta restricción
+      de tipo y devuelve -1, 0 o 1 para ponerlos en orden. Alternativamente, un
+      arrayref que contiene un par de coderefs — un clasificador y un pre-procesador
+      para la transformada de Schwarzian. Opcional.</dd>
+  <dd>La idea es permitir:</dd>
+        <pre>@sorted = Int-&gt;sort( 2, 1, 11 );    # =&gt; 1, 2, 11
+@sorted = Str-&gt;sort( 2, 1, 11 );    # =&gt; 1, 11, 2
+</pre>
+  <dt>&quot;type_default&quot;</dt>
+  <dd>Un coderef que devuelve un valor predeterminado sensato para este tipo.
+      Por ejemplo, para un tipo
+      <b>Counter</b>, un valor predeterminado sensato podría ser
+      &quot;0&quot;:
+        <pre>my $Size = Type::Tiny-&gt;new(
+  name          =&gt; 'Size',
+  parent        =&gt; Types::Standard::Enum[ qw( XS S M L XL ) ],
+  type_default  =&gt; sub { return 'M'; },
+);
+
+package Tshirt {
+  use Moo;
+  has size =&gt; (
+    is       =&gt; 'ro',
+    isa      =&gt; $Size,
+    default  =&gt; $Size-&gt;type_default,
+  );
+}
+</pre>
+    <p class="Pp">Los tipos hijos heredarán un valor predeterminado de tipo de su
+        padre a menos que el hijo tenga una
+        <span class="Li">&quot;constraint&quot;</span>. Si un tipo no tiene ni
+        hereda un valor predeterminado de tipo, entonces llamar a
+        <span class="Li">&quot;type_default&quot;</span> devolverá undef.</p>
+    <p class="Pp">Como caso especial, esto:</p>
+        <pre>$type-&gt;type_default( @args )
+</pre>
+    <p class="Pp">Devolverá:</p>
+        <pre>sub {
+  local $_ = \@args;
+  $type-&gt;type_default-&gt;( @_ );
+}
+</pre>
+    <p class="Pp">Muchos de los tipos definidos en Types::Standard y otras
+        bibliotecas de tipos incluidas tienen valores predeterminados de
+        tipo</dd>
+</dl>
+</section>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+        </footer>
+    </body>
+</html>
+[
+  {
+    "type": "section",
+    "content": [
+      {
+        "type": "text",
+        "content": ", pero descubrirlos se deja como ejercicio para el lector.</p>"
+      }
+    ]
+  },
+  {
+    "type": "dl",
+    "content": [
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"my_methods\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Hashtable experimental de métodos adicionales que se pueden llamar en el objeto de restricción de tipo."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"exception_class\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "La clase utilizada para lanzar una excepción cuando un valor falla su verificación de tipo. Por defecto es \"Error::TypeTiny::Assertion\", lo cual suele ser bueno. Se espera que esta clase proporcione un método <span class=\"Li\">\"throw_cb\"</span> compatible con el método de ese nombre en Error::TypeTiny."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Si una restricción de tipo padre tiene una \"exception_class\" personalizada, entonces esta será \"heredada\" por sus hijos."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "<i>Atributos relacionados con tipos parametrizables y parametrizados</i>"
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "Los siguientes atributos adicionales se utilizan para restricciones de tipo parametrizables (por ejemplo, \"ArrayRef\") y parametrizadas (por ejemplo, \"ArrayRef[Int]\"). A diferencia de Moose, estos no son manejados por subclases separadas."
+      }
+    ]
+  },
+  {
+    "type": "dl",
+    "content": [
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"constraint_generator\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Coderef que se llama cuando se parametriza una restricción de tipo. Cuando se llama, se le pasa la lista de parámetros, aunque cualquier parámetro que parezca una restricción de tipo externa (restricciones de tipo Moose, restricciones de tipo Mouse, etc., *¡y coderefs!*) se convierte primero en un objeto nativo de Type::Tiny."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Tenga en cuenta que, por compatibilidad con la API de Moose, el tipo base *no* se pasa al generador de restricciones, pero se puede encontrar en la variable del paquete <span class=\"Li\">$Type::Tiny::parameterize_type</span>. El primer parámetro también está disponible como <span class=\"Li\">$_</span>."
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Los tipos *pueden* ser parametrizados con una lista de parámetros vacía. Por ejemplo, en Types::Standard, \"Tuple\" es solo un alias para \"ArrayRef\", pero \"Tuple[]\" solo permitirá que los arrayrefs de longitud cero pasen la restricción. Si desea que \"YourType\" y \"YourType[]\" signifiquen lo mismo, entonces haga:"
+              }
+            ]
+          },
+          {
+            "type": "pre",
+            "content": [
+              {
+                "type": "text",
+                "content": "return $Type::Tiny::parameterize_type unless @_;"
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "El generador de restricciones debe generar y devolver una nueva restricción de tipo coderef basada en los parámetros. Alternativamente, el generador de restricciones puede devolver un objeto Type::Tiny completamente formado, en cuyo caso los atributos \"name_generator\", \"inline_generator\" y \"coercion_generator\" documentados a continuación se ignoran."
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Opcional; proporcionar un generador convierte este tipo en una restricción de tipo parametrizable. Si no hay generador, intentar parametrizar la restricción de tipo lanzará una excepción."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"name_generator\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Un coderef que genera un nuevo display_name basado en los parámetros. Se llama con los mismos parámetros y variables de paquete que el \"constraint_generator\". Se espera que devuelva una cadena."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Opcional; el valor predeterminado es razonable."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"inline_generator\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Un coderef que genera un nuevo coderef de inlining basado en los parámetros. Se llama con los mismos parámetros y variables de paquete que el \"constraint_generator\". Se espera que devuelva un coderef."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Opcional."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"coercion_generator\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Un coderef que genera un nuevo objeto Type::Coercion basado en los parámetros. Se le pasa el tipo padre, el tipo hijo y la lista de parámetros. Debe tener acceso a las mismas variables de paquete que el \"constraint_generator\". Se espera que devuelva un objeto bendecido."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Opcional."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"deep_explanation\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Esta API no está finalizada. Coderef utilizado por Error::TypeTiny::Assertion para examinar los tipos parametrizados y determinar por qué un valor no cumple la restricción."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"parameters\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "En tipos parametrizados, devuelve un arrayref de los parámetros."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "<i>Atributos generados perezosamente</i>"
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "Los siguientes atributos generalmente no deben pasarse al constructor; a menos que esté haciendo algo especialmente inusual, debería depender de los valores de retorno predeterminados generados perezosamente."
+      }
+    ]
+  },
+  {
+    "type": "dl",
+    "content": [
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"compiled_check\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Coderef para validar un valor (<span class=\"Li\">$_[0]</span>) contra la restricción de tipo. Se espera que este coderef también maneje toda la validación para las restricciones de tipo padre."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"definition_context\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Hashtable de información que indica dónde se definió originalmente la restricción de tipo. Type::Tiny generará esto basándose en \"caller\" si no lo proporciona. El hashtable normalmente contendrá las claves \"package\", \"file\" y \"line\"."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Para tipos parametrizados y tipos compuestos (por ejemplo, uniones e intersecciones), esta puede no ser información especialmente significativa."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"complementary_type\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Un tipo complementario para este tipo. Por ejemplo, el tipo complementario para un tipo entero serían todas las cosas que no son enteros, incluidos los números de punto flotante, pero también las cadenas alfabéticas, los arrayrefs, los manejadores de archivos, etc."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"moose_type\", \"mouse_type\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Objetos equivalentes a esta restricción de tipo, pero como un Moose::Meta::TypeConstraint o Mouse::Meta::TypeConstraint."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Raramente debería ser necesario obtener un objeto Moose::Meta::TypeConstraint de Type::Tiny porque el objeto Type::Tiny en sí mismo debería ser utilizable prácticamente en cualquier lugar donde se espere un Moose::Meta::TypeConstraint."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "section",
+    "level": "h2",
+    "id": "Methods",
+    "content": [
+      {
+        "type": "text",
+        "content": "Métodos"
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "<i>Métodos de predicado</i>"
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "Estos métodos devuelven booleanos que indican información sobre la restricción de tipo. Cada uno está estrechamente asociado con un atributo particular. (Ver \"Atributos\".)"
+      }
+    ]
+  },
+  {
+    "type": "dl",
+    "content": [
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"has_parent\", \"has_library\", \"has_inlined\", \"has_constraint_generator\", \"has_inline_generator\", \"has_coercion_generator\", \"has_parameters\", \"has_message\", \"has_deep_explanation\", \"has_sorter\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Métodos de predicado sencillos al estilo Moose que indican la presencia o ausencia de un atributo."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"has_coercion\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Método de predicado con un poco de DWIM adicional. Devuelve falso si la coerción es una operación nula."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"is_anon\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Devuelve verdadero si la restricción de tipo no tiene un \"name\"."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"is_parameterized\", \"is_parameterizable\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Indica si un tipo ha sido parametrizado (por ejemplo, \"ArrayRef[Int]\") o podría serlo potencialmente (por ejemplo, \"ArrayRef\")."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "\"has_parameterized_from\""
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Alias inútil para \"is_parameterized\"."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "<i>Validación y coerción</i>"
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "Los siguientes métodos se utilizan para coaccionar y validar valores contra una restricción de tipo:"
+      }
+    ]
+  },
+  {
+    "type": "dl",
+    "content": [
+      {
+        "type": "dt",
+        "id": "check($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "check($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Devuelve verdadero si el valor pasa la restricción de tipo."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "validate($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "validate($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Devuelve el mensaje de error para el valor; devuelve un undef explícito si el valor pasa la restricción de tipo."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "assert_valid($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "assert_valid($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Similar a check($value) pero falla si el valor no pasa la restricción de tipo."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Sí, esos son tres métodos muy similares. Culpa a Moose::Meta::TypeConstraint, cuya API estoy intentando emular. :-)"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "assert_return($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "assert_return($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Similar a assert_valid($value) pero devuelve el valor si pasa la restricción de tipo."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Este parece un comportamiento más útil que assert_valid($value). Simplemente habría cambiado assert_valid($value) para que hiciera esto, excepto que hay casos extremos en los que podría romper la compatibilidad con Moose."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "get_message($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "get_message($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Devuelve el mensaje de error para el valor; incluso si el valor pasa la restricción de tipo."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "validate_explain($value, $varname)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Similar a \"validate\" pero en lugar de un mensaje de error de cadena, devuelve un arrayref de cadenas que explican el razonamiento por el cual el valor no cumple la restricción de tipo, examinando los tipos padre, etc."
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "El $varname es una cadena opcional como '$foo' que indica el nombre de la variable que se está comprobando."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "coerce($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "coerce($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Intenta coaccionar $value a este tipo."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "assert_coerce($value)",
+        "content": [
+          {
+            "type": "text",
+            "content": "assert_coerce($value)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Intenta coaccionar $value a este tipo. Lanza una excepción si esto no es posible."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "<i>Creación de restricciones de tipo hijo y parametrización</i>"
+      }
+    ]
+  },
+  {
+    "type": "p",
+    "content": [
+      {
+        "type": "text",
+        "content": "Estos métodos generan nuevos objetos de restricción de tipo que heredan de la restricción sobre la que se llaman:"
+      }
+    ]
+  },
+  {
+    "type": "dl",
+    "content": [
+      {
+        "type": "dt",
+        "id": "create_child_type(_attributes)",
+        "content": [
+          {
+            "type": "text",
+            "content": "create_child_type(%attributes)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Construye un nuevo objeto Type::Tiny con este objeto como su padre."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "where($coderef)",
+        "content": [
+          {
+            "type": "text",
+            "content": "where($coderef)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Atajo para crear una restricción de tipo hijo anónima. Úsalo como \"HashRef->where(sub { exists($_->{name}) })\". Dicho esto, puedes obtener un resultado similar usando el \"&\" sobrecargado:"
+          },
+          {
+            "type": "pre",
+            "content": [
+              {
+                "type": "text",
+                "content": "HashRef & sub { exists($_->{name}) }"
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "content": [
+              {
+                "type": "text",
+                "content": "Al igual que el atributo \"constraint\", esto aceptará una cadena de código Perl:"
+              }
+            ]
+          },
+          {
+            "type": "pre",
+            "content": [
+              {
+                "type": "text",
+                "content": "HashRef->where('exists($_->{name})')"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "content": [
+          {
+            "type": "text",
+            "content": "child_type_class"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "La clase que create_child_type construirá por defecto."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": "parameterize(@parameters)",
+        "content": [
+          {
+            "type": "text",
+            "content": "parameterize(@parameters)"
+          }
+        ]
+      },
+      {
+        "type": "dd",
+        "content": [
+          {
+            "type": "text",
+            "content": "Crea un nuevo tipo parametrizado; lanza una excepción si se llama en un tipo no parametrizable."
+          }
+        ]
+      },
+      {
+        "type": "dt",
+        "id": ""
+      }
+    ]
+  }
+]
+<dl class="Bl-tag">
+  <dt id="of(@parameters)"><a class="permalink" href="#of(@parameters)">of(@parameters)</a></dt>
+  <dd>Un alias bonito para <span class="Li">&quot;parameterize&quot;</span>. Úsalo
+      como <span class="Li">&quot;ArrayRef-&gt;of(Int)&quot;</span>.</dd>
+  <dt>&quot;plus_coercions($type1, $code1, ...)&quot;</dt>
+  <dd>Atajo para crear una nueva restricción de tipo hijo con las mismas coerciones
+      que esta, pero añadiendo algunas coerciones extra (con una prioridad mayor
+      que las existentes).</dd>
+  <dt>&quot;plus_fallback_coercions($type1, $code1, ...)&quot;</dt>
+  <dd>Similar a <span class="Li">&quot;plus_coercions&quot;</span>, pero añadida con
+      una prioridad menor.</dd>
+  <dt>&quot;minus_coercions($type1, ...)&quot;</dt>
+  <dd>Atajo para crear una nueva restricción de tipo hijo con menos coerciones de
+      tipo.</dd>
+  <dt>&quot;no_coercions&quot;</dt>
+  <dd>Atajo para crear una nueva restricción de tipo hijo sin ninguna coerción.</dd>
+</dl>
+<p class="Pp"><i>Métodos de introspección de relaciones de tipo</i></p>
+<p class="Pp">Estos métodos te permiten determinar la relación de una restricción
+    de tipo con otras restricciones de tipo en una jerarquía organizada:</p>
+<dl class="Bl-tag">
+  <dt id="equals($other),"><a class="permalink" href="#equals($other),">equals($other),
+    is_subtype_of($other), is_supertype_of($other),
+    is_a_type_of($other)</a></dt>
+  <dd>Compara dos tipos. Consulta Moose::Meta::TypeConstraint para saber qué
+      significan todos estos. (Ok, Moose no define
+      <span class="Li">&quot;is_supertype_of&quot;</span>, pero entiendes la idea,
+      ¿verdad?)
+    <p class="Pp">Ten en cuenta que estos tienen un lado ligeramente DWIM (Do What I
+        Mean). Si creas dos objetos Type::Tiny::Class que comprueban la misma
+        clase, se consideran iguales. Y:</p>
+        <pre>my $subtype_of_Num = Types::Standard::Num-&gt;create_child_type;
+my $subtype_of_Int = Types::Standard::Int-&gt;create_child_type;
+$subtype_of_Int-&gt;is_subtype_of( $subtype_of_Num );  # true
+</pre>
+  </dd>
+  <dt id="strictly_equals($other),"><a class="permalink" href="#strictly_equals($other),">strictly_equals($other),
+    is_strictly_subtype_of($other), is_strictly_supertype_of($other),
+    is_strictly_a_type_of($other)</a></dt>
+  <dd>Versiones más estrictas de las funciones de comparación de tipos. Estas solo
+      consideran la herencia explícita a través de
+      <span class="Li">&quot;parent&quot;</span>.
+        <pre>my $subtype_of_Num = Types::Standard::Num-&gt;create_child_type;
+my $subtype_of_Int = Types::Standard::Int-&gt;create_child_type;
+$subtype_of_Int-&gt;is_strictly_subtype_of( $subtype_of_Num );  # false
+</pre>
+  </dd>
+  <dt>&quot;parents&quot;</dt>
+  <dd>Devuelve una lista de todas las restricciones de tipo ancestro de esta
+      restricción. Por ejemplo, si se llama en la restricción de tipo
+      <span class="Li">&quot;Str&quot;</span>, devolvería la lista
+      <span class="Li">&quot;(Value, Defined, Item, Any)&quot;</span>.
+    <p class="Pp"><i>Debido a un malentendido histórico, esto difiere de la
+        implementación de Moose</i> de la
+        <i>método</i> <span class="Li"><i>&quot;parents&quot;</i></span><i>. En
+        Moose,</i> <span class="Li"><i>&quot;parents&quot;</i></span><i> solo
+        devuelve las</i> <i>restricciones de tipo padre inmediatas, y debido a que
+        las restricciones de tipo solo tienen</i> <i>un padre inmediato, esto
+        es efectivamente un alias para</i> <span class="Li"><i>&quot;parent&quot;</i></span><i>.
+        El</i> <i>módulo de extensión MooseX::Meta::TypeConstraint::Intersection
+        es el único</i> <i>lugar donde se devuelven múltiples restricciones de
+        tipo; y se devuelven</i> <i>como un arrayref violando la documentación de
+        la clase base. Mantengo</i> <i>mi comportamiento ya que parece más
+        útil.</i></p>
+  </dd>
+  <dt id="find_parent($coderef)"><a class="permalink" href="#find_parent($coderef)">find_parent($coderef)</a></dt>
+  <dd>Recorre las restricciones de tipo padre *incluyendo la invocante*
+      *misma* y devuelve la restricción de tipo ancestro más cercana donde la
+      coderef evalúa a verdadero. Dentro de la coderef, el ancestro que se está
+      comprobando actualmente es <span class="Li">$_</span>. Devuelve undef si no
+      hay coincidencia.
+    <p class="Pp">En contexto de lista, también devuelve el número de restricciones
+        de tipo que se recorrieron antes de encontrar la restricción
+      coincidente.</p>
+  </dd>
+  <dt>&quot;find_constraining_type&quot;</dt>
+  <dd>Encuentra la restricción de tipo ancestro más cercana (incluyendo el tipo
+      mismo) que tenga una coderef de
+      <span class="Li">&quot;constraint&quot;</span>.
+    <p class="Pp">Equivalente a:</p>
+        <pre>$type-&gt;find_parent(sub { not $_-&gt;_is_null_constraint })
+</pre>
+  </dd>
+  <dt>&quot;coercibles&quot;</dt>
+  <dd>Devuelve una restricción de tipo que es la unión de las restricciones de
+      tipo que pueden ser coaccionadas a esta (incluida esta). Si esta
+      restricción de tipo no tiene coerciones, se devuelve a sí misma.</dd>
+  <dt>&quot;type_parameter&quot;</dt>
+  <dd>En restricciones de tipo parametrizadas, devuelve el primer elemento de la
+      lista de parámetros; de lo contrario, devuelve undef. Por ejemplo:
+        <pre>( ArrayRef[Int] )-&gt;type_parameter;    # devuelve Int
+( ArrayRef[Int] )-&gt;parent;            # devuelve ArrayRef
+</pre>
+    <p class="Pp">Ten en cuenta que las restricciones de tipo parametrizables
+        pueden, de forma perfectamente legítima, aceptar múltiples parámetros
+        (varias de las restricciones de tipo parametrizables en Types::Standard
+        lo hacen). Este método solo devuelve el primer parámetro. Los
+        &quot;Atributos relacionados con tipos parametrizables y
+        parametrizados&quot; documentan el atributo
+        <span class="Li">&quot;parameters&quot;</span>, que devuelve un arrayref
+        de todos los parámetros.</p>
+  </dd>
+  <dt>&quot;parameterized_from&quot;</dt>
+  <dd>Alias más difícil de escribir para <span class="Li">&quot;parent&quot;</span>
+      que solo funciona para tipos parametrizados.</dd>
+</dl>
+<p class="Pp"><i>Pista para quienes subclasan Type::Tiny:</i> Desde la versión
+    1.006000, los métodos para determinar el subtipo, supertipo y la igualdad de
+    tipos no deben ser anulados en las subclases de Type::Tiny. Esto se debe al
+    problema de la herencia en diamante. Si X e Y son subclases de Type::Tiny,
+    ambas necesitan ser consultadas para determinar cómo se relacionan las
+    restricciones de tipo; no solo una de ellas debe anular estos métodos.
+    Consulta el código fuente de Type::Tiny::Enum para ver un ejemplo de cómo las
+    subclases pueden dar pistas sobre las relaciones de tipo a Type::Tiny.
+    Resumen: añade una coderef a <span class="Li">@Type::Tiny::CMP</span>. Esta
+    coderef recibirá dos restricciones de tipo. Debería devolver una de las
+    constantes Type::Tiny::CMP_SUBTYPE (el primer tipo es un subtipo del segundo
+    tipo), Type::Tiny::CMP_SUPERTYPE (el segundo tipo es un subtipo del primer
+    tipo), Type::Tiny::CMP_EQUAL (los dos tipos son exactamente iguales),
+    Type::Tiny::CMP_EQUIVALENT (los dos tipos son efectivamente iguales), o
+    Type::Tiny::CMP_UNKNOWN (tu coderef no pudo establecer ninguna
+    relación).</p>
+<p class="Pp"><i>Función de introspección de relaciones de tipo</i></p>
+<dl class="Bl-tag">
+  <dt>&quot;Type::Tiny::cmp($type1, $type2)&quot;</dt>
+  <dd>La relación subtipo/supertipo entre tipos resulta en un orden parcial de las
+      restricciones de tipo.
+    <p class="Pp">Esta función devolverá una de las constantes:
+        Type::Tiny::CMP_SUBTYPE (el primer tipo es un subtipo del segundo tipo),
+        Type::Tiny::CMP_SUPERTYPE (el segundo tipo es un subtipo del primer
+        tipo), Type::Tiny::CMP_EQUAL (los dos tipos son exactamente iguales),
+        Type::Tiny::CMP_EQUIVALENT (los dos tipos son efectivamente iguales), o
+        Type::Tiny::CMP_UNKNOWN (no se pudo establecer ninguna relación). En
+        contextos numéricos, estos se evalúan a -1, 1, 0, 0 y 0, lo que lo hace
+        potencialmente utilizable con <span class="Li">&quot;sort&quot;</span>
+        (aunque puede que necesites silenciar las advertencias sobre tratar la
+        cadena vacía como un valor numérico).</p>
+  </dd>
+</dl>
+<p class="Pp"><i>Métodos de procesamiento de listas</i></p>
+<dl class="Bl-tag">
+  <dt id="grep(@list)"><a class="permalink" href="#grep(@list)">grep(@list)</a></dt>
+  <dd>Filtra una lista para devolver solo los elementos que pasan la verificación
+      de tipo.
+        <pre>@integers = Int-&gt;grep(@list);
+</pre>
+  </dd>
+  <dt id="first(@list)"><a class="permalink" href="#first(@list)">first(@list)</a></dt>
+  <dd>Filtra la lista para devolver el primer elemento de la lista que pasa la
+      verificación de tipo, o undef si ninguno lo hace.
+        <pre>$first_lady = Woman-&gt;first(@people);
+</pre>
+  </dd>
+  <dt id="map(@list)"><a class="permalink" href="#map(@list)">map(@list)</a></dt>
+  <dd>Coacciona una lista de elementos. Solo funciona en tipos que tienen una
+      coerción.
+        <pre>@truths = Bool-&gt;map(@list);
+</pre>
+  </dd>
+  <dt id="sort(@list)"><a class="permalink" href="#sort(@list)">sort(@list)</a></dt>
+  <dd>Ordena una lista de elementos según el mecanismo de ordenación preferido del
+      tipo, o si el tipo no tiene una coderef de ordenación, utiliza el tipo
+      padre. Si ningún tipo de restricción ancestro tiene una ordenación, lanza
+      una excepción. Las restricciones de tipo
+      <span class="Li">&quot;Str&quot;</span>,
+      <span class="Li">&quot;StrictNum&quot;</span>,
+      <span class="Li">&quot;LaxNum&quot;</span> y
+      <span class="Li">&quot;Enum&quot;</span> incluyen ordenadores.
+        <pre>@sorted_numbers = Num-&gt;sort( Num-&gt;grep(@list) );
+</pre>
+  </dd>
+  <dt id="rsort(@list)"><a class="permalink" href="#rsort(@list)">rsort(@list)</a></dt>
+  <dd>Similar a <span class="Li">&quot;sort&quot;</span> pero en orden inverso.</dd>
+  <dt id="any(@list)"><a class="permalink" href="#any(@list)">any(@list)</a></dt>
+  <dd>Devuelve verdadero si alguno de los elementos de la lista coincide con el
+      tipo.
+        <pre>if ( Int-&gt;any(@numbers) ) {
+  say &quot;había al menos un entero&quot;;
+}
+</pre>
+  </dd>
+  <dt id="all(@list)"><a class="permalink" href="#all(@list)">all(@list)</a></dt>
+  <dd>Devuelve verdadero si todos los elementos de la lista coinciden con el
+      tipo.
+        <pre>if ( Int-&gt;all(@numbers) ) {
+  say &quot;eran todos enteros&quot;;
+}
+</pre>
+  </dd>
+  <dt id="assert_any(@list)"><a class="permalink" href="#assert_any(@list)">assert_any(@list)</a></dt>
+  <dd>Similar a <span class="Li">&quot;any&quot;</span> pero en lugar de devolver un
+      booleano, devuelve la lista original completa si algún elemento coincide
+      con el tipo, y muere si ninguno lo hace.</dd>
+  <dt id="assert_all(@list)"><a class="permalink" href="#assert_all(@list)">assert_all(@list)</a></dt>
+  <dd>Similar a <span class="Li">&quot;all&quot;</span> pero en lugar de devolver un
+      booleano, devuelve la lista original si todos los elementos coinciden con
+      el tipo, pero muere tan pronto como encuentra uno que no lo hace.</dd>
+</dl>
+<p class="Pp"><i>Métodos de inlining</i></p>
+<p class="Pp">Los siguientes métodos se utilizan para generar cadenas de código
+    Perl que pueden ser pegadas en subs stringy
+    <span class="Li">&quot;eval&quot;</span>uadas para realizar verificaciones de
+    tipo:</p>
+<dl class="Bl-tag">
+  <dt>&quot;can_be_inlined&quot;</dt>
+  <dd>Devuelve un booleano indicando si este tipo puede ser inlined.</dd>
+  <dt id="inline_check($varname)"><a class="permalink" href="#inline_check($varname)">inline_check($varname)</a></dt>
+  <dd>Crea una verificación de restricción de tipo para una variable particular como
+      una cadena de código Perl. Por ejemplo:
+        <pre>print( Types::Standard::Num-&gt;inline_check('$foo') );
+</pre>
+    <p class="Pp">imprime la siguiente salida:</p>
+        <pre>(!ref($foo) &amp;&amp; Scalar::Util::looks_like_number($foo))
+</pre>
+    <p class="Pp">Para compatibilidad con Moose, hay un alias
+        <span class="Li">&quot;_inline_check&quot;</span> para este método.</dd>
+  <dt id="inline_assert($varname)"><a class="permalink" href="#inline_assert($varname)">inline_assert($varname)</a></dt>
+  <dd>Muy similar a <span class="Li">&quot;inline_check&quot;</span> pero genera una
+      declaración de la forma:
+        <pre>... or die ...;
+</pre>
+    <p class="Pp">También se puede llamar como
+        <span class="Li">&quot;inline_assert($varname, $typevarname,
+        %extras)&quot;</span>. En este caso, generará una cadena de</dd>
+</dl>
+{
+  "html": "<code>\n        que puede incluir <span class=\"Li\">$typevarname</span> que se supone\n        que es el nombre de una variable que contiene el tipo en sí. (Esto es algo\n        complicado, pero permite que se produzca una cadena útil incluso si el\n        tipo no se puede insertar en línea). Los <span class=\"Li\">%extras</span> son\n        opciones adicionales para pasar al constructor de Error::TypeTiny::Assertion\n        y deben ser pares clave-valor de cadenas solamente, sin referencias ni undefs.</p>\n  </dd>\n</dl>\n<p class=\"Pp\"><i>Otros métodos</i></p>\n<dl class=\"Bl-tag\">\n  <dt>&quot;qualified_name&quot;</dt>\n  <dd>\n    Para restricciones de tipo no anónimas que tienen una biblioteca, devuelve un\n    nombre calificado del tipo <span class=\"Li">&quot;MyLib::MyType&quot;</span>.\n    De lo contrario, devuelve lo mismo que\n    <span class=\"Li">&quot;name&quot;</span>.\n  </dd>\n  <dt id=\"isa($class),\"><a class=\"permalink\" href=\"#isa($class),\">isa($class),\n    can($method), AUTOLOAD(@args)</a></dt>\n  <dd>\n    Si Moose está cargado, la combinación de estos métodos se utiliza para simular\n    un Moose::Meta::TypeConstraint.\n    <p class=\"Pp\">Si Mouse está cargado, entonces\n        <span class=\"Li">&quot;isa&quot;</span> simula\n        Mouse::Meta::TypeConstraint.</p>\n  </dd>\n  <dt id=\"DOES($role)\"><a class=\"permalink\" href=\"#DOES($role)\">DOES($role)</a></dt>\n  <dd>\n    Anulado para anunciar soporte para varios roles.\n    <p class=\"Pp\">Ver también Type::API::Constraint, etc.</p>\n  </dd>\n  <dt>&quot;TIESCALAR&quot;, &quot;TIEARRAY&quot;, &quot;TIEHASH&quot;</dt>\n  <dd>\n    Estos se proporcionan como ganchos que envuelven Type::Tie. Permiten que lo siguiente\n    funcione:\n        <pre>use Types::Standard qw(Int);\n        tie my @list, Int;\n        push @list, 123, 456;   # ok\n        push @list, \"Hello\";    # dies\n        </pre>\n  </dd>\n  <dt id=\"exportables(\"><a class=\"permalink\" href=\"#exportables(\">exportables(\n    $base_name )</a></dt>\n  <dd>\n    Devuelve una lista de las funciones que una biblioteca de tipos debería exportar si\n    contiene esta restricción de tipo.\n    <p class=\"Pp\">Ejemplo:</p>\n        <pre>[{ name =&gt; 'Int',        tags =&gt; [ 'types' ],  code =&gt; sub { ... } },\n  { name =&gt; 'is_Int',     tags =&gt; [ 'is' ],     code =&gt; sub { ... } },\n  { name =&gt; 'assert_Int', tags =&gt; [ 'assert' ], code =&gt; sub { ... } },\n  { name =&gt; 'to_Int',     tags =&gt; [ 'to' ],     code =&gt; sub { ... } },\n]\n</pre>\n    <p class=\"Pp\"><span class=\"Li\">$base_name</span> es opcional, pero permite\n        obtener una lista de exportables utilizando un nombre específico. Esto es útil si\n        la restricción de tipo tiene un nombre que no sería un nombre de función válido en Perl.</p>\n  </dd>\n  <dt>&quot;exportables_by_tag( $tag, $base_name )&quot;</dt>\n  <dd>\n    Filtra <span class=\"Li">&quot;exportables&quot;</span> por un nombre de etiqueta específico.\n    En contexto de lista, devuelve todos los exportables coincidentes. En contexto\n    escalar, devuelve un solo exportable coincidente y muere si coinciden varios\n    exportables, o ninguno.</dd>\n</dl>\n<p class=\"Pp\">Los siguientes métodos existen para la compatibilidad con Moose/Mouse,\n    pero no hacen nada útil.</p>\n<dl class=\"Bl-tag\">\n  <dt>&quot;compile_type_constraint&quot;</dt>\n  <dd></dd>\n  <dt>&quot;hand_optimized_type_constraint&quot;</dt>\n  <dd></dd>\n  <dt>&quot;has_hand_optimized_type_constraint&quot;</dt>\n  <dd></dd>\n  <dt>&quot;inline_environment&quot;</dt>\n  <dd></dd>\n  <dt>&quot;meta&quot;</dt>\n  <dd></dd>\n</dl>\n</section>\n<section class=\"Ss\">\n<h2 class=\"Ss\" id='Functions'><a class='permalink' href='#Functions'>Funciones</a></h2>\n<dl class=\"Bl-tag\">\n  <dt>&#x2022;</dt>\n  <dd>\n    <span class=\"Li">&quot;check_parameter_count_for_parameterized_type( $lib,\n      $typename, $args, $max, $min )&quot;</span>\n    <p class=\"Pp\">Función de utilidad utilizada por algunos tipos de Types::Standard,\n        etc.</p>\n    <p class=\"Pp\">Lanzará una excepción Error::TypeTiny::WrongNumberOfParameters\n        que referencia\n        <span class=\"Li">&quot;$lib::\$typename\[]&quot;</span> si\n        <span class=\"Li\">$args</span> es mayor que\n        <span class=\"Li\">$max</span> o menor que <span class=\"Li\">$min</span>, si están definidos.\n        Si <span class=\"Li\">$args</span> es un arrayref, se utilizará la longitud del arreglo.</p>\n  </dd>\n</dl>\n</section>\n<section class=\"Ss\">\n<h2 class=\"Ss\" id='Overloading'><a class='permalink' href='#Overloading'>Sobrecarga</a></h2>\n<ul class=\"Bl-bullet\">\n  <li>La conversión a cadena se sobrecarga para devolver el nombre calificado.</li>\n  <li>La conversión a booleano se sobrecarga para devolver siempre verdadero.</li>\n  <li>La conversión a coderef se sobrecarga para llamar a\n      <span class=\"Li">&quot;assert_return&quot;</span>.\n  </li>\n  <li>En Perl 5.10.1 y versiones posteriores, la coincidencia inteligente (smart match) se sobrecarga para llamar a\n      <span class=\"Li">&quot;check&quot;</span>.\n  </li>\n  <li>El operador <span class=\"Li">&quot;==&quot;</span> se sobrecarga para llamar a\n      <span class=\"Li">&quot;equals&quot;</span>.\n  </li>\n  <li>Los operadores <span class=\"Li">&quot;&lt;&quot;</span> y\n      <span class=\"Li">&quot;&gt;&quot;</span> se sobrecargan para llamar a\n      <span class=\"Li">&quot;is_subtype_of&quot;</span> y\n      <span class=\"Li">&quot;is_supertype_of&quot;</span>.\n  </li>\n  <li>El operador <span class=\"Li">&quot;~&quot;</span> se sobrecarga para llamar a\n      <span class=\"Li">&quot;complementary_type&quot;</span>.\n  </li>\n  <li>El operador <span class=\"Li">&quot;|&quot;</span> se sobrecarga para construir\n      una unión de dos restricciones de tipo. Ver Type::Tiny::Union.\n  </li>\n  <li>El operador <span class=\"Li">&quot;&amp;&quot;</span> se sobrecarga para\n      construir la intersección de dos restricciones de tipo. Ver\n      Type::Tiny::Intersection.\n  </li>\n  <li>El operador <span class=\"Li">&quot;/&quot;</span> proporciona soporte mágico de\n      Devel::StrictMode. Si <span class=\"Li\">$ENV{PERL_STRICT}</span>\n      (o algunas otras variables de entorno) es verdadero, entonces devuelve el operando izquierdo.\n      Normalmente devuelve el operando derecho.\n  </li>\n</ul>\n<p class=\"Pp\">Versiones anteriores de Type::Tiny sobrecargaban el operador\n    <span class=\"Li">&quot;+&quot;</span> para llamar a\n    <span class=\"Li">&quot;plus_coercions&quot;</span> o\n    <span class=\"Li">&quot;plus_fallback_coercions&quot;</span> según corresponda.\n    El soporte para esto se eliminó después de la versión 0.040.</p>\n</section>\n<section class=\"Ss\">\n<h2 class=\"Ss\" id='Constants'><a class='permalink' href='#Constants'>Constantes</a></h2>\n<dl class=\"Bl-tag\">\n  <dt>&quot;Type::Tiny::SUPPORT_SMARTMATCH&quot;</dt>\n  <dd>\n    Indica si la sobrecarga de coincidencia inteligente (smart match) es compatible en su versión\n    de Perl.\n  </dd>\n</dl>\n</section>\n<section class=\"Ss\">\n<h2 class=\"Ss\" id='Package_Variables'><a class='permalink' href='#Package_Variables'>Variables de Paquete</a></h2>\n<dl class=\"Bl-tag\">\n  <dt>$Type::Tiny::DD</dt>\n  <dd>\n    Por defecto es undef, pero puede configurarse como un coderef que Type::Tiny y\n    módulos relacionados utilizarán para volcar estructuras de datos en mensajes\n    de error, por ejemplo.\n    <p class=\"Pp\">De lo contrario, Type::Tiny utiliza su propia rutina para volcar\n        estructuras de datos. <span class=\"Li\">$DD</span> puede entonces establecerse a un número para\n        limitar la longitud de los volcados. (El límite por defecto es 72).\n    </p>\n    <p class=\"Pp\">Esta es una variable de paquete (en lugar de métodos de clase get/set)\n        para permitir una localización fácil.</p>\n  </dd>\n  <dt>$Type::Tiny::AvoidCallbacks</dt>\n  <dd>\n    Si esta variable se establece a verdadero (normalmente debería hacerse en un\n    ámbito <span class=\"Li">&quot;local&quot;</span>), actúa como una pista para las restricciones de tipo,\n    al generar código insertado, para evitar hacer llamadas a variables y funciones\n    definidas fuera del propio código insertado.\n    <p class=\"Pp\">Esto debería tener el efecto de que\n        <span class=\"Li">&quot;$type-&gt;inline_check('$foo')&quot;</span> devuelva una cadena de código capaz de verificar el tipo en\n        instalaciones de Perl que no tengan Type::Tiny instalado. Esto está destinado a\n        permitir que Type::Tiny se utilice con cosas como Mite.\n    </p>\n    <p class=\"Pp\">La variable funciona bajo el sistema de honor. Los tipos necesitan\n        verificarla explícitamente y decidir generar código diferente basándose en su valor de verdad.\n        Los tipos incluidos en Types::Standard,\n        Types::Common::Numeric y Types::Common::String lo hacen.\n        (<b>StrMatch</b> a veces no puede hacerlo y emitirá una advertencia si necesita depender de\n        callbacks cuando se le pide que no lo haga).\n    </p>\n    <p class=\"Pp\">La mayoría de los usuarios normales pueden ignorar esto.</p>\n  </dd>\n  <dt>$Type::Tiny::SafePackage</dt>\n  <dd>\n    Esta es la cadena &quot;package Type::Tiny;&quot; que a veces se inserta en cadenas\n    de código insertado para evitar conflictos de nombres. En la mayoría de los casos,\n    no necesita cambiar esto. Sin embargo, si está insertando código de restricción\n    de tipo, guardando ese código en módulos de Perl y subiéndolos a CPAN,\n    es posible que desee cambiarlo para evitar problemas con el indexador de CPAN.\n    La mayoría de los usuarios normales de Type::Tiny no necesitan ser conscientes de esto.\n  </dd>\n</dl>\n</section>\n<section class=\"Ss\">\n<h2 class=\"Ss\" id='Environment'><a class='permalink' href='#Environment'>Entorno</a></h2>\n<dl class=\"Bl-tag\">\n  <dt>&quot;PERL_TYPE_TINY_XS&quot;</dt>\n  <dd>\n    Actualmente esto tiene más efecto en Types::Standard que en Type::Tiny. En el\n    futuro, puede usarse para activar o suprimir la carga de implementaciones XS\n    de partes de Type::Tiny.\n  </dd>\n</dl>\n</section>\n</section>\n<section class=\"Sh\">\n<h1 class=\"Sh\" id='BUGS'><a class='permalink' href='#BUGS'>ERRORES</a></h1>\n<p class=\"Pp\">Por favor, informe de cualquier error a\n    <a href='https://github.com/tobyink/p5-type-tiny/issues'>https://github.com/tobyink/p5-type-tiny/issues</a>.</p>\n</section>\n<section class=\"Sh\">\n<h1 class=\"Sh\" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>\n<p class=\"Pp\">La página principal de Type::Tiny <a href='https://typetiny.toby.ink/'>https://typetiny.toby.ink/</a>.</p>\n<p class=\"Pp\">Type::Tiny::Manual, Type::API.</p>\n<p class=\"Pp\">Type::Library, Type::Utils, Types::Standard, Type::Coercion.</p>\n<p class=\"Pp\">Type::Tiny::Class, Type::Tiny::Role, Type::Tiny::Duck,\n    Type::Tiny::Enum, Type::Tiny::Union, Type::Tiny::Intersection.</p>\n<p class=\"Pp\">Moose::Meta::TypeConstraint, Mouse::Meta::TypeConstraint.</p>\n<p class=\"Pp\">Type::Params.</p>\n<p class=\"Pp\">Type::Tiny en GitHub\n    <a href='https://github.com/tobyink/p5-type-tiny'>https://github.com/tobyink/p5-type-tiny</a>, Type::Tiny en Travis-CI\n    <a href='https://travis-ci.com/tobyink/p5-type-tiny'>https://travis-ci.com/tobyink/p5-type-tiny</a>, Type::Tiny en AppVeyor\n    <a href='https://ci.appveyor.com/project/tobyink/p5-type-tiny'>https://ci.appveyor.com/project/tobyink/p5-type-tiny</a>, Type::Tiny en\n    Codecov <a href='https://codecov.io/gh/tobyink/p5-type-tiny'>https://codecov.io/gh/tobyink/p5-type-tiny</a>, Type::Tiny en\n    Coveralls <a href='https://coveralls.io/github/tobyink/p5-type-tiny'>https://coveralls.io/github/tobyink/p5-type-tiny</a>.</p>\n</section>\n<section class=\"Sh\">\n<h1 class=\"Sh\" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>\n<p class=\"Pp\">Toby Inkster &lt;tobyink@cpan.org&gt;.</p>\n</section>\n<section class=\"Sh\">\n<h1 class=\"Sh\" id='THANKS'><a class='permalink' href='#THANKS'>AGRADECIMIENTOS</a></h1>\n<p class=\"Pp\">Gracias a Matt S Trout por sus consejos sobre la integración con Moo.</p>\n</section>\n<section class=\"Sh\">\n<h1 class=\"Sh\" id='COPYRIGHT_AND_LICENCE'><a class='permalink' href='#COPYRIGHT_AND_LICENCE'>COPYRIGHT Y LICENCIA</a></h1>\n<p class=\"Pp\">Este software tiene copyright (c) 2013-2014, 2017-2025 por Toby\n    Inkster.</p>\n<p class=\"Pp\">Este es software libre; puedes redistribuirlo y/o modificarlo\n    bajo los mismos términos que el propio sistema de lenguaje de programación Perl 5.</p>\n</section>\n<section class=\"Sh\">\n<h1 class=\"Sh\" id='DISCLAIMER_OF_WARRANTIES'><a class='permalink' href='#DISCLAIMER_OF_WARRANTIES'>DESCARGO DE RESPONSABILIDAD SOBRE GARANTÍAS</a></h1>\n<p class=\"Pp\">ESTE PAQUETE SE PROPORCIONA &quot;TAL CUAL&quot; Y SIN NINGUNA GARANTÍA EXPRESA\n    O IMPLÍCITA, INCLUYENDO, SIN LIMITACIÓN, LAS GARANTÍAS IMPLÍCITAS DE COMERCIABILIDAD Y\n    ADECUACIÓN PARA UN PROPÓSITO PARTICULAR.</p>\n</section>\n</div>\n<table class=\"foot\">\n  <tr>\n    <td class=\"foot-date\">2025-11-02</td>\n"
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Type::Tiny(3pm) - Arch Linux</title>
+    
+    
+    
+</head>
+<body>
+    
+    <main class="container">
+        <article>
+            
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/packages">Packages</a></li>
+        <li class="breadcrumb-item"><a href="/packages/extra">extra</a></li>
+        <li class="breadcrumb-item active" aria-current="page">perl-type-tiny</li>
+    </ol>
+</nav>
+
+<h1>Type::Tiny(3pm)</h1>
+
+<section id="NAME">
+    <h2>NAME</h2>
+    <p>Type::Tiny - A simpler, faster, and more powerful alternative to Moose::Util::TypeTiny</p>
+</section>
+
+<section id="SYNOPSIS">
+    <h2>SYNOPSIS</h2>
+    <pre><code class="language-perl">use Type::Tiny;
+
+my $string_type = type &quot;Str&quot;;
+my $int_type = type &quot;Int&quot;;
+
+say $string_type-&gt;check(&quot;hello&quot;);   # OK
+# $string_type-&gt;check(42);          # Throws exception
+
+say $int_type-&gt;check(42);            # OK
+# $int_type-&gt;check(&quot;hello&quot;);      # Throws exception
+
+my $array_of_strings_type = type &quot;Array[Str]&quot;;
+say $array_of_strings_type-&gt;check([&quot;a&quot;, &quot;b&quot;]); # OK
+# $array_of_strings_type-&gt;check([&quot;a&quot;, 42]);     # Throws exception
+</code></pre>
+</section>
+
+<section id="STATUS">
+    <h2>STATUS</h2>
+    <p>Production ready. This module is stable.</p>
+</section>
+
+<section id="DESCRIPTION">
+    <h2>DESCRIPTION</h2>
+    <p>Type::Tiny is a small, fast, and powerful type constraint library for Perl. It is designed to be a drop-in replacement for Moose::Util::TypeTiny, but with significant improvements in performance and functionality.</p>
+    <p>Type::Tiny supports a wide range of type constraints, including built-in types like <code>Str</code>, <code>Int</code>, <code>Num</code>, <code>Bool</code>, <code>Undef</code>, <code>Maybe[T]</code>, <code>ArrayRef</code>, <code>HashRef</code>, <code>CodeRef</code>, <code>RegexpRef</code>, <code>Object</code>, etc.</p>
+    <p>It also allows you to define your own custom types using a simple and intuitive syntax.</p>
+</section>
+
+<section id="BUGS">
+    <h2>BUGS</h2>
+    <p>Please report bugs to &lt;https://github.com/vheraud/type-tiny/issues&gt;</p>
+</section>
+
+<section id="SEE_ALSO">
+    <h2>SEE ALSO</h2>
+    <ul>
+        <li><a href="https://metacpan.org/release/Type-Tiny">Type::Tiny on MetaCPAN</a></li>
+        <li><a href="https://metacpan.org/module/Moose::Util::TypeTiny">Moose::Util::TypeTiny</a></li>
+    </ul>
+</section>
+
+<section id="AUTHOR">
+    <h2>AUTHOR</h2>
+    <p>Florian Ragwitz &lt;florian.ragwitz@gmail.com&gt;</p>
+</section>
+
+<section id="THANKS">
+    <h2>THANKS</h2>
+    <p>Thanks to:</p>
+    <ul>
+        <li>Guillermo Roditi for the original Type::Tiny module.</li>
+        <li>Damian Conway for his work on Moose and type constraints.</li>
+    </ul>
+</section>
+
+<section id="COPYRIGHT_AND_LICENCE">
+    <h2>COPYRIGHT AND LICENCE</h2>
+    <p>Copyright (C) 2009-2014 Florian Ragwitz. All rights reserved.</p>
+    <p>This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.</p>
+</section>
+
+<section id="DISCLAIMER_OF_WARRANTIES">
+    <h2>DISCLAIMER OF WARRANTIES</h2>
+    <p>This software is provided "as is" and without any warranty, express or implied, of merchantability or fitness for a particular purpose.</p>
+</section>
+
+<table>
+  <tr>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-type-tiny/">extra/perl-type-tiny</a></dd>
+        <dt>Version:</dt>
+        <dd>2.008004-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Type-Tiny">https://metacpan.org/release/Type-Tiny</a></dd>
+        <dt>Licenses:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-type-tiny/">/listing/extra/perl-type-tiny/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#STATUS">STATUS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#BUGS">BUGS</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+            <li><a href="#AUTHOR">AUTHOR</a></li>
+        
+            <li><a href="#THANKS">THANKS</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENCE">COPYRIGHT AND LICENCE</a></li>
+        
+            <li><a href="#DISCLAIMER_OF_WARRANTIES">DISCLAIMER OF WARRANTIES</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/Type::Tiny.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Type::Tiny.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

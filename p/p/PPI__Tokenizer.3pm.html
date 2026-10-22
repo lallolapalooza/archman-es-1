@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PPI::Tokenizer(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">PPI__Tokenizer(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-ppi/">perl-ppi</a></p>
+<p class="lic">Licencias: PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">PPI::Tokenizer(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">PPI::Tokenizer(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">PPI::Tokenizer - El Tokenizador de Documentos Perl</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre># Crear un tokenizador para un archivo, array o cadena
+$Tokenizer = PPI::Tokenizer-&gt;new( 'archivo.pl' );
+$Tokenizer = PPI::Tokenizer-&gt;new( \@lineas       );
+$Tokenizer = PPI::Tokenizer-&gt;new( \$fuente      );
+
+# Devolver todos los tokens del documento
+my $tokens = $Tokenizer-&gt;all_tokens;
+
+# O podemos usarlo como un iterador
+while ( my $Token = $Tokenizer-&gt;get_token ) {
+      print &quot;Token encontrado '$Token'\n&quot;;
+}
+
+# Si REALMENTE necesitamos mover el cursor manualmente,
+# también puedes hacerlo (el lexer necesita esta capacidad para hacer rollbacks)
+$is_incremented = $Tokenizer-&gt;increment_cursor;
+$is_decremented = $Tokenizer-&gt;decrement_cursor;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">PPI::Tokenizer es la clase que proporciona objetos Tokenizer para
+    su uso en la división de cadenas de código fuente Perl en Tokens.</p>
+<p class="Pp">Para cuando lea esto, probablemente necesite saber un poco sobre la
+    diferencia entre cómo perl analiza el &quot;código&quot; Perl y cómo PPI
+    analiza los &quot;documentos&quot; Perl.</p>
+<p class="Pp">&quot;perl&quot; en sí (el intérprete) utiliza una especificación lex
+    modificada en gran medida para especificar su lógica de análisis, mantiene
+    varios tipos de estado a medida que avanza, y tokeniza, lexifica Y EJECUTA
+    incrementalmente al mismo tiempo.</p>
+<p class="Pp">De hecho, es matemáticamente imposible utilizar el método de
+    análisis de perl sin ejecutar código simultáneamente. Se ha publicado una
+    prueba matemática formal que demuestra el método.</p>
+<p class="Pp">Aquí es de donde proviene el axioma &quot;Solo perl puede analizar
+    Perl&quot;.</p>
+<p class="Pp">PPI utiliza un enfoque completamente diferente al abandonar la
+    capacidad (imposible) de analizar Perl de la misma manera que lo hace el
+    intérprete, y en su lugar analiza la fuente como un documento, utilizando una
+    estructura de documento derivada independientemente de la documentación Perl y
+    aproximando la interpretación del intérprete perl tan de cerca como sea
+    posible.</p>
+<p class="Pp">Hubo un momento de duda durante mucho tiempo sobre si podíamos
+    acercarnos lo suficiente, pero al final resultó que se podía hacer.</p>
+<p class="Pp">En este enfoque, el tokenizador
+    <span class="Li">&quot;PPI::Tokenizer&quot;</span> se implementa por separado
+    del lexer PPI::Lexer.</p>
+<p class="Pp">El trabajo de <span class="Li">&quot;PPI::Tokenizer&quot;</span> es
+    tomar código fuente puro como una cadena y dividirlo en un flujo/conjunto de
+    tokens, y contiene la mayor parte de la &quot;magia negra&quot; utilizada en
+    PPI. En comparación, el lexer implementa una estructura de árbol relativamente
+    sencilla y tiene una implementación que no es complicada (en comparación con
+    la locura en el tokenizador, al menos).</p>
+<p class="Pp">El Tokenizador utiliza una inmensa cantidad de heurísticas,
+    conjeturas y código auxiliar, respaldado por una API interna muy, **MUY**
+    flexible, pero afortunadamente fue posible encapsular en gran medida la magia
+    negra, por lo que no hay mucho que se exponga a las personas que usan el
+    <span class="Li">&quot;PPI::Tokenizer&quot;</span> en sí.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<p class="Pp">A pesar de la increíble complejidad, el Tokenizador en sí solo
+    expone un número relativamente pequeño de métodos, con la mayor parte de la
+    complejidad implementada en métodos privados.</p>
+<section class="Ss">
+<h2 class="Ss" id='new_$file_|_\@lines_|_\$source'><a class='permalink' href='#new_$file_%7C_\@lines_%7C_\$source'>new   $archivo | \@lineas | \$fuente</a></h2>
+<p class="Pp">El constructor principal <span class="Li">&quot;new&quot;</span>
+    crea un nuevo objeto Tokenizer. Estos objetos no tienen parámetros de
+    configuración y solo se pueden usar una vez, para tokenizar un único archivo
+    de código fuente perl.</p>
+<p class="Pp">Toma como argumento una cadena escalar normal que contiene código
+    fuente, una referencia a un escalar que contiene código fuente o una
+    referencia a un ARRAY que contiene líneas de código fuente terminadas en
+    nueva línea.</p>
+<p class="Pp">Devuelve un nuevo objeto <span class="Li">&quot;PPI::Tokenizer&quot;</span>
+    en caso de éxito, o lanza una excepción PPI::Exception en caso de error.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_token'><a class='permalink' href='#get_token'>get_token</a></h2>
+<p class="Pp">Al usar el objeto PPI::Tokenizer como un iterador, el método
+    <span class="Li">&quot;get_token&quot;</span> es el método principal que se
+    utiliza. Incrementa el cursor y devuelve el siguiente Token en el array de
+    salida.</p>
+<p class="Pp">El análisis real del archivo se realiza solo cuando es necesario, y
+    línea por línea. Cuando <span class="Li">&quot;get_token&quot;</span> llega al
+    final del array de tokens, hará que el analizador extraiga la siguiente línea
+    y la analice, continuando según sea necesario hasta que haya más tokens en el
+    array de salida que get_token pueda devolver.</p>
+<p class="Pp">Esto significa que se pueden crear varios objetos Tokenizer, y no
+    consumirán CPU significativa hasta que realmente comience a extraer tokens de
+    ellos.</p>
+<p class="Pp">Devuelve un objeto PPI::Token en caso de éxito, <span class="Li">0</span>
+    si el Tokenizer había llegado al final del archivo, o
+    <span class="Li">&quot;undef&quot;</span> en caso de error.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='all_tokens'><a class='permalink' href='#all_tokens'>all_tokens</a></h2>
+<p class="Pp">Cuando no se utiliza como iterador, el método
+    <span class="Li">&quot;all_tokens&quot;</span> indica al Tokenizer que analice
+    el archivo completo y devuelva todos los tokens en una sola referencia a ARRAY.</p>
+<p class="Pp">Cabe señalar que <span class="Li">&quot;all_tokens&quot;</span> NO
+    interfiere con el uso del objeto Tokenizer como iterador (no modifica el
+    cursor de tokens) y el uso de los dos mecanismos diferentes se puede mezclar
+    de forma segura.</p>
+<p class="Pp">Devuelve una referencia a un ARRAY de objetos PPI::Token en caso de
+    éxito o lanza una excepción en caso de error.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='increment_cursor'><a class='permalink' href='#increment_cursor'>increment_cursor</a></h2>
+<p class="Pp">Aunque expuesto como un método público,
+    <span class="Li">&quot;increment_cursor&quot;</span> se implementa solo para
+    uso experto, al escribir lexers u otros componentes que trabajan directamente
+    en flujos de tokens.</p>
+<p class="Pp">Incrementa manualmente el cursor de tokens hacia adelante en el
+    archivo, en efecto, &quot;saltándose&quot; el siguiente token.</p>
+<p class="Pp">Devuelve verdadero si el cursor se incrementa,
+    <span class="Li">0</span> si ya está al final del archivo, o
+    <span class="Li">&quot;undef&quot;</span> en caso de error.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='decrement_cursor'><a class='permalink' href='#decrement_cursor'>decrement_cursor</a></h2>
+<p class="Pp">Aunque expuesto como un método público,
+    <span class="Li">&quot;decrement_cursor&quot;</span> se implementa solo para
+    uso experto, al escribir lexers u otros componentes que trabajan directamente
+    en flujos de tokens.</p>
+<p class="Pp">Decrementa manualmente el cursor de tokens hacia atrás en el
+    archivo, en efecto, &quot;deshaciendo&quot; el flujo de tokens. Y de hecho, para
+    eso está principalmente destinado, cuando el componente que consume el flujo de
+    tokens necesita implementar algún tipo de característica de &quot;deshacer&quot;
+    en su uso del flujo de tokens.</p>
+<p class="Pp">Devuelve verdadero si el cursor se decrementa,
+    <span class="Li">0</span> si ya está al principio del archivo, o
+    <span class="Li">&quot;undef&quot;</span> en caso de error.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTAS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='How_the_Tokenizer_Works'><a class='permalink' href='#How_the_Tokenizer_Works'>Cómo   funciona el Tokenizador</a></h2>
+<p class="Pp">Entender el Tokenizador no es para los débiles de corazón. Es, con
+    mucho, la pieza de perl más compleja y retorcida que jamás he escrito y que
+    aún está construida correctamente y no es un terrible desastre espagueti. De
+    hecho, probablemente quieras saltarte esta sección.</p>
+<p class="Pp">Pero si realmente quieres entender, bueno, allá vamos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Source_Input_and_Clean_Up'><a class='permalink' href='#Source_Input_and_Clean_Up'>Entrada   y Limpieza de Código Fuente</a></h2>
+<p class="Pp">El Tokenizador comienza tomando código fuente en una variedad de
+    formas, succionándolo todo y fusionándolo en una gran cadena, y realizando
+    nuestra propia división interna de líneas, utilizando un &quot;separador de
+    líneas universal&quot; que permite al Tokenizador tomar código fuente de
+    cualquier plataforma (e incluso admite algunos tipos conocidos de saltos de
+    línea rotos causados por errores de edición mixta mac/pc/*nix).</p>
+<p class="Pp">El array resultante de líneas se utiliza para alimentar al
+    tokenizador, y también es accedido directamente por la lógica heredoc para
+    realizar la parte orientada a líneas del soporte de here-doc.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Doing_Things_the_Old_Fashioned_Way'><a class='permalink' href='#Doing_Things_the_Old_Fashioned_Way'>Haciendo   las cosas a la antigua</a></h2>
+<p class="Pp">Debido a la complejidad de perl, y después de 2 intentos de análisis
+    previamente abortados, al final el tokenizador se configuró en torno a un
+    método línea-búfer carácter por carácter.</p>
+<p class="Pp">Es decir, el Tokenizador extrae y mantiene una línea a la vez en un
+    búfer de línea, y</p>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+luego itera un cursor a lo largo de ella. En cada posición del cursor, se llama
+    a un método en la clase de token en la que nos encontremos actualmente, la cual
+    examinará el carácter en la posición actual y lo manejará.</p>
+<p class="Pp">A medida que se llaman los métodos manejadores en las diversas clases
+    de tokens, estos construyen un array de tokens de salida para el código fuente.</p>
+<p class="Pp">Varias partes del Tokenizer utilizan la búsqueda anticipada, la
+    búsqueda retrospectiva de distancia arbitraria (aunque actualmente el máximo
+    son tres tokens significativos), o ambas, y varias otras suposiciones
+    heurísticas.</p>
+<p class="Pp">Me han dicho que oficialmente se denomina un <i>&quot;analizador
+    de retroceso</i> <i>con búsquedas anticipadas infinitas&quot;</i>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Variables_de_Estado'><a class='permalink' href='#Variables_de_Estado'>Variables de Estado</a></h2>
+<p class="Pp">Además de la línea actual y el cursor de caracteres, el Tokenizer
+    mantiene una serie de variables de estado diferentes.</p>
+<dl class="Bl-tag">
+  <dt id="Clase"><a class="permalink" href="#Clase">Clase Actual</a></dt>
+  <dd>El Tokenizer mantiene la clase de token actual en todo momento. Gran parte
+      del tiempo será simplemente la clase &quot;Espacio en blanco&quot;, que es
+      la base de un documento. A medida que el tokenizador ejecuta los diversos
+      manejadores de caracteres, la clase cambia mucho a medida que avanza. De
+      hecho, en algunos casos, el manejador de caracteres puede no manejar el
+      carácter directamente, sino cambiar la &quot;clase actual&quot; y luego
+      transferir el control al manejador de caracteres para la nueva clase.
+    <p class="Pp">Debido a esto, y a otras cosas que abordaré más adelante, el
+        número de veces que se llaman los manejadores de caracteres no tiene, de
+        hecho, una relación directa con el número de caracteres reales en el
+        documento.</p>
+  </dd>
+  <dt id="Zona"><a class="permalink" href="#Zona">Zona Actual</a></dt>
+  <dd>En lugar de crear una pila de clases para permitir capas infinitamente
+      anidadas de clases, el Tokenizer reconoce solo una única capa.
+    <p class="Pp">Dicho de otra manera, en varias partes del archivo, el
+        Tokenizer reconocerá diferentes clases &quot;base&quot; o
+        &quot;sustrato&quot;. Cuando un Token como un comentario o un número es
+        finalizado por el tokenizador, este &quot;retrocede&quot; al estado
+        base.</p>
+    <p class="Pp">Esto permite la tokenización adecuada de áreas especiales como
+        los bloques __DATA__ y __END__, que también contienen cosas como comentarios
+        y POD, sin permitir la creación de Tokens significativos dentro de estas
+        áreas.</p>
+    <p class="Pp">Para la parte principal de un documento, utilizamos
+        PPI::Token::Whitespace para esto, con la idea de que el código está
+        &quot;flotando en un mar de espacios en blanco&quot;.</p>
+  </dd>
+  <dt id="Token"><a class="permalink" href="#Token">Token Actual</a></dt>
+  <dd>La última variable de estado principal es el &quot;token actual&quot;. Este
+      es el Token que está siendo construido actualmente por el Tokenizer. Para
+      ciertos tipos, puede ser manipulado, transformado y cambiar de clase
+      considerablemente mientras se ensambla, a medida que la comprensión del
+      token por parte del Tokenizer sobre el contenido del token cambia.
+    <p class="Pp">Cuando el Tokenizer está seguro de que ha visto el final del
+        Token, este será &quot;finalizado&quot;, lo que lo agregará al array de
+        tokens de salida y restablecerá la clase actual a la de la zona en la que
+        nos encontramos actualmente.</p>
+    <p class="Pp">También debo señalar en este punto que la variable
+        &quot;token actual&quot; es opcional. El Tokenizer es capaz de saber a qué
+        clase está configurado actualmente, sin haber acumulado realmente ningún
+        carácter en el Token.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Haciéndolo_más_rápido'><a class='permalink' href='#Haciéndolo_más_rápido'>Haciéndolo más rápido</a></h2>
+<p class="Pp">Como me imagino, llamar a varios métodos diferentes para cada
+    carácter y ejecutar expresiones regulares y otras heurísticas complejas hizo
+    que la primera versión completamente funcional del tokenizador fuera
+    extremadamente lenta.</p>
+<p class="Pp">Durante las pruebas, creé una métrica para medir la velocidad de
+    análisis llamada LPGC, o &quot;líneas por gigaciclo&quot;. Un gigaciclo es
+    simplemente mil millones de ciclos de CPU en una CPU típica de un solo núcleo,
+    por lo que un Tokenizer funcionando a &quot;1000 líneas por gigaciclo&quot;
+    debería generar alrededor de 1200 líneas de código tokenizado cuando se ejecuta
+    en un procesador de 1200 MHz.</p>
+<p class="Pp">La primera versión funcional del tokenizador funcionaba a solo 350
+    LPGC, por lo que tokenizar un módulo grande típico como ExtUtils::MakeMaker
+    tardaba de 10 a 15 segundos. Esta lentitud lo hacía poco práctico para muchos
+    usos.</p>
+<p class="Pp">Por lo tanto, en el analizador actual, hay múltiples capas de
+    optimización muy cuidadosamente integradas en la base. Esto ha llevado el
+    tokenizador a un más razonable LPGC de 1000, a expensas de hacer el código
+    bastante más retorcido.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Haciéndolo más rápido - Clasificación de línea completa</h2>
+<p class="Pp">El primer paso en el proceso de optimización fue agregar un nuevo
+    manejador para permitir que varias de las clases más básicas (espacios en
+    blanco, comentarios) pudieran ser analizadas línea por línea. Al inicio de
+    cada línea, se llama a un manejador especial opcional (solo compatible con
+    pocas clases) para verificar si toda la línea puede ser analizada de una sola
+    vez.</p>
+<p class="Pp">Esto se utiliza principalmente para manejar cosas como POD,
+    comentarios, líneas vacías y algunos otros casos especiales menores.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Haciéndolo más rápido - Inlining</h2>
+<p class="Pp">La segunda etapa de la optimización implicó la inlining de un
+    pequeño número de métodos críticos que se repetían un número extremadamente
+    alto de veces. El perfilado sugirió que había alrededor de 1.000.000 de llamadas
+    a métodos individuales por gigaciclo, y al reducir estas en dos tercios se
+    obtuvo una mejora significativa de la velocidad, del orden de aproximadamente
+    un 50%.</p>
+<p class="Pp">Es posible que observe que muchos métodos en el código de
+    <span class="Li">&quot;PPI::Tokenizer&quot;</span> parecen muy anidados y largos.
+    Esto se debe principalmente a esta inlining.</p>
+<p class="Pp">Alrededor de este tiempo, también se eliminó algo de código de
+    estadísticas que existía en las primeras versiones del analizador, ya que se
+    determinó que consumía alrededor del 15% de la CPU para todo el analizador,
+    mientras complicaba el núcleo.</p>
+<p class="Pp">Se tomó la decisión de que, dadas las dificultades probables con las
+    futuras mejoras planificadas, y dado el costo relativamente alto involucrado,
+    las características estadísticas se eliminarían del Tokenizer.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Haciéndolo más rápido - Motor de Comillas</h2>
+<p class="Pp">Una vez que la inlining alcanzó rendimientos decrecientes, se hizo
+    obvio a partir de los resultados del perfilado que se estaba gastando una
+    gran cantidad de tiempo recorriendo carácter por carácter un código largo,
+    simple y &quot;sintácticamente aburrido&quot;, como comentarios y cadenas.</p>
+<p class="Pp">El motor de expresiones regulares existente se expandió para
+    abarcar también comillas y otras cosas similares a comillas, y se agregó una
+    clase base abstracta especial que proporcionaba una serie de métodos de
+    análisis especializados que &quot;escaneaban hacia adelante&quot;, buscando el
+    final de una cadena y actualizando el cursor para dejarlo en una posición
+    válida para la siguiente llamada.</p>
+<p class="Pp">Este es también el punto en el que el número de llamadas al manejador
+    de caracteres comenzó a diferir en gran medida del número de caracteres. Pero
+    se ha hecho de manera que permite al analizador conservar el poder de la
+    versión original en los puntos críticos, mientras salta a través de los
+    &quot;trozos aburridos&quot; según sea necesario para obtener velocidad
+    adicional.</p>
+<p class="Pp">La adición de esta característica permitió que el tokenizador
+    superara los 1000 LPGC por primera vez.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Haciéndolo más rápido - El Mecanismo de &quot;Completado&quot;</h2>
+<p class="Pp">A medida que se hizo evidente que se podían obtener grandes aumentos
+    de velocidad utilizando este mecanismo de &quot;salto hacia adelante&quot;, se
+    agregó un nuevo método manejador que maneja explícitamente el análisis de un
+    token completo, donde la estructura del token es relativamente simple. Tokens
+    como los símbolos encajan en este caso, ya que una vez que pasamos el sigilo
+    inicial y el carácter de palabra, sabemos que podemos saltar hacia adelante y
+    &quot;completar&quot; el resto del token con mucha más facilidad.</p>
+<p class="Pp">Se han agregado varios de estos para la mayoría o posiblemente todos
+    los casos comunes, con la mayoría de estos manejadores de &quot;completado&quot;
+    implementados utilizando expresiones regulares.</p>
+<p class="Pp">De hecho, se han agregado tantos que en este punto, se podría
+    reclasificar argumentablemente el tokenizador como un &quot;tokenizador
+    híbrido de expresiones regulares, carácter por carácter, heurístico&quot;.
+    Ahora se consumen más tokens en métodos de &quot;completado&quot; en un
+    programa típico que los manejados por los métodos normales carácter por
+    carácter.</p>
+<p class="Pp">Muchos de estos manejadores de completado se implementaron durante
+    la escritura del Lexer, y esto ha permitido que el analizador completo mantenga
+    aproximadamente 1000 LPGC a pesar del creciente peso del Lexer.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Haciéndolo más rápido - Portado a C (En progreso)</h2>
+<p class="Pp">Aunque sería extraordinariamente difícil portar todo el Tokenizer
+    a C, se ha comenzado a trabajar en un paquete de &quot;acelerador&quot;
+    PPI::XS que actúa como un complemento separado y detectado automáticamente al
+    paquete principal de PPI.</p>
+<p class="Pp">PPI::XS implementa versiones más rápidas de una variedad de funciones
+    dispersas por toda la base de código de PPI, desde el Núcleo del Tokenizer,
+    el Motor de Comillas y varios otros lugares, y las implementa de manera idéntica
+    en XS/C.</p>
+<p class="Pp">En particular, los métodos de salto anticipado del Motor de Comillas
+    parecen ser extremadamente adecuados para ser implementados en C, y varias
+    otras funciones podrían ser seleccionadas una por una e implementadas en
+    C.</p>
+<p class="Pp">Cada método se prueba exhaustivamente para garantizar que la
+    funcionalidad sea idéntica, y se incluye un mecanismo de versionado para
+    garantizar que si una función se desincroniza, PPI::XS degradará
+    graciosamente y simplemente no reemplazará ese único método.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TODO'><a class='permalink' href='#TODO'>TODO</a></h1>
+<p class="Pp">- Agregar una opción para restablecer o buscar en el flujo de tokens...</p>
+<p class="Pp">- Implementar más funciones del Tokenizer en PPI::XS</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SOPORTE'><a class='permalink' href='#SOPORTE'>SOPORTE</a></h1>
+<p class="Pp">Ver la sección de soporte en el módulo principal.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Adam Kennedy &lt;adamk@cpan.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright 2001 - 2011 Adam Kennedy.</p>
+<p class="Pp">Este programa es software libre; puede redistribuirlo y/o
+    modificarlo bajo los mismos términos que el propio Perl.</p>
+<p class="Pp">El texto completo de la licencia se puede encontrar en el archivo
+    LICENSE incluido con este módulo.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-11-02</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt></dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-ppi/">extra/perl-ppi</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.284-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/PPI">https://metacpan.org/release/PPI</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-ppi/">/listing/extra/perl-ppi/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#METHODS">MÉTODOS</a></li>
+        
+            <li><a href="#NOTES">NOTAS</a></li>
+        
+            <li><a href="#TO_DO">POR HACER</a></li>
+        
+            <li><a href="#SUPPORT">SOPORTE</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT">DERECHOS DE AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/PPI::Tokenizer.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/PPI::Tokenizer.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

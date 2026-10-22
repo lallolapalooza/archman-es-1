@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>containers-storage-composefs(1) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">containers-storage-composefs(1)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/containers-common/">containers-common</a></p>
+<p class="lic">Licencias: Apache-2.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">()</td>
+    <td class="head-vol"></td>
+    <td class="head-rtitle">()</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='containers-storage_1_Agosto_2024'><a class='permalink' href='#containers-storage_1_Agosto_2024'>containers-storage   1 Agosto 2024</a></h1>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">containers-storage-composefs - Información sobre composefs y
+    containers/storage</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Para habilitar composefs en un nivel base se requiere la siguiente
+    configuración en <b>containers-storage.conf</b>:</p>
+<pre>[storage.options.overlay]
+use_composefs = "true"</pre>
+<p class="Pp">Este valor debe ser un &quot;string booleano&quot;, no puede ser un
+    booleano nativo de TOML.</p>
+<p class="Pp">Sin embargo, en este momento, composefs requiere imágenes
+    zstd:chunked, por lo que primero debes asegurarte de que zstd:chunked esté
+    habilitado. Para más información, consulta zstd:chunked &#x27E8;containers-storage-zstd-chunked.md&#x27E9;.</p>
+<p class="Pp">Adicionalmente, no hay muchas imágenes en formato zstd:chunked. Para
+    reducir esta brecha, se puede especificar <b>convert_images =
+    &quot;true&quot;</b>, que realiza una conversión dinámica; esto añade latencia
+    a las descargas de imágenes.</p>
+<p class="Pp">Juntando estas cosas, lo siguiente es necesario (además de la
+    configuración anterior).</p>
+<pre>[storage.options.pull_options]
+convert_images = "true"</pre>
+<p class="Pp">Este valor debe ser un &quot;string booleano&quot;, no puede ser un
+    booleano nativo de TOML.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='IMPLEMENTACIÓN'><a class='permalink' href='#IMPLEMENTACIÓN'>IMPLEMENTACIÓN</a></h1>
+<p class="Pp">Como se implica en la configuración <b>use_composefs =
+    &quot;true&quot;</b>, actualmente composefs se implementa como una
+    &quot;opción&quot; para el controlador <b>overlay</b>. Algunos formatos de archivo
+    permanecen sin cambios y se heredan del controlador overlay, incluso cuando se
+    usa composefs. Las principales diferencias se enumeran a continuación.</p>
+<p class="Pp">El directorio <b>diff/</b> para cada capa ya no es un simple
+    desempaquetado del tarball, sino que se convierte en un &quot;directorio de
+    hashes de objetos&quot;, donde cada nombre de archivo es el sha256 de su
+    contenido. Este directorio <b>diff/</b> es el almacén de respaldo para un
+    <b>composefs-data/composefs.blob</b> creado para cada capa, que es el
+    &quot;superbloque&quot; de composefs que contiene todo el contenido que no es un
+    archivo regular (es decir, metadatos) del tarball.</p>
+<p class="Pp">Al igual que con <b>zstd:chunked</b>, las capas existentes se
+    escanean en busca de objetos coincidentes y se reutilizan (mediante hardlink
+    o reflink según la configuración) si se encuentran objetos con un &quot;sha256
+    completo&quot; coincidente.</p>
+<p class="Pp">Actualmente no hay soporte para integridad forzada con composefs;
+    se intenta habilitar fsverity para los archivos de respaldo y el archivo
+    composefs, pero no es un error si no es compatible. Todavía no existe un
+    mecanismo definido para verificar el digest de fsverity del bloque composefs
+    antes de montarlo; algunos trabajos al respecto están en curso.</p>
+<p class="Pp">Para montar una capa (o una imagen completa, con todas sus
+    dependencias), se monta cualquier capa que tenga un blob composefs y se
+    incluye en la pila de overlayfs &quot;final&quot;. Esto es opcional; cualquier
+    capa que no esté en formato &quot;composefs&quot; sino en el formato
+    &quot;overlay predeterminado&quot; (desempaquetado) se reutilizará tal como
+    está.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES'><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd><a href='https://github.com/containers/storage/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%2Fcomposefs'>https://github.com/containers/storage/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%2Fcomposefs</a>
+      </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS_AL_PIE'><a class='permalink' href='#NOTAS_AL_PIE'>NOTAS AL PIE</a></h1>
+<p class="Pp">El proyecto Containers Storage está comprometido con la
+    inclusividad, un valor fundamental del código abierto. La terminología de
+    propagación de montaje <b>master</b> y <b>slave</b> se utiliza en este
+    repositorio. Este lenguaje es problemático y divisivo, y debería cambiarse.
+    Sin embargo, estos términos se utilizan actualmente en el kernel de Linux y
+    deben usarse tal como están en este momento. Cuando los mantenedores del
+    kernel rectifiquen este uso, Containers Storage hará lo mismo
+    inmediatamente.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/containers-common/">extra/containers-common</a></dd>
+        <dt>Versión:</dt>
+        <dd>1:0.66.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://github.com/containers/container-libs">https://github.com/containers/container-libs</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Apache-2.0</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/containers-common/">/listing/extra/containers-common/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#containers-storage_1_Agosto_2024">containers-storage 1 Agosto 2024</a></li>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#IMPLEMENTACIÓN">IMPLEMENTACIÓN</a></li>
+        
+            <li><a href="#ERRORES">ERRORES</a></li>
+        
+            <li><a href="#NOTAS_AL_PIE">NOTAS AL PIE</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/containers-storage-composefs.1.es.txt">txt</a>, 
+        
+            <a href="/man/containers-storage-composefs.1.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

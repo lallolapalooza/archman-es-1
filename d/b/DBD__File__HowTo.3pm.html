@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBD::File::HowTo(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBD__File__HowTo(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBD::File::HowTo(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">DBD::File::HowTo(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">DBD::File::HowTo - Guía para crear un driver basado en DBD::File</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>perldoc DBD::File::HowTo
+perldoc DBI
+perldoc DBI::DBD
+perldoc DBD::File::Developers
+perldoc DBI::DBD::SqlEngine::Developers
+perldoc DBI::DBD::SqlEngine
+perldoc SQL::Eval
+perldoc DBI::DBD::SqlEngine::HowTo
+perldoc SQL::Statement::Embed
+perldoc DBD::File
+perldoc DBD::File::HowTo
+perldoc DBD::File::Developers</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este documento proporciona una guía paso a paso sobre cómo crear
+    un nuevo driver basado en <span class="Li">&quot;DBD::File&quot;</span>. Se espera
+    que haya leído cuidadosamente la documentación de DBI y que esté familiarizado
+    con DBI::DBD y haya leído y comprendido DBD::ExampleP.</p>
+<p class="Pp">Este documento se dirige a desarrolladores experimentados que estén
+    realmente seguros de que necesitan invertir tiempo al escribir un nuevo Driver
+    de DBI. Escribir un Driver de DBI no es un proyecto de fin de semana ni una
+    tarea fácil para programadores aficionados después del trabajo. Espere uno o
+    dos meses-hombre de tiempo para empezar.</p>
+<p class="Pp">Aquellos que todavía están leyendo, deberían poder recitar las reglas
+    de &quot;CREACIÓN DE UN NUEVO DRIVER&quot; en DBI::DBD.</p>
+<p class="Pp">Por supuesto, DBD::File es un DBI::DBD::SqlEngine y seguramente ha
+    leído DBI::DBD::SqlEngine::HowTo antes de continuar aquí.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CREACIÓN_DE_CLASES_DE_DRIVER'><a class='permalink' href='#CREACIÓN_DE_CLASES_DE_DRIVER'>CREACIÓN   DE CLASES DE DRIVER</a></h1>
+<p class="Pp">¿Tiene una entrada en el registro de DBD de DBI? Para esta guía, se
+    asume un prefijo de <span class="Li">&quot;foo_&quot;</span>.</p>
+<section class="Ss">
+<h2 class="Ss" id='Esqueleto_de_ejemplo'><a class='permalink' href='#Esqueleto_de_ejemplo'>Esqueleto   de ejemplo</a></h2>
+<pre>package DBD::Foo;
+use strict;
+use warnings;
+use base qw(DBD::File);
+use DBI ();
+our $VERSION = &quot;0.001&quot;;
+package DBD::Foo::dr;
+our @ISA = qw(DBD::File::dr);
+our $imp_data_size = 0;
+package DBD::Foo::db;
+our @ISA = qw(DBD::File::db);
+our $imp_data_size = 0;
+package DBD::Foo::st;
+our @ISA = qw(DBD::File::st);
+our $imp_data_size = 0;
+package DBD::Foo::Statement;
+our @ISA = qw(DBD::File::Statement);
+package DBD::Foo::Table;
+our @ISA = qw(DBD::File::Table);
+1;</pre>
+<p class="Pp">Pequeño, ¿eh? Y todo lo que tiene ahora es un DBD llamado foo que
+    será capaz de manejar tablas temporales, siempre que utilice SQL::Statement.
+    En entornos de DBI::SQL::Nano, este DBD no puede hacer nada.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Empezar_de_nuevo'><a class='permalink' href='#Empezar_de_nuevo'>Empezar   de nuevo</a></h2>
+<p class="Pp">Basado en DBI::DBD::SqlEngine::HowTo, ahora tenemos un driver que
+    podría hacer cosas básicas. Por supuesto, debería derivar de DBD::File en
+    lugar de DBI::DBD::SqlEngine, ¿no?</p>
+<p class="Pp">DBD::File extiende DBI::DBD::SqlEngine para manejar cualquier tipo
+    de archivo. En principio, las únicas extensiones requeridas son para la clase
+    de tabla:</p>
+<pre>package DBD::Foo::Table;
+sub bootstrap_table_meta
+{
+    my ( $self, $dbh, $meta, $table ) = @_;
+    # inicializar todos los atributos $meta que puedan ser relevantes para
+    # file2table
+    return $self-&gt;SUPER::bootstrap_table_meta($dbh, $meta, $table);
+}
+sub init_table_meta
+{
+    my ( $self, $dbh, $meta, $table ) = @_;
+    # llamado después de que $meta contenga los resultados de file2table
+    # inicializar todos los atributos $meta faltantes
+    $self-&gt;SUPER::init_table_meta( $dbh, $meta, $table );
+}</pre>
+<p class="Pp">En caso de que
+    <span class="Li">&quot;DBD::File::Table::open_file&quot;</span> no abra los
+    archivos como el driver lo necesita, ¡anúlalo!</p>
+<pre>sub open_file
+{
+    my ( $self, $meta, $attrs, $flags ) = @_;
+    # asegurarse de que $meta-&gt;{f_dontopen} esté establecido
+    $self-&gt;SUPER::open_file( $meta, $attrs, $flags );
+    # ahora haga lo que sea necesario
+}</pre>
+<p class="Pp">Combinado con los métodos implementados utilizando la guía de
+    SQL::Statement::Embed, la tabla está completamente funcional y se podría
+    intentar empezar de nuevo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Comodidad_del_usuario'><a class='permalink' href='#Comodidad_del_usuario'>Comodidad   del usuario</a></h2>
+<p class="Pp"><span class="Li">&quot;DBD::File&quot;</span> desde
+    <span class="Li">0.39</span> consolida todos los metadatos persistentes de
+    una tabla en una única estructura almacenada en
+    <span class="Li">&quot;$dbh-&gt;{f_meta}&quot;</span>. Con la versión
+    <span class="Li">&quot;DBD::File&quot;</span>
+    <span class="Li">0.41</span> y la versión de
+    <span class="Li">&quot;DBI::DBD::SqlEngine&quot;</span>
+    <span class="Li">0.05</span>, esta consolidación se traslada a
+    DBI::DBD::SqlEngine. Sigue siendo el atributo
+    <span class="Li">&quot;$dbh-&gt;{$drv_prefix .
+    &quot;_meta&quot;}&quot;</span> el que se encarga, así que lo que aprendió
+    aquí antes, sigue siendo válido.</p>
+<pre>sub init_valid_attributes
+{
+    my $dbh = $_[0];
+    $dbh-&gt;SUPER::init_valid_attributes ();
+    $dbh-&gt;{foo_valid_attrs} = { ... };
+    $dbh-&gt;{foo_readonly_attrs} = { ...  };
+    $dbh-&gt;{foo_meta} = &quot;foo_tables&quot;;
+    return $dbh;
+}</pre>
+<p class="Pp">Vea las actualizaciones en &quot;Comodidad del usuario&quot; en
+    DBI::DBD::SqlEngine::HowTo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Pruebas'><a class='permalink' href='#Pruebas'>Pruebas</a></h2>
+<p class="Pp">Ahora debería tener su propio driver basado en DBD::File. Fácil,
+    ¿no? ¿Pero funciona bien? Pruébelo escribiendo pruebas y recuerde usar
+    dbd_edit_mm_attribs de DBI::DBD para asegurar la prueba incluso de los casos
+    raros.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Esta guía está escrita por Jens Rehsack. DBD::File está escrito por
+    Jochen Wiedmann y Jeff Zucker.</p>
+<p class="Pp">El módulo DBD::File está actualmente mantenido por</p>
+<p class="Pp">H.Merijn Brand &lt; h.m.brand at xs4all.nl &gt; y Jens Rehsack
+    &lt; rehsack at googlemail.com &gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_Y_LICENCIA'><a class='permalink' href='#COPYRIGHT_Y_LICENCIA'>COPYRIGHT   Y LICENCIA</a></h1>
+<p class="Pp">Copyright (C) 2010 por H.Merijn Brand &amp; Jens Rehsack</p>
+<p class="Pp">Todos los derechos reservados.</p>
+<p class="Pp">Puede distribuir y/o modificar libremente este módulo bajo los
+    términos de la Licencia Pública General de GNU (GPL) o la Licencia Artística,
+    tal como se especifica en el archivo README de Perl.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/perl-dbi/</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.647-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.org/dist/DBI/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-dbi/">/listing/extra/perl-dbi/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#CREACIÓN_DE_CLASES_DE_DRIVER">CREACIÓN DE CLASES DE DRIVER</a></li>
+        
+            <li><a href="#AUTOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT_Y_LICENCIA">COPYRIGHT Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBD::File::HowTo.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/DBD::File::HowTo.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

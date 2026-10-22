@@ -1,0 +1,409 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>File::FcntlLock::Pure(3pm) — Páginas man del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">File__FcntlLock__Pure(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-file-fcntllock/">perl-file-fcntllock</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">File::FcntlLock::Pure(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">File::FcntlLock::Pure(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">File::FcntlLock - Bloqueo de archivos con <a href='/man/fcntl.2.en'>fcntl(2)</a></p>
+<p class="Pp">Este texto también documenta los siguientes subpaquetes:</p>
+<dl class="Bl-tag">
+  <dt id="File::FcntlLock::XS"><a class="permalink" href="#File::FcntlLock::XS">File::FcntlLock::XS</a></dt>
+  <dd></dd>
+  <dt id="File::FcntlLock::Pure"><a class="permalink" href="#File::FcntlLock::Pure">File::FcntlLock::Pure</a></dt>
+  <dd></dd>
+  <dt id="File::FcntlLock::Inline"><a class="permalink" href="#File::FcntlLock::Inline">File::FcntlLock::Inline</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use File::FcntlLock;
+my $fs = new File::FcntlLock;
+$fs-&gt;l_type( F_RDLCK );
+$fs-&gt;l_whence( SEEK_CUR );
+$fs-&gt;l_start( 100 );
+$fs-&gt;l_len( 123 );
+open my $fh, '&lt;', 'file_name' or die "Can't open file: $!\n";
+$fs-&gt;lock( $fh, F_SETLK )
+    or print "Locking failed: " . $fs-&gt;error . "\n";
+$fs-&gt;l_type( F_UNLCK );
+$fs-&gt;lock( $fh, F_SETLK )
+    or print "Unlocking failed: " . $fs-&gt;error . "\n";</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">El bloqueo de archivos en Perl se realiza generalmente mediante la
+    <span class="Li">"flock"</span> función. Desafortunadamente, esto solo
+    permite bloqueos sobre archivos completos y a menudo se implementa en términos de la
+    <a href='/man/flock.2.en'>flock(2)</a> función del sistema que tiene algunas deficiencias (especialmente
+    con respecto a los bloqueos en sistemas de archivos montados de forma remota) y un comportamiento ligeramente diferente al de <a href='/man/fcntl.2.en'>fcntl(2)</a>.</p>
+<p class="Pp">Usando este módulo, el bloqueo de archivos a través de <a href='/man/fcntl.2.en'>fcntl(2)</a> puede realizarse
+    (obviamente, esto restringe el uso del módulo a sistemas que tienen una
+    <a href='/man/fcntl.2.en'>fcntl(2)</a> llamada al sistema). Antes de que un archivo (o partes de un archivo) pueda ser
+    bloqueado, debe crearse un objeto que simule una estructura flock, que contenga información en un
+    formato binario que se pasará a <a href='/man/fcntl.2.en'>fcntl(2)</a> para las solicitudes de bloqueo, y deben establecerse sus propiedades. Después, mediante la llamada al <b>lock()</b>
+    método, se puede establecer y eliminar un bloqueo, o se puede determinar si y qué
+    proceso posee actualmente el bloqueo.</p>
+<p class="Pp">File::FcntlLock (o su alias File::FcntlLock::XS) usa una
+    biblioteca compartida, construida durante la instalación, para llamar a la <a href='/man/fcntl.2.en'>fcntl(2)</a> función del sistema
+    directamente. Si esto no es adecuado, hay dos alternativas,
+    File::FcntlLock::Pure y File::FcntlLock::Inline. Ambos llaman a la función Perl
+    <span class="Li">"fcntl"</span> en su lugar y usan código Perl
+    para ensamblar y desensamblar la estructura. Para esto, en algún momento, la
+    distribución binaria (dependiente del sistema) de la estructura flock debe haber sido determinada mediante un programa escrito en C. La diferencia entre
+    File::FcntlLock::Pure y File::FcntlLock::Inline es que para el primero
+    esto sucede cuando el paquete se instala, mientras que para el último se hace
+    cada vez que el paquete se carga (por ejemplo, con
+    <span class="Li">"use"</span>). Así, para que File::FcntlLock::Inline
+    funcione, debe estar disponible un compilador de C. Hay algunas diferencias menores en
+    la funcionalidad y el comportamiento al pasar al método de bloqueo
+    argumentos inválidos que se describirán a continuación.</p>
+<section class="Ss">
+<h2 class="Ss" id='Creating_objects'><a class='permalink' href='#Creating_objects'>Creando   objetos</a></h2>
+<dl class="Bl-tag">
+  <dt id="new()"><a class="permalink" href="#new()">new()</a></dt>
+  <dd>Para crear un nuevo objeto, que representa una estructura flock, llame a <b>new()</b>:
+        <pre>$fs = new File::FcntlLock;
+</pre>
+    <p class="Pp">El objeto tiene una serie de propiedades, que reflejan los miembros
+        de la estructura flock que se pasará a <a href='/man/fcntl.2.en'>fcntl(2)</a> (ver abajo). Por
+        defecto, al crear el objeto, la propiedad l_type se establece en
+        <span class="Li">"F_RDLCK"</span>, l_whence en
+        <span class="Li">"SEEK_SET"</span>, y tanto l_start como l_len
+        en 0, es decir, la configuración para un bloqueo de lectura en el archivo completo.</p>
+    <p class="Pp">Estos valores predeterminados pueden anularse pasando al <b>new()</b>
+        método un conjunto de pares clave-valor para inicializar las propiedades del objeto,
+        por ejemplo, use</p>
+        <pre>$fs = new File::FcntlLock( l_type   =&gt; F_WRLCK,
+                           l_whence =&gt; SEEK_SET,
+                           l_start  =&gt; 0,
+                           l_len    =&gt; 100 );
+</pre>
+    <p class="Pp">si pretende obtener un bloqueo de escritura para los primeros 100 bytes
+        de un archivo.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Object_properties'><a class='permalink' href='#Object_properties'>Propiedades   del objeto</a></h2>
+<p class="Pp">Una vez que el objeto que simula la estructura flock ha sido creado
+    los siguientes métodos permiten consultar y, en la mayoría de los casos, también modificar sus
+    propiedades.</p>
+<dl class="Bl-tag">
+  <dt id="l_type()"><a class="permalink" href="#l_type()">l_type()</a></dt>
+  <dd>Si se llama sin argumento, el método devuelve la configuración actual del
+      tipo de bloqueo; de lo contrario, el tipo de bloqueo se establece en el valor del argumento,
+      que debe ser <span class="Li">"F_RDLCK"</span>,
+      <span class="Li">"F_WRLCK"</span> o
+      <span class="Li">"F_UNLCK"</span> (para bloqueo de lectura, bloqueo de escritura o
+      desbloqueo).</dd>
+  <dt id="l_whence()"><a class="permalink" href="#l_whence()">l_whence()</a></dt>
+  <dd>Este método establece, cuando se llama con un argumento, la propiedad l_whence del
+      objeto flock, determinando si el valor de l_start es relativo al
+      inicio del archivo, a la posición actual en el archivo o al final de
+      el archivo. Estos valores son <span class="Li">"SEEK_SET"</span>,
+      <span class="Li">"SEEK_CUR"</span> y
+      <span class="Li">"SEEK_END"</span> (véase también la página del manual para
+      <a href='/man/lseek.2.en'>lseek(2)</a>). Si se llama sin argumento, se devuelve el valor actual de la
+      propiedad.</dd>
+  <dt id="l_start()"><a class="permalink" href="#l_start()">l_start()</a></dt>
+  <dd>Consulta o establece la posición de inicio (desplazamiento) del bloqueo en el archivo
+      de acuerdo con el modo seleccionado por el miembro l_whence. Véase también la página del manual para <a href='/man/lseek.2.en'>lseek(2)</a>.</dd>
+  <dt id="l_len()"><a class="permalink" href="#l_len()">l_len()</a></dt>
+  <dd>Consulta o establece la longitud de la región (en bytes) en el archivo a
+      bloquear. Un valor de 0 se interpreta como un bloqueo que comienza en
+      <span class="Li">"l_start"</span>hasta el final del archivo. Por ejemplo,
+      un bloqueo obtenido con l_whence establecido en
+      <span class="Li">"SEEK_SET"</span> y tanto l_start como l_len
+      establecidos en 0 bloquea el archivo completo.
+    <p class="Pp">De acuerdo con SUSv3, se permite el soporte de valores negativos para l_len,
+        lo que resulta en un bloqueo que va desde
+        <span class="Li">"l_start+l_len"</span> hasta e incluyendo
+        <span class="Li">"l_start-1"</span>. Pero no todos los sistemas
+        soportan valores negativos para l_len y devolverán un error cuando se intente
+        obtener un bloqueo de este tipo, así que por favor lea la <a href='/man/fcntl.2.en'>fcntl(2)</a> página del manual del
+        sistema cuidadosamente para más detalles.</p>
+  </dd>
+  <dt id="l_pid()"><a class="permalink" href="#l_pid()">l_pid()</a></dt>
+  <dd>Si una llamada al <b>lock()</b> método con
+      <span class="Li">"F_GETLK"</span> indica que otro proceso
+      está reteniendo el bloqueo (en cuyo caso la propiedad l_type será
+      <span class="Li">"F_WRLCK"</span> o
+      <span class="Li">"F_RDLCK"</span>), una llamada al <b>l_pid()</b>
+      método devuelve el PID del proceso que retiene el bloqueo. Este método no
+      acepta ningún argumento.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Locking'><a class='permalink' href='#Locking'>Bloqueo</a></h2>
+<p class="Pp">Después de haber configurado el objeto que representa una estructura flock, se
+    puede intentar obtener un bloqueo, liberarlo o determinar el titular actual del
+    bloqueo invocando al <b>lock()</b> método:</p>
+<dl class="Bl-tag">
+  <dt id="lock()"><a class="permalink" href="#lock()">lock()</a></dt>
+  <dd>Este método espera dos argumentos. El primero es un manejador de archivo (o
+      typeglob). File::FcntlLock, y por lo tanto File::FcntlLock::XS (<b>pero</b>
+      <b>no</b> File::FcntlLock::Pure <b>ni</b> File::FcntlLock::Inline),
+      también acepta un descriptor de archivo entero "crudo". El segundo
+      argumento es un indicador que indica la acción a tomar. Llámelo como en
+        <pre>$fs-&gt;lock( $fh, F_SETLK );
+</pre>
+    <p class="Pp">Hay tres valores que se pueden usar como el segundo
+        argumento:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt>"F_SETLK"</dt>
+  <dd>Con <span class="Li">"F_SETLK"</span> el <b>lock()</b> método
+      intenta obtener un bloqueo (cuando l_type está establecido en
+      <span class="Li">"F_WRLCK"</span> o
+      <span class="Li">"F_RDLCK"</span>) o lo libera (si l_type está
+      establecido en <span class="Li">"F_UNLCK"</span>). Si se intenta
+      obtener un bloqueo pero ya está retenido por algún otro proceso, el método devuelve <span class="Li">"undef"</span> y
+      <span class="Li">"errno"</span> se establece en
+      <span class="Li">"EACCESS"</span> o
+      <span class="Li">"EAGAIN"</span> (consulte la página del manual
+      de <a href='/man/fcntl.2.en'>fcntl(2)</a> para más detalles).</dd>
+  <dt>"F_SETLKW"</dt>
+  <dd>es similar a <span class="Li">"F_SETLK"</span>, pero en lugar de
+      devolver un error si el bloqueo no se puede obtener inmediatamente, pone al
+      proceso que llama a dormir, es decir, se bloquea, hasta que el bloqueo se obtiene en
+      algún momento posterior. Si se recibe una señal mientras se espera el bloqueo, el
+      método devuelve <span class="Li">"undef"</span> y
+      <span class="Li">"errno"</span> se establece en
+      <span class="Li">"EINTR"</span>.</dd>
+  <dt>"F_GETLK"</dt>
+  <dd>Con <span class="Li">"F_GETLK"</span> el <b>lock()</b> método
+      determina si y qué proceso está actualmente reteniendo el bloqueo. Si no hay
+      ningún otro bloqueo, la propiedad l_type se establecerá en
+      <span class="Li">"F_UNLCK"</span>. De lo contrario, el objeto de estructura flock
+      se establece con los valores que nos impedirían obtener un bloqueo.
+      Puede haber varios procesos que nos impidan obtener un bloqueo, incluyendo
+      algunos que ellos mismos están bloqueados esperando obtener un bloqueo.
+      <span class="Li">"F_GETLK"</span> solo hará visibles los detalles de uno
+      de estos procesos, y no se tiene control sobre cuál de ellos es.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">En caso de éxito, el <b>lock()</b> método devuelve la cadena "0 pero
+    verdadero", es decir, un valor que es verdadero en booleano pero 0 en contexto
+    numérico.
+    Si el método falla (como lo indica un
+    <span class="Li">"undef"</span> valor de retorno) puede evaluar
+    inmediatamente el número de error (usando $!,
+    <span class="Li">$ERRNO</span> o <span class="Li">$OS_ERROR</span>) o
+    comprobarlo a través de los métodos discutidos más adelante en algún momento posterior.</p>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Error_handling'><a class='permalink' href='#Error_handling'>Manejo de
+    errores</a></h2>
+<p class="Pp">Hay diferencias menores entre File::FcntlLock por un lado
+    y File::FcntlLock::Pure y File::FcntlLock::Inline por el otro, debido
+    a que el primero llama a la función del sistema <a href='/man/fcntl.2.en'>fcntl(2)</a> directamente mientras
+    los otros dos invocan la función de Perl <span class="Li">"fcntl"</span>
+    . La función <span class="Li">"fcntl"</span> de Perl ya
+    devuelve un error de Perl en algunos tipos de argumentos no válidos. En contraste,
+    File::FcntlLock los pasa a la <a href='/man/fcntl.2.en'>fcntl(2)</a> llamada al sistema y luego
+    devuelve la respuesta del sistema al llamador.</p>
+<p class="Pp">Hay tres métodos para obtener información sobre la razón
+    por la que una llamada del <b>lock()</b> método falló:</p>
+<dl class="Bl-tag">
+  <dt id="lock_errno()"><a class="permalink" href="#lock_errno()">lock_errno()</a></dt>
+  <dd>Devuelve el <span class="Li">"errno"</span> número de error de
+      la última llamada de <b>lock()</b>. Si la última llamada no resultó en un
+      error <span class="Li">"undef"</span> es devuelto.</dd>
+  <dt id="error()"><a class="permalink" href="#error()">error()</a></dt>
+  <dd>Devuelve una breve descripción del error que ocurrió durante la última
+      llamada de <b>lock()</b>. Por favor, tome los mensajes con un grano de sal, ellos
+      representan lo que SUSv3 (IEEE 1003.1-2001) y las páginas de manual de Linux, TRUE64, OpenBSD3
+      y Solaris8 dicen que significan los números de error. Podría haber
+      diferencias (y números de error adicionales) en otros sistemas. Si no hubo
+      error, el método devuelve
+    <span class="Li">"undef"</span>.</dd>
+  <dt id="system_error()"><a class="permalink" href="#system_error()">system_error()</a></dt>
+  <dd>Mientras que el <b>error()</b> método intenta devolver una cadena con alguna
+      relevancia directa para la operación de bloqueo (es decir, "Archivo o segmento ya
+      bloqueado por otro(s) proceso(s)" en lugar de "Permiso
+      denegado") este método devuelve el mensaje de error del sistema "normal"
+      asociado con <span class="Li">"errno"</span>. El
+      método devuelve <span class="Li">"undef"</span> si no hubo
+      error.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='EXPORT'><a class='permalink' href='#EXPORT'>EXPORTACIÓN</a></h2>
+<p class="Pp">El paquete exporta las siguientes constantes:</p>
+<dl class="Bl-tag">
+  <dt id="F_GETLK"><a class="permalink" href="#F_GETLK">F_GETLK F_SETLK
+    F_SETLKW</a></dt>
+  <dd></dd>
+  <dt id="F_RDLCK"><a class="permalink" href="#F_RDLCK">F_RDLCK F_WRLCK
+    F_UNLCK</a></dt>
+  <dd></dd>
+  <dt id="SEEK_SET"><a class="permalink" href="#SEEK_SET">SEEK_SET SEEK_CUR
+    SEEK_END</a></dt>
+  <dd></dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INCOMPATIBILITIES'><a class='permalink' href='#INCOMPATIBILITIES'>INCOMPATIBILIDADES</a></h1>
+<p class="Pp">Obviamente, este módulo requiere que exista una <a href='/man/fcntl.2.en'>fcntl(2)</a>
+    llamada al sistema. Nótese también que bajo ciertas circunstancias los
+    módulos File::FcntlLock::Pure y File::FcntlLock::Inline pueden no haber sido
+    instalados. Esto ocurre en sistemas de 32 bits que usan enteros de 64 bits en su
+    estructura flock pero donde la versión de Perl instalada no soporta el formato 'q'
+    para sus <span class="Li">"pack"</span> y
+    <span class="Li">"unpack"</span> funciones.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CREDITS'><a class='permalink' href='#CREDITS'>CRÉDITOS</a></h1>
+<p class="Pp">Gracias a Mark Jason Dominus y Benjamin Goldberg por las
+    discusiones útiles, ejemplos de código y el ánimo. Glenn Herteg señaló
+    varios problemas y también ayudó a mejorar la documentación. Julian Moreno
+    Patino ayudó a corregir la documentación y señaló problemas que surgen
+    en GNU Hurd, que parece tener solo un soporte muy rudimentario para el bloqueo con <a href='/man/fcntl.2.en'>fcntl(2)</a>. Niko Tyni y Guillem Jover animaron y ayudaron con la
+    implementación de alternativas a un enfoque solo-XS que con suerte hará
+    el módulo más útil bajo ciertas circunstancias.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Jens Thoms Toerring &lt;jt@toerring.de&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/perl.1.en'>perl(1)</a>, <a href='/man/fcntl.2.en'>fcntl(2)</a>, <a href='/man/lseek.2.en'>lseek(2)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENCIA</a></h1>
+<p class="Pp">Esta biblioteca es software libre. Puede redistribuirla y/o
+    modificarla bajo los mismos términos que la propia Perl.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-file-fcntllock/">extra/perl-file-fcntllock</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.22-3</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://search.cpan.org/dist/$_perlmod/">http://search.cpan.org/dist/$_perlmod/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-file-fcntllock/">/listing/extra/perl-file-fcntllock/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#INCOMPATIBILITIES">INCOMPATIBILIDADES</a></li>
+        
+            <li><a href="#CREDITS">CRÉDITOS</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#LICENSE">LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/File::FcntlLock::Pure.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/File::FcntlLock::Pure.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete de Arch Linux correspondiente.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>fi_intro(7) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">fi_intro(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/libfabric/">libfabric</a></p>
+<p class="lic">Licencias: BSD-2-Clause OR GPL-2.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">fi_intro(7)</td>
+    <td class="head-vol">Libfabric v2.3.1</td>
+    <td class="head-rtitle">fi_intro(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">fi_intro - introducción a libfabric</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='OVERVIEW'><a class='permalink' href='#OVERVIEW'>DESCRIPCIÓN GENERAL</a></h1>
+<p class="Pp">Esta introducción forma parte de la guía del programador de
+    libfabric. Consulte fi_guide(7). Esta sección proporciona una visión de la
+    motivación para el diseño de libfabric y las características de red
+    subyacentes que se exponen a través de la API.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Review_of_Sockets_Communication'><a class='permalink' href='#Review_of_Sockets_Communication'>Revisión   de la Comunicación por Sockets</a></h1>
+<p class="Pp">La API de sockets es una API de red ampliamente utilizada. Esta guía
+    asume que el lector tiene conocimientos prácticos de programación de sockets.
+    Hace referencia a la comunicación basada en sockets a lo largo del texto para
+    ayudar a explicar los conceptos de libfabric y cómo se relacionan o difieren
+    de la API de sockets. Para ser claros, la intención de esta guía no es criticar
+    la API de sockets, sino referenciar los sockets como punto de partida para
+    explicar ciertas características o limitaciones de red. Las siguientes
+    secciones proporcionan una descripción general de la semántica de sockets a
+    modo de referencia.</p>
+<section class="Ss">
+<h2 class="Ss" id='Connected_(TCP)_Communication'><a class='permalink' href='#Connected_(TCP)_Communication'>Comunicación   Conectada (TCP)</a></h2>
+<p class="Pp">El tipo de socket más utilizado es SOCK_STREAM. Este tipo de socket
+    normalmente se ejecuta sobre TCP/IP y, como resultado, a menudo se le
+    denomina socket de `TCP'. Los sockets TCP están orientados a la conexión,
+    requiriendo una configuración explícita de la conexión antes de que puedan
+    producirse transferencias de datos. Un solo socket TCP solo puede transferir
+    datos a un único socket peer. Comunicarse con varios peers requiere el uso de
+    un socket por peer.</p>
+<p class="Pp">Las aplicaciones que utilizan sockets TCP suelen etiquetarse como
+    cliente o servidor. Las aplicaciones servidor escuchan las solicitudes de
+    conexión y las aceptan cuando ocurren. Los clientes, por otro lado, inician
+    conexiones al servidor. En términos de la API de sockets, un servidor llama a
+    listen() y el cliente llama a connect(). Después de que se ha establecido una
+    conexión, las transferencias de datos entre cliente y servidor son similares.
+    Los siguientes fragmentos de código resaltan el flujo general para un cliente
+    y un servidor de ejemplo. El manejo de errores y algunas sutilezas de la API
+    de sockets se omiten por brevedad.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Flujo de código de servidor de ejemplo para iniciar listen */
+struct addrinfo *ai, hints;
+int listen_fd;
+memset(&amp;hints, 0, sizeof hints);
+hints.ai_socktype = SOCK_STREAM;
+hints.ai_flags = AI_PASSIVE;
+getaddrinfo(NULL, &quot;7471&quot;, &amp;hints, &amp;ai);
+listen_fd = socket(ai-&gt;ai_family, SOCK_STREAM, 0);
+bind(listen_fd, ai-&gt;ai_addr, ai-&gt;ai_addrlen);
+freeaddrinfo(ai);
+fcntl(listen_fd, F_SETFL, O_NONBLOCK);
+listen(listen_fd, 128);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">En este ejemplo, el servidor escuchará las solicitudes de conexión
+    en el puerto 7471 en todas las direcciones del sistema. La llamada a
+    getaddrinfo() se utiliza para formar la dirección del socket local. El
+    parámetro node se establece en NULL, lo que resulta en la devolución de una
+    dirección IP comodín. El puerto está codificado de forma fija en 7471. La
+    bandera AI_PASSIVE indica que la dirección será utilizada por el lado de
+    escucha de la conexión. Es decir, la información de dirección debe ser
+    relativa al nodo local.</p>
+<p class="Pp">Este ejemplo funcionará tanto con IPv4 como con IPv6. La llamada a
+    getaddrinfo() abstrae el formato de dirección del servidor, mejorando su
+    portabilidad. Utilizando los datos devueltos por getaddrinfo(), el servidor
+    asigna un socket de tipo SOCK_STREAM y enlaza el socket al puerto 7471.</p>
+<p class="Pp">En la práctica, la mayoría de las aplicaciones de nivel empresarial
+    utilizan sockets no bloqueantes. Esto es necesario para que un único hilo de
+    aplicación pueda gestionar múltiples conexiones de socket. El comando
+    fcntl() establece el socket de escucha en modo no bloqueante. Esto afectará a
+    cómo el servidor procesa las solicitudes de conexión (que se muestran a
+    continuación). Finalmente, el servidor comienza a escuchar las solicitudes de
+    conexión llamando a listen. Hasta que se llama a listen, las solicitudes de
+    conexión que llegan al servidor serán rechazadas por el sistema
+    operativo.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Flujo de código de cliente de ejemplo para iniciar la conexión */
+struct addrinfo *ai, hints;
+int client_fd;
+memset(&amp;hints, 0, sizeof hints);
+hints.ai_socktype = SOCK_STREAM;
+getaddrinfo(&quot;10.31.20.04&quot;, &quot;7471&quot;, &amp;hints, &amp;ai);
+client_fd = socket(ai-&gt;ai_family, SOCK_STREAM, 0);
+fcntl(client_fd, F_SETFL, O_NONBLOCK);
+connect(client_fd, ai-&gt;ai_addr, ai-&gt;ai_addrlen);
+freeaddrinfo(ai);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Al igual que el servidor, el cliente utiliza getaddrinfo(). Dado que
+    la bandera AI_PASSIVE no está especificada, la dirección dada se trata como
+    la del destino. El cliente espera alcanzar el servidor en la dirección IP
+    10.31.20.04, puerto 7471. Para este ejemplo, la dirección está codificada de
+    forma fija en el cliente. Más típicamente, la dirección se proporcionará al
+    cliente a través de la línea de comandos, un archivo de configuración o un
+    servicio. A menudo, el número de puerto será conocido, y el cliente
+    encontrará el servidor por nombre, con DNS (servicio de nombres de dominio)
+    proporcionando la resolución de nombres a direcciones. Afortunadamente, la
+    llamada getaddrinfo() se puede utilizar para convertir nombres de host en
+    direcciones IP.</p>
+<p class="Pp">Independientemente de si el cliente recibe la dirección de red del
+    servidor directamente o un nombre que debe traducirse a la dirección de red,
+    el mecanismo utilizado para proporcionar esta información al cliente varía
+    ampliamente. Un mecanismo simple que se utiliza comúnmente es que los usuarios
+    proporcionen la dirección del servidor utilizando una opción de línea de
+    comandos. El problema de decir a las aplicaciones dónde se encuentran sus
+    peers aumenta significativamente para las aplicaciones que se comunican con
+    cientos o millones de procesos peer, lo que a menudo requiere una aplicación
+    separada y dedicada para resolverlo. Para una aplicación de socket cliente-servidor
+    típica, esto no es un problema, por lo que pospondremos una mayor discusión
+    para más adelante.</p>
+<p class="Pp">Utilizando los resultados de getaddrinfo(), el cliente abre un
+    socket, lo configura para modo no bloqueante e inicia la solicitud de
+    conexión. En este punto, la pila de red ha enviado una solicitud al servidor
+    para establecer la conexión. Debido a que el socket se ha establecido en no
+    bloqueante, la llamada connect() devolverá inmediatamente y no esperará a que
+    se establezca la conexión. Como resultado, cualquier intento de enviar datos
+    en este momento probablemente fallará.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Flujo de código de servidor de ejemplo para aceptar una conexión */
+struct pollfd fds;
+int server_fd;
+fds.fd = listen_fd;
+fds.events = POLLIN;
+poll(&amp;fds, -1);
+server_fd = accept(listen_fd, NULL, 0);
+fcntl(server_fd, F_SETFL, O_NONBLOCK);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Las aplicaciones que utilizan sockets no bloqueantes utilizan
+    select(), poll() o un equivalente como epoll() para recibir notificaciones de
+    cuándo un socket está listo para enviar o recibir datos. En este caso, el
+    servidor desea saber cuándo el socket de escucha tiene una solicitud de
+    conexión para procesar. Añade el socket de escucha a un conjunto de poll y
+    luego espera hasta que llegue una solicitud de conexión (es decir,
+    POLLIN es verdadero). La llamada poll() se bloquea hasta que POLLIN se
+    establece en el socket. POLLIN indica que el socket tiene datos para
+    aceptar. Dado que este es un socket de escucha, los datos son una solicitud de
+    conexión. El servidor acepta la solicitud llamando a accept(). Esto devuelve
+    un nuevo socket al servidor, que está listo para transferencias de datos.
+    Finalmente, el servidor establece el nuevo socket en modo no
+    bloqueante.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Flujo de código de cliente de ejemplo para establecer una conexión */
+struct pollfd fds;
+int err;
+socklen_t len;
+fds.fd = client_fd;
+fds.events = POLLOUT;
+poll(&amp;fds, -1);
+len = sizeof err;
+getsockopt(client_fd, SOL_SOCKET, SO_ERROR, &amp;err, &amp;len);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">El cliente recibe la notificación de que su solicitud de conexión ha
+    finalizado cuando su socket de conexión está "listo para enviar datos" (es
+    decir, POLLOUT es verdadero). La llamada poll() se bloquea hasta que POLLOUT
+    se establece en el socket, lo que indica que el intento de conexión ha
+    finalizado. Tenga en cuenta que el intento de conexión puede haber finalizado
+    con un error, y el cliente aún necesita comprobar si el intento de conexión
+    fue exitoso. Eso no lo comunica la llamada poll(). La llamada
+    getsockopt() se utiliza para recuperar el resultado del intento de
+    conexión. Si err en este ejemplo se establece en 0, entonces el intento de
+    conexión tuvo éxito. El socket está ahora listo para enviar y recibir
+    datos.</p>
+<p class="Pp">Después de que se ha establecido una conexión, el proceso de enviar o
+    recibir datos es el mismo tanto para el cliente como para el servidor. Los
+    ejemplos a continuación solo difieren por el nombre de la variable de socket
+    utilizada por la aplicación cliente o servidor.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Ejemplo de cliente enviando datos al servidor */
+struct pollfd fds;
+size_t offset, size, ret;
+char buf[4096];
+fds.fd = client_fd;
+fds.events = POLLOUT;
+size = sizeof(buf);
+for (offset = 0; offset &lt; size; ) {
+    poll(&amp;fds, -1);
+    ret = send(client_fd, buf + offset, size - offset, 0);
+    offset += ret;
+}
+</pre>
+  </dd>
+</dl>
+<p class="Pp">La comunicación de red implica el almacenamiento en búfer de datos tanto
+    en el lado de envío como en el de recepción de la conexión. TCP utiliza un
+    esquema basado en créditos para gestionar el control de flujo y garantizar
+    que haya suficiente espacio en el búfer</p>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </article>
+        
+        
+        <aside id="content-right">
+            
+        </aside>
+        
+    <div id="footer">
+        
+    </div>
+
+</main>
+    </body>
+</html>
+en el lado de recepción de una conexión para aceptar datos entrantes. Este control de flujo está oculto para la aplicación por la API de socket. Como resultado, los sockets basados en flujo pueden no transferir todos los datos que la aplicación solicita enviar como parte de una sola operación.</p>
+<p class="Pp">En este ejemplo, el cliente mantiene un desplazamiento (offset) dentro del búfer que desea enviar. A medida que la red acepta datos, el desplazamiento aumenta. Luego, el cliente espera hasta que la red esté lista para aceptar más datos antes de intentar otra transferencia. La operación poll() soporta esto. Cuando el socket del cliente está listo para datos, establece POLLOUT en verdadero. Esto indica que send transferirá alguna cantidad adicional de datos. El cliente emite una solicitud send() por la cantidad restante del búfer que desea transferir. Si send() transfiere menos datos de los solicitados, el cliente actualiza el desplazamiento, espera a que la red esté lista, y luego intenta de nuevo.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Ejemplo de servidor recibiendo datos del cliente */
+struct pollfd fds;
+size_t offset, size, ret;
+char buf[4096];
+fds.fd = server_fd;
+fds.events = POLLIN;
+size = sizeof(buf);
+for (offset = 0; offset &lt; size; ) {
+    poll(&amp;fds, -1);
+    ret = recv(client_fd, buf + offset, size - offset, 0);
+    offset += ret;
+}
+</pre>
+  </dd>
+</dl>
+<p class="Pp">El flujo para recibir datos es similar al usado para enviarlo. Debido a la naturaleza de flujo del socket, no hay garantía de que el receptor obtenga todos los datos disponibles como parte de una sola llamada. El servidor, en cambio, debe esperar hasta que el socket esté listo para recibir datos (POLLIN), antes de llamar a receive para obtener los datos disponibles. En este ejemplo, el servidor sabe que debe esperar exactamente 4 KB de datos del cliente. Más generalmente, un cliente y un servidor intercambiarán encabezados de protocolo de comunicación al inicio de todos los mensajes, y el encabezado incluirá el tamaño del mensaje.</p>
+<p class="Pp">Vale la pena señalar que los dos ejemplos anteriores están escritos de manera que sean simples de entender. Están mal construidos cuando se considera el rendimiento. En ambos casos, la aplicación siempre precede una llamada de transferencia de datos (send o recv) con poll(). El impacto es que incluso si la red está lista para transferir datos o tiene datos en cola para recibir, la aplicación siempre experimentará la latencia y la sobrecarga de procesamiento de poll(). Un mejor enfoque es llamar a send() o recv() antes de entrar en los bucles for(), y solo entrar en los bucles si es necesario.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Connection-less_(UDP)_Communication'><a class='permalink' href='#Connection-less_(UDP)_Communication'>Comunicación sin conexión (UDP)</a></h2>
+<p class="Pp">Como se mencionó, los sockets TCP están orientados a conexión. Pueden usarse para comunicarse entre exactamente 2 procesos. Para aplicaciones paralelas que necesitan comunicarse con miles de procesos pares, la sobrecarga de gestionar tantos sockets simultáneos puede ser significativa, hasta el punto de que el rendimiento de la aplicación puede disminuir a medida que se añaden más procesos.</p>
+<p class="Pp">Para soportar la comunicación con un gran número de pares, o para aplicaciones que no necesitan la sobrecarga de comunicación confiable, los sockets ofrecen otra opción de socket comúnmente usada, SOCK_DGRAM. Los datagramas son mensajes no confiables y sin conexión. El tipo más común de socket SOCK_DGRAM funciona sobre UDP/IP. Como resultado, los sockets de datagrama a menudo se denominan sockets UDP.</p>
+<p class="Pp">Los sockets UDP usan la misma API de socket que la descrita arriba para los sockets TCP; sin embargo, el comportamiento de comunicación difiere. Primero, una aplicación que usa sockets UDP no necesita conectarse a un par antes de enviarle un mensaje. La dirección de destino se especifica como parte de la operación de envío. Una segunda diferencia importante es que no se garantiza que el mensaje llegue al par. La congestión de la red en conmutadores, enrutadores o la NIC remota puede descartar el mensaje, y no se hará ningún intento de reenviar el mensaje. Al remitente no se le notificará si el mensaje llegó o fue descartado. Otra diferencia entre los sockets TCP y UDP es el tamaño máximo de transferencia permitido. Los sockets UDP limitan los mensajes a un máximo de 64k, aunque en la práctica, las aplicaciones usan un tamaño mucho menor, generalmente alineado al tamaño MTU de la red (por ejemplo, 1500 bytes).</p>
+<p class="Pp">El uso más común de los sockets UDP reemplaza las llamadas send() / recv() del socket con sendto() y recvfrom().</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Ejemplo de envío a un par en una dirección IP y puerto UDP dados */
+struct addrinfo *ai, hints;
+memset(&amp;hints, 0, sizeof hints);
+hints.ai_socktype = SOCK_DGRAM;
+getaddrinfo("10.31.20.04", "7471", &amp;hints, &amp;ai);
+ret = sendto(client_fd, buf, size, 0, ai-&gt;ai_addr, ai-&gt;ai_addrlen);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">En el ejemplo anterior, usamos getadddrinfo() para convertir la dirección IP y el número de puerto UDP dados en un sockaddr. Eso se pasa a la llamada sendto() para especificar el destino del mensaje. Nótese las similitudes entre este flujo y el flujo del socket TCP. La llamada recvfrom() nos permite recibir la dirección del remitente de un mensaje. Nótese que a diferencia de los sockets de flujo, la red acepta el mensaje completo en caso de éxito. Todos los contenidos del parámetro buf, especificados por el parámetro size, han sido encolados por la capa de red.</p>
+<p class="Pp">Aunque no se muestra, la aplicación podría llamar a poll() o un equivalente antes de llamar a sendto() para asegurar que el socket esté listo para aceptar nuevos datos. De manera similar, poll() puede usarse antes de llamar a recvfrom() para verificar si hay datos listos para ser leídos del socket.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Ejemplo de recepción de un mensaje de un par */
+struct sockaddr_in addr;
+socklen_t addrlen;
+addrlen = sizeof(addr);
+ret = recvfrom(client_fd, buf, size, 0, &amp;addr, &amp;addrlen);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Este ejemplo recibirá cualquier mensaje entrante de cualquier par. La dirección del par se proporcionará en el parámetro addr. En este caso, solo proporcionamos suficiente espacio para registrar una dirección IPv4 (limitado por nuestro uso de struct sockaddr_in). Soportar una dirección IPv6 simplemente requeriría pasar un búfer de dirección más grande (mapeado a struct sockaddr_in6, por ejemplo).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Advantages'><a class='permalink' href='#Advantages'>Ventajas</a></h2>
+<p class="Pp">La API de socket tiene dos ventajas significativas. Primero, está disponible en una amplia variedad de sistemas operativos y plataformas, y funciona sobre la gran mayoría del hardware de red disponible. Incluso puede funcionar para la comunicación entre procesos en el mismo sistema sin ningún hardware de red. Es fácilmente la API de red de facto. Esto por sí solo la hace atractiva de usar.</p>
+<p class="Pp">La segunda ventaja clave es que es relativamente fácil de programar. La importancia de esto no debe pasarse por alto. Las APIs de red que ofrecen acceso a características de mayor rendimiento, pero son difíciles de programar correctamente o bien, a menudo resultan en un menor rendimiento de la aplicación. Esto no es muy diferente a codificar una aplicación en un lenguaje de alto nivel como C o C++, versus ensamblador. Aunque escribir directamente en lenguaje ensamblador ofrece la <i>promesa</i> de tener un mejor rendimiento, para la gran mayoría de los desarrolladores, sus aplicaciones tendrán un mejor rendimiento si se escriben en C o C++, y se usa un compilador optimizado. Las aplicaciones deben tener una necesidad clara de redes de alto rendimiento antes de seleccionar una API alternativa a los sockets.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Disadvantages'><a class='permalink' href='#Disadvantages'>Desventajas</a></h2>
+<p class="Pp">Cuando consideramos los problemas con la API de socket en lo que respecta a redes de alto rendimiento, limitamos nuestra discusión a los dos tipos de sockets más comunes: flujo (TCP) y datagrama (UDP).</p>
+<p class="Pp">La mayoría de las aplicaciones requieren que los datos de la red se envíen de forma fiable. Esto invariablemente significa usar un socket TCP orientado a conexión. Los sockets TCP transfieren datos como un flujo de bytes. Sin embargo, muchas aplicaciones operan sobre mensajes. El resultado es que las aplicaciones a menudo insertan encabezados que se usan simplemente para convertir mensajes de la aplicación a / desde un flujo de bytes. Estos encabezados consumen ancho de banda de red y procesamiento adicionales. La naturaleza de flujo de la interfaz también resulta en que la aplicación use bucles como se muestra en los ejemplos anteriores para enviar y recibir mensajes más grandes. La complejidad de esos bucles puede ser significativa si la aplicación está gestionando sockets a cientos o miles de pares.</p>
+<p class="Pp">Otro problema destacado por los ejemplos anteriores trata con la naturaleza asíncrona del tráfico de red. Cuando se usa un transporte confiable, no es suficiente colocar los datos de la aplicación en la red. Si la red está ocupada, podría descartar el paquete, o los datos podrían corromperse durante una transferencia. Los datos deben mantenerse hasta que hayan sido reconocidos por el par, para que puedan reenviarse si es necesario. La API de socket está definida de manera que la aplicación es propietaria del contenido de sus búferes de memoria después de que una llamada a socket retorna.</p>
+<p class="Pp">Como ejemplo, si examinamos la llamada send() del socket, una vez que send() retorna, la aplicación es libre de modificar su búfer. La implementación de red tiene un par de opciones. Una opción es que la llamada de envío coloque los datos directamente en la red. La llamada debe entonces bloquearse antes de retornar al usuario hasta que el par reconozca que recibió los datos, en cuyo punto send() puede retornar. El problema obvio con este enfoque es que la aplicación está bloqueada en la llamada send() hasta que la pila de red en el par pueda procesar los datos y generar un reconocimiento. Este puede ser un tiempo significativo en el que la aplicación está bloqueada y no puede procesar otro trabajo, como responder a mensajes de otros clientes. Tal enfoque no es factible.</p>
+<p class="Pp">Una mejor opción es que la llamada send() copie los datos de la aplicación en un búfer interno. La transferencia de datos se emite entonces desde ese búfer, lo que permite reintentar la operación en caso de fallo. La llamada send() en este caso no está bloqueada, pero todos los datos que pasan a través de la red resultarán en una copia de memoria a un búfer local, incluso en ausencia de cualquier error.</p>
+<p class="Pp">Permitir la reutilización inmediata de un búfer de datos es una característica de la API de socket que la mantiene simple y fácil de programar. Sin embargo, dicha característica puede tener un impacto negativo en el rendimiento de la red. Para aplicaciones limitadas por la red o la memoria, o incluso aplicaciones preocupadas por el consumo de energía, una API alternativa puede ser atractiva.</p>
+<p class="Pp">Un problema ligeramente más oculto ocurre en las APIs de socket diseñadas para los sockets UDP. Este problema es una ineficiencia en la implementación como resultado de que el diseño de la API fue pensado para la facilidad de uso. Para que la aplicación envíe datos a un par, necesita proporcionar la dirección IP y el número de puerto UDP del par. Eso implica pasar una estructura sockaddr a las llamadas sendto() y recvfrom(). Sin embargo, las direcciones IP son una dirección de capa de red de nivel superior. Para transferir datos entre sistemas, se necesitan direcciones de capa de enlace de bajo nivel, por ejemplo, direcciones Ethernet. La capa de red debe mapear direcciones IP a direcciones Ethernet en cada operación de envío. Cuando se escala a miles de pares, esa sobrecarga en cada llamada de envío puede ser significativa.</p>
+<p class="Pp">Finalmente, porque la API de socketA menudo se considera en conjunto con los protocolos TCP y UDP, está intencionalmente desacoplado de la implementación del hardware de red subyacente, incluidas las NIC, los conmutadores y los enrutadores. Por lo tanto, el acceso a las características de red disponibles está limitado por lo que la API puede soportar.</p>
+<p class="Pp">Vale la pena señalar aquí que algunos sistemas operativos admiten API mejoradas que pueden usarse para interactuar con los sockets TCP y UDP. Por ejemplo, Linux admite una interfaz conocida como io_uring, y Windows tiene una API de socket asíncrona. Esas API pueden ayudar a aliviar algunos de los problemas descritos anteriormente. Sin embargo, una aplicación seguirá estando limitada por las características que proporcionan los protocolos TCP y UDP.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='High-Performance_Networking'><a class='permalink' href='#High-Performance_Networking'>Redes de Alto Rendimiento</a></h1>
+<p class="Pp">Al analizar la API de socket en el contexto de las redes de alto rendimiento, podemos empezar a ver algunas características deseables para una API de red.</p>
+<section class="Ss">
+<h2 class="Ss" id='Avoiding_Memory_Copies'><a class='permalink' href='#Avoiding_Memory_Copies'>Evitar Copias de Memoria</a></h2>
+<p class="Pp">La implementación de la API de socket generalmente resulta en que ocurran copias de datos tanto en el emisor como en el receptor. Este es un compromiso entre mantener la interfaz fácil de usar y proporcionar fiabilidad. Idealmente, se evitarían todas las copias de memoria al transferir datos a través de la red. Existen técnicas y API que pueden usarse para evitar copias de memoria, pero en la práctica, el costo de evitar una copia a menudo puede ser mayor que la copia misma, en particular para transferencias pequeñas (medidas en bytes, en lugar de kilobytes o más).</p>
+<p class="Pp">Para evitar una copia de memoria en el emisor, necesitamos colocar los datos de la aplicación directamente en la red. Si también queremos evitar bloquear la aplicación emisora, necesitamos alguna forma de que la capa de red se comunique con la aplicación cuando sea seguro reutilizar el búfer. Esto permitiría reutilizar el búfer original en caso de que los datos necesiten ser retransmitidos. Esto nos lleva a diseñar una interfaz de red que se comporte de manera asíncrona. La aplicación necesitará emitir una solicitud y luego recibir algún tipo de notificación cuando la solicitud se haya completado.</p>
+<p class="Pp">Evitar una copia de memoria en el receptor es más desafiante. Cuando los datos llegan desde la red, necesitan aterrizar en un búfer de memoria disponible, o serán descartados, lo que resultará en que el emisor retransmita los datos. Si usamos la semántica recv() del socket, la única forma de evitar una copia en el receptor es que recv() sea llamado antes de send(). Recv() entonces necesitaría bloquearse hasta que los datos hayan llegado. No solo esto bloquea al receptor, sino que es impráctico usarlo fuera de una aplicación con un protocolo simple de solicitud-respuesta.</p>
+<p class="Pp">En su lugar, lo que se necesita es una forma para que la aplicación receptora proporcione uno o más búferes a la red para que los datos recibidos aterricen. La red luego necesita notificar a la aplicación cuando los datos estén disponibles. Este tipo de mecanismo funciona bien si al receptor no le importa dónde en su espacio de memoria se encuentran los datos; solo necesita poder procesar el mensaje entrante.</p>
+<p class="Pp">Como alternativa, es posible invertir este flujo y hacer que la capa de red entregue su búfer a la aplicación. La aplicación sería entonces responsable de devolver el búfer a la capa de red cuando haya terminado con su procesamiento. Aunque este enfoque puede evitar copias de memoria, sufre de algunas desventajas. Primero, la capa de red no sabe qué tamaño de mensajes esperar, lo que puede llevar a un uso ineficiente de la memoria. Segundo, muchos considerarían que este es un modelo de programación más difícil de usar. Y finalmente, los búferes de red necesitarían ser mapeados en el espacio de memoria del proceso de la aplicación, lo que impacta negativamente el rendimiento.</p>
+<p class="Pp">Además de procesar mensajes, algunas aplicaciones quieren recibir datos y almacenarlos en una ubicación específica en la memoria. Por ejemplo, una base de datos puede querer fusionar registros de datos recibidos en una tabla existente. En tales casos, incluso si los datos que llegan desde la red van directamente a los búferes de recepción de la aplicación, aún pueden necesitar ser copiados en su ubicación final. Sería ideal si la red soportara colocar datos que llegan desde la red en un búfer de memoria específico, con el búfer determinado basándose en el contenido de los datos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Network_Buffers'><a class='permalink' href='#Network_Buffers'>Búferes de Red</a></h2>
+<p class="Pp">Basado en los problemas descritos anteriormente, podemos empezar a ver que evitar copias de memoria depende de la propiedad de los búferes de memoria utilizados para el tráfico de red. Con los transportes basados en sockets, los búferes de red son propiedad y están gestionados por la pila de red. Esto generalmente lo maneja el kernel del sistema operativo. Sin embargo, esto resulta en que los datos "reboten" entre los búferes de la aplicación y los búferes de red. Al poner a la aplicación a cargo de gestionar los búferes de red, podemos evitar esta sobrecarga. El costo de hacerlo es una complejidad adicional en la aplicación.</p>
+<p class="Pp">Tenga en cuenta que aunque queremos que la aplicación sea propietaria de los búferes de red, aún nos gustaría evitar la situación en la que la aplicación implemente un protocolo de red complejo. El compromiso es que la aplicación proporciona los búferes de datos a la pila de red, pero la pila de red continúa manejando cosas como el control de flujo, la fiabilidad y la segmentación y reensamblado.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Resource_Management'><a class='permalink' href='#Resource_Management'>Gestión de Recursos</a></h2>
+<p class="Pp">Definimos la gestión de recursos como la asignación adecuada de recursos de red para evitar desbordar búferes de datos o colas. El control de flujo es un aspecto común de la gestión de recursos. Sin un control de flujo adecuado, un emisor puede desbordar a un receptor lento o ocupado. Esto puede resultar en paquetes descartados, retransmisiones y un aumento en la congestión de la red. Se ha dedicado una investigación y desarrollo significativos a implementar algoritmos de control de flujo. Debido a su complejidad, no es algo con lo que un desarrollador de aplicaciones debería tener que lidiar. Dicho esto, hay algunas aplicaciones donde el control de flujo simplemente surge del protocolo de red. Por ejemplo, un protocolo de solicitud-respuesta tiene naturalmente el control de flujo incorporado.</p>
+<p class="Pp">Para nuestros propósitos, expandimos la definición de gestión de recursos más allá del control de flujo. El control de flujo típicamente solo se ocupa del almacenamiento en búfer de red disponible en un par. También queremos preocuparnos por tener espacio disponible en las colas de transferencia de datos salientes. Es decir, a medida que emitimos comandos a la NIC local para enviar datos, esos comandos pueden encolarse en la NIC. Cuando consideramos la fiabilidad, esto significa rastrear solicitudes pendientes hasta que hayan sido reconocidas. La gestión de recursos necesitará asegurar que no desbordemos esa cola de solicitudes.</p>
+<p class="Pp">Adicionalmente, soportar operaciones asíncronas (descritas en detalle más adelante) introducirá nuevas colas potenciales. Esas colas tampoco deben desbordarse.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Asynchronous_Operations'><a class='permalink' href='#Asynchronous_Operations'>Operaciones Asíncronas</a></h2>
+<p class="Pp">Se puede argumentar que la característica clave para lograr un alto rendimiento es soportar operaciones asíncronas, o la capacidad de superponer diferentes comunicaciones y la comunicación con el cálculo. La API de socket soporta transferencias asíncronas con su modo no bloqueante. Sin embargo, debido a que la API misma opera de forma sincrónica, el resultado son copias de datos adicionales. Para que una API sea asíncrona, una aplicación necesita poder enviar trabajo y luego recibir algún tipo de notificación de que el trabajo está hecho. Para evitar copias de memoria adicionales, la aplicación debe aceptar no modificar sus búferes de datos hasta que la operación se complete.</p>
+<p class="Pp">Hay dos formas principales de notificar a una aplicación que es seguro reutilizar sus búferes de datos. Un mecanismo es que la capa de red invoque algún tipo de callback o envíe una señal a la aplicación de que la solicitud está hecha. Algunas API asíncronas usan este mecanismo. La desventaja de este enfoque es que las señales interrumpen el procesamiento de la aplicación. Esto puede impactar negativamente las cachés de la CPU, además de requerir procesamiento de interrupciones. Adicionalmente, a menudo es difícil desarrollar una aplicación que pueda manejar el procesamiento de una señal que puede ocurrir en cualquier momento.</p>
+<p class="Pp">Un mecanismo alternativo para soportar operaciones asíncronas es escribir eventos en algún tipo de cola de finalización cuando una operación se completa. Esto proporciona una forma de indicar a una aplicación cuándo una transferencia de datos se ha completado, además de dar a la aplicación el control sobre cuándo y cómo procesar las solicitudes completadas. Por ejemplo, puede procesar solicitudes en lotes para mejorar la localidad del código y el rendimiento.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Interrupts_and_Signals'><a class='permalink' href='#Interrupts_and_Signals'>Interrupciones y Señales</a></h2>
+<p class="Pp">Las interrupciones son una extensión natural para soportar operaciones asíncronas. Sin embargo, al lidiar con una API asíncrona, pueden impactar negativamente el rendimiento. Las interrupciones, incluso cuando están dirigidas a un agente del kernel, pueden interferir con el procesamiento de la aplicación.</p>
+<p class="Pp">Si una aplicación tiene una interfaz asíncrona con operaciones completadas escritas en una cola de finalización, a menudo es suficiente que la aplicación simplemente verifique la cola en busca de eventos. Siempre que la aplicación tenga otro trabajo que realizar, no hay necesidad de que se bloquee. Esto alivia la necesidad de generar interrupciones. Una NIC simplemente necesita escribir una entrada en la cola de finalización y actualizar un puntero de cola final para señalar que una solicitud está hecha.</p>
+<p class="Pp">Si seguimos este argumento, entonces puede ser beneficioso dar a la aplicación el control sobre cuándo deben ocurrir las interrupciones y cuándo escribir eventos en algún tipo de objeto de espera. Al hacer que la aplicación notifique a la capa de red que esperará hasta que ocurra una finalización, podemos gestionar mejor el número y el tipo de interrupciones que se generan.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Event_Queues'><a class='permalink' href='#Event_Queues'>Colas de Eventos</a></h2>
+<p class="Pp">Como se describe anteriormente, hay ventajas de rendimiento en tener una API que reporte finalizaciones o proporcione otros tipos de notificación usando una cola de eventos. Un tipo muy simple de cola de eventos simplemente rastrea operaciones completadas. A medida que se reciben datos o se completa un envío, se escribe una entrada en la cola de eventos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Direct_Hardware_Access'><a class='permalink' href='#Direct_Hardware_Access'>Acceso Directo al Hardware</a></h2>
+<p class="Pp">Al discutir la capa de red, la mayoría de las implementaciones de software se refieren a módulos del kernel responsables de implementar los protocolos de transporte y de red necesarios. Sin embargo, si queremos que la latencia de red se aproxime a velocidades de submicrosegundo, entonces necesitamos eliminar tanto software como sea posible entre la aplicación y su acceso al hardware. Una forma de hacer esto es que la aplicación tenga acceso directo a las colas de comandos del controlador de interfaz de red. De manera similar, la NIC requiere acceso directo a los búferes de datos y estructuras de control de la aplicación, como las mencionadas anteriormente<section class="Sh">
+<h1 class="Sh" id='Network_Interface_Concepts'><a class='permalink' href='#Network_Interface_Concepts'>Conceptos de la Interfaz de Red</a></h1>
+<p class="Pp">Cuando se habla de una aplicación que tiene acceso directo al hardware de red, nos referimos al proceso de la aplicación. Naturalmente, es muy poco probable que un desarrollador de aplicaciones codifique para una NIC de hardware específica. Ese trabajo se dejaría a algún tipo de biblioteca de red dirigida específicamente a la NIC. La capa de red real, que implementa el transporte de red, podría ser parte de la biblioteca de red o descargarse en el hardware o firmware de la NIC.</p>
+<section class="Ss">
+<h2 class="Ss" id='Kernel_Bypass'><a class='permalink' href='#Kernel_Bypass'>Omisión del Kernel (Kernel Bypass)</a></h2>
+<p class="Pp">La omisión del kernel es una característica que permite a la aplicación evitar llamar al kernel para operaciones de transferencia de datos. Esto es posible cuando tiene acceso directo al hardware de la NIC. La omisión completa del kernel no es práctica debido a preocupaciones de seguridad y restricciones de gestión de recursos. Sin embargo, es posible evitar las llamadas al kernel para las llamadas operaciones de 'vía rápida' ('fast-path'), como enviar o recibir.</p>
+<p class="Pp">Por razones de seguridad y estabilidad, los kernels de los sistemas operativos no pueden confiar en los datos que provienen de las aplicaciones del espacio de usuario. Como resultado, incluso una simple llamada al kernel a menudo requiere adquirir y liberar bloqueos, junto con verificaciones de datos. Si podemos limitar los efectos de una aplicación mal escrita o maliciosa a su propio espacio de proceso, podemos evitar la sobrecarga que conlleva la validación del kernel sin afectar la estabilidad del sistema.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Direct_Data_Placement'><a class='permalink' href='#Direct_Data_Placement'>Colocación Directa de Datos</a></h2>
+<p class="Pp">La colocación directa de datos significa evitar copias de datos al enviar y recibir datos, además de colocar los datos recibidos en el búfer de memoria correcto donde se necesite. A una escala más amplia, es parte de tener acceso directo al hardware, con la aplicación y la NIC comunicándose directamente con búferes de memoria compartida y colas.</p>
+<p class="Pp">La colocación directa de datos a menudo es pensada por aquellos familiarizados con RDMA (acceso directo remoto a memoria). RDMA es una técnica que permite leer y escribir memoria que pertenece a un proceso par que se ejecuta en un nodo a través de la red. El hardware RDMA avanzado es capaz de acceder a los búferes de memoria de destino sin involucrar la ejecución del proceso par. RDMA se basa en descargar el transporte de red a la NIC para evitar interrumpir el proceso de destino.</p>
+<p class="Pp">Las principales ventajas de admitir la colocación directa de datos son evitar las copias de memoria y minimizar la sobrecarga de procesamiento.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Designing_Interfaces_for_Performance'><a class='permalink' href='#Designing_Interfaces_for_Performance'>Diseño de Interfaces para el Rendimiento</a></h1>
+<p class="Pp">Queremos diseñar una interfaz de red que pueda cumplir con los requisitos descritos anteriormente. Además, también queremos tener en cuenta el rendimiento de la propia interfaz. A menudo no es obvio cómo una interfaz puede afectar negativamente al rendimiento, en lugar de que el rendimiento sea el resultado de la implementación subyacente. Las siguientes secciones describen cómo las elecciones de interfaz pueden afectar el rendimiento. Por supuesto, cuando comencemos a definir las API reales que utilizará una aplicación, tendremos que sopesar el rendimiento bruto con la facilidad de uso donde tenga sentido.</p>
+<p class="Pp">Al considerar los objetivos de rendimiento para una API, debemos tener en cuenta los casos de uso de la aplicación de destino. Para los fines de esta discusión, queremos considerar aplicaciones que se comunican con miles a millones de procesos pares. Las transferencias de datos incluirán millones de mensajes pequeños por segundo por par, y transferencias grandes que pueden ser de hasta gigabytes de datos. A escalas tan extremas, incluso las pequeñas optimizaciones son medibles, tanto en términos de rendimiento como de energía. Si tenemos un millón de pares enviando un millón de mensajes por segundo, eliminar incluso una sola instrucción de la ruta del código se multiplica rápidamente hasta ahorrar miles de millones de instrucciones por segundo de la ejecución general, al ver la operación de toda la aplicación.</p>
+<p class="Pp">Una vez más, nos referimos a la API de sockets como parte de esta discusión para ilustrar cómo una API puede afectar el rendimiento.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Prototipos de funciones de socket notables */
+/* Funciones de "control" */
+int socket(int domain, int type, int protocol);
+int bind(int socket, const struct sockaddr *addr, socklen_t addrlen);
+int listen(int socket, int backlog);
+int accept(int socket, struct sockaddr *addr, socklen_t *addrlen);
+int connect(int socket, const struct sockaddr *addr, socklen_t addrlen);
+int shutdown(int socket, int how);
+int close(int socket);
+/* Operaciones de datos de "vía rápida" - solo envío (llamadas de recepción no mostradas) */
+ssize_t send(int socket, const void *buf, size_t len, int flags);
+ssize_t sendto(int socket, const void *buf, size_t len, int flags,
+    const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t sendmsg(int socket, const struct msghdr *msg, int flags);
+ssize_t write(int socket, const void *buf, size_t count);
+ssize_t writev(int socket, const struct iovec *iov, int iovcnt);
+/* Operaciones de datos "indirectas" */
+int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+int select(int nfds, fd_set *readfds, fd_set *writefds,
+    fd_set *exceptfds, struct timeval *timeout);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Al examinar esta lista, hay un par de características a tener en cuenta. Primero, hay múltiples llamadas que se pueden usar para enviar datos, así como múltiples llamadas que se pueden usar para esperar a que un socket no bloqueante esté listo. Esto se discutirá con más detalle más adelante. Segundo, las operaciones se han dividido en diferentes grupos (la terminología es nuestra). Las operaciones de control son aquellas funciones que una aplicación invoca raramente durante la ejecución. A menudo ocurren solo como parte de la inicialización.</p>
+<p class="Pp">Las operaciones de datos, por otro lado, pueden ser llamadas cientos o millones de veces durante la vida útil de una aplicación. Se ocupan directa o indirectamente de transferir o recibir datos a través de la red. Las operaciones de datos se pueden dividir en dos grupos. Las llamadas de vía rápida interactúan con la pila de red para enviar o recibir datos inmediatamente. Para lograr un alto ancho de banda y baja latencia, esas operaciones deben ser lo más rápidas posible. Las operaciones que no son de vía rápida y que aún se ocupan de transferencias de datos son aquellas llamadas que, si bien son llamadas con frecuencia por la aplicación, no son tan críticas para el rendimiento. Por ejemplo, las llamadas select() y poll() se utilizan para bloquear un hilo de aplicación hasta que un socket esté listo. Debido a que esas llamadas suspenden la ejecución del hilo, el rendimiento es una preocupación menor. (El rendimiento de esas operaciones sigue siendo una preocupación, pero el costo de ejecutar el planificador del sistema operativo a menudo anula cualquier ganancia de rendimiento, excepto las más sustanciales).</p>
+<section class="Ss">
+<h2 class="Ss" id='Call_Setup_Costs'><a class='permalink' href='#Call_Setup_Costs'>Costos de Configuración de Llamada</a></h2>
+<p class="Pp">La cantidad de trabajo que una aplicación necesita realizar antes de emitir una operación de transferencia de datos puede afectar el rendimiento, especialmente las tasas de mensajes. Obviamente, cuantos más parámetros deba colocar una aplicación en la pila para llamar a una función, mayor será su recuento de instrucciones. Sin embargo, reemplazar las variables de pila con una única estructura de datos no ayuda a reducir los costos de configuración.</p>
+<p class="Pp">Supongamos que una aplicación desea enviar un único búfer de datos de un tamaño determinado a un par. Si examinamos la API de sockets, la mejor opción para tal operación es la llamada write(). Esa llamada solo toma los valores necesarios para realizar la transferencia de datos. La llamada send() es una segunda opción cercana, y send() es un nombre de función más natural para la comunicación de red, pero send() requiere un argumento adicional sobre write(). Otras funciones son aún peores en términos de costos de configuración. La función sendmsg(), por ejemplo, requiere que la aplicación formatee una estructura de datos, cuya dirección se pasa a la llamada. Esto requiere significativamente más instrucciones de la aplicación si se hace para cada transferencia de datos.</p>
+<p class="Pp">Aunque todas las demás funciones de envío pueden ser reemplazadas por sendmsg(), es útil tener múltiples formas para que la aplicación emita solicitudes de envío. No solo las otras llamadas son más fáciles de leer y usar (lo que reduce los costos de mantenimiento del software), sino que también pueden mejorar el rendimiento.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Branches_and_Loops'><a class='permalink' href='#Branches_and_Loops'>Ramas y Bucles</a></h2>
+<p class="Pp">Al diseñar una API, los desarrolladores rara vez consideran cómo la API afecta a la implementación subyacente. Sin embargo, la selección de los parámetros de la API puede requerir que la implementación subyacente agregue ramas o use bucles de control. Considere la diferencia entre las llamadas write() y writev(). Esta última pasa un array de vectores de E/S, que puede procesarse utilizando un bucle como este:</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Implementación de muestra para procesar un array */
+for (i = 0; i &lt; iovcnt; i++) {
+    ...
+}
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Para procesar el array iovec, la construcción de software natural sería usar un bucle para iterar sobre las entradas. Los bucles resultan en procesamiento adicional. Típicamente, un bucle requiere inicializar una variable de control de bucle (por ejemplo, i = 0), agrega operaciones ALU (por ejemplo, i++) y una comparación (por ejemplo, i &lt; iovcnt). Esta sobrecarga es necesaria para manejar un número arbitrario de entradas iovec. Si el caso común es que la aplicación quiere enviar un único búfer de datos, write() es una mejor opción.</p>
+<p class="Pp">Además de los bucles de control, una API puede hacer que la implementación necesite ramas. Las ramas pueden cambiar el flujo de ejecución de un programa, afectando las técnicas de canalización del procesador. La predicción de ramas del procesador ayuda a aliviar este problema. Sin embargo, si bien la predicción de ramas puede ser correcta casi el 100% de las veces al ejecutar un microbenchmark, como una prueba de ancho de banda o latencia de red, con un tráfico de red más realista, el impacto puede ser medible.</p>
+<p class="Pp">Podemos ver fácilmente cómo una API puede introducir ramas en el flujo del código si examinamos la llamada send(). Send() toma un parámetro de flags adicional sobre la llamada write(). Esto permite a la aplicación modificar el comportamiento de send(). Desde el punto de vista de la implementación de send(), el parámetro flags debe ser verificado. En el mejor de los casos, esto agrega una verificación adicional (flags no es cero). En el peor de los casos, cada flag válido puede necesitar una verificación separada, lo que resulta en potencialmente docenas de verificaciones.</p>
+<p class="Pp">En general, la API de sockets está bien diseñada considerando estas implicaciones de rendimiento. Proporciona llamadas complejas cuando son necesarias, con funciones más simples disponibles que pueden evitar parte de la sobrecarga inherente a otras llamadas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Command_Formatting'><a class='permalink' href='#Command_Formatting'>Formato de Comandos</a></h2>
+<p class="Pp">El objetivo final de invocar una función de red es transferir o recibir datos de la red. En esta sección, descendemos hasta la parte inferior de la pila de software, al componente responsable de acceder directamente al hardware. Esto generalmente se conoce como el controlador de red, y su implementación a menudo está ligada a una pieza de hardware específica, o a una serie de NIC de un solo proveedor de hardware.</p>
+<p class="Pp">Con el fin de</p>
+</section>
+</section>
+o señalizar a una NIC que debe leer un búfer de memoria y copiar esos datos en la red, el controlador de software normalmente necesita escribir algún tipo de comando en la NIC. Para limitar la complejidad y el costo del hardware, una NIC puede soportar solo un par de formatos de comando. Esto difiere de las interfaces de software que hemos estado discutiendo, donde podemos tener diferentes APIs de complejidad variable para reducir la sobrecarga. Puede haber costos significativos asociados con el formateo del comando y su publicación en el hardware.</p>
+<p class="Pp">Con una NIC estándar, el comando es formateado por un controlador del kernel. Ese controlador se encuentra en la parte inferior de la pila de red, atendiendo solicitudes de múltiples aplicaciones. Generalmente, debe formatear cada comando solo después de que una solicitud haya pasado a través de la pila de red.</p>
+<p class="Pp">Con dispositivos que son directamente accesibles por una única aplicación, existen oportunidades para usar estructuras de comandos preformateadas. Cuanto más del comando pueda ser inicializado antes de que la aplicación envíe una solicitud de red, más optimizado será el proceso y mejor será el rendimiento.</p>
+<p class="Pp">Como ejemplo, una NIC necesita tener la dirección de destino como parte de una operación de envío. Si una aplicación está enviando a un solo par, esa información puede ser almacenada en caché y ser parte de una cabecera de red preformateada. Esto solo es posible si el controlador de la NIC sabe que el destino no cambiará entre envíos. Cuanto más cerca esté el controlador de la aplicación, mayor será la posibilidad de optimización. Un enfoque óptimo es que el controlador sea parte de una biblioteca que se ejecute completamente dentro del espacio de proceso de la aplicación.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Memory_Footprint'><a class='permalink' href='#Memory_Footprint'>Huella   de Memoria</a></h2>
+<p class="Pp">Las preocupaciones sobre la huella de memoria son más notables en las aplicaciones de computación de alto rendimiento (HPC) que se comunican con miles de pares. Un consumo excesivo de memoria impacta la escalabilidad de la aplicación, limitando el número de pares que pueden operar en paralelo para resolver problemas. A menudo existe un compromiso entre minimizar la huella de memoria necesaria para la comunicación de red, el rendimiento de la aplicación y la facilidad de uso de la interfaz de red.</p>
+<p class="Pp">Como discutimos con la semántica de la API de sockets, parte de la facilidad de uso de los sockets proviene de la copia de la capa de red del búfer del usuario a un búfer interno que pertenece a la pila de red. La cantidad de búfer interno que se pone a disposición de la aplicación se correlaciona directamente con el ancho de banda que una aplicación puede alcanzar. En general, un mayor búfer interno aumenta el rendimiento de la red, a costa de incrementar la huella de memoria consumida por la aplicación. Esta huella de memoria existe independientemente de la cantidad de memoria asignada directamente por la aplicación. Eliminar el búfer de red no solo ayuda con el rendimiento, sino también con la escalabilidad, al reducir la huella de memoria necesaria para soportar la aplicación.</p>
+<p class="Pp">Si bien el búfer de memoria de red aumenta a medida que una aplicación escala, a menudo puede configurarse a un tamaño fijo. La cantidad de búfer necesaria depende del número de flujos de comunicación activos que se están utilizando en un momento dado. Ese número a menudo es significativamente menor que el número total de pares con los que una aplicación pueda necesitar comunicarse. La cantidad de memoria requerida para <i>direccionar</i> a los pares, sin embargo, generalmente tiene una relación lineal con el número total de pares.</p>
+<p class="Pp">Con la API de sockets, cada par es identificado usando una struct sockaddr. Si consideramos una aplicación de socket basada en UDP usando direcciones IPv4, un par es identificado por la siguiente dirección.</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>/* Dirección de socket IPv4 - con los typedefs eliminados */
+struct sockaddr_in {
+    uint16_t sin_family; /* AF_INET */
+    uint16_t sin_port;
+    struct {
+        uint32_t sin_addr;
+    } in_addr;
+};
+</pre>
+  </dd>
+</dl>
+<p class="Pp">En total, la aplicación requiere 8 bytes de direccionamiento para cada par. Si la aplicación se comunica con un millón de pares, eso se dispara a aproximadamente 8 MB de espacio de memoria que se consume solo para mantener la lista de direcciones. Si se necesita direccionamiento IPv6, el requisito aumenta por un factor de 4.</p>
+<p class="Pp">Afortunadamente, existen algunos trucos que se pueden usar para ayudar a reducir la huella de memoria del direccionamiento, aunque hacerlo introducirá más instrucciones en la ruta de acceso al código para acceder a la pila de red. Por ejemplo, podemos notar que todas las direcciones en el ejemplo anterior tienen el mismo valor sin_family (AF_INET). No hay necesidad de almacenar eso para cada dirección. Esto potencialmente reduce cada dirección de 8 bytes a 6. (Podemos quedar con datos desalineados, pero ese es un compromiso para reducir el consumo de memoria). Dependiendo de cómo se asignen las direcciones, puede ser posible una reducción adicional. Por ejemplo, si la aplicación usa el mismo conjunto de direcciones de puerto en cada nodo, podemos eliminar el almacenamiento del puerto y en su lugar calcularlo a partir de algún valor base. Este tipo de truco se puede aplicar a la parte IP de la dirección si la aplicación tiene la suerte de ejecutarse a través de direcciones IP secuenciales.</p>
+<p class="Pp">El problema principal con este tipo de reducción de direcciones es que es difícil de lograr. Requiere que cada aplicación verifique y maneje la compresión de direcciones, exponiendo a la aplicación al formato de direccionamiento utilizado por la pila de red. Debe tenerse en cuenta que las direcciones TCP/IP y UDP/IP son direcciones lógicas, no físicas. Cuando se ejecutan sobre Ethernet, las direcciones que aparecen en la capa de enlace son direcciones MAC, no direcciones IP. La asociación de IP a dirección MAC es gestionada por el software de red. Nos gustaría proporcionar un direccionamiento que sea simple para que una aplicación lo use, pero que al mismo tiempo pueda proporcionar una huella de memoria mínima.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Communication_Resources'><a class='permalink' href='#Communication_Resources'>Recursos   de Comunicación</a></h2>
+<p class="Pp">Necesitamos hacer una breve desviación en la discusión para profundizar más en el problema de la red y el espacio de soluciones. En lugar de continuar pensando en un socket como una sola entidad, con capacidades tanto de envío como de recepción, queremos considerar sus componentes por separado. Un socket de red puede ser visto como tres constructos básicos: una dirección de nivel de transporte, una cola de envío o transmisión y una cola de recepción. Debido a que nuestra discusión comenzará a pivotar lejos de la semántica pura de sockets, nos referiremos a nuestro `socket' de red como un punto final (endpoint).</p>
+<p class="Pp">Para reducir la huella de memoria de una aplicación, necesitamos considerar características que caen fuera de la API de sockets. Hasta ahora, gran parte de la discusión ha sido sobre el envío de datos a un par. Ahora queremos enfocarnos en los mejores mecanismos para recibir datos.</p>
+<p class="Pp">Con sockets, cuando una aplicación tiene datos para recibir (indicado, por ejemplo, por un evento POLLIN), llamamos a recv(). La pila de red copia los datos recibidos en su búfer y retorna. Si queremos evitar la copia de datos en el lado de recepción, necesitamos una manera para que la aplicación publique sus búferes en la pila de red <i>antes</i> de que lleguen los datos.</p>
+<p class="Pp">Se puede argumentar que una forma natural de extender la API de sockets para soportar esta característica es que cada llamada a recv() simplemente publique el búfer a la capa de red. A medida que se reciben datos, los búferes de recepción se eliminan en el orden en que fueron publicados. Los datos se copian en el búfer publicado y se retornan al usuario. Se notaría que el tamaño del búfer de recepción publicado puede ser más grande (o más pequeño) que la cantidad de datos recibidos. Si el espacio de búfer disponible es mayor, hipotéticamente, la capa de red podría esperar una breve cantidad de tiempo para ver si llegan más datos. Si no llega nada más, la recepción se completa con el búfer retornado a la aplicación.</p>
+<p class="Pp">Esto plantea un problema sobre cómo manejar el búfer en el lado de recepción. Hasta ahora, con los sockets hemos considerado principalmente un protocolo de flujo (streaming). Sin embargo, muchas aplicaciones tratan con mensajes que terminan siendo superpuestos sobre el flujo de datos. Si envían un mensaje de 8 KB, quieren que el receptor reciba un mensaje de 8 KB. Los límites de los mensajes deben ser mantenidos.</p>
+<p class="Pp">Si una aplicación envía y recibe un mensaje de tamaño fijo, la asignación de búferes se vuelve trivial. La aplicación puede publicar X número de búferes, cada uno de un tamaño óptimo. Sin embargo, si hay una amplia mezcla de tamaños de mensajes, surgen dificultades. No es poco común que una aplicación tenga el 80% de sus mensajes de un par de cientos de bytes o menos, pero el 80% de los datos totales que envía esté en transferencias grandes que son, digamos, un megabyte o más. Publicar búferes de recepción previamente en tal situación es desafiante.</p>
+<p class="Pp">Una técnica comúnmente utilizada para manejar esta situación es implementar un protocolo a nivel de aplicación para mensajes más pequeños y usar un protocolo separado para transferencias que son más grandes que un umbral dado. Esto permitiría a una aplicación publicar un montón de mensajes más pequeños, digamos 4 KB, para recibir datos. Para transferencias que son más grandes que 4 KB, se usa un protocolo de comunicación diferente, posiblemente sobre un socket o punto final diferente.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Shared_Receive_Queues'><a class='permalink' href='#Shared_Receive_Queues'>Colas   de Recepción Compartidas</a></h2>
+<p class="Pp">Si una aplicación pre-publica búferes de recepción a una cola de red, necesita equilibrar el tamaño de cada búfer publicado, el número de búferes que se publican en cada cola y el número de colas que están en uso. Con un enfoque similar al de los sockets, cada socket mantendría una cola de recepción independiente donde se colocan los datos. Si una aplicación está usando 1000 puntos finales y publica 100 búferes, cada uno de 4 KB, eso resulta en 400 MB de espacio de memoria siendo consumido para recibir datos. (Podemos empezar a darnos cuenta de que al eliminar las copias de memoria, una de las compensaciones es un mayor consumo de memoria.) Si bien 400 MB parece una gran cantidad de memoria, hay menos de medio megabyte asignado a una sola cola de recepción. Con las velocidades de red actuales, esa cantidad de espacio puede ser consumida en milisegundos. El resultado es que si solo unos pocos puntos finales están en uso, la aplicación experimentará largos retrasos donde el control de flujo entrará en acción y frenará las transferencias.</p>
+<p class="Pp">Hay algunas observaciones que podemos hacer aquí. La primera es que para lograr una alta escalabilidad, necesitamos alejarnos de un protocolo orientado a conexiones, como los sockets de flujo. En segundo lugar, necesitamos reducir el número de colas de recepción que una aplicación usa.</p>
+<p class="Pp">Una cola de recepción compartida es una cola de red que puede recibir datos para muchos puntos finales diferentes a la vez. Con colas de recepción compartidas, ya no asociamos una cola de recepción con una dirección de transporte específica. En su lugar, los datos de red se dirigirán a una dirección de punto final específica. A medida que llegan los datos, el punto final eliminará una entrada de la cola de recepción compartida, colocará los datos en el búfer publicado por la aplicación y lo retornará al usuario. Las colas de recepción compartidas pueden reducir enormemente la cantidad de espacio de búfer necesaria por las aplicaciones. En el ejemplo anterior, si se usara una cola de recepción compartida, la aplicación podría publicar 10 veces el número de búferes (1000 en total), pero aún así consumir 100 veces menos memoria (4 MB en total). Esto es mucho más escalable. La desventaja es que la aplicación ahora debe ser consciente de las colas de recepción y las colas de recepción compartidas, en lugarconsiderando la red únicamente a nivel de un socket.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Multi-Receive_Buffers'><a class='permalink' href='#Multi-Receive_Buffers'>Búferes de Recepción Múltiple</a></h2>
+<p class="Pp">Las colas de recepción compartidas mejoran enormemente la escalabilidad de la aplicación; sin embargo, aún resultan en algunas ineficiencias según lo definido hasta ahora. Solo hemos considerado el caso de publicar una serie de búferes de memoria de tamaño fijo en la cola de recepción. Como se mencionó, determinar el tamaño de cada búfer es difícil. Las transferencias más grandes que el tamaño fijo requieren el uso de algún otro protocolo para completarse. Si las transferencias son típicamente mucho más pequeñas que el tamaño fijo, entonces el espacio de búfer extra queda sin uso.</p>
+<p class="Pp">Refiriéndonos de nuevo a nuestro ejemplo, si la aplicación publica 1000 búferes, entonces solo puede recibir 1000 mensajes antes de que la cola se vacíe. A velocidades de datos medidas en millones de mensajes por segundo, esto introducirá interrupciones en el flujo de datos. Una solución obvia es aumentar el número de búferes publicados. El problema es lidiar con mensajes de tamaño variable, incluyendo algunos que solo tienen un par de cientos de bytes de longitud. Por ejemplo, si el tamaño promedio del mensaje en nuestro caso es de 256 bytes o menos, entonces aunque hemos asignado 4 MB de espacio de búfer, solo hacemos uso del 6% de ese espacio. El resto se desperdicia para manejar mensajes que pueden ser de hasta 4 KB solo ocasionalmente.</p>
+<p class="Pp">Una segunda optimización que podemos hacer es llenar cada búfer de recepción publicado a medida que llegan los mensajes. Así, en lugar de que un búfer de 4 KB se retire del uso tan pronto como llega un solo mensaje de 256 bytes, en su lugar puede recibir hasta 16 mensajes de 256 bytes. Nos referimos a esta característica como búferes de `recepción múltiple'.</p>
+<p class="Pp">Con los búferes de recepción múltiple, en lugar de publicar un montón de búferes más pequeños, publicamos en su lugar un solo búfer más grande, digamos los 4 MB completos, de una vez. A medida que se reciben datos, se colocan en el búfer publicado. A diferencia de los flujos TCP, todavía mantenemos los límites de los mensajes. Las ventajas aquí son dobles. No solo se usa la memoria de manera más eficiente, permitiéndonos recibir más mensajes pequeños a la vez y mensajes más grandes en general, sino que también reducimos el número de llamadas a funciones que la aplicación debe hacer para mantener su suministro de búferes de recepción disponibles.</p>
+<p class="Pp">Cuando se combinan con colas de recepción compartidas, los búferes de recepción múltiple ayudan a soportar el almacenamiento en búfer y el procesamiento óptimo en el lado de recepción. La principal desventaja de soportar búferes de recepción múltiple es que la aplicación no necesariamente sabrá de antemano cuántos mensajes pueden estar asociados con un solo búfer de memoria publicado. Esto rara vez es un problema para las aplicaciones.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Optimal_Hardware_Allocation'><a class='permalink' href='#Optimal_Hardware_Allocation'>Asignación Óptima de Hardware</a></h2>
+<p class="Pp">Como parte de las consideraciones de escalabilidad, no solo necesitamos considerar los recursos de procesamiento y memoria del sistema anfitrión, sino también la asignación y el uso del hardware de la NIC. Hemos referido a los puntos de red como una combinación de direccionamiento de transporte, colas de transmisión y colas de recepción. Las dos últimas colas a menudo se implementan como colas de comandos de hardware. Las colas de comandos se utilizan para señalizar a la NIC que realice algún tipo de trabajo. Una cola de transmisión indica que la NIC debe transferir datos. Un comando de transmisión a menudo contiene información como la dirección del búfer a transmitir, la longitud del búfer y los datos de direccionamiento de destino. El formato real y el contenido de los datos varían según la implementación del hardware.</p>
+<p class="Pp">Las NICs tienen recursos limitados. Solo las aplicaciones más escalables y de alto rendimiento probablemente necesiten preocuparse por utilizar el hardware de la NIC de manera óptima. Sin embargo, tales aplicaciones son un enfoque importante y específico de libfabric. La gestión de los recursos de la NIC a menudo es manejada por una aplicación de gestión de recursos, que es responsable de asignar sistemas a aplicaciones en competencia, entre otras actividades.</p>
+<p class="Pp">Soportar aplicaciones que desean hacer un uso óptimo del hardware requiere que las abstracciones relacionadas con el hardware se expongan a la aplicación. Tales abstracciones no pueden requerir una implementación de hardware específica, y se debe tener cuidado para asegurar que la API resultante sea aún utilizable por desarrolladores no familiarizados con el manejo de tales detalles de bajo nivel. Exponer conceptos como las colas de recepción compartidas es un ejemplo de dar a una aplicación más control sobre cómo se utilizan los recursos de hardware.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Sharing_Command_Queues'><a class='permalink' href='#Sharing_Command_Queues'>Compartir Colas de Comandos</a></h2>
+<p class="Pp">Al exponer las colas de transmisión y recepción a la aplicación, abrimos la posibilidad de que la aplicación que hace uso de múltiples puntos de fin determine cómo esas colas podrían compartirse. Hablamos de los beneficios de compartir una cola de recepción entre puntos de fin. Los beneficios de compartir colas de transmisión no son tan obvios.</p>
+<p class="Pp">Una aplicación que usa más puntos de fin direccionables de los que hay colas de transmisión necesitará compartir colas de transmisión entre los puntos de fin. Al controlar qué punto de fin usa qué cola de transmisión, la aplicación puede priorizar el tráfico. Una cola de transmisión también puede configurarse para optimizar un tipo específico de transferencia de datos, como solo transferencias grandes.</p>
+<p class="Pp">Desde la perspectiva de una API de software, compartir colas de transmisión o recepción implica exponer esos constructos a la aplicación y permitir que se asocien con diferentes direcciones de punto de fin.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Multiple_Queues'><a class='permalink' href='#Multiple_Queues'>Múltiples Colas</a></h2>
+<p class="Pp">Lo opuesto de una cola de comandos compartida son puntos de fin que tienen múltiples colas. Una aplicación que puede aprovechar múltiples colas de transmisión o recepción puede aumentar el manejo paralelo de mensajes sin restricciones de sincronización. Ser capaz de usar múltiples colas de comandos a través de un solo punto de fin tiene ventajas sobre usar múltiples puntos de fin. Múltiples puntos de fin requieren direcciones separadas, lo que aumenta el uso de memoria. Un solo punto de fin con múltiples colas puede continuar exponiendo una sola dirección, mientras aprovecha al máximo los recursos disponibles de la NIC.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Progress_Model_Considerations'><a class='permalink' href='#Progress_Model_Considerations'>Consideraciones del Modelo de Progreso</a></h2>
+<p class="Pp">Un aspecto de la interfaz de programación de sockets que los desarrolladores a menudo no consideran es la ubicación de la implementación del protocolo. Esto generalmente es gestionado por el kernel del sistema operativo. La pila de red es responsable de manejar mensajes de control de flujo, expirar tiempos de transferencias, retransmitir transferencias no reconocidas, procesar datos recibidos y enviar reconocimientos. Este procesamiento requiere que la pila de red consuma ciclos de CPU. Porciones de ese procesamiento pueden hacerse dentro del contexto del hilo de la aplicación, pero mucho debe ser manejado por hilos del kernel dedicados al procesamiento de red.</p>
+<p class="Pp">Al mover el procesamiento de red directamente al proceso de la aplicación, necesitamos preocuparnos por cómo la comunicación de red avanza. Por ejemplo, ¿cómo y cuándo se envían los reconocimientos? ¿Cómo se manejan las expiraciones de tiempo y las retransmisiones de mensajes? El modelo de progreso define este comportamiento, y depende de cuánto del procesamiento de red se ha descargado en la NIC.</p>
+<p class="Pp">Más generalmente, el progreso es la capacidad de la implementación de red subyacente de completar el procesamiento de una solicitud asíncrona. En muchos casos, el procesamiento de una solicitud asíncrona requiere el uso del procesador del host. Por razones de rendimiento, puede ser indeseable que el proveedor asigne un hilo para este propósito, lo que competiría con el hilo(s) de la aplicación. Podemos evitar cambios de contexto de hilo si el hilo de la aplicación puede usarse para avanzar en las solicitudes – verificar reconocimientos, reintentar operaciones expiradas, etc. Hacerlo requiere que la aplicación llame periódicamente a la pila de red.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Ordering'><a class='permalink' href='#Ordering'>Ordenamiento</a></h2>
+<p class="Pp">El ordenamiento de red es un tema complejo. Con los sockets TCP, los datos se envían y reciben en el mismo orden. Los búferes son reutilizables por la aplicación inmediatamente al regresar de una llamada a una función. Como resultado, el ordenamiento es simple de entender y usar. Los sockets UDP complican las cosas un poco. Con los sockets UDP, los mensajes pueden recibirse fuera del orden en que fueron enviados. En la práctica, esto a menudo no ocurre, particularmente si la aplicación solo se comunica a través de una red de área local, como Ethernet.</p>
+<p class="Pp">Con nuestra API de red en evolución, hay situaciones donde exponer diferentes semánticas de ordenamiento puede mejorar el rendimiento. Estos detalles se discutirán más adelante.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Messages'><a class='permalink' href='#Messages'>Mensajes</a></h2>
+<p class="Pp">Los sockets UDP permiten que los mensajes lleguen fuera de orden porque cada mensaje se enruta del emisor al receptor de manera independiente. Esto permite que los paquetes tomen diferentes rutas de red, para evitar congestión o aprovechar múltiples enlaces de red para un ancho de banda mejorado. Nos gustaría aprovechar las mismas características en aquellos casos donde a la aplicación no le importa en qué orden llegan los mensajes.</p>
+<p class="Pp">A diferencia de los sockets UDP, sin embargo, nuestra definición de ordenamiento de mensajes es más sutil. Los mensajes UDP son paquetes pequeños del tamaño del MTU. En nuestro caso, los mensajes pueden ser de gigabytes de tamaño. Definimos el ordenamiento de mensajes para indicar si el inicio de cada mensaje se procesa en orden o fuera de orden. Esto está relacionado con, pero separado del orden en que se recibe la carga útil del mensaje.</p>
+<p class="Pp">Un ejemplo ayudará a aclarar esta distinción. Supongamos que una aplicación ha publicado dos mensajes en su cola de recepción. La primera recepción apunta a un búfer de 4 KB. La segunda recepción apunta a un búfer de 64 KB. El emisor transmitirá un mensaje de 4 KB seguido de un mensaje de 64 KB. Si los mensajes se procesan en orden, entonces el envío de 4 KB coincidirá con la recepción de 4 KB, y el envío de 64 KB coincidirá con la recepción de 64 KB. Sin embargo, si los mensajes pueden procesarse fuera de orden, entonces los envíos y recepciones pueden no coincidir, resultando en que el envío de 64 KB sea truncado.</p>
+<p class="Pp">En este ejemplo, no nos preocupamos por en qué orden se reciben los datos. El envío de 64 KB podría dividirse en 64 transferencias de 1 KB que tomen diferentes rutas al destino. Así, los bytes 2k-3k podrían recibirse antes que los bytes 1k-2k. El ordenamiento de mensajes no se preocupa por el ordenamiento
+    <i>dentro</i> de un mensaje, solo <i>entre</i> mensajes. Con mensajes ordenados, los mensajes en sí mismos necesitan procesarse en orden.</p>
+<p class="Pp">Cuanto más relajado pueda ser el ordenamiento de mensajes, más optimizaciones puede usar la pila de red para transferir los datos. Sin embargo, la aplicación debe ser consciente de la semántica de ordenamiento de mensajes y ser capaz de seleccionar la semántica deseada para sus necesidades. Para los propósitos de esta sección, mensajes se refiere a operaciones a nivel de transporte, lo que incluye RDMA y operaciones similares (algunas de las cuales aún no se han discutido).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Data'><a class='permalink' href='#Data'>Datos</a></h2>
+<p class="Pp">El ordenamiento de datos se refiere a la recepción y colocación de datos tanto
+    <i>dentro como entre</i> mensajes. El ordenamiento de datos es más importante para
+    los mensajes que pueden actualizar el mismo búfer de memoria de destino. Por ejemplo, imagine
+    una aplicación que escribe una serie de registros de base de datos directamente en una
+    ubicación de memoria del par. El ordenamiento de datos, combinado con el ordenamiento de mensajes, garantiza que
+    los datos de la segunda escritura actualicen la memoria después de que la primera escritura
+    se complete. El resultado es que la ubicación de memoria contendrá los registros
+    transportados en la segunda escritura.</p>
+<p class="Pp">Hacer cumplir el ordenamiento de datos entre mensajes requiere que los
+    mensajes estén ordenados por sí mismos. El ordenamiento de datos también puede aplicarse dentro de un solo
+    mensaje, aunque este nivel de ordenamiento suele ser menos importante para
+    las aplicaciones. El ordenamiento de datos dentro de un mensaje indica que los datos de un
+    solo mensaje se reciben en orden. Algunas aplicaciones utilizan esta función para
+    "girar" (spin) leyendo el último byte de un búfer de recepción. Una vez que el
+    byte cambia, la aplicación sabe que la operación se ha completado y que todos los datos anteriores
+    han sido recibidos. (Tenga en cuenta que, aunque este comportamiento es interesante para fines de
+    rendimiento, se desaconseja encarecidamente usar una función de esta manera. No es
+    portable entre redes o plataformas.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Completions'><a class='permalink' href='#Completions'>Completados</a></h2>
+<p class="Pp">El ordenamiento de completados se refiere a la secuencia en que las operaciones asíncronas
+    informan su finalización a la aplicación. Normalmente, la transferencia de datos no fiable
+    se completa naturalmente en el orden en que se envían
+    a la cola de transmisión. Cada operación se transmite a la red, con
+    la finalización ocurriendo inmediatamente después. Para las transferencias de datos fiables, una
+    operación no puede completarse hasta que haya sido reconocida por el par. Dado que
+    los paquetes de reconocimiento (ack) pueden perderse o posiblemente tomar rutas diferentes a través de la
+    red, las operaciones pueden marcarse como completadas fuera de orden. Los reconocimientos
+    fuera de orden son más probables si los mensajes pueden procesarse fuera de orden.</p>
+<p class="Pp">Las interfaces asíncronas requieren que la aplicación realice un seguimiento de sus
+    solicitudes pendientes. Manejar las finalizaciones fuera de orden puede aumentar la
+    complejidad de la aplicación, pero permite optimizar la utilización de la
+    red.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='lifabric_Architecture'><a class='permalink' href='#lifabric_Architecture'>Arquitectura de
+    libfabric</a></h1>
+<p class="Pp">Libfabric está bien arquitectado para soportar las características
+    discutidas previamente. Para más información sobre la arquitectura de libfabric, consulte
+    la siguiente sección de la guía del programador: fi_arch(7).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORES</a></h1>
+<p class="Pp">OpenFabrics.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-12-10</td>
+    <td class="foot-os">Manual del Programador de Libfabric</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/libfabric/">extra/libfabric</a></dd>
+        <dt>Versión:</dt>
+        <dd>2.3.1-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://ofiwg.github.io/libfabric/">https://ofiwg.github.io/libfabric/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>BSD-2-Clause OR GPL-2.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/libfabric/">/listing/extra/libfabric/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#OVERVIEW">VISIÓN GENERAL</a></li>
+        
+            <li><a href="#Review_of_Sockets_Communication">Revisión de la Comunicación por Sockets</a></li>
+        
+            <li><a href="#High-Performance_Networking">Redes de Alto Rendimiento</a></li>
+        
+            <li><a href="#Designing_Interfaces_for_Performance">Diseño de Interfaces para el Rendimiento</a></li>
+        
+            <li><a href="#lifabric_Architecture">Arquitectura de
+    libfabric</a></li>
+        
+            <li><a href="#AUTHORS">AUTORES</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/fi_intro.7.en.txt">txt</a>, 
+        
+            <a href="/man/fi_intro.7.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

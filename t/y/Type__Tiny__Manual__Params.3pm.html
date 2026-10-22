@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Type::Tiny::Manual::Params(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Type__Tiny__Manual__Params(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-type-tiny/">perl-type-tiny</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Type::Tiny::Manual::Params(3)</td>
+    <td class="head-vol">Documentación de Contribución de Usuarios de Perl</td>
+    <td class="head-rtitle">Type::Tiny::Manual::Params(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Type::Tiny::Manual::Params - información avanzada sobre
+    Type::Params</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MANUAL'><a class='permalink' href='#MANUAL'>MANUAL</a></h1>
+<p class="Pp">Para empezar con Type::Params, por favor lee
+    Type::Tiny::Manual::UsingWithMoo, que cubrirá muchos de los conceptos básicos,
+    incluso si no estás usando Moo.</p>
+<section class="Ss">
+<h2 class="Ss" id='&amp;quot;multiple&amp;quot;'><a class='permalink' href='#&amp;quot;multiple&amp;quot;'>&quot;multiple&quot;</a></h2>
+<p class="Pp">La opción <span class="Li">&quot;multiple&quot;</span> te permite
+    especificar múltiples formas de llamar a una subrutina.</p>
+<pre>signature_for repeat_string =&gt; (
+  multiple =&gt; [
+    { positional =&gt; [ Str, Int ] },
+    { named =&gt; [ string =&gt; Str, count =&gt; Int ], named_to_list =&gt; true },
+  ],
+);
+
+sub repeat_string ( $string, $count ) {
+  return $string x $count;
+}
+
+repeat_string(            &quot;Hello&quot;,          42  );    # funciona
+repeat_string(  string =&gt; &quot;Hello&quot;, count =&gt; 42  );    # funciona
+repeat_string({ string =&gt; &quot;Hello&quot;, count =&gt; 42 });    # funciona
+repeat_string( qr/hiya/ );                            # falla</pre>
+<p class="Pp">Combina múltiples verificaciones y prueba cada una hasta que una funcione.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='&amp;quot;list_to_named&amp;quot;'><a class='permalink' href='#&amp;quot;list_to_named&amp;quot;'>&quot;list_to_named&quot;</a></h2>
+<p class="Pp">En muchos casos, las múltiples convenciones de llamada ofrecidas por
+    <span class="Li">&quot;multiple&quot;</span> se pueden implementar más
+    fácilmente usando <span class="Li">&quot;list_to_named&quot;</span>.</p>
+<pre>signature_for repeat_string =&gt; (
+  list_to_named =&gt; true,
+  named         =&gt; [ string =&gt; Str, count =&gt; Int ],
+  named_to_list =&gt; true,
+);
+
+sub repeat_string ( $string, $count ) {
+  return $string x $count;
+}
+
+# Formas estándar de llamar a la función:
+repeat_string(  string =&gt; &quot;Hello&quot;, count =&gt; 42  );
+repeat_string({ string =&gt; &quot;Hello&quot;, count =&gt; 42 });
+
+# Estas también deberían funcionar:
+repeat_string( &quot;Hello&quot;, count =&gt; 42 );
+repeat_string( &quot;Hello&quot;, { count =&gt; 42 } );
+repeat_string( 42, string =&gt; &quot;Hello&quot; );
+repeat_string( 42, { string =&gt; &quot;Hello&quot; } );
+repeat_string( &quot;Hello&quot;, 42 );
+
+# Esto actualmente no funcionará, porque &quot;42&quot; aparece primero, así que se
+# toma como la cadena, ¡pero &quot;Hello&quot; no es un entero válido!
+repeat_string( 42, &quot;Hello&quot; );</pre>
+<p class="Pp">La opción <span class="Li">&quot;list_to_named&quot;</span> funciona
+    en tres etapas. Al buscar el hash o hashref de parámetros con nombre, si hay
+    otros parámetros antes, estos se guardan a un lado en una lista de parámetros
+    posicionales &quot;sigilosos&quot;.</p>
+<p class="Pp">Más tarde, al validar los parámetros con nombre, si alguno parece
+    faltar, se examina la lista de parámetros posicionales sigilosos y, si es
+    posible, el parámetro se toma de allí.</p>
+<p class="Pp">Finalmente, después de que se hayan procesado todos los parámetros
+    con nombre, si todavía quedan parámetros posicionales que no se necesitaban,
+    se lanza un error.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='&amp;quot;signature&amp;quot;'><a class='permalink' href='#&amp;quot;signature&amp;quot;'>&quot;signature&quot;</a></h2>
+<p class="Pp"><span class="Li">&quot;signature&quot;</span> permite definir la
+    firma dentro de la propia subrutina, potencialmente sobre la marcha, lo
+    cual es útil ocasionalmente.</p>
+<p class="Pp">En lugar de esto:</p>
+<pre>signature_for foobar =&gt; (
+  positional =&gt; [ Int, Str ],
+);
+
+sub foobar ( $foo, $bar ) {
+  ...;
+}</pre>
+<p class="Pp">Haces esto:</p>
+<pre>sub foobar {
+  my $check = signature( positional =&gt; [ Int, Str ] );
+  my ( $foo, $bar ) = $check-&gt;( @_ );
+  ...;
+}</pre>
+<p class="Pp">O usa <span class="Li">&quot;state $check&quot;</span> si sabes que
+    la verificación será la misma cada vez.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Funciones_versus_Métodos'><a class='permalink' href='#Funciones_versus_Métodos'>Funciones   versus Métodos</a></h2>
+<p class="Pp">Para subrutinas destinadas a ser llamadas como funciones:</p>
+<pre>signature_for my_sub =&gt; ( method =&gt; false, ... );
+
+signature_for my_sub =&gt; ( ... ); # esto es el predeterminado de todos modos</pre>
+<p class="Pp">Para subrutinas destinadas a ser llamadas como métodos en un objeto
+    bendecido:</p>
+<pre>signature_for my_method =&gt; ( method =&gt; Object, ... );</pre>
+<p class="Pp">Y para subrutinas destinadas a ser llamadas como métodos en una
+    clase:</p>
+<pre>signature_for my_method =&gt; ( method =&gt; ClassName, ... );
+
+signature_for my_method =&gt; ( method =&gt; Str, ... );  # más rápido, menos legible</pre>
+<p class="Pp">Los siguientes también están permitidos, lo que indica que la
+    subrutina está destinada a ser llamada como un método, pero no quieres hacer
+    verificaciones de tipo en el invocante:</p>
+<pre>signature_for my_method =&gt; ( method =&gt; builtin::true, ... );
+
+signature_for my_method =&gt; ( method =&gt; 1, ... );</pre>
+<p class="Pp">Hay atajos disponibles:</p>
+<pre>use Type::Params qw( signature_for_func signature_for_method );
+
+signature_for_func my_function =&gt; ( ... );
+
+signature_for_method my_method =&gt; ( ... );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Parámetros_Mixtos_con_Nombre_y_Posicionales'><a class='permalink' href='#Parámetros_Mixtos_con_Nombre_y_Posicionales'>Parámetros   Mixtos con Nombre y Posicionales</a></h2>
+<p class="Pp">Las opciones <span class="Li">&quot;head&quot;</span> y
+    <span class="Li">&quot;tail&quot;</span> permiten parámetros posicionales
+    obligatorios al principio o al final de una lista de parámetros con nombre:</p>
+<pre>signature_for my_func =&gt; (
+  head  =&gt; [ Int ],
+  named =&gt; [
+    foo =&gt; Int,
+    bar =&gt; Optional[Int],
+    baz =&gt; Optional[Int],
+  ],
+);
+
+my_func( 42, foo =&gt; 21 );                 # ok
+my_func( 42, foo =&gt; 21, bar  =&gt; 84 );     # ok
+my_func( 42, foo =&gt; 21, bar  =&gt; 10.5 );   # no ok
+my_func( 42, foo =&gt; 21, quux =&gt; 84 );     # no ok</pre>
+<p class="Pp">Alternativamente, <span class="Li">&quot;list_to_named&quot;</span>
+    (ver arriba) puede ser útil.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Firmas_Adecuadas'><a class='permalink' href='#Firmas_Adecuadas'>Firmas   Adecuadas</a></h2>
+<p class="Pp">¿No desearías que tus subrutinas pudieran verse así?</p>
+<pre>sub set_name ( Object $self, Str $name ) {
+  $self-&gt;{name} = $name;
+}</pre>
+<p class="Pp">Bueno, aquí tienes algunas soluciones para firmas de subrutinas que
+    funcionan con Type::Tiny...</p>
+<p class="Pp"><i>Zydeco</i></p>
+<p class="Pp">Zydeco es un kit de herramientas de sintaxis OO de Perl con soporte
+    integrado para Type::Tiny en todas partes.</p>
+<pre>package MyApp {
+  use Zydeco;
+
+  class Person {
+    has name ( type =&gt; Str );
+
+    method rename ( Str $new_name ) {
+      printf( &quot;%s ahora se llamará %s\n&quot;, $self-&gt;name, $new_name );
+      $self-&gt;name( $new_name );
+    }
+
+    coerce from Str via {
+      $class-&gt;new( name =&gt; $_ )
+    }
+  }
+
+  class Company {
+    has owner ( type =&gt; 'Person' );
+  }
+}
+
+my $acme = MyApp-&gt;new_company( owner =&gt; &quot;Robert&quot; );
+$acme-&gt;owner-&gt;rename( &quot;Bob&quot; );</pre>
+<p class="Pp"><i>Kavorka</i></p>
+<p class="Pp">Kavorka es una implementación de firmas de subrutinas escrita para
+    utilizar de forma nativa <span class="Li">&quot;dwim_type&quot;</span> de
+    Type::Utils para las restricciones de tipo, y aprovechar las características
+    de Type::Tiny como la incrustación y las coerciones.</p>
+<pre>method set_name ( Str $name ) {
+  $self-&gt;{name} = $name;
+}</pre>
+<p class="Pp">Las firmas de Kavorka proporcionan mucha más flexibilidad y una
+    velocidad ligeramente mayor que Type::Params. (La velocidad proviene de la
+    incrustación de casi todas las verificaciones de tipo en el cuerpo de la
+    subrutina que se está declarando.)</p>
+<p class="Pp">Kavorka también incluye soporte para la verificación de tipo del
+    valor devuelto.</p>
+<p class="Pp">Kavorka también puede usarse como parte de Moops, un marco más
+    grande para la programación orientada a objetos en Perl.</p>
+<p class="Pp"><i>Function::Parameters</i></p>
+<p class="Pp">Function::Parameters ofrece soporte para Type::Tiny y
+    MooseX::Types.</p>
+<pre>use Types::Standard qw( Str );
+use Function::Parameters;
+
+method set_name ( Str $name ) {
+    $self-&gt;{name} = $name;
+}</pre>
+<p class="Pp"><i>Attribute::Contract</i></p>
+<p class="Pp">Tanto Kavorka como Function::Parameters requieren una versión de
+    Perl relativamente reciente. Attribute::Contract soporta versiones más
+    antiguas utilizando mucha menos magia.</p>
+<p class="Pp">Necesitas Attribute::Contract 0.03 o superior.</p>
+<pre>use Attribute::Contract -types =&gt; [qw/Object Str/];
+
+sub set_name :ContractRequires(Object, Str) {
+    my ($self, $name) = @_;
+    $self-&gt;{name} = $name;
+}</pre>
+<p class="Pp">Attribute::Contract también incluye soporte para la verificación de
+    tipo del valor devuelto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Type::Params_versus_X'><a class='permalink' href='#Type::Params_versus_X'>Type::Params   versus X</a></h2>
+<p class="Pp"><i>Params::Validate</i></p>
+<p class="Pp">Type::Params no es realmente un reemplazo directo para
+    Params::Validate; la API difiere demasiado como para afirmarlo. Sin embargo,
+    realiza una tarea similar, por lo que tiene sentido compararlos.</p>
+<ul class="Bl-bullet">
+  <li>Type::Params tenderá a ser más rápido si tienes una subrutina que se llama
+      repetidamente, pero puede ser un poco más lento que Params::Validate para
+      subrutinas que solo se llaman unas pocas veces. Esto se debe a que realiza
+      un conjunto de trabajo la primera vez que se llama a tu subrutina para
+      hacer que las siguientes llamadas</li>
+</ul>
+</div>
+</section>
+                
+            </article>
+        </main>
+    </body>
+</html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Type::Tiny::Manual::Params(3pm)</title>
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="stylesheet" href="/css/manual.css">
+        <link rel="stylesheet" href="/css/print.css" media="print">
+        <link rel="icon" href="/favicon.ico">
+    </head>
+    <body>
+        <main>
+            <article>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Type::Tiny::Manual::Params - Parameter validation</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MANUAL'><a class='permalink' href='#MANUAL'>MANUAL</a></h1>
+<p class="Pp">This manual page is part of the Type::Tiny documentation.</p>
+<p class="Pp">Type::Params is a module that uses Type::Tiny type constraints
+    to perform parameter validation.</p>
+<p class="Pp">It's designed to be a more powerful and more flexible alternative
+    to modules like <a href="/man/Params::Validate.3pm.html">Params::Validate</a>.</p>
+<section class="Ss">
+<h2 class="Ss" id='WHY_USE_TYPE::PARAMS?'>WHY USE TYPE::PARAMS?</h2>
+<p class="Pp">There are a number of reasons why you might want to use
+    Type::Params:</p>
+<ul class="Bl-bullet">
+  <li>Type::Params uses Type::Tiny type constraints, which are generally
+      more powerful and flexible than the type validation constants provided by
+      <a href="/man/Params::Validate.3pm.html">Params::Validate</a>.</li>
+  <li>Type::Params provides a more natural way of validating a mix of
+      positional and named parameters.</li>
+  <li>Type::Params allows you to coerce parameters. For example, if you expect
+      a <span class="Li">&quot;Path::Tiny&quot;</span> object, you could coerce
+      it from a string.</li>
+  <li>If you are primarily writing object-oriented code, using Moose or
+      similar, and you are using Type::Tiny type constraints for your
+      attributes, then using Type::Params allows you to use the same
+      constraints for method calls.</li>
+  <li>Type::Params comes bundled with Types::Standard, which provides a much
+      richer vocabulary of types than the type validation constants that come
+      with <a href="/man/Params::Validate.3pm.html">Params::Validate</a>. For
+      example, Types::Standard provides constraints like <span class="Li">&quot;ArrayRef[Int]&quot;</span>
+      (an arrayref of integers), while the closest from <a href="/man/Params::Validate.3pm.html">Params::Validate</a>
+      is <span class="Li">&quot;ARRAYREF&quot;</span>, which you'd need to
+      supplement with additional callbacks if you wanted to check that the
+      arrayref contained integers.
+    <p class="Pp">Whatsmore, Type::Params doesn't just work with
+        Types::Standard, but also any other Type::Tiny type constraints.</p>
+  </li>
+</ul>
+<p class="Pp"><i>Params::ValidationCompiler</i></p>
+<p class="Pp">Params::ValidationCompiler does basically the same thing as
+    Type::Params.</p>
+<ul class="Bl-bullet">
+  <li>Params::ValidationCompiler and Type::Params are likely to perform fairly
+      similarly. In most cases, recent versions of Type::Params seem to be
+      <i>slightly</i> faster, but except in very trivial cases, you're unlikely
+      to notice the speed difference. Speed probably shouldn't be a factor when
+      choosing between them.</li>
+  <li>Type::Params's syntax is more compact:
+        <pre>state $check = signature(
+  pos =&gt; [
+    Object,
+    Optional[Int],
+    Slurpy[ArrayRef],
+  ],
+);
+</pre>
+    <p class="Pp">Versus:</p>
+        <pre>state $check = validation_for(
+  params =&gt; [
+    { type =&gt; Object },
+    { type =&gt; Int,      optional =&gt; 1 },
+    { type =&gt; ArrayRef, slurpy =&gt; 1 },
+  ],
+);
+</pre>
+  </li>
+  <li>Params::ValidationCompiler probably has slightly better exceptions.</li>
+</ul>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NEXT_STEPS'><a class='permalink' href='#NEXT_STEPS'>NEXT   STEPS</a></h1>
+<p class="Pp">Here's your next step:</p>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>Type::Tiny::Manual::NonOO
+    <p class="Pp">Type::Tiny in non-object-oriented code.</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Toby Inkster &lt;tobyink@cpan.org&gt;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENCE'><a class='permalink' href='#COPYRIGHT_AND_LICENCE'>COPYRIGHT   AND LICENCE</a></h1>
+<p class="Pp">This software is copyright (c) 2013-2014, 2017-2025 by Toby
+    Inkster.</p>
+<p class="Pp">This is free software; you can redistribute it and/or modify it
+    under the same terms as the Perl 5 programming language system itself.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DISCLAIMER_OF_WARRANTIES'><a class='permalink' href='#DISCLAIMER_OF_WARRANTIES'>DISCLAIMER   OF WARRANTIES</a></h1>
+<p class="Pp">THIS PACKAGE IS PROVIDED &quot;AS IS&quot; AND WITHOUT ANY EXPRESS
+    OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES
+    OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-11-02</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-type-tiny/">extra/perl-type-tiny</a></dd>
+        <dt>Version:</dt>
+        <dd>2.008004-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Type-Tiny">https://metacpan.org/release/Type-Tiny</a></dd>
+        <dt>Licenses:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-type-tiny/">/listing/extra/perl-type-tiny/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#MANUAL">MANUAL</a></li>
+        
+            <li><a href="#NEXT_STEPS">NEXT STEPS</a></li>
+        
+            <li><a href="#AUTHOR">AUTHOR</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENCE">COPYRIGHT AND LICENCE</a></li>
+        
+            <li><a href="#DISCLAIMER_OF_WARRANTIES">DISCLAIMER OF WARRANTIES</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/Type::Tiny::Manual::Params.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Type::Tiny::Manual::Params.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

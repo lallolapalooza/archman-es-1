@@ -1,0 +1,207 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AnyEvent::FAQ(3pm) — Páginas man de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">AnyEvent__FAQ(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-anyevent/">perl-anyevent</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">AnyEvent::FAQ(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">AnyEvent::FAQ(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">AnyEvent::FAQ - preguntas frecuentes</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FAQs'><a class='permalink' href='#FAQs'>Preguntas frecuentes</a></h1>
+<p class="Pp">La versión más reciente de este documento se puede encontrar en
+    <a href='http://pod.tst.eu/http://cvs.schmorp.de/AnyEvent/lib/AnyEvent/FAQ.pod'>http://pod.tst.eu/http://cvs.schmorp.de/AnyEvent/lib/AnyEvent/FAQ.pod</a>.</p>
+<section class="Ss">
+<h2 class="Ss" id='My_program_exits_before_doing_anything,_what&apos;s_going_on?'><a class='permalink' href='#My_program_exits_before_doing_anything,_what&apos;s_going_on?'>Mi programa termina antes de hacer nada, ¿qué está pasando?</a></h2>
+<p class="Pp">A los programadores nuevos en la programación basada en eventos a menudo se les olvida que en realidad pueden hacer otras cosas mientras "esperan" a que ocurra un evento y por lo tanto olvidan esperar realmente cuando, de hecho, no tienen nada más que hacer.</p>
+<p class="Pp">Aquí hay un ejemplo:</p>
+<pre>use AnyEvent;
+my $timer = AnyEvent-&gt;timer (after =&gt; 5, cb =&gt; sub { say "hi" });</pre>
+<p class="Pp">La expectativa podría ser que el programa imprima "hi" después de 5 segundos y probablemente termine. Sin embargo, si ejecuta esto, su programa terminará casi instantáneamente: crear el temporizador no espera a que termine, en su lugar el <span class="Li">"timer"</span> método devuelve
+    inmediatamente y perl ejecuta el resto del programa. Pero no queda nada por ejecutar, así que perl termina.</p>
+<p class="Pp">Para forzar a AnyEvent a esperar algo, use una condvar:</p>
+<pre>use AnyEvent;
+my $quit_program = AnyEvent-&gt;condvar;
+my $timer = AnyEvent-&gt;timer (after =&gt; 5, cb =&gt; sub { $quit_program-&gt;send });
+$quit_program-&gt;recv;</pre>
+<p class="Pp">Aquí el programa no termina inmediatamente, porque primero espera la condición "quit_program".</p>
+<p class="Pp">En la mayoría de los casos, su programa principal debería llamar directamente a la función "loop" de la biblioteca de eventos:</p>
+<pre>use EV;
+use AnyEvent;
+...
+EV::loop;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Why_is_my_&amp;quot;tcp_connect&amp;quot;_callback_never_called?'><a class='permalink' href='#Why_is_my_&amp;quot;tcp_connect&amp;quot;_callback_never_called?'>¿Por qué mi callback "tcp_connect" nunca se llama?</a></h2>
+<p class="Pp">Tricky: <span class="Li">"tcp_connect"</span> (y algunas otras funciones en AnyEvent::Socket) es críticamente sensible al contexto del llamador.</p>
+<p class="Pp">En contexto void, simplemente hará su trabajo y eventualmente llamará al callback. En cualquier otro contexto, sin embargo, devolverá un objeto "guard" especial: cuando se destruya (por ejemplo, cuando no lo almacene sino que lo descarte), tcp_connect ya no intentará conectarse ni llamará a ningún callback.</p>
+<p class="Pp">A menudo esto sucede cuando la
+    <span class="Li">"tcp_connect"</span> llamada está al final de una función:</p>
+<pre>sub do_connect {
+   tcp_connect "www.example.com", 80, sub {
+      ... código extenso
+   };
+}</pre>
+<p class="Pp">Entonces el llamador decide si hay un contexto void o no. Se pueden evitar estos casos devolviendo explícitamente nada:</p>
+<pre>sub do_connect {
+   tcp_connect "www.example.com", 80, sub {
+      ... código extenso
+   };
+   () # devolver nada
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Why_do_some_backends_use_a_lot_of_CPU_in_&amp;quot;AE::cv-&amp;gt;recv&amp;quot;?'><a class='permalink' href='#Why_do_some_backends_use_a_lot_of_CPU_in_&amp;quot;AE::cv-&amp;gt;recv&amp;quot;?'>¿Por qué algunos backends usan mucho CPU en "AE::cv-&gt;recv"?</a></h2>
+<p class="Pp">Muchas personas prueban este simple programa, o su equivalente:</p>
+<pre>use AnyEvent;
+AnyEvent-&gt;condvar-&gt;recv;</pre>
+<p class="Pp">Luego se sorprenden al ver que esto básicamente está inactivo con el backend Perl, pero usa 100% de CPU con el backend EV, que se supone que es tan eficiente.</p>
+<p class="Pp">La clave para entender esto es entender que el programa anterior es en realidad <i>defectuoso</i>: Nada llama a
+    <span class="Li">"-&gt;send"</span> en la condvar, nunca. Peor aún, no hay observadores de eventos en absoluto. Básicamente, crea un deadlock: no hay manera de avanzar, este programa no hace nada útil, y esto no cambiará en el futuro: ya es un ex-loro.</p>
+<p class="Pp">Algunos backends reaccionan a esto congelándose, algunos inactivos, y algunos hacen un bucle de 100% CPU.</p>
+<p class="Pp">Dado que este programa no es útil (y se comporta como está documentado con todos los backends, ya que AnyEvent no hace garantías sobre el tiempo de CPU), esto no debería ser un gran problema: tan pronto como su programa realmente implemente <i>algo</i>, el uso de CPU será normal.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Why_does_this_FAQ_not_deal_with_AnyEvent::Handle_questions?'><a class='permalink' href='#Why_does_this_FAQ_not_deal_with_AnyEvent::Handle_questions?'>¿Por qué este FAQ no trata preguntas sobre AnyEvent::Handle?</a></h2>
+<p class="Pp">Porque AnyEvent::Handle tiene un NONFAQ propio que ya trata problemas comunes.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='How_can_I_combine_Win32::GUI_applications_with_AnyEvent?'><a class='permalink' href='#How_can_I_combine_Win32::GUI_applications_with_AnyEvent?'>¿Cómo puedo combinar aplicaciones Win32::GUI con AnyEvent?</a></h2>
+<p class="Pp">Bueno, no en el mismo hilo del SO, eso está seguro :) Lo que puede hacer es crear otro ithread (o fork) y ejecutar AnyEvent dentro de ese hilo, o mejor aún, ejecutar todo su código GUI en un segundo ithread.</p>
+<p class="Pp">Por ejemplo, podría cargar Win32::GUI y AnyEvent::Util, luego crear un socketpair portátil para la comunicación GUI-&gt;AnyEvent.</p>
+<p class="Pp">Luego fork/crear un nuevo ithread, ahí dentro, crear una ventana y enviar el <span class="Li">"$WINDOW-&gt;{-Handle}"</span> al ithread de AnyEvent para que pueda
+  <span class="Li">"PostMessage"</span>.</p>
+<p class="Pp">La comunicación de GUI a AnyEvent podría funcionar empujando algunos datos a un Thread::Queue y escribiendo un byte en el socket. El observador de AnyEvent en el otro lado luego mirará la cola.</p>
+<p class="Pp">La comunicación de AnyEvent a GUI también puede usar un Thread::Queue, pero para despertar el hilo GUI, usaría en su lugar
+    <span class="Li">"Win32::GUI::PostMessage</span>
+    <span class="Li">$WINDOW, 1030, 0, """</span>, y el hilo GUI escucharía estos mensajes usando
+    <span class="Li">"$WINDOW-&gt;Hook (1030 (), sub { ...
+  })"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='My_callback_dies_and...'><a class='permalink' href='#My_callback_dies_and...'>Mi callback muere y...</a></h2>
+<p class="Pp">No debe - parte del contrato entre AnyEvent y el código del usuario es que los callbacks no lanzan excecciones (y no hacen cosas aún más malvadas, como usar <span class="Li">"last"</span> fuera de un bucle :). Si su callback puede morir a veces, necesita usar
+    <span class="Li">"eval"</span>.</p>
+<p class="Pp">Si desea rastrear un caso así y puede reproducirlo, puede habilitar el envoltorio (llamando a
+    <span class="Li">"AnyEvent::Debug::wrap"</span> o configurando
+    <span class="Li">"PERL_ANYEVENT_DEBUG_WRAP=1"</span> antes de iniciar su programa). Esto envolverá cada callback en un eval y reportará cualquier excepción completa con un backtrace y algo de información sobre qué observador murió, dónde fue creado, etc.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Author'><a class='permalink' href='#Author'>Autor</a></h1>
+<p class="Pp">Marc Lehmann &lt;schmorp@schmorp.de&gt;.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-anyevent/">extra/perl-anyevent</a></dd>
+        <dt>Versión:</dt>
+        <dd>4:7.17-9</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/AnyEvent">https://metacpan.org/release/AnyEvent</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-anyevent/">/listing/extra/perl-anyevent/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#FAQs">Preguntas frecuentes</a></li>
+        
+            <li><a href="#Author">Autor</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/AnyEvent::FAQ.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/AnyEvent::FAQ.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

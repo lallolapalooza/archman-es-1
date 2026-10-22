@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBI::DBD::Metadata(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBI__DBD__Metadata(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBI::DBD::Metadata(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">DBI::DBD::Metadata(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">DBI::DBD::Metadata - Genera el código y los datos para algunos métodos de metadatos de DBI</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">La idea es extraer información de metadatos de un controlador ODBC de buena calidad y usarla para generar código y datos para usar en tu propio controlador DBI para la misma base de datos.</p>
+<p class="Pp">Para generar código para soportar el método get_info:</p>
+<pre>perl -MDBI::DBD::Metadata -e &quot;write_getinfo_pm('dbi:ODBC:dsn-name','user','pass','Driver')&quot;
+perl -MDBI::DBD::Metadata -e write_getinfo_pm dbi:ODBC:foo_db username password Driver</pre>
+<p class="Pp">Para generar código para soportar el método type_info:</p>
+<pre>perl -MDBI::DBD::Metadata -e &quot;write_typeinfo_pm('dbi:ODBC:dsn-name','user','pass','Driver')&quot;
+perl -MDBI::DBD::Metadata -e write_typeinfo_pm dbi:ODBC:dsn-name user pass Driver</pre>
+<p class="Pp">Donde <span class="Li">&quot;dbi:ODBC:dsn-name&quot;</span> es la conexión a usar para extraer los datos, y <span class="Li">&quot;Driver&quot;</span> es el nombre del controlador para el que se generará el código (el nombre del controlador se incrusta en la salida en numerosos lugares).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Generando_un_paquete_GetInfo_para_un_controlador'><a class='permalink' href='#Generando_un_paquete_GetInfo_para_un_controlador'>Generando un paquete GetInfo para un controlador</a></h1>
+<p class="Pp">El <span class="Li">&quot;write_getinfo_pm&quot;</span> en el módulo DBI::DBD::Metadata genera un paquete DBD::Driver::GetInfo en la salida estándar.</p>
+<p class="Pp">Este método genera un paquete DBD::Driver::GetInfo a partir de la fuente de datos que especificaste en la lista de parámetros o en la variable de entorno DBI_DSN. DBD::Driver::GetInfo debería ayudar a un autor de DBD a implementar el método <b>get_info()</b> de DBI. Debido a que solo estás creando este paquete, es muy poco probable que DBD::Driver ya proporcione una buena implementación para <b>get_info()</b>. Por lo tanto, probablemente te conectarás a través de DBD::ODBC.</p>
+<p class="Pp">Una vez que estés seguro de que está produciendo datos razonablemente sensatos, normalmente deberías redirigir la salida estándar a lib/DBD/Driver/GetInfo.pm, y luego editar manualmente el resultado. No olvides actualizar tu Makefile.PL y MANIFEST para incluir esto como un archivo PM adicional que deba ser instalado.</p>
+<p class="Pp">Si te conectas a través de DBD::ODBC, deberías usar la versión 0.38 o superior;</p>
+<p class="Pp">¡Por favor, echa un vistazo crítico a los datos devueltos! Los controladores ODBC varían drásticamente en su calidad.</p>
+<p class="Pp">El generador asume que la mayoría de los valores son estáticos y coloca estos valores directamente en el hash <span class="Li">%info</span>. Algunos ejemplos muestran el uso de referencias a CÓDIGO y la implementación a través de subrutinas. Es muy probable que tengas que escribir subrutinas adicionales para valores que dependen del estado de la sesión o de la versión del servidor, por ejemplo, SQL_DBMS_VER.</p>
+<p class="Pp">Una posible implementación de <b>DBD::Driver::db::get_info()</b> podría ser:</p>
+<pre>sub get_info {
+  my($dbh, $info_type) = @_;
+  require DBD::Driver::GetInfo;
+  my $v = $DBD::Driver::GetInfo::info{int($info_type)};
+  $v = $v-&gt;($dbh) if ref $v eq 'CODE';
+  return $v;
+}</pre>
+<p class="Pp">Por favor, reemplaza Driver (o &quot;&lt;foo&gt;&quot;) con el nombre de tu controlador. Ten en cuenta que esta función stub es generada para ti por la función write_getinfo_pm, pero debes transferir manualmente el código a Driver.pm.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Generando_un_paquete_TypeInfo_para_un_controlador'><a class='permalink' href='#Generando_un_paquete_TypeInfo_para_un_controlador'>Generando un paquete TypeInfo para un controlador</a></h1>
+<p class="Pp">La función <span class="Li">&quot;write_typeinfo_pm&quot;</span> en el módulo DBI::DBD::Metadata genera en la salida estándar los datos necesarios para el método type_info_all de un controlador. También proporciona implementaciones predeterminadas del método type_info_all para su inclusión en el archivo principal de implementación del controlador.</p>
+<p class="Pp">El parámetro del controlador es el nombre del controlador para el que se generarán los métodos; a efectos de los ejemplos, este será &quot;Driver&quot;. Típicamente, el parámetro dsn tendrá el formato &quot;dbi:ODBC:odbc_dsn&quot;, donde odbc_dsn es un DSN para una de las bases de datos del controlador. Los parámetros user y pass son los otros parámetros de conexión opcionales que se proporcionarán al método connect de DBI.</p>
+<p class="Pp">Una vez que estés seguro de que está produciendo datos razonablemente sensatos, normalmente deberías redirigir la salida estándar a lib/DBD/Driver/TypeInfo.pm, y luego editar manualmente el resultado si es necesario. No olvides actualizar tu Makefile.PL y MANIFEST para incluir esto como un archivo PM adicional que deba ser instalado.</p>
+<p class="Pp">¡Por favor, echa un vistazo crítico a los datos devueltos! Los controladores ODBC varían drásticamente en su calidad.</p>
+<p class="Pp">El generador asume que todos los valores son estáticos y coloca estos valores directamente en el hash <span class="Li">%info</span>.</p>
+<p class="Pp">Una posible implementación de <b>DBD::Driver::type_info_all()</b> podría ser:</p>
+<pre>sub type_info_all {
+  my ($dbh) = @_;
+  require DBD::Driver::TypeInfo;
+  return [ @$DBD::Driver::TypeInfo::type_info_all ];
+}</pre>
+<p class="Pp">Por favor, reemplaza Driver (o &quot;&lt;foo&gt;&quot;) con el nombre de tu controlador. Ten en cuenta que esta función stub es generada para ti por la función write_typeinfo_pm, pero debes transferir manualmente el código a Driver.pm.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTORES'><a class='permalink' href='#AUTORES'>AUTORES</a></h1>
+<p class="Pp">Jonathan Leffler &lt;jleffler@us.ibm.com&gt; (anteriormente &lt;jleffler@informix.com&gt;), Jochen Wiedmann &lt;joe@ispsoft.de&gt;, Steffen Goeldner &lt;sgoeldner@cpan.org&gt;, y Tim Bunce &lt;dbi-users@perl.org&gt;.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/perl-dbi</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.647-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.org/dist/DBI/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-dbi/">/listing/extra/perl-dbi/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#Generando_un_paquete_GetInfo_para_un_controlador">Generando un paquete GetInfo para un controlador</a></li>
+        
+            <li><a href="#Generando_un_paquete_TypeInfo_para_un_controlador">Generando un paquete TypeInfo para un controlador</a></li>
+        
+            <li><a href="#AUTORES">AUTORES</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBI::DBD::Metadata.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/DBI::DBD::Metadata.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

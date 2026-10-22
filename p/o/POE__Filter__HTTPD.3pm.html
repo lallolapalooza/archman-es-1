@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Filter::HTTPD(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Filter__HTTPD(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Filter::HTTPD(3)</td>
+    <td class="head-vol">Documentación de Perl contribuyida por el usuario</td>
+    <td class="head-rtitle">POE::Filter::HTTPD(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NOMBRE</a></h1>
+<p class="Pp">POE::Filter::HTTPD - analiza solicitudes HTTP simples y serializa respuestas HTTP</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SINOPSIS</a></h1>
+<pre>#!perl
+use warnings;
+use strict;
+use POE qw(Component::Server::TCP Filter::HTTPD);
+use HTTP::Response;
+POE::Component::Server::TCP-&gt;new(
+  Port         =&gt; 8088,
+  ClientFilter =&gt; 'POE::Filter::HTTPD',  ### &lt;-- AQUÍ ESTAMOS!
+  ClientInput =&gt; sub {
+    my $request = $_[ARG0];
+    # Es una respuesta para el cliente si hubo un problema.
+    if ($request-&gt;isa(&quot;HTTP::Response&quot;)) {
+      my $response = $request;
+      $request = $response-&gt;request;
+      warn &quot;ERROR: &quot;, $request-&gt;message if $request;
+      $_[HEAP]{client}-&gt;put($response);
+      $_[KERNEL]-&gt;yield(&quot;shutdown&quot;);
+      return;
+    }
+    my $request_fields = '';
+    $request-&gt;headers()-&gt;scan(
+      sub {
+        my ($header, $value) = @_;
+        $request_fields .= (
+          &quot;&lt;tr&gt;&lt;td&gt;$header&lt;/td&gt;&lt;td&gt;$value&lt;/td&gt;&lt;/tr&gt;&quot;
+        );
+      }
+    );
+    my $response = HTTP::Response-&gt;new(200);
+    $response-&gt;push_header( 'Content-type', 'text/html' );
+    $response-&gt;content(
+      &quot;&lt;html&gt;&lt;head&gt;&lt;title&gt;Tu Solicitud&lt;/title&gt;&lt;/head&gt;&quot; .
+      &quot;&lt;body&gt;Detalles sobre tu solicitud:&quot; .
+      &quot;&lt;table border='1'&gt;$request_fields&lt;/table&gt;&quot; .
+      &quot;&lt;/body&gt;&lt;/html&gt;&quot;
+    );
+    $_[HEAP]{client}-&gt;put($response);
+    $_[KERNEL]-&gt;yield(&quot;shutdown&quot;);
+  }
+);
+print &quot;Apunta tu navegador al puerto 8088 de este host.\n&quot;;
+POE::Kernel-&gt;run();
+exit;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Filter::HTTPD interpreta flujos de entrada como solicitudes HTTP 0.9, 1.0 o 1.1. Devuelve un objeto HTTP::Request cuando se analiza correctamente una solicitud.</p>
+<p class="Pp">En caso de fallo, devuelve un objeto HTTP::Response que describe el fallo. El propósito es que el código de aplicación notifique sobre el objeto HTTP::Response y lo envíe sin más procesamiento. El objeto de solicitud erróneo puede estar disponible a través de $r-&gt;request en el método HTTP::Response. Esto se ilustra en la sección &quot;SINOPSIS&quot;.</p>
+<p class="Pp">Para la salida, POE::Filter::HTTPD acepta objetos HTTP::Response y devuelve sus flujos correspondientes.</p>
+<p class="Pp">Por favor, consulta HTTP::Request y HTTP::Response para detalles sobre cómo usar estos objetos.</p>
+<p class="Pp">Los encabezados HTTP no pueden contener caracteres UTF-8; deben ser ISO-8859-1. POE::Filter::HTTPD convierte todo el UTF-8 a su equivalente MIME. Utiliza &quot;utf8::is_utf8&quot; para la detección y Email::MIME::RFC2047::Encoder para la conversión. Si utf8 no está instalado, no se realiza la conversión. Si Email::MIME::RFC2047::Encoder no está instalado, se utiliza &quot;utf8::downgrade&quot;. En este último caso, se mostrará una advertencia si intentas enviar encabezados UTF-8.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="PUBLIC_FILTER_METHODS"><a class="permalink" href="#PUBLIC_FILTER_METHODS">MÉTODOS DE FILTRO PÚBLICOS</a></h1>
+<p class="Pp">POE::Filter::HTTPD implementa la interfaz básica de POE::Filter.</p>
+<section class="Ss">
+<h2 class="Ss" id="new"><a class="permalink" href="#new">new</a></h2>
+<p class="Pp"><b>new()</b> acepta un conjunto de parámetros con nombre.</p>
+<p class="Pp"><span class="Li">&quot;MaxBuffer&quot;</span> establece la cantidad máxima de datos que el filtro almacenará en memoria. El valor predeterminado es 512 MB (536870912 bytes). Debido a que POE::Filter::HTTPD copia todos los datos en memoria, establecer este número a un valor alto permite que un cliente malicioso llene completamente la memoria del servidor y la memoria virtual (swap).</p>
+<p class="Pp"><span class="Li">&quot;MaxContent&quot;</span> establece el tamaño máximo del contenido de una solicitud HTTP. El valor predeterminado es 1 MB (1038336 bytes). Debido a que POE::Filter::HTTPD copia todos los datos en memoria, establecer este número a un valor alto permite que un cliente malicioso llene completamente la memoria del servidor y la memoria virtual (swap). Esta opción se ignora si &quot;Streaming&quot; está activado.</p>
+<p class="Pp"><span class="Li">&quot;Streaming&quot;</span> activa el modo de transmisión (streaming) de solicitudes. El valor predeterminado es desactivado. En este modo, el filtro devuelve un objeto HTTP::Request o un bloque de contenido. El objeto HTTP::Request se devuelve vacío. Los bloques de contenido son fragmentos del cuerpo de la solicitud, hasta el tamaño de Content-Length. Puedes distinguir entre objetos de solicitud y bloques de contenido utilizando &quot;Scalar::Util/bless&quot; (ver la sección &quot;Solicitud de streaming&quot; a continuación). Esta opción reemplaza a &quot;MaxContent&quot;.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="CAVEATS"><a class="permalink" href="#CAVEATS">ADVERTENCIAS</a></h1>
+<p class="Pp">Algunas versiones de libwww generan solicitudes HTTP inválidas. Por ejemplo, este código (adaptado del documento de HTTP::Request::Common) causará un error en un demonio de POE::Filter::HTTPD:</p>
+<p class="Pp">NOTA: El uso de esta prueba con libwww-perl/5.834 mostró que añadió los datos correctos de HTTP/1.1! No sabemos qué versión de LWP corrigió esto. Este ejemplo es válido para instalaciones antiguas de LWP, ¡pero debes tener cuidado!</p>
+<pre>use HTTP::Request::Common;
+use LWP::UserAgent;
+my $ua = LWP::UserAgent-&gt;new();
+$ua-&gt;request(POST 'http://example.com', [ foo =&gt; 'bar' ]);</pre>
+<p class="Pp">Por defecto, HTTP::Request es agnóstico respecto a la versión HTTP. No intenta agregar un encabezado de versión HTTP a menos que declares un protocolo específicamente usando &quot;$request-&gt;protocol('HTTP/1.0')&quot;.</p>
+<p class="Pp">Según el RFC HTTP 1.0 (1945), cuando no hay un encabezado de versión HTTP, el analizador debe predecir HTTP/0.9 por defecto. POE::Filter::HTTPD sigue esta convención. En el flujo detallado anterior, el demonio basado en Filter::HTTPD devolverá un error 400 porque POST no es un tipo de solicitud válido para HTTP/0.9.</p>
+<p class="Pp">Al manejar un error de solicitud, es más eficaz y confiable responder con el error y cerrar la conexión. Las solicitudes inválidas pueden dañar el flujo de solicitudes. Por ejemplo, la ausencia de un encabezado Content-Length indica que la solicitud no tiene contenido. Las solicitudes con contenido pero sin ese encabezado se dividirán en una solicitud sin contenido y datos inválidos. Los datos inválidos también pueden aparecer como una solicitud. La comedia continuará, posiblemente repetidamente, hasta que el filtro encuentre la siguiente solicitud válida. Al cerrar la conexión ante el primer signo de error, el cliente puede reintentar su solicitud con una conexión limpia y el filtro.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="Streaming_Request"><a class="permalink" href="#Streaming_Request">Solicitud de streaming</a></h1>
+<p class="Pp">Normalmente, POE::Filter::HTTPD lee todo el contenido de la solicitud antes de devolver el objeto HTTP::Request a tu código. En modo de streaming, devuelve el contenido por separado, como escalares no bendecidos. El contenido puede dividirse en bloques de diferentes tamaños, dependiendo del sistema operativo y la comunicación. Tu código puede distinguir entre el objeto de solicitud y los bloques de contenido utilizando &quot;blessed&quot; en Scalar::Util.</p>
+<pre>use Scalar::Util;
+use POE::Wheel::ReadWrite;
+use POE::Filter:HTTPD;
+$heap-&gt;{wheel} = POE::Wheel::ReadWrite-&gt;new(
+                    InputEvent =&gt; 'http_input',
+                    Filter =&gt; POE::Filter::HTTPD-&gt;new( Streaming =&gt; 1 ),
+                    # ...
+            );
+sub http_input_handler
+{
+    my( $heap, $req_or_data ) = @_[ HEAP, ARG0 ];
+    if( blessed $req_or_data ) {
+        my $request = $req_or_data;
+        if( $request-&gt;isa( 'HTTP::Response') ) {
+            # Error HTTP
+            $heap-&gt;{wheel}-&gt;put( $request );
+        }
+        else {
+            # Solicitud HTTP
+            # ...
+        }
+    }
+    else {
+        my $data = $req_or_data;
+        # ...
+    }
+}</pre>
+<p class="Pp">Si conservas todo el contenido en memoria pero no impone un límite de Content-Length, podrías crear un fallo de DoS. Un atacante podría enviar &quot;Content-Length: 1099511627776&quot; (alias 1 TB) y enviar datos hasta que toda la memoria de tu sistema y el espacio de intercambio (swap) se llenen.</p>
+<p class="Pp">El Content-Length ha sido sanitizado por POE::Filter::HTTPD, por lo que verificarlo es trivial:</p>
+<pre>if( $request-&gt;headers( 'Content-Length' ) &gt; 1024*1024 ) {
+    my $resp = HTTP::Response-&gt;new( RC_REQUEST_ENTITY_TOO_LARGE ),
+                                         &quot;Demasiado contenido!&quot; )
+    $heap-&gt;{wheel}-&gt;put( $resp );
+    return;
+}</pre>
+<p class="Pp">Si deseas manejar grandes cantidades de datos, debes guardar el contenido en un archivo antes de procesarlo. Aun así, debes verificar el Content-Length o un atacante podría llenar el espacio de la partición.</p>
+<pre>use File::Temp qw(tempfile);
+if( blessed $_[ARG0] ) {
+    $heap-&gt;{request} = $_[ARG0];
+    if( $heap-&gt;{request}-&gt;method eq 'GET' ) {
+        handle_get( $heap );
+        delete $heap-&gt;{request};
+        return;
+    }
+    my( $fh, $file ) = tempfile( &quot;httpd-XXXXXXXX&quot;, TMPDIR=&gt;1 );
+    $heap-&gt;{content_file} = $file;
+    $heap-&gt;{content_fh} = $fh;
+    $heap-&gt;{content_size} = 0;
+}
+else {
+    return unless $heap-&gt;{request};
+    $heap-&gt;{content_size} += length</pre>
+</div>
+</section>
+
+                
+            </article>
+            
+        </main>
+    </body>
+</html>[
+  {
+    "header": "sub handle_post",
+    "content": "{\n    my( $heap ) = @_;\n    # Ahora tenemos que cargar y analizar $heap->{content_file}\n    # Las siguientes 6 líneas hacen que los datos estén disponibles para CGI->init\n    local $ENV{REQUEST_METHOD} = 'POST';\n    local $CGI::PERLEX = $CGI::PERLEX = \"CGI-PerlEx/Fake\";\n    local $ENV{CONTENT_TYPE} = $heap->{req}->header( 'content-type' );\n    local $ENV{CONTENT_LENGTH} = $heap->{req}->header( 'content-length' );\n    my $keep = IO::File->new( \"<&STDIN\" ) or die \"No se pudo reabrir STDIN: $!\" ;\n    open STDIN, \"<$heap->{content_file}\" or die \"La reapertura de STDIN falló: $!\" ;\n    my $qcgi = CGI->new();\n    # limpieza\n    open STDIN, \"<\" . $keep->fileno or die \"No se pudo reabrir $keep: $!\" ;\n    undef $keep;\n    unlink delete $heap->{content_file};\n    # ahora usa $q como lo harías normalmente\n    my $file = $q->upload( 'field_name' );\n\n    # ....\n}\nsub handle_get\n{\n    my( $heap ) = @_;\n    # 4 líneas para obtener datos en CGI->init\n    local $ENV{REQUEST_METHOD} = 'GET';\n    local $CGI::PERLEX = $CGI::PERLEX = \"CGI-PerlEx/Fake\";\n    local $ENV{CONTENT_TYPE} = $heap->{req}->header( 'content-type' );\n    local $ENV{'QUERY_STRING'} = $heap->{req}->uri->query;\n    my $q = CGI->new();\n    # ahora usa $q como lo harías normalmente\n    # ....\n}"
+  },
+  {
+    "header": "Streaming Response",
+    "content": "Es posible usar POE::Filter::HTTPD para transmitir contenido, pero una aplicación puede usarlo para enviar encabezados y luego cambiar a POE::Filter::Stream.\n\nDesde el manejador de entrada (el manejador InputEvent si usas ruedas, o ClientInput para POE::Component::Server::TCP):\n\n```perl\nmy $response = HTTP::Response->new(200);\n$response->push_header('Content-type', 'audio/x-mpeg');\n$_[HEAP]{client}->put($response);\n$_[HEAP]{client}->set_output_filter(POE::Filter::Stream->new());\n```\n\nLuego, el manejador de salida vaciada (FlushEvent para POE::Wheel::ReadWrite, o ClientFlushed para POE::Component::Server::TCP) puede usar <b>put()</b> para enviar fragmentos del stream según sea necesario.\n\n```perl\nmy $bytes_read = sysread(\n  $_[HEAP]{file_to_stream}, my $buffer = '', 4096\n);\nif ($bytes_read) {\n  $_[HEAP]{client}->put($buffer);\n}\nelse {\n  delete $_[HEAP]{file_to_stream};\n  $_[KERNEL]->yield(\"shutdown\");\n}\n```"
+  },
+  {
+    "header": "SEE ALSO",
+    "content": "Por favor, consulta POE::Filter para ver la documentación sobre la interfaz base.\n\nLa sección SEE ALSO en POE contiene una tabla de contenido que cubre toda la distribución de POE.\n\nHTTP::Request y HTTP::Response explican todas las maravillosas cosas que puedes hacer con estas clases."
+  },
+  {
+    "header": "BUGS",
+    "content": "Muchos aspectos de HTTP 1.0 y superior no son compatibles, como la conexión persistente (keep-alive). Un simple filtro de E/S no puede admitir la conexión persistente, por ejemplo. Hay varios servidores HTTP POE más ricos en funciones en CPAN. Consulta <http://search.cpan.org/search?query=POE+http+server> http://search.cpan.org/search?query=POE+http+server&mode=dist>"
+  },
+  {
+    "header": "AUTHORS & COPYRIGHTS",
+    "content": "POE::Filter::HTTPD fue contribuido por Artur Bergman. La documentación es proporcionada por Rocco Caputo.\n\nPor favor, consulta POE para más información sobre autores y colaboradores."
+  }
+]

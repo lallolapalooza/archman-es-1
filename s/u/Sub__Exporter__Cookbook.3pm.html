@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sub::Exporter::Cookbook(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Sub__Exporter__Cookbook(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-sub-exporter/">perl-sub-exporter</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Sub::Exporter::Cookbook(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Sub::Exporter::Cookbook(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Sub::Exporter::Cookbook - trucos útiles, demostrativos o estúpidos de
+    Sub::Exporter</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSIÓN'><a class='permalink' href='#VERSIÓN'>VERSIÓN</a></h1>
+<p class="Pp">versión 0.991</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VISIÓN_GENERAL'><a class='permalink' href='#VISIÓN_GENERAL'>VISIÓN GENERAL</a></h1>
+<p class="Pp">Sub::Exporter es una herramienta bastante simple y se puede usar para
+    lograr objetivos muy simples. Sus comportamientos básicos y su aplicación
+    básica (es decir, la exportación "tradicional" de rutinas) se describen en
+    Sub::Exporter::Tutorial y Sub::Exporter. Este documento presenta aplicaciones
+    que pueden no ser inmediatamente obvias, o que pueden demostrar cómo se
+    pueden utilizar ciertas características (para bien o para mal).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSIÓN_PERL'><a class='permalink' href='#VERSIÓN_PERL'>VERSIÓN PERL</a></h1>
+<p class="Pp">Esta biblioteca debería ejecutarse en versiones de Perl incluso muy
+    antiguas. Debería funcionar en cualquier versión de Perl lanzada en los últimos
+    cinco años.</p>
+<p class="Pp">Aunque puede funcionar en versiones anteriores de Perl, no se
+    garantiza que la versión mínima requerida no aumente. La versión puede
+    aumentar por cualquier motivo, y no hay promesa de que se acepten parches para
+    reducir la versión mínima requerida de Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LAS_RECETAS'><a class='permalink' href='#LAS_RECETAS'>LAS RECETAS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Exportar_métodos_como_rutinas'><a class='permalink' href='#Exportar_métodos_como_rutinas'>Exportar métodos como rutinas</a></h2>
+<p class="Pp">Con Exporter.pm, exportar métodos es imposible. Sub::Exporter lo
+    hace simple. Usando la utilidad
+    <span class="Li">&quot;curry_method&quot;</span> proporcionada en
+    Sub::Exporter::Util, un método se puede exportar con el invocante incorporado.</p>
+<pre>package Object::Strenuous;
+use Sub::Exporter::Util 'curry_method';
+use Sub::Exporter -setup =&gt; {
+  exports =&gt; [ objection =&gt; curry_method('new') ],
+};</pre>
+<p class="Pp">Con esta configuración, el código de importación puede contener:</p>
+<pre>my $obj = objection(&quot;irrelevant&quot;);</pre>
+<p class="Pp">...y esto será equivalente a:</p>
+<pre>my $obj = Object::Strenuous-&gt;new(&quot;irrelevant&quot;);</pre>
+<p class="Pp">El invocante incorporado se determina por el invocante para el
+    método <span class="Li">&quot;import&quot;</span>. Eso significa que si
+    subclasificáramos Object::Strenuous de la siguiente manera:</p>
+<pre>package Object::Strenuous::Repeated;
+@ISA = 'Object::Strenuous';</pre>
+<p class="Pp">...entonces importar <span class="Li">&quot;objection&quot;</span>
+    de la subclase incorporaría esa subclase.</p>
+<p class="Pp">Finalmente, dado que el invocante puede ser un objeto, puede
+    escribir algo como esto:</p>
+<pre>package Cypher;
+use Sub::Exporter::Util 'curry_method';
+use Sub::Exporter -setup =&gt; {
+  exports =&gt; [ encypher =&gt; curry_method ],
+};</pre>
+<p class="Pp">con la expectativa de que se llamará al método
+    <span class="Li">&quot;import&quot;</span> en un objeto Cypher instanciado:</p>
+<pre>BEGIN {
+  my $cypher = Cypher-&gt;new( ... );
+  $cypher-&gt;import('encypher');
+}</pre>
+<p class="Pp">Ahora hay una rutina globalmente disponible
+    <span class="Li">&quot;encypher&quot;</span> que llama al método encypher en
+    un objeto Cypher de otro modo inaccesible.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Exportar_métodos_como_métodos'><a class='permalink' href='#Exportar_métodos_como_métodos'>Exportar métodos como métodos</a></h2>
+<p class="Pp">Mientras que los módulos de exportación suelen exportar subrutinas para
+    ser llamadas como subrutinas, es fácil usar Sub::Exporter para exportar
+    subrutinas destinadas a ser llamadas como métodos en el paquete de importación
+    o sus objetos.</p>
+<p class="Pp">Aquí hay un ejemplo trivial (y ingenuo):</p>
+<pre>package Mixin::DumpObj;
+use Data::Dumper;
+use Sub::Exporter -setup =&gt; {
+  exports =&gt; [ qw(dump) ]
+};
+sub dump {
+  my ($self) = @_;
+  return Dumper($self);
+}</pre>
+<p class="Pp">Al escribir su propia clase de objeto, puede importar
+    <span class="Li">&quot;dump&quot;</span> para ser utilizada como un método,
+    llamado así:</p>
+<pre>$object-&gt;dump;</pre>
+<p class="Pp">Suponiendo que la clase de importación proporcionará una cierta
+    interfaz, un módulo de exportación de métodos puede usarse como un simple
+    complemento:</p>
+<pre>package Number::Plugin::Upto;
+use Sub::Exporter -setup =&gt; {
+  into    =&gt; 'Number',
+  exports =&gt; [ qw(upto) ],
+  groups  =&gt; [ default =&gt; [ qw(upto) ] ],
+};
+sub upto {
+  my ($self) = @_;
+  return 1 .. abs($self-&gt;as_integer);
+}</pre>
+<p class="Pp">La línea <span class="Li">&quot;into&quot;</span> en la configuración
+    dice que este complemento exportará, por defecto, al paquete Number, no al
+    paquete que lo está usando (<span class="Li">&quot;use&quot;</span>). Sin
+    embargo, se puede exportar de todos modos y funcionará siempre que el
+    destino proporcione un método <span class="Li">&quot;as_integer&quot;</span>
+    como el que espera. Para importarlo a un destino diferente, se puede
+    escribir simplemente:</p>
+<pre>use Number::Plugin::Upto { into =&gt; 'Quantity' };</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Mezclar_comportamiento_externo_complejo'><a class='permalink' href='#Mezclar_comportamiento_externo_complejo'>Mezclar comportamiento externo complejo</a></h2>
+<p class="Pp">Al exportar métodos para ser usados como métodos (ver arriba), una opción
+    muy poderosa es exportar métodos que son rutinas generadas que mantienen una
+    referencia encapsulada al módulo exportador. Esto permite a un usuario
+    importar un único método que se implementa en términos de un paquete
+    completo y bien estructurado.</p>
+<p class="Pp">Aquí hay un ejemplo muy pequeño:</p>
+<pre>package Data::Analyzer;
+use Sub::Exporter -setup =&gt; {
+  exports =&gt; [ analyze =&gt; \'_generate_analyzer' ],
+};
+sub _generate_analyzer {
+  my ($mixin, $name, $arg, $col) = @_;
+  return sub {
+    my ($self) = @_;
+    my $values = [ $self-&gt;values ];
+    my $analyzer = $mixin-&gt;new($values);
+    $analyzer-&gt;perform_analysis;
+    $analyzer-&gt;aggregate_results;
+    return $analyzer-&gt;summary;
+  };
+}</pre>
+<p class="Pp">Si es importado por cualquier paquete que proporcione un método
+    <span class="Li">&quot;values&quot;</span>, este complemento proporcionará un
+    único método <span class="Li">&quot;analyze&quot;</span> que actúa como una
+    interfaz simple a un conjunto más complejo de comportamientos.</p>
+<p class="Pp">Aún más importante, dado que el valor de <span class="Li">$mixin</span>
+    será el invocante sobre el cual se llamó realmente al método
+    <span class="Li">&quot;import&quot;</span>, se puede subclasificar
+    <span class="Li">&quot;Data::Analyzer&quot;</span> y reemplazar solo piezas
+    individuales del comportamiento complejo, facilitando la escritura de kits de
+    herramientas complejos y subclasificables con puntos de entrada únicos y
+    simples para interfaces externas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Exportar_constantes'><a class='permalink' href='#Exportar_constantes'>Exportar constantes</a></h2>
+<p class="Pp">Aunque Sub::Exporter no está en el negocio de exportar constantes, es
+    fácil exportar constantes utilizando uno de sus módulos hermanos,
+    Package::Generator.</p>
+<pre>package Important::Constants;
+
+use Sub::Exporter -setup =&gt; {
+  collectors =&gt; [ constants =&gt; \'_set_constants' ],
+};
+
+sub _set_constants {
+  my ($class, $value, $data) = @_;
+
+  Package::Generator-&gt;assign_symbols(
+    $data-&gt;{into},
+    [
+      MEANING_OF_LIFE =&gt; \42,
+      ONE_TRUE_BASE   =&gt; \13,
+      FACTORS         =&gt; [ 6, 9 ],
+    ],
+  );
+  return 1;
+}</pre>
+<p class="Pp">Entonces, alguien puede escribir:</p>
+<pre>use Important::Constants 'constants';
+
+print &quot;The factors @FACTORS produce $MEANING_OF_LIFE in $ONE_TRUE_BASE.&quot;;</pre>
+<p class="Pp">(Las constantes deben exportarse a través de un colector, ya que
+    alteran efectivamente la clase de importación de una manera distinta a la
+    instalación de subrutinas).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Alterar_el_@ISA_del_importador'><a class='permalink' href='#Alterar_el_@ISA_del_importador'>Alterar el @ISA del importador</a></h2>
+<p class="Pp">Es trivial crear un colector que cambie la herencia de un paquete de
+    importación:</p>
+<pre>use Sub::Exporter -setup =&gt; {
+  collectors =&gt; { -base =&gt; \'_make_base' },
+};
+sub _make_base {
+  my ($class, $value, $data) = @_;
+  my $target = $data-&gt;{into};
+  push @{&quot;$target\::ISA&quot;}, $class;
+}</pre>
+<p class="Pp">Entonces, el usuario de su clase puede escribir:</p>
+<pre>use Some::Class -base;</pre>
+<p class="Pp">y convertirse en una subclase. Esto puede ser muy útil para construir,
+    por ejemplo, un módulo que ayuda a construir complementos. Podemos querer
+    importar algunas utilidades, pero también queremos heredar el
+    comportamiento de una clase base de complemento;</p>
+<pre>package Framework::Util;
+use Sub::Exporter -setup =&gt; {
+  exports    =&gt; [ qw(log global_config) ],
+  groups     =&gt; [ _plugin =&gt; [ qw(log global_config) ]
+  collectors =&gt; { '-plugin' =&gt; \'_become_plugin' },
+};
+sub _become_plugin {
+  my ($class, $value, $data) = @_;
+  my $target = $data-&gt;{into};
+  push @{&quot;$target\::ISA&quot;}, $class-&gt;plugin_base_class;
+  push @{ $data-&gt;{import_args} }, '-_plugin';
+}</pre>
+<p class="Pp">Ahora, puede escribir un complemento como este:</p>
+<pre>package Framework::Plugin::AirFreshener;
+use Framework::Util -plugin;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Comerse_el_cerebro_de_Exporter.pm'><a class='permalink' href='#Comerse_el_cerebro_de_Exporter.pm'>Comerse el cerebro de Exporter.pm</a></h2>
+<p class="Pp">A menudo, los módulos de exportación se escriben como una forma de
+    distribuir un conjunto de subrutinas. Sin embargo, a veces es posible que desee
+    distribuir un solo paquete de código que tenga una dependencia de su
+    propio conjunto de comportamientos. Esto puede ser un desafío, ya que
+    <span class="Li">Exporter.pm</span> está diseñado para exportar un conjunto
+    predefinido de símbolos, no para distribuir un solo paquete de código.</p>
+<p class="Pp">Considere el siguiente código:</p>
+<pre>package Module::Util::Exported;
+use Sub::Exporter -setup =&gt; {
+  exports =&gt; [ delegate =&gt; \_generate_delegate ]
+};
+sub _generate_delegate {
+  my ($class, $name, $arg, $col) = @_;
+  return sub {
+    my ($self) = @_;
+    return $self-&gt;call_module_util_exported;
+  };
+}</pre>
+<p class="Pp">Ahora, si un usuario escribe:</p>
+<pre>package My::Class;
+use Module::Util::Exported;</pre>
+<p class="Pp">...y si My::Class tiene un método llamado
+    <span class="Li">&quot;call_module_util_exported&quot;</span>, entonces
+    esto funcionará como se esperaba. El paquete de importación (My::Class)
+    obtiene una rutina <span class="Li">&quot;delegate&quot;</span> que llama a
+    un método en sí mismo.</p>
+<p class="Pp">Sin embargo, esto no le da a <span class="Li">Module::Util::Exported</span>
+    su propia identidad, por así decirlo. Podría tener mucho sentido hacer que
+    el código exportado sea una instancia de <span class="Li">Module::Util::Exported</span>
+    en lugar de una rutina generada.</p>
+<p class="Pp">Aquí hay un ejemplo que lo hace:</p>
+<pre>package Module::Util::Exported::Instance;
+use Sub::Exporter -setup =&gt; {
+  exports =&gt; [ delegate =&gt; \'_generate_delegate' ]
+};
+sub _generate_delegate {
+  my ($class, $name, $arg, $col) = @_;
+  my $instance = $class-&gt;new; # O $col-&gt;{invocant}-&gt;new si fuera apropiado
+  return sub {
+    my ($self) = @_;
+    return $instance-&gt;call_module_util_exported($self);
+  };
+}</pre>
+<p class="Pp">Ahora, <span class="Li">Module::Util::Exported::Instance</span>
+    es un paquete con su propia identidad, y tiene una forma fácil de exportar
+    comportamientos en nombre de él.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp">Sub::Exporter, Sub::Exporter::Tutorial, Package::Generator,
+    Exporter.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Curtis Poe &lt;cpoe@unixgeek.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_Y_LICENCIA'><a class='permalink' href='#COPYRIGHT_Y_LICENCIA'>COPYRIGHT Y LICENCIA</a></h1>
+<p class="Pp">Esta obra tiene copyright © 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+    2011, 2012 por Curtis Poe.</p>
+<p class="Pp">Esta biblioteca está disponible bajo la misma licencia que Perl
+    mismo.</p>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<div class="container">
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Sub::Exporter::Cookbook</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="VERSION"><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">1.12-1</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="OVERVIEW"><a class='permalink' href='#OVERVIEW'>DESCRIPCIÓN GENERAL</a></h1>
+<p class="Pp">Este manual es una guía de recetas para el módulo Sub::Exporter. Incluye varias técnicas para usar Sub::Exporter para exportar e importar subrutinas, incluidas características avanzadas como el cambio de nombre de grupos y la exportación a referencias escalares.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="PERL_VERSION"><a class='permalink' href='#PERL_VERSION'>VERSIÓN_PERL</a></h1>
+<p class="Pp">Perl 5</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="THE_RECIPES"><a class='permalink' href='#THE_RECIPES'>LAS_RECETAS</a></h1>
+<p class="Pp">Estas recetas están diseñadas para ayudarte a usar Sub::Exporter de manera efectiva. Incluyen ejemplos de cómo exportar e importar subrutinas, así como técnicas avanzadas para administrar exportaciones y grupos.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHOR"><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Ricardo Signes &lt;cpan@semiotic.systems&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="COPYRIGHT_AND_LICENSE"><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>DERECHOS_DE_AUTOR_Y_LICENCIA</a></h1>
+<p class="Pp">Este software tiene derechos de autor (c) 2007 de Ricardo Signes.</p>
+<p class="Pp">Este es software libre; puedes redistribuirlo y/o modificarlo bajo los mismos términos que el propio sistema de programación Perl 5.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-sub-exporter/">extra/perl-sub-exporter</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.991-3</dd>
+        <dt>Versión anterior:</dt>
+        <dd><a href="https://metacpan.org/release/Sub-Exporter">https://metacpan.org/release/Sub-Exporter</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-sub-exporter/">/listing/extra/perl-sub-exporter/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#VERSION">VERSIÓN</a></li>
+        
+            <li><a href="#OVERVIEW">DESCRIPCIÓN GENERAL</a></li>
+        
+            <li><a href="#PERL_VERSION">VERSIÓN_PERL</a></li>
+        
+            <li><a href="#THE_RECIPES">LAS_RECETAS</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">DERECHOS_DE_AUTOR_Y_LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Sub::Exporter::Cookbook.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/Sub::Exporter::Cookbook.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

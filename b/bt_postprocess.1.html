@@ -1,0 +1,384 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>bt_postprocess(1) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">bt_postprocess(1)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">BT_POSTPROCESS(1)</td>
+    <td class="head-vol">btparse</td>
+    <td class="head-rtitle">BT_POSTPROCESS(1)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">bt_postprocess - postprocesamiento de cadenas, valores y
+    entradas de BibTeX</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>void bt_postprocess_string (char * s,
+                            btshort options)
+char * bt_postprocess_value (AST *   value,
+                             btshort  options, 
+                             boolean replace);
+char * bt_postprocess_field (AST *   field, 
+                             btshort  options, 
+                             boolean replace);
+void bt_postprocess_entry (AST *   entry,
+                           btshort options);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Cuando <b>btparse</b> analiza una entrada de BibTeX, inicialmente almacena los
+    resultados en un árbol de sintaxis abstracta (AST), en una forma que refleja
+    exactamente los datos analizados. Por ejemplo, la entrada</p>
+<pre>@Article{Jones:1997a,
+  AuThOr = "Bob   Jones" # and # "Jim Smith ",
+  TITLE = "Feeding Habits of
+           the Common Cockroach",
+  JoUrNaL = j_ent,
+  YEAR = 1997
+}</pre>
+<p class="Pp">se analizaría a un AST que podría representarse de la siguiente manera:</p>
+<pre>(entry,"Article")
+  (key,"Jones:1997a")
+  (field,"AuThOr")
+    (string,"Bob   Jones")
+    (macro,"and")
+    (string,"Jim Smith ")
+  (field,"TITLE")
+    (string,"Feeding Habits of               the Common Cockroach")
+  (field,"JoUrNaL")
+    (macro,"j_ent")
+  (field,"YEAR")
+    (number,"1997")</pre>
+<p class="Pp">La ventaja de esta forma es que toda la información importante
+    de la entrada está fácilmente disponible al recorrer el árbol usando las
+    funciones descritas en bt_traversal. El problema obvio es que los datos son
+    un poco demasiado crudos para ser inmediatamente útiles: los tipos de
+    entrada y los nombres de campo tienen mayúsculas inconsistentes, las cadenas
+    están llenas de espacios en blanco no deseados, los valores de campo no se
+    reducen a una sola cadena, etc.</p>
+<p class="Pp">Todos estos problemas son abordados por <b>btparse</b>'s
+    funciones de postprocesamiento, descritas aquí. Normalmente, no tendrá que
+    llamar a estas funciones---la biblioteca hace lo correcto por usted después
+    de analizar cada entrada, y puede personalizar qué es exactamente lo
+    correcto para su aplicación. (Por ejemplo, puede decirle que expanda macros,
+    pero no que concatene subcadenas juntas.) Sin embargo, es concebible que
+    desee mover el postprocesamiento a su propio código y fuera del control de
+    la biblioteca. Es más probable que tenga cadenas que provienen de algo
+    diferente a los archivos BibTeX que le gustaría que se trataran como cadenas
+    BibTeX; para esa situación, las funciones de postprocesamiento son
+    esenciales. Finalmente, podría estar simplemente curioso sobre qué le sucede
+    exactamente a sus datos después de ser analizados. Si es así, ha llegado al
+    lugar correcto para explicaciones exquisitamente detalladas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS'><a class='permalink' href='#FUNCTIONS'>FUNCIONES</a></h1>
+<p class="Pp"><b>btparse</b> ofrece cuatro puntos de entrada a su código de
+    postprocesamiento. De estos, probablemente solo el primero y el último---para
+    procesar cadenas individuales y entradas completas---se usarán comúnmente.</p>
+<section class="Ss">
+<h2 class="Ss">Puntos de entrada de postprocesamiento</h2>
+<p class="Pp">Para entender por qué se ofrecen cuatro puntos de entrada, una explicación del
+    AST de ejemplo mostrado arriba ayudará. En primer lugar, la entrada completa está representada por el
+    <span class="Li">"(entry,"Article")"</span> nodo; este
+    nodo tiene la clave de entrada y todos sus pares campo/valor como hijos. Los nodos de entrada son devueltos por <span class="Li">bt_parse_entry()</span> y
+    <span class="Li">bt_parse_entry_s()</span> (ver bt_input) así como
+    <span class="Li">bt_next_entry()</span> (que recorre una lista de entradas
+    devueltas desde <span class="Li">bt_parse_file()</span>---ver bt_traversal).
+    Las entradas completas pueden ser postprocesadas con
+    <span class="Li">bt_postprocess_entry()</span>.</p>
+<p class="Pp">También puede necesitar postprocesar un solo campo, o solo el
+    valor asociado con él. (La diferencia es que el procesamiento del campo puede
+    cambiar el nombre del campo---p. ej. a minúsculas--- además del valor del campo.)
+    El <span class="Li">"(field,"AuThOr")"</span> nodo
+    de arriba es un ejemplo de un sub-AST de campo, y
+    <span class="Li">"(string,"Bob Jones")"</span> es el
+    primer nodo en la lista de valores simples que representan el valor de ese campo.
+    (Recuerde que el valor de un campo es, en general, una lista de valores simples.) Los nodos de campo son devueltos por <span class="Li">bt_next_field()</span>, los nodos de valor
+    por <span class="Li">bt_next_value()</span>. El primero puede pasarse a
+    <span class="Li">bt_postprocess_field()</span> para postprocesamiento, el
+    segundo a <span class="Li">bt_postprocess_value()</span>.</p>
+<p class="Pp">Finalmente, cadenas individuales pueden deambular en su programa desde muchos
+    lugares diferentes a un <b>btparse</b> AST. Por esa razón,
+    <span class="Li">bt_postprocess_string()</span> está disponible para
+    postprocesar cadenas arbitrarias.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">Opciones de postprocesamiento</h2>
+<p class="Pp">Todas las rutinas de postprocesamiento tienen un
+    <span class="Li">"options"</span> parámetro, que puede usar para
+    ajustar finamente el postprocesamiento. (Esto es igual a las opciones de procesamiento de cadenas por metatipo
+    que puede establecer antes de analizar entradas; ver
+    <span class="Li">bt_set_stringopts()</span> en bt_input.) Como en otras partes de
+    la biblioteca, <span class="Li">"options"</span> es un mapa de bits
+    construido mediante la operación OR de varias constantes predefinidas. Estas constantes
+    y sus efectos están documentados en "String processing option
+    macros" en btparse.</p>
+<dl class="Bl-tag">
+  <dt id="bt_postprocess_string"><a class="permalink" href="#bt_postprocess_string">bt_postprocess_string
+    ()</a></dt>
+  <dd>
+    <pre>void bt_postprocess_string (char * s,
+                            btshort options)
+</pre>
+    <p class="Pp">Postprocesa una cadena individual,
+        <span class="Li">"s"</span>, que se modifica en el lugar. La
+        única opción de postprocesamiento que tiene sentido en cadenas individuales es
+        si colapsar espacios en blanco según las reglas de BibTeX; así, si
+        <span class="Li">"options &amp; BTO_COLLAPSE"</span> es falso,
+        esta función no tiene efecto. (Aunque hace un recorrido completo sobre la
+        cadena de todos modos. Esto es para futuras expansiones.)</p>
+    <p class="Pp">Las reglas exactas para colapsar espacios en blanco son simples:
+        los caracteres de espacio en blanco que no son espacios (principalmente tabulaciones y saltos de línea) se convierten
+        a espacio, cualquier cadena de más de un espacio dentro se colapsa a un
+        solo espacio, y cualquier espacio inicial o final se elimina. (Asegurar
+        que todo el espacio en blanco sean espacios es realmente hecho por el <b>btparse</b>'s
+        analizador léxico, así que las cadenas en <b>btparse</b> ASTs nunca tendrán
+        espacio en blanco aparte del espacio. De manera similar, cualquier cadena pasada a
+        <b>bt_postprocess_string()</b> no debería contener caracteres de espacio en blanco
+        que no sean espacios.)</p>
+  </dd>
+  <dt id="bt_postprocess_value"><a class="permalink" href="#bt_postprocess_value">bt_postprocess_value
+    ()</a></dt>
+  <dd>
+    <pre>char * bt_postprocess_value (AST *   value,
+                             btshort  options, 
+                             boolean replace);
+</pre>
+    <p class="Pp">Postprocesa un solo valor de campo, que es la cabeza de una
+        lista de valores simples como los devueltos por
+        <span class="Li">bt_next_value()</span>. Todas las opciones relevantes de
+        procesamiento de cadenas entran en juego aquí: conversión de números a
+        cadenas (<span class="Li">"BTO_CONVERT"</span>), expansión de
+        macros (<span class="Li">"BTO_EXPAND"</span>), colapso
+        de espacios en blanco (<span class="Li">"BTO_COLLAPSE"</span>), y
+        pegado de cadenas (<span class="Li">"BTO_PASTE"</span>). Dado que
+        pegar subcadenas juntas sin expandir macros primero y
+        convertir números sería sin sentido, intentar hacerlo es un error
+        fatal.</p>
+    <p class="Pp">Si <span class="Li">"replace"</span> es verdadero, entonces
+        la lista encabezada por <span class="Li">"value"</span> será
+        reemplazada por una lista que representa el valor procesado. Es decir, si el pegado de cadenas está activado (<span class="Li">"options &amp;
+        BTO_PASTE"</span> es verdadero), entonces esta lista será colapsada a un
+        solo nodo que contiene la única cadena resultante de pegar
+        juntas todas las subcadenas. Si el pegado de cadenas no está activado, entonces cada nodo
+        en la lista se dejará intacto, pero tendrá su texto reemplazado por
+        el texto procesado.</p>
+    <p class="Pp">Si <span class="Li">"replace"</span> es falso, entonces
+        una nueva cadena será construida al vuelo y devuelta por la función. Note
+        que si el pegado no está activado en este caso, solo obtendrá la última
+        cadena en la lista. (No tiene mucho sentido
+        postprocesar un valor sin pegar a menos que lo esté reemplazando con el
+        nuevo valor, aunque.)</p>
+    <p class="Pp">Devuelve la cadena que resultó del procesamiento de todo el
+        valor, lo cual solo tiene sentido si el pegado estaba activado o solo había un
+        valor en la lista. Si un múltiple<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>bt_postprocess(3)</title>
+        <link rel="stylesheet" type="text/css" href="style.css" />
+        <link rel="stylesheet" type="text/css" href="local.css" />
+    </head>
+    <body>
+        <section class="Sh">
+            <h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+            <p class="Nd">bt_postprocess, bt_postprocess_value, bt_postprocess_field,
+                bt_postprocess_entry - post-process BibTeX abstract syntax trees</p>
+        </section>
+        <section class="Sh">
+            <h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+            <pre>
+<span class="Li">#include &lt;btparse.h&gt;</span>
+
+char * bt_postprocess (AST *   tree,
+                       btshort options,
+                       boolean replace);
+char * bt_postprocess_value (AST *   value,
+                             btshort options,
+                             boolean replace);
+char * bt_postprocess_field (AST *   field,
+                             btshort options,
+                             boolean replace);
+void bt_postprocess_entry (AST *  entry,
+                           btshort options);
+</pre>
+        </section>
+        <section class="Sh">
+            <h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+            <p class="Pp">These functions perform various kinds of post-processing on BibTeX
+                abstract syntax trees. This can involve macro expansion, collapsing
+                whitespace, and converting numbers to strings.</p>
+            <p class="Pp">The <code class="Nm">bt_postprocess</code> function processes the entire
+                abstract syntax tree, typically starting from the root. It returns a
+                fully-processed string representation of the entire tree. The
+                <code class="Nm">options</code> argument controls the type of processing. The
+                <code class="Nm">replace</code> argument, if true, causes the original tree to be
+                modified in-place.</p>
+            <p class="Pp">The <code class="Nm">bt_postprocess_value</code> function processes a
+                sub-tree that represents a field value. The <code class="Nm">options</code>
+                argument is a bitmask composed of the following flags:</p>
+            <dl class="Bl-tag">
+                <dt><code class="Li">BTO_CONVERT</code></dt>
+                <dd>Convert numbers to strings. (This is trivial; numbers are always stored as
+                    strings of digits.)</dd>
+                <dt><code class="Li">BTO_EXPAND</code></dt>
+                <dd>Expand macros.</dd>
+                <dt><code class="Li">BTO_PASTE</code></dt>
+                <dd>Concatenate adjacent string literals and macro expansions.</dd>
+                <dt><code class="Li">BTO_COLLAPSE</code></dt>
+                <dd>Collapse sequences of whitespace into single spaces.</dd>
+            </dl>
+            <p class="Pp">If <code class="Nm">replace</code> is true, the original value AST is
+                modified. In this case, the function returns a pointer to the (possibly
+                new) root of the modified value AST. If <code class="Nm">replace</code> is
+                false, the original tree is not modified, and the function returns a pointer
+                to a new AST representing the processed value.</p>
+            <p class="Pp">If the <code class="Nm">options</code> argument does not include
+                <code class="Li">BTO_PASTE</code>, and the <code class="Nm">value</code>
+                is a list of items (e.g. strings, macros, numbers), then the original list
+                structure is preserved. If <code class="Li">BTO_PASTE</code> is included,
+                adjacent strings and expanded macros are concatenated, and the result may be a
+                single node instead of a list. If the <code class="Nm">value</code> is a
+                list and <code class="Li">BTO_PASTE</code> is specified, the last item in the
+                list is returned after processing. If the <code class="Nm">value</code> is a
+                list and <code class="Nm">replace</code> is false, then the last string in the
+                list is returned (after processing).</p>
+            <p class="Pp">Consider what might be done to the value of the
+                <span class="Li">&quot;author&quot;</span> field in the above example,
+                which is the concatenation of a string, a macro, and another string.
+                Assume that the macro <span class="Li">&quot;and&quot;</span> expands to
+                <span class="Li">&quot; and &quot;</span>, and that the variable
+                <span class="Li">&quot;value&quot;</span> points to the sub-AST for this
+                value. The original sub-AST corresponding to this value is</p>
+            <pre>(string,&quot;Bob   Jones&quot;)
+(macro,&quot;and&quot;)
+(string,&quot;Jim Smith &quot;)
+</pre>
+            <p class="Pp">To fully process this value in-place, you would call</p>
+            <pre>bt_postprocess_value (value, BTO_FULL, TRUE);
+</pre>
+            <p class="Pp">This would convert the value to a single-element list,</p>
+            <pre>(string,&quot;Bob Jones and Jim Smith&quot;)
+</pre>
+            <p class="Pp">and return the fully-processed string
+                <span class="Li">&quot;Bob Jones and Jim Smith&quot;</span>. Note that
+                the <span class="Li">&quot;and&quot;</span> macro has been expanded,
+                interpolated between the two literal strings, everything pasted
+                together, and finally whitespace collapsed. (Collapsing whitespace
+                before concatenating the strings would be a bad idea.)</p>
+            <p class="Pp">(Incidentally, <span class="Li">&quot;BTO_FULL&quot;</span> is
+                just a macro for the combination of all possible string-processing
+                options, currently:</p>
+            <pre>BTO_CONVERT | BTO_EXPAND | BTO_PASTE | BTO_COLLAPSE
+</pre>
+            <p class="Pp">There are two other similar shortcut macros:
+                <span class="Li">&quot;BTO_MACRO&quot;</span> to express the special
+                string-processing done on macro values, which is the same as
+                <span class="Li">&quot;BTO_FULL&quot;</span> except for the absence of
+                <span class="Li">&quot;BTO_COLLAPSE&quot;</span>; and
+                <span class="Li">&quot;BTO_MINIMAL&quot;</span>, which means no
+                string-processing is to be done.)</p>
+            <p class="Pp">Let's say you'd rather preserve the list nature of the value,
+                while expanding macros and converting any numbers to strings. (This
+                conversion is trivial: it just changes the type of the node from
+                <span class="Li">&quot;BTAST_NUMBER&quot;</span> to
+                <span class="Li">&quot;BTAST_STRING&quot;</span>. &quot;Number&quot;
+                values are always stored as a string of digits, just as they appear in
+                the file.) This would be done with the call</p>
+            <pre>bt_postprocess_value
+   (value, BTO_CONVERT|BTO_EXPAND|BTO_COLLAPSE,TRUE);
+</pre>
+            <p class="Pp">which would change the list to</p>
+            <pre>(string,&quot;Bob Jones&quot;)
+(string,&quot;and&quot;)
+(string,&quot;Jim Smith&quot;)
+</pre>
+            <p class="Pp">Note that whitespace is collapsed here <i>before</i> any
+                concatenation can be done; this is probably a bad idea. But you can do
+                it if you wish. (If you get any ideas about cooking up your own value
+                post-processing scheme by doing it in little steps like this, take a
+                look at the source to <span class="Li">bt_postprocess_value()</span>; it
+                should dissuade you from such a venture.)</p>
+        </section>
+        <section class="Sh">
+            <h1 class="Sh" id="bt_postprocess_field"><a class="permalink" href="#bt_postprocess_field">bt_postprocess_field
+                ()</a></h1>
+            <pre>char * bt_postprocess_field (AST *   field,
+                                     btshort  options,
+                                     boolean replace);
+</pre>
+            <p class="Pp">This is little more than a front-end to
+                <span class="Li">bt_postprocess_value()</span>; the only difference is
+                that you pass it a &quot;field&quot; AST node (eg. the
+                <span class="Li">&quot;(field,&quot;AuThOr&quot;)&quot;</span> in the
+                above example), and that it transforms the field name in addition to its
+                value. In particular, the field name is forced to lowercase; this
+                behaviour is (currently) not optional.</p>
+            <p class="Pp">Returns the string returned by
+                <span class="Li">bt_postprocess_value()</span>.</p>
+        </section>
+        <section class="Sh">
+            <h1 class="Sh" id="bt_postprocess_entry"><a class="permalink" href="#bt_postprocess_entry">bt_postprocess_entry
+                ()</a></h1>
+            <dd>
+                <pre>void bt_postprocess_entry (AST *  entry,
+                                       btshort options);
+</pre>
+                <p class="Pp">Post-processes all values in an entry. If
+                    <span class="Li">&quot;entry&quot;</span> points to the AST for a
+                    &quot;regular&quot; or &quot;macro definition&quot; entry, then the
+                    values are just what you'd expect: everything on the right-hand side of
+                    a field or macro &quot;assignment.&quot; You can also post-process
+                    comment and preamble entries, though. Comment entries are essentially
+                    one big string, so only whitespace collapsing makes sense on them.
+                    Preambles may have multiple strings pasted together, so all the
+                    string-processing options apply to them. (And there's nothing to prevent
+                    you from using macros in a preamble.)</p>
+            </dd>
+        </section>
+        <section class="Sh">
+            <h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE
+                ALSO</a></h1>
+            <p class="Pp">btparse, bt_input, bt_traversal</p>
+        </section>
+        <section class="Sh">
+            <h1 class="Sh" id="AUTHOR"><a class="permalink" href="#AUTHOR">AUTHOR</a></h1>
+            <p class="Pp">Greg Ward &lt;gward@python.net&gt;</p>
+        </section>
+        <table class="foot">
+            <tr>
+                <td class="foot-date">2025-07-14</td>
+                <td class="foot-os">btparse, version 0.91</td>
+            </tr>
+        </table>
+    </body>
+</html>

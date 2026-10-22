@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Test::Alien(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Test__Alien(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Test::Alien(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Test::Alien(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Test::Alien - Herramientas de prueba para módulos Alien</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">versión 2.84</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Prueba los comandos que vienen con tu Alien:</p>
+<pre>use Test2::V0;
+use Test::Alien;
+use Alien::patch;
+
+alien_ok 'Alien::patch';
+run_ok([ 'patch', '--version' ])
+  -&gt;success
+  # solo aceptamos la version escrita
+  # por Larry ...
+  -&gt;out_like(qr{Larry Wall});
+
+done_testing;</pre>
+<p class="Pp">Prueba que tu librería funciona con <span class="Li">&quot;XS&quot;</span>:</p>
+<pre>use Test2::V0;
+use Test::Alien;
+use Alien::Editline;
+
+alien_ok 'Alien::Editline';
+my $xs = do { local $/; &lt;DATA&gt; };
+xs_ok $xs, with_subtest {
+  my($module) = @_;
+  ok $module-&gt;version;
+};
+
+done_testing;
+
+__DATA__
+
+#include &quot;EXTERN.h&quot;
+#include &quot;perl.h&quot;
+#include &quot;XSUB.h&quot;
+#include &lt;editline/readline.h&gt;
+
+const char *
+version(const char *class)
+{
+  return rl_library_version;
+}
+
+MODULE = TA_MODULE PACKAGE = TA_MODULE
+
+const char *version(class);
+    const char *class;</pre>
+<p class="Pp">Prueba que tu librería funciona con FFI::Platypus:</p>
+<pre>use Test2::V0;
+use Test::Alien;
+use Alien::LibYAML;
+
+alien_ok 'Alien::LibYAML';
+ffi_ok { symbols =&gt; ['yaml_get_version'] }, with_subtest {
+  my($ffi) = @_;
+  my $get_version = $ffi-&gt;function(yaml_get_version =&gt; ['int*','int*','int*'] =&gt; 'void');
+  $get_version-&gt;call(\my $major, \my $minor, \my $patch);
+  like $major, qr{[0-9]+};
+  like $minor, qr{[0-9]+};
+  like $patch, qr{[0-9]+};
+};
+
+done_testing;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo proporciona herramientas para probar módulos Alien.
+    Tiene ganchos para trabajar fácilmente con módulos basados en Alien::Base,
+    pero también puede ser utilizado a través de la interfaz sintética para
+    probar módulos Alien no basados en Alien::Base. Tiene requisitos previos muy
+    modestos.</p>
+<p class="Pp">Antes de este módulo, la mejor manera de probar un módulo Alien
+    era a través de Test::CChecker. La principal desventaja de ese módulo es
+    que está fuertemente influenciado y utiliza ExtUtils::CChecker, que es una
+    herramienta para verificar en tiempo de instalación varias cosas sobre tu
+    compilador. También fue escrito antes de que Alien::Base fuera tan estable
+    como lo es hoy. En particular, Test::CChecker realiza sus pruebas creando
+    un ejecutable y ejecutándolo. Desafortunadamente, Perl utiliza extensiones
+    creando bibliotecas dinámicas y vinculándolas al proceso de Perl, lo cual
+    es diferente de maneras sutiles y propensas a errores. Este módulo intenta
+    probar las bibliotecas de la manera en que se usarán realmente, a través de
+    <span class="Li">&quot;XS&quot;</span> o FFI::Platypus. También proporciona un
+    mecanismo para probar binarios que son proporcionados por los diversos módulos
+    Alien (por ejemplo, Alien::gmake y Alien::patch).</p>
+<p class="Pp">Los módulos Alien pueden ser utilizables sin un compilador, o sin
+    FFI::Platypus (por ejemplo, si la biblioteca es proporcionada por el sistema,
+    y estás usando FFI::Platypus, o si estás compilando desde la fuente y estás
+    usando <span class="Li">&quot;XS&quot;</span>), por lo que las pruebas con
+    prerrequisitos faltantes se omiten automáticamente. Por ejemplo,
+    &quot;xs_ok&quot; se omitirá automáticamente si no se encuentra un compilador,
+    y &quot;ffi_ok&quot; se omitirá automáticamente si FFI::Platypus no está
+    instalado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNCTIONS'><a class='permalink' href='#FUNCTIONS'>FUNCIONES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='alien_ok'><a class='permalink' href='#alien_ok'>alien_ok</a></h2>
+<pre>alien_ok $alien, $message;
+alien_ok $alien;</pre>
+<p class="Pp">Carga la instancia o clase Alien dada. Comprueba que la instancia
+    o clase se ajusta a la misma interfaz que Alien::Base. Será utilizada por
+    pruebas posteriores. El módulo <span class="Li">$alien</span> solo necesita
+    proporcionar estos métodos para ajustarse a la interfaz de Alien::Base:</p>
+<dl class="Bl-tag">
+  <dt id="cflags"><a class="permalink" href="#cflags">cflags</a></dt>
+  <dd>Cadena que contiene los flags del compilador</dd>
+  <dt id="libs"><a class="permalink" href="#libs">libs</a></dt>
+  <dd>Cadena que contiene los flags del enlazador y las bibliotecas</dd>
+  <dt id="dynamic_libs"><a class="permalink" href="#dynamic_libs">dynamic_libs</a></dt>
+  <dd>Lista de bibliotecas dinámicas. Devuelve una lista vacía si el módulo Alien
+      no proporciona esto.</dd>
+  <dt id="bin_dir"><a class="permalink" href="#bin_dir">bin_dir</a></dt>
+  <dd>Directorio que contiene los binarios de herramientas. Devuelve una lista
+      vacía si el módulo Alien no proporciona esto.</dd>
+</dl>
+<p class="Pp">Si tu módulo Alien no se ajusta a esta interfaz, puedes crear un
+    módulo Alien sintético usando la función &quot;synthetic&quot;.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='synthetic'><a class='permalink' href='#synthetic'>synthetic</a></h2>
+<pre>my $alien = synthetic \%config;</pre>
+<p class="Pp">Crea un módulo Alien sintético que puede ser pasado a
+    &quot;alien_ok&quot;. <span class="Li">&quot;\%config&quot;</span> puede
+    contener estas claves (todas opcionales):</p>
+<dl class="Bl-tag">
+  <dt id="cflags~2"><a class="permalink" href="#cflags~2">cflags</a></dt>
+  <dd>Cadena que contiene los flags del compilador.</dd>
+  <dt id="cflags_static"><a class="permalink" href="#cflags_static">cflags_static</a></dt>
+  <dd>Cadena que contiene los flags estáticos del compilador (opcional).</dd>
+  <dt id="libs~2"><a class="permalink" href="#libs~2">libs</a></dt>
+  <dd>Cadena que contiene los flags del enlazador y las bibliotecas.</dd>
+  <dt id="libs_static"><a class="permalink" href="#libs_static">libs_static</a></dt>
+  <dd>Cadena que contiene los flags estáticos del enlazador (opcional).</dd>
+  <dt id="dynamic_libs~2"><a class="permalink" href="#dynamic_libs~2">dynamic_libs</a></dt>
+  <dd>Referencia a una lista que contiene las bibliotecas dinámicas.</dd>
+  <dt id="bin_dir~2"><a class="permalink" href="#bin_dir~2">bin_dir</a></dt>
+  <dd>Directorio de binarios de herramientas.</dd>
+  <dt id="runtime_prop"><a class="permalink" href="#runtime_prop">runtime_prop</a></dt>
+  <dd>Propiedades de tiempo de ejecución.</dd>
+</dl>
+<p class="Pp">Ver Test::Alien::Synthetic para más detalles.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='run_ok'><a class='permalink' href='#run_ok'>run_ok</a></h2>
+<pre>my $run = run_ok $command;
+my $run = run_ok $command, $message;</pre>
+<p class="Pp">Ejecuta el comando dado, recurriendo a cualquier método
+    <span class="Li">&quot;Alien::Base#bin_dir&quot;</span> proporcionado por
+    módulos Alien especificados con &quot;alien_ok&quot;.</p>
+<p class="Pp"><span class="Li">$command</span> puede ser una cadena o una
+    referencia a un array.</p>
+<p class="Pp">Solo falla si el comando no se puede encontrar, o si es terminado
+    por una señal. Devuelve un objeto Test::Alien::Run, que puedes usar para
+    probar el estado de salida, la salida y el error estándar.</p>
+<p class="Pp">Siempre devuelve una instancia de Test::Alien::Run, incluso si el
+    comando no se pudo encontrar.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='xs_ok'><a class='permalink' href='#xs_ok'>xs_ok</a></h2>
+<pre>xs_ok $xs;
+xs_ok $xs, $message;</pre>
+<p class="Pp">Compila, enlaza el código <span class="Li">&quot;XS&quot;</span>
+    dado y se adjunta a Perl.</p>
+<p class="Pp">Si usas el nombre de módulo especial
+    <span class="Li">&quot;TA_MODULE&quot;</span> en tu código
+    <span class="Li">&quot;XS&quot;</span>, será reemplazado por un nombre de
+    paquete generado automáticamente. Esto puede ser útil si deseas pasar el
+    mismo código <span class="Li">&quot;XS&quot;</span> a múltiples llamadas a
+    <span class="Li">&quot;xs_ok&quot;</span> sin que las llamadas subsiguientes
+    reemplacen a las anteriores.</p>
+<p class="Pp"><span class="Li">$xs</span> puede ser una cadena que contiene el
+    código <span class="Li">&quot;XS&quot;</span>, o una referencia a un hash con
+    estas claves:</p>
+<dl class="Bl-tag">
+  <dt id="xs"><a class="permalink" href="#xs">xs</a></dt>
+  <dd>El código XS. Este es el único elemento requerido.</dd>
+  <dt id="pxs"><a class="permalink" href="#pxs">pxs</a></dt>
+  <dd>Argumentos adicionales de ExtUtils::ParseXS pasados como una referencia a
+      un hash.</dd>
+  <dt id="cbuilder_check"><a class="permalink" href="#cbuilder_check">cbuilder_check</a></dt>
+  <dd>La comprobación de compilación que debe realizarse antes de intentar
+      construir. Debe ser una de <span class="Li">&quot;have_compiler&quot;</span>
+      o <span class="Li">&quot;have_cplusplus&quot;</span>. El valor por defecto
+      es <span class="Li">&quot;have_compiler&quot;</span>.</dd>
+  <dt id="cbuilder_config"><a class="permalink" href="#cbuilder_config">cbuilder_config</a></dt>
+  <dd>Hash para anular valores normalmente proporcionados por
+      <span class="Li">&quot;Config&quot;</span>.</dd>
+  <dt id="cbuilder_compile"><a class="permalink" href="#cbuilder_compile">cbuilder_compile</a></dt>
+  <dd>Argumentos adicionales de ExtUtils::CBuilder pasados como una referencia a
+      un hash.</dd>
+  <dt id="cbuilder_link"><a class="permalink" href="#cbuilder_link">cbuilder_link</a></dt>
+  <dd>Argumentos adicionales de ExtUtils::CBuilder pasados como una referencia a
+      un hash.</dd>
+  <dt id="verbose"><a class="permalink" href="#verbose">verbose</a></dt>
+  <dd>Muestra información de depuración copiosa a través de notas de prueba.</dd>
+</dl>
+<p class="Pp">Puedes usar la palabra clave <span class="Li">&quot;with_subtest&quot;</span>
+    para ejecutar condicionalmente una subprueba si la llamada
+    <span class="Li">&quot;xs_ok&quot;</span> tiene éxito. Si
+    <span class="Li">&quot;xs_ok&quot;</span> no funciona, entonces la subprueba
+    fallará.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ffi_ok'><a class='permalink' href='#ffi_ok'>ffi_ok</a></h2>
+<pre>ffi_ok \%options;
+ffi_ok \%options, $message;</pre>
+<p class="Pp">Prueba que los símbolos especificados están disponibles en la
+    biblioteca alien.</p>
+<p class="Pp"><span class="Li">\%options</span> es un hash de las siguientes
+    claves:</p>
+<dl class="Bl-tag">
+  <dt id="symbols"><a class="permalink" href="#symbols">symbols</a></dt>
+  <dd>Un array de referencias de cadenas que contienen los nombres de los
+      símbolos que deben estar disponibles en la biblioteca.</dd>
+  <dt id="shared_libs"><a class="permalink" href="#shared_libs">shared_libs</a></dt>
+  <dd>Una lista de referencias de cadenas que contienen los nombres de las
+      bibliotecas compartidas. Si no se especifica, se utilizará
+      &quot;dynamic_libs&quot; de la última llamada a <span class="Li">&quot;alien_ok&quot;</span>.</dd>
+  <dt id="xs"><a class="permalink" href="#xs~2">xs</a></dt>
+  <dd>Se utilizará si FFI::Platypus no está instalado. Debe ser una cadena que
+      contenga código XS que llame a los símbolos especificados.</dd>
+</dl>
+<p class="Pp">Se puede utilizar la palabra clave <span class="Li">&quot;with_subtest&quot;</span>
+    para ejecutar condicionalmente una subprueba si la llamada
+    <span class="Li">&quot;ffi_ok&quot;</span> tiene éxito. Si
+    <span class="Li">&quot;ffi_ok&quot;</span> no funciona, entonces la subprueba
+    fallará.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='with_subtest'><a class='permalink' href='#with_subtest'>with_subtest</a></h2>
+<pre>with_subtest {
+  # tu codigo
+};</pre>
+<p class="Pp">Esto se utiliza para ejecutar condicionalmente una subprueba en
+    caso de éxito de la prueba principal. El código dentro de la subprueba
+    se ejecutará solo si la prueba anterior (como
+    <span class="Li">&quot;xs_ok&quot;</span> o <span class="Li">&quot;ffi_ok&quot;</span>)
+    tuvo éxito. Si la prueba principal falla, la subprueba se omite y la prueba
+    general se marca como exitosa (si todas las demás pruebas lo están).</p>
+<p class="Pp">La subprueba recibe como argumento la instancia de la prueba
+    creada por la llamada anterior (por ejemplo, el objeto de compilación de
+    <span class="Li">&quot;xs_ok&quot;</span> o el objeto FFI de
+    <span class="Li">&quot;ffi_ok&quot;</span>).</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DIAGNOSTICS'><a class='permalink' href='#DIAGNOSTICS'>DIAGNÓSTICOS</a></h1>
+<p class="Pp">Los mensajes de error generados por este módulo están diseñados para
+    ser explícitos y útiles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE'><a class='permalink' href='#EXAMPLE'>EJEMPLO</a></h1>
+<p class="Pp">Por favor, consulta la sección SINOPSIS para obtener ejemplos.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Graham Ollis &lt;plicease@cpan.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Copyright (c) 2014-2023 Graham Ollis</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENCIA</a></h1>
+<p class="Pp">Este programa puede ser utilizado y distribuido bajo las mismas
+    condiciones que Perl mismo.</p>
+</div>
+</section>
+                
+            </article>
+        </main>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="NAME">NAME</h1>
+<p class="Pp">Test::Alien - Alien Build testing helpers</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="VERSION">VERSION</h1>
+<p class="Pp">v2.84</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS">SYNOPSIS</h1>
+<pre> use Test::Alien;
+
+ # Check that a given alien is available
+ alien_ok $alien_name;
+ alien_ok $alien_name, $message;
+
+ # Check that a given alien can be compiled
+ alien_ok $alien_name, compile => 1;
+ alien_ok $alien_name, compile => 1, $message;
+
+ # Check that a given alien can be compiled and installed
+ alien_ok $alien_name, install => 1;
+ alien_ok $alien_name, install => 1, $message;
+
+ # Check that a given alien can be compiled and installed into a specific
+ # directory
+ alien_ok $alien_name, prefix => '/some/path';
+ alien_ok $alien_name, prefix => '/some/path', $message;
+
+ # Check that a given alien can be compiled and installed into a specific
+ # directory with a custom build option
+ alien_ok $alien_name, prefix => '/some/path', configure_args => '--with-foo';
+ alien_ok $alien_name, prefix => '/some/path', configure_args => '--with-foo', $message;
+
+ # Check that a given alien can be compiled and installed into a specific
+ # directory with custom build options
+ alien_ok $alien_name, prefix => '/some/path', configure_args => ['--with-foo', '--enable-bar'];
+ alien_ok $alien_name, prefix => '/some/path', configure_args => ['--with-foo', '--enable-bar'], $message;
+
+ # Check that a given alien has a specific version
+ alien_ok $alien_name, version => '1.2.3';
+ alien_ok $alien_name, version => '1.2.3', $message;
+
+ # Check that a given alien has a version that is at least a specific version
+ alien_ok $alien_name, version => '>=1.2.3';
+ alien_ok $alien_name, version => '>=1.2.3', $message;
+
+ # Check that a given alien has a version that is at least a specific version,
+ # and also ensure it compiles
+ alien_ok $alien_name, version => '>=1.2.3', compile => 1;
+ alien_ok $alien_name, version => '>=1.2.3', compile => 1, $message;
+
+ # Check that a given alien can be compiled, installed, and has a specific
+ # version
+ alien_ok $alien_name, version => '>=1.2.3', compile => 1, install => 1;
+ alien_ok $alien_name, version => '>=1.2.3', compile => 1, install => 1, $message;
+
+ # Check that the alien is available by running a command provided by it
+ alien_run_ok $alien_name, $command;
+ alien_run_ok $alien_name, $command, $message;
+
+ # Check that the alien is available by running a command provided by it,
+ # and checking that the output matches a regex
+ alien_run_ok $alien_name, $command, $regex;
+ alien_run_ok $alien_name, $command, $regex, $message;
+
+ # Check that the alien is available by running a command provided by it,
+ # and checking that the output matches a string
+ alien_run_ok $alien_name, $command, $string;
+ alien_run_ok $alien_name, $command, $string, $message;
+
+ # Check that a specific C/C++ library is available
+ library_ok $library_name;
+ library_ok $library_name, $message;
+
+ # Check that a specific C/C++ library can be compiled into a test executable
+ library_ok $library_name, compile => 1;
+ library_ok $library_name, compile => 1, $message;
+
+ # Check that a specific C/C++ library can be compiled and installed into a
+ # test executable
+ library_ok $library_name, install => 1;
+ library_ok $library_name, install => 1, $message;
+
+ # Check that a specific C/C++ library can be compiled and installed into a
+ # test executable, and can be linked to
+ library_ok $library_name, link => 1;
+ library_ok $library_name, link => 1, $message;
+
+ # Check that the library is available by running a command provided by it
+ library_run_ok $library_name, $command;
+ library_run_ok $library_name, $command, $message;
+
+ # Check that the library is available by running a command provided by it,
+ # and checking that the output matches a regex
+ library_run_ok $library_name, $command, $regex;
+ library_run_ok $library_name, $command, $regex, $message;
+
+ # Check that the library is available by running a command provided by it,
+ # and checking that the output matches a string
+ library_run_ok $library_name, $command, $string;
+ library_run_ok $library_name, $command, $string, $message;
+
+ # Check that the given Perl module can be compiled with ExtUtils::MakeMaker
+ xs_ok $module_name;
+ xs_ok $module_name, $message;
+
+ # Check that the given Perl module can be compiled with ExtUtils::MakeMaker
+ # and that the C code passes tests
+ xs_ok $module_name, test => 1;
+ xs_ok $module_name, test => 1, $message;
+
+ # Check that the given Perl module can be compiled with ExtUtils::MakeMaker
+ # and that the C code passes tests, and that the test executable is run
+ # with the module name passed into the subtest
+ xs_ok $module_name, with_subtest => 1;
+ xs_ok $module_name, with_subtest => 1, $message;
+
+ # Check that FFI::Platypus works
+ ffi_ok;
+ ffi_ok \%opt;
+ ffi_ok \%opt, $message;
+
+ # Check that a helper is defined
+ helper_ok $helper_name;
+ helper_ok $helper_name, $message;
+
+ # Apply a plugin to the interpolator
+ plugin_ok $plugin_name;
+ plugin_ok [$plugin_name, @args];
+ plugin_ok $plugin_name, $message;
+ plugin_ok [$plugin_name, @args], $message;
+
+ # Check that a template interpolates correctly
+ interpolate_template_is $template, $string;
+ interpolate_template_is $template, $string, $message;
+ interpolate_template_is $template, $regex;
+ interpolate_template_is $template, $regex, $message;
+
+ # Run a command through the interpolator
+ interpolate_run_ok $command;
+ interpolate_run_ok $command, $message;
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION">DESCRIPTION</h1>
+<p class="Pp">This module provides a set of testing utilities for ensuring that
+    foreign libraries and tools can be found, compiled, installed, and used
+    from Perl. It is primarily intended to be used by modules that depend on
+    specific versions of foreign libraries.</p>
+<p class="Pp">The main idea behind Test::Alien is that you can use the
+    <a href="./Alien.html">Alien</a> Perl module to install and manage
+    foreign libraries, and then use Test::Alien to verify that the installed
+    libraries can be used.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="FUNCTIONS">FUNCTIONS</h1>
+<section class="Ss">
+<h2 class="Ss" id="alien_ok"><a class='permalink' href='#alien_ok'>alien_ok</a></h2>
+<pre>alien_ok $name;
+alien_ok $name, $message;
+alien_ok $name, \%opt;
+alien_ok $name, \%opt, $message;</pre>
+<p class="Pp">Checks that the alien named <span class="Li">&quot;$name&quot;</span>
+    is available. If <span class="Li">&quot;\&amp;\%opt&quot;</span> is specified,
+    it can contain the following keys:</p>
+<dl class="Bl-tag">
+  <dt id="compile"><a class="permalink" href="#compile">compile</a></dt>
+  <dd>If true, this will also try to compile the alien.</dd>
+  <dt id="install"><a class="permalink" href="#install">install</a></dt>
+  <dd>If true, this will also try to install the alien.</dd>
+  <dt id="prefix"><a class="permalink" href="#prefix">prefix</a></dt>
+  <dd>If specified, this will install the alien to the specified directory.
+      This is useful for testing that an alien can be installed into a
+      specific location.</dd>
+  <dt id="configure_args"><a class="permalink" href="#configure_args">configure_args</a></dt>
+  <dd>A string or array reference of arguments to pass to the alien's
+      configure script. This is useful for testing that an alien can be
+      configured with specific options.</dd>
+  <dt id="version"><a class="permalink" href="#version">version</a></dt>
+  <dd>A version string (e.g., <span class="Li">&quot;1.2.3&quot;</span>) or a
+      version range (e.g., <span class="Li">&quot;&gt;=1.2.3&quot;</span>) to
+      check against the installed alien. This requires that the alien has
+      been installed.</dd>
+</dl>
+<p class="Pp">If the alien is not found or any of the specified checks fail,
+    the test will fail.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="alien_run_ok"><a class='permalink' href='#alien_run_ok'>alien_run_ok</a></h2>
+<pre>alien_run_ok $name, $command;
+alien_run_ok $name, $command, $message;
+alien_run_ok $name, $command, $regex;
+alien_run_ok $name, $command, $regex, $message;
+alien_run_ok $name, $command, $string;
+alien_run_ok $name, $command, $string, $message;</pre>
+<p class="Pp">Checks that the alien named <span class="Li">&quot;$name&quot;</span>
+    is available, and that the specified <span class="Li">&quot;$command&quot;</span>
+    can be run. If a <span class="Li">&quot;$regex&quot;</span> or
+    <span class="Li">&quot;$string&quot;</span> is provided, it will also check
+    that the output of the command matches the given regex or string.</p>
+<p class="Pp">This function is useful for testing that an alien provides a
+    specific executable and that it behaves as expected.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="library_ok"><a class='permalink' href='#library_ok'>library_ok</a></h2>
+<pre>library_ok $name;
+library_ok $name, $message;
+library_ok $name, \%opt;
+library_ok $name, \%opt, $message;</pre>
+<p class="Pp">Checks that the C/C++ library named <span class="Li">&quot;$name&quot;</span>
+    is available. If <span class="Li">&quot;\&amp;\%opt&quot;</span> is specified,
+    it can contain the following keys:</p>
+<dl class="Bl-tag">
+  <dt id="compile">compile</dt>
+  <dd>If true, this will also try to compile a test program that links against
+      the library.</dd>
+  <dt id="install">install</dt>
+  <dd>If true, this will also try to install the library.</dd>
+  <dt id="link">link</dt>
+  <dd>If true, this will also try to compile a test program that links against
+      the library and runs it.</dd>
+  <dt id="version">version</dt>
+  <dd>A version string (e.g., <span class="Li">&quot;1.2.3&quot;</span>) or a
+      version range (e.g., <span class="Li">&quot;&gt;=1.2.3&quot;</span>) to
+      check against the installed library. This requires that the library has
+      been installed.</dd>
+</dl>
+<p class="Pp">If the library is not found or any of the specified checks fail,
+    the test will fail.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="library_run_ok"><a class='permalink' href='#library_run_ok'>library_run_ok</a></h2>
+<pre>library_run_ok $name, $command;
+library_run_ok $name, $command, $message;
+library_run_ok $name, $command, $regex;
+library_run_ok $name, $command, $regex, $message;
+library_run_ok $name, $command, $string;
+library_run_ok $name, $command, $string, $message;</pre>
+<p class="Pp">Checks that the library named <span class="Li">&quot;$name&quot;</span>
+    is available, and that the specified <span class="Li">&quot;$command&quot;</span>
+    can be run. If a <span class="Li">&quot;$regex&quot;</span> or
+    <span class="Li">&quot;$string&quot;</span> is provided, it will also check
+    that the output of the command matches the given regex or string.</p>
+<p class="Pp">This function is useful for testing that a library provides a
+    specific executable and that it behaves as expected.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="xs_ok"><a class='permalink' href='#xs_ok'>xs_ok</a></h2>
+<pre>xs_ok $module;
+xs_ok $module, $message;</pre>
+<p class="Pp">Test that the given Perl module can be compiled using
+    <span class="Li">ExtUtils::MakeMaker</span>. This is useful for testing
+    modules that have C extensions.</p>
+<p class="Pp">If <span class="Li">$message</span> is provided, it will be used
+    as the test description.</p>
+<pre>xs_ok $module, test =&gt; 1;
+xs_ok $module, test =&gt; 1, $message;</pre>
+<p class="Pp">If <span class="Li">test =&gt; 1</span> is provided, then the
+    test executable will be run after compilation. The test executable is
+    expected to exit with status 0 if successful.</p>
+<p class="Pp">Note that temporary files generated by the compilation process
+    will be automatically removed if the test fails. They will only be kept if
+    the test passes, and only if the <span class="Li">&quot;TEST_ALIEN_ALWAYS_KEEP&quot;</span>
+    environment variable is not set (see &quot;ENVIRONMENT&quot; below).</p>
+<pre>xs_ok $module, with_subtest =&gt; 1;
+xs_ok $module, with_subtest =&gt; 1, $message;</pre>
+<p class="Pp">If <span class="Li">with_subtest =&gt; 1</span> is provided, then
+    the test executable will be run after compilation, and its output will be
+    wrapped in a subtest. This is useful for testing XS code that itself uses
+    a testing framework like <span class="Li">Test::More</span>. The module
+    name detected during the XS parsing phase will be passed in to the subtest.
+    This is helpful when you are using a generated module name.</p>
+<p class="Pp">If you need to test XS C++ interfaces, see Test::Alien::CPP.</p>
+<p class="Pp">Caveats: <span class="Li">&quot;xs_ok&quot;</span> uses
+    ExtUtils::ParseXS, which may call <span class="Li">&quot;exit&quot;</span>
+    under certain error conditions. While this is not really good thing to
+    happen in the middle of a test, it usually indicates a real failure
+    condition, and it should return a failure condition so the test should still
+    fail overall.</p>
+<p class="Pp">[version 2.53]</p>
+<p class="Pp">As of version 2.53, <span class="Li">&quot;xs_ok&quot;</span> will
+    only remove temporary generated files if the test is successful by default.
+    You can force either always or never removing the temporary generated files
+    using the <span class="Li">&quot;TEST_ALIEN_ALWAYS_KEEP&quot;</span>
+    environment variable (see &quot;ENVIRONMENT&quot; below).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ffi_ok'><a class='permalink' href='#ffi_ok'>ffi_ok</a></h2>
+<pre>ffi_ok;
+ffi_ok \%opt;
+ffi_ok \%opt, $message;</pre>
+<p class="Pp">Test that FFI::Platypus works.</p>
+<p class="Pp"><span class="Li">&quot;\&amp;\%opt&quot;</span> is a hash reference with
+    these keys (all optional):</p>
+<dl class="Bl-tag">
+  <dt id="symbols">symbols</dt>
+  <dd>List references of symbols that must be found for the test to
+    succeed.</dd>
+  <dt id="ignore_not_found">ignore_not_found</dt>
+  <dd>Ignores symbols that aren't found. This affects functions accessed via
+      FFI::Platypus#attach and FFI::Platypus#function methods, and does not
+      influence the <span class="Li">&quot;symbols&quot;</span> key above.</dd>
+  <dt id="lang">lang</dt>
+  <dd>Set the language. Used primarily for language specific native types.</dd>
+  <dt id="api">api</dt>
+  <dd>Set the API. <span class="Li">&quot;api = 1&quot;</span> requires
+      FFI::Platypus 0.99 or later. This option was added with Test::Alien
+      version 1.90, so your use line should include this version as a safeguard
+      to make sure it works:
+        <pre>use Test::Alien 1.90;
+...
+ffi_ok ...;
+</pre>
+  </dd>
+</dl>
+<p class="Pp">As with &quot;xs_ok&quot; above, you can use the
+    <span class="Li">&quot;with_subtest&quot;</span> keyword to specify a
+    subtest to be run if <span class="Li">&quot;ffi_ok&quot;</span> succeeds (it
+    will skip otherwise). The FFI::Platypus instance is passed into the subtest
+    as the first argument. For example:</p>
+<pre>ffi_ok with_subtest =&gt; sub {
+  my($ffi) = @_;
+  is $ffi-&gt;function(foo =&gt; [] =&gt; 'void')-&gt;call, 42;
+};</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='helper_ok'><a class='permalink' href='#helper_ok'>helper_ok</a></h2>
+<pre>helper_ok $name;
+helper_ok $name, $message;</pre>
+<p class="Pp">Tests that the given helper has been defined.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='plugin_ok'><a class='permalink' href='#plugin_ok'>plugin_ok</a></h2>
+<p class="Pp">[version 2.52]</p>
+<pre>plugin_ok $plugin_name, $message;
+plugin_ok [$plugin_name, @args], $message;</pre>
+<p class="Pp">This applies an Alien::Build::Plugin to the interpolator used by
+    &quot;helper_ok&quot;, &quot;interpolate_template_is&quot; and
+    &quot;interpolate_run_ok&quot; so that you can test with any helpers that
+    plugin provides. Useful, for example for getting
+    <span class="Li">&quot;%{configure}&quot;</span> from
+    Alien::Build::Plugin::Build::Autoconf.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='interpolate_template_is'><a class='permalink' href='#interpolate_template_is'>interpolate_template_is</a></h2>
+<pre>interpolate_template_is $template, $string;
+interpolate_template_is $template, $string, $message;
+interpolate_template_is $template, $regex;
+interpolate_template_is $template, $regex, $message;</pre>
+<p class="Pp">Tests that the given template when evaluated with the appropriate
+    helpers will match either the given string or regular expression.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='interpolate_run_ok'><a class='permalink' href='#interpolate_run_ok'>interpolate_run_ok</a></h2>
+<p class="Pp">[version 2.52]</p>
+<pre>my $run = interpolate_run_ok $command;
+my $run = interpolate_run_ok $command, $message;</pre>
+<p class="Pp">This is the same as &quot;run_ok&quot; except it runs the command
+    through the interpolator first.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENVIRONMENT'><a class='permalink' href='#ENVIRONMENT'>ENVIRONMENT</a></h1>
+<dl class="Bl-tag">
+  <dt>&quot;TEST_ALIEN_ALWAYS_KEEP&quot;</dt>
+  <dd>If this is defined then it will override the built in logic that decides
+      if the temporary files generated by &quot;xs_ok&quot; should be kept when
+      the test file terminates. If set to true the generated files will always
+      be kept. If set to false, then they will always be removed.</dd>
+  <dt>&quot;TEST_ALIEN_ALIENS_MISSING&quot;</dt>
+  <dd>By default, this module will warn you if some tools are used without first
+      invoking &quot;alien_ok&quot;. This is usually a mistake, but if you
+      really do want to use one of these tools with no aliens loaded, you can
+      set this environment variable to false.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<dl class="Bl-tag">
+  <dt id="Alien">Alien</dt>
+  <dd></dd>
+  <dt id="Alien::Base">Alien::Base</dt>
+  <dd></dd>
+  <dt id="Alien::Build">Alien::Build</dt>
+  <dd></dd>
+  <dt id="alienfile">alienfile</dt>
+  <dd></dd>
+  <dt id="Test2">Test2</dt>
+  <dd></dd>
+  <dt id="Test::Alien::Run">Test::Alien::Run</dt>
+  <dd></dd>
+  <dt id="Test::Alien::CanCompile">Test::Alien::CanCompile</dt>
+  <dd></dd>
+  <dt id="Test::Alien::CanPlatypus">Test::Alien::CanPlatypus</dt>
+  <dd></dd>
+  <dt id="Test::Alien::Synthetic">Test::Alien::Synthetic</dt>
+  <dd></dd>
+  <dt id="Test::Alien::CPP">Test::Alien::CPP</dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Author: Graham Ollis &lt;plicease@cpan.org&gt;</p>
+<p class="Pp">Contributors:</p>
+<p class="Pp">Diab Jerius (DJERIUS)</p>
+<p class="Pp">Roy Storey (KIWIROY)</p>
+<p class="Pp">Ilya Pavlov</p>
+<p class="Pp">David Mertens (run4flat)</p>
+<p class="Pp">Mark Nunberg (mordy, mnunberg)</p>
+<p class="Pp">Christian Walde (Mithaldu)</p>
+<p class="Pp">Brian Wightman (MidLifeXis)</p>
+<p class="Pp">Zaki Mughal (zmughal)</p>
+<p class="Pp">mohawk (mohawk2, ETJ)</p>
+<p class="Pp">Vikas N Kumar (vikasnkumar)</p>
+<p class="Pp">Flavio Poletti (polettix)</p>
+<p class="Pp">Salvador Fandi&#x00F1;o (salva)</p>
+<p class="Pp">Gianni Ceccarelli (dakkar)</p>
+<p class="Pp">Pavel Shaydo (zwon, trinitum)</p>
+<p class="Pp">Kang-min Liu (&#x5289;&#x5EB7;&#x6C11;, gugod)</p>
+<p class="Pp">Nicholas Shipp (nshp)</p>
+<p class="Pp">Juan Juli&#x00E1;n Merelo Guerv&#x00F3;s (JJ)</p>
+<p class="Pp">Joel Berger (JBERGER)</p>
+<p class="Pp">Petr P&#x00ED;sa&#x0159; (ppisar)</p>
+<p class="Pp">Lance Wicks (LANCEW)</p>
+<p class="Pp">Ahmad Fatoum (a3f, ATHREEF)</p>
+<p class="Pp">Jos&#x00E9; Joaqu&#x00ED;n Atria (JJATRIA)</p>
+<p class="Pp">Duke Leto (LETO)</p>
+<p class="Pp">Shoichi Kaji (SKAJI)</p>
+<p class="Pp">Shawn Laffan (SLAFFAN)</p>
+<p class="Pp">Paul Evans (leonerd, PEVANS)</p>
+<p class="Pp">H&#x00E5;kon H&#x00E6;gland (hakonhagland, HAKONH)</p>
+<p class="Pp">nick nauwelaerts (INPHOBIA)</p>
+<p class="Pp">Florian Weimer</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>COPYRIGHT   AND LICENSE</a></h1>
+<p class="Pp">This software is copyright (c) 2011-2022 by Graham Ollis.</p>
+<p class="Pp">This is free software; you can redistribute it and/or modify it
+    under the same terms as the Perl 5 programming language system itself.</p>
+</section>

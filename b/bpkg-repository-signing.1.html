@@ -1,0 +1,350 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>bpkg-repository-signing(1) — Páginas manuales de </title>Arch
+Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">bpkg-repository-signing(1)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/build2/">build2</a></p>
+
+        rales
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">bpkg-repository-signing(1)
+</td>NOMBRE
+    <td class="head-vol">bpkg-repository-signing </td>-
+    <td class="head-rtitle">cómo firm</td>ar un rep</tr>ositorio</table>
+SINOPSIS
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>bpk</a></h1>g
+<p class="Pp"><b>rep-create -</b>-key ...
+DES</p>CRIPCIÓN
+El </section>propósito de
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>firmar </a></h1>un
+<p class="Pp"><b>reposi</b>torio </p>es evi</section>tar la
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>manipulación </a></h1>de
+<p class="Pp">los paquetes ya sea durante la transmisión o en el
+host
+    del repositorio. Idealmente, usted generaría y firmaría los manifiestos <i>del repositorio </i>en una máquina de
+compilación
+    separada que esté detrás de un firewall. De esta <i>manera</i>, <i>si (o, </i>realmente, cuando) su máquina host se vea comprometida, será
+    difícil para un atacante comprometer los paquetes del repositorio sin
+    ser notado. Dado que la clave del repositorio se mantiene en la máquina de compilación (o,
+    mejor aún, en un dispositivo
+PIV/PKCS#11 de un solo sentido; ver más <i>abajo),</i> no podrán
+    volver a firmar el repositorio modificado.
+bpkg utiliza la criptografía de </p>clave
+<p class="Pp"><b>pública </b>X.509 para la firma de
+    repositorios. Actualmente, solo está implementada la autenticación <i>explícita </i>de
+primer uso de certificado
+    (first use). Es decir, para un certificado desconocido <b>(para </b>esta
+configuración de bpkg
+    ) de repositorio, se presentan al usuario su información de sujeto y su
+    huella digital. Si el usuario confirma la autenticidad
+    del certificado, entonces se agrega a la configuración y cualquier repositorio que en el futuro presente este certificado será de confianza sin más
+    confirmaciones, siempre que su nombre coincida con el sujeto del certificado (ver
+    más abajo). En el futuro, se podría agregar un modelo basado en autoridad de certificación </p>(CA)
+<p class="Pp">.
+El resto de esta guía muestra cómo crear un par clave/certificado
+    para la <b>firma </b>de repositorios de
+pkg y usarlo para firmar un repositorio. Al
+    final también explica brevemente cómo almacenar la clave privada en un dispositivo PIV/PKCS#11
+    usando Yubikey 4 </p>como
+<dl class="Bl-tag">
+  <dt>ejemplo.
+1. Generar la </dt>clave
+  <dd>
+    <br/>
+    privada
+El primer paso es generar la clave privada:
+$ openssl
+        <pre>genrsa -aes256 2048 &gt;key.pem
+Si desea </pre>generar
+    <p class="Pp">una clave sin protección de contraseña (no es una buena idea excepto para pruebas), omita la opción
+-aes256
+    . Es posible que también
+        <b>deba </b>agregar
+-nodes
+    dependiendo de su <b>configuración </b>de
+openssl(1)
+    .
+2. <a href='/man/openssl.1.en'>Generar el</a> certific</p>ado
+A con</dd>tinuación,
+  <dt>cree el archivo </dt>de
+  <dd>
+    <br/>
+    configuración del certificado guardando lo siguiente en
+cert.conf
+    . Es posible que desa conservarlo
+      <b>por si </b>necesita renovar
+    un certificado caducado, etc.
+name  = example.com
+org   = Example, Inc
+email =
+        <pre>admin@example.com
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions    = v3_req
+prompt             = no
+utf8               = yes
+[req_distinguished_name]
+O  = $org
+CN = name:$name
+[v3_req]
+keyUsage         = critical,digitalSignature
+extendedKeyUsage = critical,codeSigning
+subjectAltName   = email:$email
+Ajuste las tres primeras líneas para que coincidan con sus datos. </pre>Si el
+    <p class="Pp">repositorio es alojado por una organización, use el nombre de la organización para
+org
+        . Si lo aloja como individuo, ponga allí su nombre completo y real.
+        <b>Usar </b>cualquier tipo de alias o apodo es una mala idea (excepto,
+        de nuevo, para pruebas). Recuerde, los usuarios de su repositorio verán
+        esta información y si ven que fue firmada por alguien
+        llamado SmellySnook, es poco probable que confíen en él. También use una dirección de correo electrónico de trabajo en caso de que los usuarios necesiten contactarlo sobre problemas con su
+        certificado. Tenga en cuenta que el prefijo
+name:
+        en el valor
+CN
+        no es un <b>error </b>tipográfico.
+El <b>campo
+</b>name
+        es un prefijo </p>de
+    <p class="Pp">nombre <b>canónico </b>de repositorio con la parte de tipo
+pkg:
+        eliminada. <b>Cualquier </b>repositorio con un nombre canónico que comience con este prefijo puede ser autenticado por este
+        certificado (consulte la documentación del manifiesto del repositorio para más
+        información sobre los nombres canónicos). Por ejemplo, name
+example.com <b>coincidirá </b>con cualquier repositorio alojado en
+{,www.,pkg.,bpkg.
+        <b>}example.com
+        . Mientras </b>que name <b>example.com/math
+</b>        coincidirá con <b>{...}example.com/pkg/1/math
+ </b>       pero no con
+        <b>{...}exam</b>ple.com/p</p>kg/1/misc
+    <p class="Pp">.
+Un nombre de certificado también puede contener un comodín de subdominio. Un
+        nombre <b>comodín en la </b>forma
+*.example.com
+        coincide con cualquier subdominio de <b>un solo nivel, </b>por ejemplo
+foo.
+        <b>example.com
+        </b>pero no con
+foo.bar.example.com
+        ,
+        <b>mientras que un </b>nombre comodín en la forma
+**.example.com
+        coincide con cualquier subdominio, incluidos los de múltiples niveles.<b>Las dos </b>formas anteriores no coinciden con el dominio en sí <b>(
+example.com
+</b>        en el
+        <b>ejemplo anterior)</b>. Si esto es deseable, se deben usar las formas
+*example.com
+        y
+**example.com
+        . Tenga en cuenta que estas formas
+        <b>aún solo coinciden </b>con subdominios. En otras palabras, no coincidirán con
+fooexample.com
+        . Los nombres comodín son menos seguros y </p>por lo
+    <p class="Pp">tanto normalmente solo se usan para pruebas y/o repositorios internos.
+Una </p>vez que el
+        <pre>archivo de configuración esté listo, genere el
+        certificado:
+openssl req -x509 -new </pre>-sha256
+    <p class="Pp">-key key.pem \
+  -config cert.conf -days </p>730 &gt;cert.
+        <pre>pem
+Para verificar la informació</pre>n del certificado, ejecute:
+opens</dd>sl x509 -noout -nameopt RFC2253,
+  <dt>sep_multiline \
+  -subject -dates </dt>-email
+  <dd>
+    <br/>
+    &lt;cert.pem
+3. <b>Agregar el </b>certificado al repositorio
+Agregue<b>el campo
+</b>certificate: <b>para el </b>repositorio base (
+role:
+        <pre>base
+        ) en </pre>el/los
+    <p class="Pp">archivo(s) de <i>manifiesto
+</i>repositories
+        :
+certificate:
+        <b>\
+&lt;cert&gt;</b>
+\
+Reemplace
+cert
+        con el contenido completo de
+cert.pem
+        (incluyendo las líneas BEGIN CERTIFICATE </p>y END
+        <pre>CERTIFICATE
+        ). Así tendrá una entrada como esta:
+certificate:
+\
+-----BEGIN CERTIFICATE-----
+MIIDQjCCAiqgAwIBAgIJAIUgsIqSnesGMA0GCSqGSIb3DQEBCwUAMDkxFzAVBgNV
+.
+.
+.
++NOVBamEvjn58ZcLfWh2oKee7</pre>ulIZ</dd>g==
+  <dt>-----EN</dt>D
+  <dd>
+    <br/>
+    CERTIFICATE-----
+\
+4. Firmar el repositorio
+Al generar los <a href='/man/bpkg-rep-create.1.en'>manifiestos del </a>repositorio con el comando
+bpkg-rep-create(1) <b></b>, <b>especifique </b>la ruta a
+key.
+        <pre>pem
+        con la opción
+--key
+        :
+bpkg rep-create </pre>--key
+    <p class="Pp">/path/to/key.pem /path/to/r</p>epository
+Se le pedirá una </dd>contraseña para desbloquear
+  <dt>la clave
+        privada.
+5. </dt>Usar
+  <dd>
+    <br/>
+    un dispositivo PIV/PKCS#11
+Este paso opcional muestra cómo cargar la clave privada en el Yubikey 4 y luego
+      usarla en lugar de la clave privada en sí para firmar el repositorio. Tenga en cuenta
+      que necesitará OpenSSL 1.0.2 o posterior para que la
+    <p class="Pp">parte de la firma funcione.
+Primero, cambie el MKEY, PUK y PIN del Yubikey si es necesario. Debería
+        hacerlo definitivamente si aún tiene los valores predeterminados de fábrica. Luego,
+        importe la clave privada y el
+        <i>certificado </i>en el Yubikey (reemplace
+</p>mkey
+        <pre>con la clave de gestión):
+yubico-piv-tool --key=&lt;mkey&gt; -a import-key -s 9c &lt;key.pem
+yubico-piv-tool --key=&lt;mkey&gt; -a </pre>import-certificate
+    <p class="Pp">-s 9c &lt;cert.pem
+Después de esto, normalmente guardará el certificado/clave privada
+        en medios de respaldo, lo almacenará en una ubicación segura y fuera de línea, y eliminará
+     </p>   la
+    <p class="Pp">clave de la máquina de compilación.
+Para firmar el repositorio con el Yubikey, especifique las <b>siguientes
+</b>        opciones en lugar de solo
+--key
+        como en el paso 4 </p>("SIGN key"
+        <pre>es la etiqueta para la clave privada de la ranura 9c):
+bpkg rep-create                                                     \
+  --openssl-option pkeyutl:-engine --openssl-option pkeyutl:pkcs11  \
+  --openssl-option pkeyutl:-keyform --openssl-option pkeyutl:engine \
+  --key </pre>"pkcs11:
+    <p class="Pp">object=SIGN%20key" <b>/path/to/repository
+</b>Tenga en <b>cuenta </b>que para
+        <b>las </b>versiones <b>de
+</b>openssl
+        anteriores <b>a la
+3.0</b>.0
+      </p>  , bpkg </dd>utiliza </dl>el coman</section>do
+rsautl
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUG</a></h1>S
+<p class="Pp">en lugar de
+pkeyutl</p>
+        para la op</section>eración de firma de
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>datos</a></h1>.
+<p class="Pp">ERRORES
+Envíe los informes de errores a la </p>lista
+<p class="Pp">de correo users@build2.org.
+C</p>OPYRIGHT
+Copyright (c) 2014-2</section>024 los autores de build2.
+S</div>e otorga permiso para copiar,
+<table class="foot">
+  <tr>
+    <td class="foot-date">distribuir </td>y/o
+    <td class="foot-os">modificar </td>este
+ </tr> </table>  </section>documento bajo </article>los términos de
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>la Licencia MIT.
+</p>Junio de
+    <dl>
+        <dt>2024
+bpkg 0.17.0
+</dt>Información
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/build2/">del paquete:</a></dd>
+Nombre
+        <dt>del </dt>paquete:
+        <dd>extra/build2
+</dd>Versión:
+        <dt>0.17.0-1
+</dt>Upstream:
+        <dd><a href="https://build2.org/">https://build2.</a></dd>org/
+        <dt>Licen</dt>cias:
+        <dd>M</dd>IT
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/build2/">/listing/extra/b</a></dd>uild</dl>2</section>/
+
+<details>
+    <summary>Índic</summary>e
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#BUGS">E</a></li>RRORES
+        
+            <li><a href="#COPYRIGHT">CO</a></li>PY</ul>R</nav>IG</details>HT
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/bpkg-repository-signing.1.en.txt">t</a>xt, 
+        
+            <a href="/man/bpkg-repository-signing.1.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> correspondiente de Arch Linux.

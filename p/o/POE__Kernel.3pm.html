@@ -1,0 +1,2579 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Kernel(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Kernel(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Kernel(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">POE::Kernel(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Kernel - un kernel de aplicación basado en eventos en Perl</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use POE; # incluye automáticamente POE::Kernel y POE::Session
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub { $_[KERNEL]-&gt;yield(&quot;next&quot;) },
+    next   =&gt; sub {
+      print &quot;tick...\n&quot;;
+      $_[KERNEL]-&gt;delay(next =&gt; 1);
+    },
+  },
+);
+POE::Kernel-&gt;run();
+exit;</pre>
+<p class="Pp">Siguiendo el espíritu de Perl, existen muchas otras formas de usar
+    POE.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Kernel es el corazón de POE. Proporciona las características de
+    nivel más bajo: E/S multiplexada no bloqueante, temporizadores y observadores
+    de señales son las más significativas. Todo lo demás se construye sobre esta
+    base.</p>
+<p class="Pp">POE::Kernel no es un bucle de eventos en sí mismo. Para eso utiliza
+    uno de varios módulos de interfaz POE::Loop disponibles. Consulte CPAN para
+    ver módulos en el espacio de nombres POE::Loop.</p>
+<p class="Pp">La documentación de POE asume que el lector entiende las constantes
+    de desplazamiento de <span class="Li">@_</span> (KERNEL, HEAP, ARG0, etc.). El
+    lector curioso o confundido encontrará una explicación más detallada en
+    POE::Session.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="USING_POE"><a class='permalink' href='#USING_POE'>USANDO POE</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="Literally_Using_POE"><a class='permalink' href='#Literally_Using_POE'>Usando POE Literalmente</a></h2>
+<p class="Pp">POE.pm es poco más que un cargador de clases. Implementa algo de
+    magia para reducir el trabajo de configuración.</p>
+<p class="Pp">Los parámetros para <span class="Li">&quot;use POE&quot;</span> no se
+    tratan como importaciones normales. Más bien, son módulos abreviados a
+    incluir junto con POE.</p>
+<pre>use POE qw(Component::Client::TCP).</pre>
+<p class="Pp">Como puede ver, el prefijo &quot;POE::&quot; se puede omitir de esta
+    manera.</p>
+<p class="Pp">POE.pm también incluye POE::Kernel y POE::Session por defecto.
+    Estos dos módulos son utilizados por casi todos los programas basados en
+    POE. Por lo tanto, el ejemplo anterior es en realidad el equivalente de:</p>
+<pre>use POE;
+use POE::Kernel;
+use POE::Session;
+use POE::Component::Client::TCP;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Using_POE::Kernel"><a class='permalink' href='#Using_POE::Kernel'>Usando POE::Kernel</a></h2>
+<p class="Pp">POE::Kernel necesita saber qué bucle de eventos desea utilizar. Esto
+    se admite de tres maneras diferentes:</p>
+<p class="Pp">La primera forma es usar un módulo de bucle de eventos antes de
+    usar POE::Kernel (o POE, que carga POE::Kernel por usted):</p>
+<pre>use Tk; # o uno de varios otros
+use POE::Kernel.</pre>
+<p class="Pp">POE::Kernel escanea la lista de módulos ya cargados y carga un
+    adaptador POE::Loop apropiado si encuentra un bucle de eventos conocido.</p>
+<p class="Pp">La siguiente forma es cargar explícitamente la clase POE::Loop que
+    desea:</p>
+<pre>use POE qw(Loop::Gtk);</pre>
+<p class="Pp">Finalmente, la importación de <span class="Li">import()</span> de
+    POE::Kernel admite una configuración más amigable para el programador:</p>
+<pre>use POE::Kernel { loop =&gt; &quot;Gtk&quot; };
+use POE::Session;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Anatomy_of_a_POE-Based_Application"><a class='permalink' href='#Anatomy_of_a_POE-Based_Application'>Anatomía de una Aplicación Basada en POE</a></h2>
+<p class="Pp">Los programas que usan POE funcionan como cualquier otro. Cargan los
+    módulos necesarios, realizan alguna configuración, ejecutan código y,
+    eventualmente, salen. Aparte de los inconvenientes de la detención.</p>
+<p class="Pp">Una aplicación basada en POE carga algunos módulos, configura una o
+    más sesiones, ejecuta el código en esas sesiones y, eventualmente, sale.</p>
+<pre>use POE;
+POE::Session-&gt;create( ... mapear eventos a código aquí ... );
+POE::Kernel-&gt;run();
+exit;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="POE::Kernel_singleton"><a class='permalink' href='#POE::Kernel_singleton'>Singleton de POE::Kernel</a></h2>
+<p class="Pp">El POE::Kernel es un objeto singleton; solo puede haber una instancia
+    de POE::Kernel dentro de un proceso. Esto permite que muchos métodos de
+    objeto también sean métodos de paquete.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Sessions"><a class='permalink' href='#Sessions'>Sesiones</a></h2>
+<p class="Pp">POE implementa compartimentos aislados llamados <i>sesiones</i>.
+    Las sesiones desempeñan el papel de tareas o hilos dentro de POE. POE::Kernel
+    actúa como el planificador de tareas de POE, distribuyendo tiempos de
+    ejecución a cada sesión invocando devoluciones de llamada dentro de ellas.</p>
+<p class="Pp">Las devoluciones de llamada no son preemptivas. Mientras una esté en
+    ejecución, ninguna otra será despachada. Esto se conoce como multitarea
+    <i>cooperativa</i>. Cada sesión debe cooperar regresando al kernel de
+    despacho central.</p>
+<p class="Pp">La multitarea cooperativa simplifica enormemente el intercambio de
+    datos, ya que no hay dos fragmentos de código que puedan modificar datos al
+    mismo tiempo.</p>
+<p class="Pp">Una sesión también puede tomar el control exclusivo del tiempo de un
+    programa, si es necesario, simplemente sin regresar a tiempo. Incluso es
+    posible escribir programas completamente bloqueantes que usen POE como una
+    máquina de estados en lugar de un despachador cooperativo.</p>
+<p class="Pp">Cada aplicación basada en POE necesita al menos una sesión. El código
+    no puede ejecutarse <i>dentro de POE</i> sin ser parte de alguna sesión.
+    Asimismo, un programa con hilos siempre tiene un &quot;hilo cero&quot;.</p>
+<p class="Pp">Las sesiones en POE::Kernel no deben confundirse con POE::Session,
+    aunque ambas están inextricablemente asociadas. POE::Session adapta el
+    despachador de POE::Kernel a una convención de llamada particular. Existen
+    otras clases de POE::Session en CPAN. Algunas alteran radicalmente la forma
+    en que se llaman los manejadores de eventos.
+    <a href='http://search.cpan.org/search?query=poe+session'>http://search.cpan.org/search?query=poe+session</a>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Resources"><a class='permalink' href='#Resources'>Recursos</a></h2>
+<p class="Pp">Los recursos son eventos y cosas que pueden crear nuevos eventos, como
+    temporizadores, observadores de E/S e incluso otras sesiones.</p>
+<p class="Pp">POE::Kernel rastrea los recursos en nombre de sus sesiones activas.
+    Genera eventos correspondientes a la actividad de estos recursos, notificando
+    a las sesiones cuando es el momento de hacer cosas.</p>
+<p class="Pp">La conversación es algo así:</p>
+<pre>Sesión: Sé amable, Kernel, y avísame cuando alguien haga clic en
+        este widget. ¡Muchas gracias!
+[PASAN TIEMPO]  [SFX: CLIC DEL RATÓN]
+Kernel: Bien, entonces. Alguien hizo clic en tu widget.
+        Aquí tienes.</pre>
+<p class="Pp">Además, dado que el Kernel hace un seguimiento de todo lo que hacen las
+    sesiones, sabe cuándo una sesión se ha quedado sin tareas que realizar.
+    Cuando esto sucede, el Kernel emite un evento <span class="Li">&quot;_stop&quot;</span>
+    en la sesión inactiva para que pueda limpiarse y cerrarse.</p>
+<pre>Kernel: Por favor, apaga las luces y cierra; es hora de irse.</pre>
+<p class="Pp">Del mismo modo, si una sesión se detiene por sí sola y todavía hay
+    observadores de recursos abiertos, el Kernel lo sabe y los limpia en nombre
+    de la sesión. POE se destaca en servicios de larga duración porque rastrea
+    y limpia los recursos de manera tan meticulosa.</p>
+<p class="Pp">POE::Resources y las clases POE::Resource implementan cada tipo de
+    recurso, que se resumen aquí y se cubren con más detalle más adelante.</p>
+<dl class="Bl-tag">
+  <dt id="Events."><a class="permalink" href="#Events.">Eventos.</a></dt>
+  <dd>Un evento es un mensaje para una sesión. Publicar un evento mantiene vivas
+      tanto al remitente como al destinatario hasta después de que el evento
+      haya sido despachado. Esto solo está garantizado si tanto el remitente como
+      el destinatario están en el mismo proceso. Los complementos de paso de
+      mensajes entre Kernels pueden tener otras garantías. Consulte su
+      documentación para obtener más detalles.
+    <p class="Pp">La razón es que el evento está en juego, por lo que el destinatario
+        debe permanecer activo para que se despache. El remitente permanece activo
+        en caso de que el destinatario desee enviar una respuesta.</p>
+    <p class="Pp">Los eventos publicados no pueden cancelarse de forma preemptiva.
+        Tienden a ser de corta duración en la práctica, por lo que esto
+        generalmente no es un problema.</p>
+  </dd>
+  <dt id="Timers."><a class="permalink" href="#Timers.">Temporizadores.</a></dt>
+  <dd>Los temporizadores permiten que una aplicación envíe un mensaje al futuro.
+      Una vez configurado, un temporizador mantendrá activa la sesión de
+      destino hasta que expire y se despache el evento resultante.</dd>
+  <dt id="Aliases."><a class="permalink" href="#Aliases.">Alias.</a></dt>
+  <dd>Los alias de sesión son una forma controlada por la aplicación de
+      direccionar una sesión. Los alias actúan como observadores de eventos
+      pasivos. Siempre que una sesión tenga un alias, otra sesión puede enviar
+      eventos a esa sesión por ese nombre. Los alias mantienen vivas las sesiones
+      mientras un proceso tenga sesiones activas.
+    <p class="Pp">Si las únicas sesiones restantes se mantienen activas únicamente por
+        sus alias, POE::Kernel les enviará una señal terminal &quot;IDLE&quot;.
+        En la mayoría de los casos, esto terminará las sesiones restantes y
+        permitirá que el programa salga. Si las sesiones permanecen en memoria
+        sin activarse con la señal <span class="Li">&quot;IDLE&quot;</span>,
+        POE::Kernel les enviará una señal &quot;ZOMBIE&quot; no enmascarable.
+        Luego se eliminan por la fuerza y el programa finalmente saldrá.</p>
+  </dd>
+  <dt id="I/O"><a class="permalink" href="#I/O">Observadores de E/S.</a></dt>
+  <dd>Una sesión permanecerá activa siempre que una sesión esté prestando
+      atención a
+    </dd>
+</dl>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="Session_Resource_Management">Gestión de Recursos de Sesión</h1>
+<p class="Pp">Un objeto POE::Session tendrá que permanecer activo mientras
+    tenga recursos que necesiten ser administrados. POE::Kernel se encarga de
+    esto, y se detendrá la sesión cuando todos los recursos hayan sido
+    destruidos o liberados.</p>
+<p class="Pp">Los recursos que mantendrán una sesión activa incluyen:</p>
+<dl class="Bl-tag">
+  <dt id="File_descriptors_and_their_associated_watchers"><a class="permalink" href="#File_descriptors_and_their_associated_watchers">Descriptores de archivo y sus observadores asociados.</a></dt>
+  <dd>Una sesión que está observando un descriptor de archivo (por ejemplo,
+      usando <code class="Nm">POE::Kernel-&gt;select_read</code> o
+      <code class="Nm">POE::Kernel-&gt;select_write</code>) se mantendrá activa
+      mientras el descriptor de archivo esté siendo observado. Esto se aplica
+      tanto a los descriptores de archivo que se pasan al sistema operativo
+      como a los que son manejados internamente por un componente, como por
+      ejemplo, un controlador de cliente de red. Una sesión que está manejando
+      dichos descriptores de archivo se mantendrá activa hasta que se detenga
+      el controlador y se cierren los descriptores de archivo.</dd>
+  <dt id="Child"><a class="permalink" href="#Child">Sesiones hijas.</a></dt>
+  <dd>Una sesión que actúa como padre de una o más sesiones hijas permanecerá
+      activa hasta que todas las sesiones hijas se detengan. Esto puede ser
+      ignorado desconectando las hijas del padre.</dd>
+  <dt id="Child~2"><a class="permalink" href="#Child~2">Procesos hijos.</a></dt>
+  <dd>Los procesos hijos son observados por <b>sig_child()</b>. El observador
+      <b>sig_child()</b> mantendrá la sesión observadora activa hasta que el
+      proceso hijo haya sido recuperado por POE::Kernel y el evento resultante
+      haya sido despachado.
+    <p class="Pp">Todos los demás observadores de señales, incluido el uso de
+        &quot;sig&quot; para observar <span class="Li">&quot;CHLD&quot;</span>,
+        no mantienen sus sesiones activas. Si necesita que una sesión permanezca
+        activa cuando solo está observando señales, haga que establezca un alias
+        o uno de sus propios contadores de referencia públicos.</p>
+  </dd>
+  <dt id="Public"><a class="permalink" href="#Public">Contadores de referencia públicos.</a></dt>
+  <dd>Una sesión permanecerá activa siempre que tenga uno o más contadores de
+      referencia públicos (o externos) distintos de cero.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Session_Lifespans"><a class="permalink" href="#Session_Lifespans">Vidas de las Sesiones</a></h2>
+<p class="Pp">&quot;Sesión&quot; como término está algo sobrecargado. Hay dos
+    conceptos relacionados que comparten el nombre. Primero está la clase
+    POE::Session, y los objetos creados con ella o clases relacionadas.
+    Segundo, es una estructura de datos dentro de POE::Kernel que rastrea los
+    objetos POE::Session en juego y los diversos recursos propiedad de cada uno.</p>
+<p class="Pp">La forma en que funciona el recolector de basura de POE es que un
+    objeto de sesión se entrega a POE::Kernel en el momento de la creación.
+    El Kernel retiene ese objeto mientras existan recursos que requieran que la
+    sesión permanezca activa. Cuando todos estos recursos son destruidos o
+    liberados, el objeto de sesión no tiene nada más que desencadene actividad.
+    POE::Kernel notifica al objeto que ha terminado y limpia su contexto de
+    sesión interno. El objeto de sesión es liberado y se autodestruye de la
+    manera habitual de Perl.</p>
+<p class="Pp">Las sesiones pueden detenerse incluso si tienen recursos activos.
+    Por ejemplo, una sesión puede no manejar una señal terminal. En este caso,
+    POE::Kernel fuerza la detención de la sesión y se liberan todos los recursos
+    asociados con la sesión de forma preventiva.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Events"><a class="permalink" href="#Events">Eventos</a></h2>
+<p class="Pp">Un evento es un mensaje que se envía de una parte de la aplicación
+    POE a otra. Un evento consta del nombre del evento, parámetros opcionales
+    específicos del evento e información OOB (fuera de banda). Un evento puede
+    ser enviado desde el kernel, desde una rueda (wheel) o desde una sesión.</p>
+<p class="Pp">Una aplicación crea un evento con &quot;post&quot;, &quot;yield&quot;,
+    &quot;call&quot; o incluso &quot;signal&quot;. POE::Kernel crea eventos en
+    respuesta a estímulos externos (señales, select, etc.).</p>
+<p class="Pp"><i>Manejadores de eventos</i></p>
+<p class="Pp">Un evento es manejado por una función llamada <i>manejador de
+    eventos</i>, que es algún código designado para ser llamado cuando se despacha
+    un evento particular. Ver &quot;Gestión de Manejadores de Eventos&quot; y
+    POE::Session.</p>
+<p class="Pp">El término <i>estado</i> se usa a menudo en lugar de <i>manejador
+    de eventos</i>, especialmente al tratar las sesiones como máquinas de estado
+    impulsadas por eventos.</p>
+<p class="Pp">Los manejadores siempre se llaman en contexto escalar para eventos
+    asíncronos (es decir, a través de <b>post()</b>). Los eventos síncronos,
+    invocados con <b>call()</b>, se manejan en el mismo contexto en el que se
+    llamó a <b>call()</b>.</p>
+<p class="Pp">Los manejadores de eventos no pueden devolver directamente referencias
+    a objetos en el espacio de nombres &quot;POE&quot;. POE::Kernel convertirá
+    estas referencias a cadenas para evitar problemas de temporización con la
+    destrucción de ciertos objetos. Por ejemplo, este manejador de errores
+    causaría errores porque una rueda eliminada no se destruiría cuando uno
+    podría pensar:</p>
+<pre>sub handle_error {
+  warn &quot;Got an error&quot;;
+  delete $_[HEAP]{wheel};
+}</pre>
+<p class="Pp">La llamada <b>delete()</b> devuelve el miembro de la rueda eliminado,
+    que luego es devuelto implícitamente por <b>handle_error()</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Using_POE_with_Other_Event_Loops"><a class="permalink" href="#Using_POE_with_Other_Event_Loops">Usando POE con Otros Bucles de Eventos</a></h2>
+<p class="Pp">POE::Kernel soporta cualquier número de bucles de eventos. Dos
+    están incluidos en la distribución base. Históricamente, POE incluía otros
+    bucles, pero fueron movidos a una distribución separada. Puedes
+    encontrarlos y otros bucles en CPAN.</p>
+<p class="Pp">Las interfaces públicas de POE permanecen iguales independientemente
+    del bucle de eventos que se esté utilizando. Dado que la mayoría de los
+    kits de herramientas gráficos incluyen alguna forma de bucle de eventos, el
+    código de backend debería ser portable a todos ellos.</p>
+<p class="Pp">La cooperación de POE con otros bucles de eventos permite que POE
+    se integre en otro software. El bucle de eventos subyacente común impulsa
+    tanto la aplicación como POE. Por ejemplo, al usar POE::Loop::Glib, uno
+    puede integrar POE en Vim, irssi, y así sucesivamente. Los scripts de
+    aplicación pueden entonces aprovechar POE::Component::Client::HTTP (y
+    todo lo demás) para realizar trabajos a gran escala sin bloquear el resto
+    del programa.</p>
+<p class="Pp">Dado que esto es Perl, hay múltiples formas de cargar un bucle de
+    eventos alternativo. La forma más sencilla es cargar el bucle de eventos
+    antes de cargar POE::Kernel.</p>
+<pre>use Gtk;
+use POE;</pre>
+<p class="Pp">Recuerda que POE carga POE::Kernel internamente.</p>
+<p class="Pp">POE::Kernel examina los módulos cargados antes que él y detecta que
+    Gtk ha sido cargado. Si POE::Loop::Gtk está disponible, POE lo carga y lo
+    conecta automáticamente a POE::Kernel.</p>
+<p class="Pp">Es menos misterioso cargar directamente la clase POE::Loop apropiada.
+    Sus nombres siguen el formato <span class="Li">&quot;POE::Loop::$loop_module_name&quot;</span>,
+    donde <span class="Li">$loop_module_name</span> es el nombre del módulo del
+    bucle de eventos después de que cada <span class="Li">&quot;::&quot;</span>
+    haya sido sustituido por un guión bajo. Se puede abreviar usando la magia
+    del cargador de POE.</p>
+<pre>use POE qw( Loop::Event_Lib );</pre>
+<p class="Pp">POE también reconoce bucles XS, residen en el espacio de nombres
+    <span class="Li">&quot;POE::XS::Loop::$loop_module_name&quot;</span>. Usarlos
+    puede darte una mejora de rendimiento en tu plataforma, ya que los bucles
+    de eventos son parte del código más usado del sistema. Como siempre, evalúa
+    tu aplicación contra varios bucles para ver cuál es el mejor para tu carga
+    de trabajo y plataforma.</p>
+<pre>use POE qw( XS::Loop::EPoll );</pre>
+<p class="Pp">Por favor, no cargues los módulos de bucle directamente, porque POE
+    no tendrá la oportunidad de inicializar sus estructuras internas todavía. El
+    código escrito de esta manera lanzará errores al inicio. Podría parecer un
+    error en POE, pero es simplemente la forma en que POE está diseñado.</p>
+<pre>use POE::Loop::IO_Poll;
+use POE;</pre>
+<p class="Pp">POE::Kernel también soporta directivas de configuración en su propia
+    línea de <span class="Li">&quot;use&quot;</span>. Un bucle especificado
+    explícitamente de esta manera anulará la lógica de búsqueda.</p>
+<pre>use POE::Kernel { loop =&gt; &quot;Glib&quot; };</pre>
+<p class="Pp">Finalmente, uno puede especificar la clase del bucle configurando el
+    nombre de la clase POE::Loop o POE::XS:Loop en la variable de entorno
+    POE_EVENT_LOOP. Este mecanismo se agregó para pruebas que necesitan
+    especificar el bucle desde la distancia.</p>
+<pre>BEGIN { $ENV{POE_EVENT_LOOP} = &quot;POE::XS::Loop::Poll&quot; }
+use POE;</pre>
+<p class="Pp">Por supuesto, esto también puede configurarse desde tu shell:</p>
+<pre>% export POE_EVENT_LOOP='POE::XS::Loop::Poll'
+% make test</pre>
+<p class="Pp">Muchos bucles de eventos externos soportan sus propios mecanismos de
+    retrollamada. Los métodos &quot;<b>postback()</b>&quot; y &quot;<b>callback()</b>&quot;
+    de POE::Session devuelven referencias de código Perl simples que generarán
+    eventos POE cuando se llamen. Las aplicaciones pueden pasar estas referencias
+    de código a los bucles de eventos para usarlas como retrollamadas.</p>
+<p class="Pp">La distribución de POE incluye dos interfaces de bucle de eventos.
+    CPAN contiene varias más:</p>
+<p class="Pp"><i>POE::Loop::Select (incluido)</i></p>
+<p class="Pp">Por defecto, POE usa su bucle basado en <b>select()</b> para impulsar
+    su sistema de eventos. Este es quizás el bucle menos eficiente, pero también
+    es el más portable. POE optimiza para la corrección por encima de todo.</p>
+<p class="Pp"><i>POE::Loop::IO_Poll (incluido)</i></p>
+<p class="Pp">El bucle de eventos IO::Poll proporciona una alternativa que teóricamente
+    escala mejor que <b>select()</b>.</p>
+<p class="Pp"><i>POE::Loop::Event (distribución separada)</i></p>
+<p class="Pp">Este bucle de eventos proporciona interoperabilidad con otros módulos
+    que usan Event. También puede proporcionar una mejora de rendimiento porque
+    Event está escrito en un lenguaje compilado. Desafortunadamente, esto hace
+    que Event sea menos portable que el <b>select()</b> incorporado de Perl.</p>
+<p class="Pp"><i>POE::Loop::Gtk (distribución separada)</i></p>
+<p class="Pp">Este bucle de eventos permite que los programas funcionen bajo el
+    kit de herramientas gráfico Gtk.</p>
+<p class="Pp"><i>POE::Loop::Tk (distribución separada)</i></p>
+<p class="Pp">Este bucle de eventos permite que los programas funcionen bajo el
+    kit de herramientas gráfico Tk. Tk tiene algunas restricciones que requieren
+    que POE se comporte de manera extraña.</p>
+<p class="Pp">El bucle de eventos de Tk no se ejecutará a menos que se creen uno o
+    más widgets. Por lo tanto, POE debe crear dicho widget antes de poder
+    ejecutarse. POE::Kernel exporta <span class="Li">$poe_main_window</span>
+    para que el desarrollador de la aplicación pueda usar el widget (que es una
+    Ventana Principal), ya que POE no lo necesita más que para despachar
+    eventos.</p>
+<p class="Pp">Crear y usar una Ventana Principal diferente a menudo tiene un
+    resultado indeseado.</p>
+<p class="Pp"><i>POE::Loop::EV (distribución separada)</i></p>
+<p class="Pp">POE::Loop::EV permite que los programas basados en POE utilicen la
+    biblioteca de eventos EV con pocos o ningún cambio.</p>
+<p class="Pp"><i>POE::Loop::Glib (distribución separada)</i></p>
+<p class="Pp">POE::Loop::Glib permite que los programas basados en POE utilicen
+    Glib con pocos o ningún cambio. También soporta la integración de programas
+    basados en POE en aplicaciones que ya usan Glib. Por ejemplo, hemos oído
+    que POE se ha integrado con éxito en vim, irssi y xchat a través de este
+    bucle.</p>
+<p class="Pp"><i>POE::Loop::Kqueue (distribución separada)</i></p>
+<p class="Pp">POE::Loop::Kqueue permite que los programas basados en POE utilicen
+    transparente la biblioteca de eventos kqueue de BSD en sistemas operativos
+    que la soportan.</p>
+<p class="Pp"><i>POE::Loop::Prima (distribución separada)</i></p>
+<p class="Pp">POE::Loop::Prima permite que los programas basados en POE utilicen
+    el bucle de eventos de Prima con pocos o ningún cambio. Permite que las
+    bibliotecas de POE se utilicen dentro de aplicaciones Prima.</p>
+<p class="Pp"><i>POE::Loop::Wx (distribución separada)</i></p>
+<p class="Pp">POE::Loop::Wx permite que los programas basados en POE utilicen el
+    bucle de eventos de Wx con pocos o ningún cambio. Permite que las bibliotecas
+    de POE se utilicen dentro de aplicaciones Wx, como Padre.</p>
+<p class="Pp"><i>POE::XS::Loop::EPoll (distribución separada)</i></p>
+<p class="Pp">POE::XS::Loop::EPoll permite que los componentes de POE utilicen
+    transparente la biblioteca de eventos EPoll en sistemas operativos que la
+    soportan.</p>
+<p class="Pp"><i>POE::XS::Loop::Poll (distribución separada)</i></p>
+<p class="Pp">POE::XS::Loop::Poll es un bucle de eventos libpoll basado en C de
+    mayor rendimiento. Reemplaza parte del código caliente de Perl de POE con C
+    para un mejor rendimiento.</p>
+<p class="Pp"><i>Otros Bucles de Eventos (distribuciones separadas)</i></p>
+<p class="Pp">POE puede ser extendido para manejar otros bucles de eventos. Se
+    invita a los desarrolladores a trabajar con nosotros para soportar sus
+    bucles favoritos.</p>
+</section>
+</section>
+<h1 id='PUBLIC_METHODS'><a class='permalink' href='#PUBLIC_METHODS'>MÉTODOS PÚBLICOS</a></h1>
+<p class="Pp">POE::Kernel encapsula una gran cantidad de funcionalidades. La
+    documentación para cada conjunto de funcionalidades está agrupada por propósito.</p>
+<section class="Ss">
+<h2 class="Ss" id='Kernel_Management_and_Accessors'><a class='permalink' href='#Kernel_Management_and_Accessors'>Gestión y Acceso al Kernel</a></h2>
+<p class="Pp"><i>ID</i></p>
+<p class="Pp"><b>ID()</b> actualmente devuelve el identificador único de
+    POE::Kernel. Cada instancia de Kernel recibe un ID globalmente único al
+    nacer. <b>has_forked()</b> altera el ID para que cada proceso hijo también
+    tenga uno único.</p>
+<pre>% perl -wl -MPOE -e 'print $poe_kernel-&gt;ID'
+macbookpoe.local-4d5305de-0000e6b8-00000001</pre>
+<p class="Pp">El contenido de estos IDs puede cambiar con el tiempo. Tu código
+    no debe depender del formato actual.</p>
+<p class="Pp"><b>Advertencia de Deprecación 2011-02-09</b></p>
+<p class="Pp">Tu código no debe depender de que <b>ID()</b> siga siendo
+    único. La unicidad se eliminará en una futura versión de POE. Si requieres
+    IDs únicos, por favor consulta alguno de los excelentes módulos GUID y/o
+    UUID en CPAN:</p>
+<pre>http://search.cpan.org/search?query=GUID&amp;mode=dist
+http://search.cpan.org/search?query=UUID&amp;mode=dist</pre>
+<p class="Pp">POE no requiere IDs de kernel global o universalmente únicos. La
+    creación y el mantenimiento de estos IDs añade una sobrecarga al método
+    <b>has_forked()</b> de POE::Kernel. Otros módulos lo hacen mejor, bajo
+    demanda, sin incurrir en sobrecarga para aquellos que no los necesitan.</p>
+<p class="Pp"><i>run</i></p>
+<p class="Pp"><b>run()</b> ejecuta el despachador de eventos de POE::Kernel. No
+    devolverá el control hasta que todas las sesiones hayan terminado.
+    <b>run()</b> es un método de clase, por lo que no se necesita una referencia
+    a POE::Kernel para iniciar la ejecución de un programa.</p>
+<pre>use POE;
+POE::Session-&gt;create( ... ); # una o más
+POE::Kernel-&gt;run();          # ponerlos todos en marcha
+exit;</pre>
+<p class="Pp">POE implementa el patrón Reactor en su núcleo. Los eventos se
+    despachan a funciones y métodos a través de callbacks. El código detrás de
+    <b>run()</b> espera y despacha eventos.</p>
+<p class="Pp"><b>run()</b> no devolverá el control hasta que cada sesión haya
+    terminado. Esto incluye las sesiones que se crearon mientras
+    <b>run()</b> estaba en ejecución.</p>
+<p class="Pp">POE::Kernel imprimirá un mensaje fuerte si un programa crea
+    sesiones pero no llama a <b>run()</b>. Antes de esta advertencia, recibimos
+    toneladas de informes de errores del tipo "mi programa POE no hace
+    nada". Resultó que la gente olvidaba iniciar un despachador de eventos, por
+    lo que los eventos nunca se despachaban.</p>
+<p class="Pp">Si la falta de una llamada a <b>run()</b> es deliberada, quizás
+    porque algún otro bucle de eventos ya tiene el control, puedes evitar el
+    mensaje llamándolo antes de crear una sesión. <b>run()</b> en ese momento
+    inicializará POE y devolverá el control inmediatamente. POE::Kernel se
+    dará por satisfecho de que se llamó a <b>run()</b>, aunque POE no haya
+    tomado el control del bucle de eventos.</p>
+<pre>use POE;
+POE::Kernel-&gt;run(); # silenciar la advertencia
+POE::Session-&gt;create( ... );
+exit;</pre>
+<p class="Pp">Sin embargo, ten en cuenta que esto varía de un bucle de eventos
+    a otro. Si una implementación particular de POE::Loop no lo soporta, eso es
+    probablemente un error. Por favor, presenta un informe de error al
+    propietario del módulo POE::Loop relevante.</p>
+<p class="Pp"><i>run_one_timeslice</i></p>
+<p class="Pp"><b>run_one_timeslice()</b> despacha cualquier evento que esté
+    listo para ser entregado. Estos eventos incluyen temporizadores que están
+    listos, mensajes asíncronos que necesitan ser entregados, señales que
+    requieren manejo y notificaciones para archivos con E/S pendiente. No confíes
+    demasiado en el orden de los eventos. <b>run_one_timeslice()</b> está
+    definido por el bucle de eventos subyacente, y su temporización puede variar.</p>
+<p class="Pp"><b>run()</b> se implementa de manera similar a</p>
+<pre>run_one_timeslice() while $session_count &gt; 0;</pre>
+<p class="Pp"><b>run_one_timeslice()</b> se puede utilizar para mantener
+    ejecutándose el despachador de POE::Kernel mientras se emula un
+    comportamiento bloqueante. El patrón se implementa con una bandera que se
+    establece cuando ocurre algún evento asíncrono. Un bucle llama a
+    <b>run_one_timeslice()</b> hasta que se establece esa bandera. Por
+    ejemplo:</p>
+<pre>my $done = 0;
+sub handle_some_event {
+  $done = 1;
+}
+$kernel-&gt;run_one_timeslice() while not $done;</pre>
+<p class="Pp">Ten cuidado. El ejemplo anterior entrará en un bucle infinito si
+    POE::Kernel ha terminado pero <span class="Li">$done</span> nunca se
+    establece. El bucle nunca terminará, aunque no quede nada que establezca
+    <span class="Li">$done</span>.</p>
+<p class="Pp"><i>run_while SCALAR_REF</i></p>
+<p class="Pp"><b>run_while()</b> es una versión **experimental** de
+    <b>run_one_timeslice()</b> que solo devolverá el control cuando no queden más
+    sesiones activas, o el valor del escalar referenciado se vuelva falso.</p>
+<p class="Pp">Aquí hay una versión del ejemplo de
+    <b>run_one_timeslice()</b> usando <b>run_while()</b> en su lugar:</p>
+<pre>my $job_count = 3;
+sub handle_some_event {
+  $job_count--;
+}
+$kernel-&gt;run_while(\$job_count);</pre>
+<p class="Pp"><i>has_forked</i></p>
+<pre>my $pid = fork();
+die &quot;Unable to fork&quot; unless defined $pid;
+unless( $pid ) {
+    $poe_kernel-&gt;has_forked;
+}</pre>
+<p class="Pp">Informa al kernel que ahora se está ejecutando en un nuevo
+    proceso. Esto permite al kernel restablecer algunos datos internos para
+    ajustarse a la nueva situación.</p>
+<p class="Pp"><b>has_forked()</b> debe ser llamado en el proceso hijo si deseas
+    ejecutar el mismo kernel. Sin embargo, si deseas que el proceso hijo tenga
+    un nuevo kernel, debes llamar a &quot;stop&quot; en su lugar.</p>
+<p class="Pp"><b>Nota:</b> Los internos de POE detectarán si ocurrió un fork
+    antes de <span class="Li">run()</span> y llamarán a
+    <span class="Li">has_forked()</span> automáticamente. Si no estás seguro de si
+    necesitas llamarlo o no, por favor habilita &quot;ASSERT_USAGE&quot; y POE
+    emitirá una advertencia si es necesario.</p>
+<p class="Pp"><i>stop</i></p>
+<p class="Pp"><b>stop()</b> hace que POE::Kernel-&gt;<b>run()</b> devuelva el
+    control prematuramente. Lo hace vaciando la cola de eventos, liberando todos
+    los recursos utilizados y deteniendo cada sesión activa.
+    <b>stop()</b> no está diseñado para usarse a la ligera. Procede con
+    precaución.</p>
+<p class="Pp">Advertencias:</p>
+<p class="Pp">La sesión que llama a <b>stop()</b> no será completamente
+    DESTRUIDA hasta que devuelva el control. Invocar un manejador de eventos en
+    la sesión requiere una referencia a esa sesión, y las referencias débiles
+    están prohibidas en POE por razones de compatibilidad con versiones
+    anteriores, por lo que tiene sentido que la última sesión no sea recolectada
+    por el recolector de basura de inmediato.</p>
+<p class="Pp">Las sesiones no son notificadas sobre su destrucción. Si algo
+    depende de que se entregue _stop, se romperá y/o tendrá fugas de memoria.</p>
+<p class="Pp"><b>stop()</b> todavía se considera experimental. Se añadió para
+    mejorar el soporte de <b>fork()</b> para POE::Wheel::Run. Si resulta ser
+    problemático e irresoluble, se eliminará sin mucho aviso.</p>
+<p class="Pp"><b>stop()</b> es magia avanzada. Se invita a los programadores que
+    creen necesitarlo a familiarizarse con su código fuente.</p>
+<p class="Pp">Ver &quot;Running POE::Kernel in the Child&quot; en
+    POE::Wheel::Run para un ejemplo de cómo usar esta funcionalidad.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Asynchronous_Messages_(FIFO_Events)'><a class='permalink' href='#Asynchronous_Messages_(FIFO_Events)'>Mensajes Asíncronos (Eventos FIFO)</a></h2>
+<p class="Pp">Los mensajes asíncronos son eventos que se despachan en el orden
+    en que fueron encolados (el primero en entrar es el primero en salir, también
+    conocido como orden first-in/first-out, o FIFO). Estos métodos encolan nuevos
+    mensajes para su entrega. El acto de encolar un mensaje mantiene al remitente
+    vivo al menos hasta que el mensaje sea entregado.</p>
+<p class="Pp"><i>post DESTINATION, EVENT_NAME [, PARAMETER_LIST]</i></p>
+<p class="Pp"><b>post()</b> encola un mensaje para ser despachado a una sesión
+    DESTINATION particular. El mensaje será manejado por el código asociado con
+    EVENT_NAME. Si se incluye una PARAMETER_LIST, sus valores también serán
+    pasados.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;post( $_[SESSION], &quot;event_name&quot;, 0 );
+    },
+    event_name =&gt; sub {
+      print &quot;$_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;post( $_[SESSION], &quot;event_name&quot;, $_[ARG0] + 1 );
+    },
+  }
+);</pre>
+<p class="Pp"><b>post()</b> devuelve un valor booleano que indica si el mensaje
+    se encoló con éxito. Si <b>post()</b> devuelve falso, $! se establece para
+    explicar el fallo:</p>
+<p class="Pp">ESRCH (&quot;No such process&quot;) - La sesión DESTINATION no
+    existía en el momento en que se llamó a <b>post()</b>.</p>
+<p class="Pp"><i>yield EVENT_NAME [, PARAMETER_LIST]</i></p>
+<p class="Pp"><b>yield()</b> es un atajo para <b>post()</b> donde la sesión
+    destino es la misma que la remitente. Este ejemplo es equivalente al de
+    <b>post()</b>:</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;yield( &quot;event_name&quot;, 0 );
+    },
+    event_name =&gt; sub {
+      print &quot;$_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;yield( &quot;event_name&quot;, $_[ARG0] + 1 );
+    },
+  }
+);</pre>
+<p class="Pp">Al igual que con <b>post()</b>, <b>yield()</b> devuelve el control
+    inmediatamente, y el EVENT_NAME encolado se despacha más tarde. Esto puede
+    ser confuso si ya estás familiarizado con la concurrencia.</p>
+<p class="Pp"><b>yield()</b> siempre debería tener éxito, por lo que no devuelve
+    un valor significativo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Synchronous_Messages'><a class='permalink' href='#Synchronous_Messages'>Mensajes Síncronos</a></h2>
+<p class="Pp">A veces es necesario que el código se invoque de inmediato. Por
+    ejemplo, algunos recursos deben ser atendidos de inmediato, o de lo contrario
+    seguirán informando fielmente de su disponibilidad. Estos informes aparecerían
+    como un flujo de eventos duplicados. Los eventos síncronos también pueden
+    evitar que los datos se vuelvan obsoletos entre el momento en que se encola un
+    evento y el momento en que se entrega.</p>
+<p class="Pp">Los manejadores de eventos síncronos tienen prioridad sobre la cola
+    de eventos de POE, por lo que deben realizar tareas simples de duración
+    limitada. Los eventos síncronos que necesitan hacer más que solo atender un
+    recurso deben pasar la información del recurso a un manejador asíncrono. De lo
+    contrario, las operaciones síncronas ocurrirán fuera de orden en relación con
+    los eventos asíncronos. Es muy fácil tener condiciones de carrera o romper la
+    causalidad de esta manera, así que trata de evitarlo a menos que estés de
+    acuerdo con las consecuencias.</p>
+<p class="Pp">POE proporciona estas formas de llamar a los manejadores de
+    mensajes de inmediato.</p>
+<p class="Pp"><i>call DESTINATION, EVENT_NAME [, PARAMETER_LIST]</i></p>
+<p class="Pp">La semántica de <b>call()</b> es casi idéntica a la de
+    <b>post()</b>. <b>call()</b> invoca el manejador de un DESTINATION asociado
+    con un EVENT_NAME. Se pasará una PARAMETER_LIST opcional al manejador del
+    mensaje. La diferencia, sin embargo, es que el manejador se invocará
+    inmediatamente, incluso antes de que <b>call()</b> devuelva el control. </p>
+<p class="Pp"><b>call()</b> devuelve el valor devuelto por el manejador de
+    EVENT_NAME. Puede hacer esto porque el manejador se invoca antes de que
+    <b>call()</b> devuelva el control. Por lo tanto, <b>call()</b> puede usarse
+    como un accesor, aunque hay mejores formas de lograr un comportamiento de
+    acceso simple.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      print &quot;Got: &quot;, $_[KERNEL]-&gt;call($_[SESSION], &quot;do_now&quot;), &quot;\n&quot;;
+    },
+    do_now =&gt; sub {
+      return &quot;some value&quot;;
+    }
+  }
+);</pre>
+<p class="Pp">Las clases POE::Wheel utilizan <b>call()</b> para entregar
+    síncronamente notificaciones de E/S. Esto evita un flujo de</p>
+<p class="Pp"><b>call()</b> puede fallar de la misma manera y por las mismas
+    razones que <b>post()</b>. En caso de fallo, $! se establecerá en algún valor
+    distinto de cero que indique el motivo. Dado que <b>call()</b> puede devolver
+    undef como algo habitual, se recomienda que $! se compruebe tanto para la
+    condición de error como para la explicación.</p>
+<p class="Pp">ESRCH (&quot;No such process&quot;) - La sesión DESTINATION no
+    existía en el momento en que se llamó a <b>post()</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Eventos_de_temporizador_(mensajes_retrasados)'><a class='permalink' href='#Eventos_de_temporizador_(mensajes_retrasados)'>Eventos de temporizador (mensajes retrasados)</a></h2>
+<p class="Pp">A menudo es útil esperar un tiempo determinado o hasta que haya
+    transcurrido una cierta cantidad de tiempo. POE admite esto con eventos que
+    se posponen hasta un tiempo absoluto (&quot;alarmas&quot;) o hasta que haya
+    transcurrido una cierta duración de tiempo (&quot;retrasos&quot;).</p>
+<p class="Pp">Las interfaces de temporizador se dividen además en dos grupos.
+    Un grupo identifica los temporizadores por los nombres de sus eventos
+    asociados. Otro grupo identifica los temporizadores por un identificador único
+    devuelto por los constructores de temporizadores. Técnicamente, ambos se basan
+    en nombres, pero los temporizadores &quot;basados en identificadores&quot;
+    proporcionan un segundo identificador más específico para identificar
+    temporizadores individuales.</p>
+<p class="Pp">Los temporizadores solo se pueden configurar para la sesión
+    actual. Este diseño se modeló a partir de <b>alarm()</b> y SIGALRM, que solo
+    afectan al proceso UNIX actual. Cada sesión tiene un espacio de nombres
+    separado para los nombres de los temporizadores. Los métodos de temporizador
+    llamados en una sesión no pueden afectar a los temporizadores de otra. Como
+    habrás notado, gran parte de la API de POE está diseñada para evitar que las
+    sesiones interfieran entre sí.</p>
+<p class="Pp">La mejor manera de simular mensajes inter-sesión diferidos es
+    enviar un mensaje inmediato que haga que el destino establezca un temporizador.
+    El temporizador del destino difiere entonces la acción solicitada. Esta forma
+    es preferible porque el tiempo dedicado a comunicar la solicitud entre
+    sesiones puede no ser trivial, especialmente si las sesiones están separadas
+    por una red. El destino puede determinar cuánto tiempo queda en el temporizador
+    solicitado y ajustar su tiempo de espera en consecuencia.</p>
+<p class="Pp"><i>Temporizadores basados en nombres</i></p>
+<p class="Pp">Los temporizadores basados en nombres se identifican por los
+    nombres de eventos utilizados para configurarlos. Es posible que diferentes
+    sesiones utilicen los mismos nombres de eventos de temporizador, ya que cada
+    sesión es un compartimento separado con su propio espacio de nombres de
+    temporizadores. Es posible que una sesión tenga varios temporizadores para un
+    determinado evento, pero los resultados pueden ser sorprendentes. Tenga
+    cuidado al utilizar los métodos de temporizador correctos.</p>
+<p class="Pp">Los métodos de temporizador basados en nombres son
+    <b>alarm()</b>, <b>alarm_add()</b>, <b>delay()</b> y
+    <b>delay_add()</b>.</p>
+<p class="Pp">alarm NOMBRE_EVENTO [, TIEMPO_EPOCH [, LISTA_PARAMETROS] ]</p>
+<p class="Pp"><b>alarm()</b> borra todos los temporizadores existentes en la
+    sesión actual con el mismo NOMBRE_EVENTO. Luego establece un nuevo temporizador,
+    llamado NOMBRE_EVENTO, que se activará con NOMBRE_EVENTO en la sesión actual
+    cuando se alcance TIEMPO_EPOCH. Se puede pasar una LISTA_PARAMETROS opcional
+    al manejador del temporizador.</p>
+<p class="Pp">Omitir TIEMPO_EPOCH y los parámetros posteriores hace que
+    <b>alarm()</b> borre los temporizadores NOMBRE_EVENTO en la sesión actual sin
+    establecer uno nuevo.</p>
+<p class="Pp">TIEMPO_EPOCH es la hora epoch de UNIX. Ya sabes, segundos desde la
+    medianoche del 1 de enero de 1970. POE utiliza <b>Time::HiRes::time()</b>,
+    que permite que TIEMPO_EPOCH sea (o incluya) segundos fraccionarios.</p>
+<p class="Pp">POE admite segundos fraccionarios, pero la precisión disminuye
+    drásticamente después de 1/100 de segundo. El rendimiento variará según la
+    velocidad de tu CPU y la resolución de tiempo de tu sistema operativo.</p>
+<p class="Pp">Asegúrate de utilizar <b>Time::HiRes::time()</b> en lugar del
+    método incorporado <b>time()</b> de Perl si la precisión sub-segundo es
+    importante. El método incorporado <b>time()</b> devuelve floor(
+    <b>Time::HiRes::time()</b>), que casi siempre es una fracción de segundo en el
+    pasado. Por ejemplo, la hora de alta resolución podría ser
+    1200941422.89996. En ese mismo instante, <b>time()</b> sería
+    1200941422. Una alarma para <b>time()</b> + 0.5 estaría 0.39996 segundos en
+    el pasado, por lo que se enviaría inmediatamente (si no antes).</p>
+<p class="Pp">La cola de eventos de POE está ordenada por tiempo, por lo que un
+    temporizador cuya fecha de vencimiento sea anterior a <b>time()</b> se
+    entregará antes que otros eventos, pero no antes que los temporizadores con
+    fechas de vencimiento aún más tempranas. Por lo tanto, una llamada a
+    <b>alarm()</b> con un TIEMPO_EPOCH anterior a <b>time()</b> salta al frente
+    de la cola.</p>
+<p class="Pp">Todos los temporizadores se implementan de forma idéntica internamente,
+    independientemente de cómo se configuren. Por lo tanto, <b>alarm()</b> borrará
+    tranquilamente los temporizadores configurados por otros medios.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;alarm( tick =&gt; time() + 1, 0 );
+    },
+    tick =&gt; sub {
+      print &quot;tick $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;alarm( tock =&gt; time() + 1, $_[ARG0] + 1 );
+    },
+    tock =&gt; sub {
+      print &quot;tock $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;alarm( tick =&gt; time() + 1, $_[ARG0] + 1 );
+    },
+  }
+);</pre>
+<p class="Pp"><b>alarm()</b> devuelve 0 en caso de éxito o un valor verdadero en
+    caso de fallo. Generalmente EINVAL para indicar un parámetro no válido, como
+    un NOMBRE_EVENTO indefinido.</p>
+<p class="Pp">alarm_add NOMBRE_EVENTO, TIEMPO_EPOCH [, LISTA_PARAMETROS]</p>
+<p class="Pp"><b>alarm_add()</b> se utiliza para añadir un nuevo temporizador de
+    alarma llamado NOMBRE_EVENTO sin borrar los temporizadores existentes.
+    TIEMPO_EPOCH es un parámetro obligatorio. Por lo demás, la semántica es
+    idéntica a la de <b>alarm()</b>.</p>
+<p class="Pp">Un programa puede utilizar <b>alarm_add()</b> sin utilizar primero
+    <b>alarm()</b>.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;alarm_add( tick =&gt; time() + 1.0, 1_000_000 );
+      $_[KERNEL]-&gt;alarm_add( tick =&gt; time() + 1.5, 2_000_000 );
+    },
+    tick =&gt; sub {
+      print &quot;tick $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;alarm_add( tock =&gt; time() + 1, $_[ARG0] + 1 );
+    },
+    tock =&gt; sub {
+      print &quot;tock $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;alarm_add( tick =&gt; time() + 1, $_[ARG0] + 1 );
+    },
+  }
+);</pre>
+<p class="Pp"><b>alarm_add()</b> devuelve 0 en caso de éxito o EINVAL si
+    NOMBRE_EVENTO o TIEMPO_EPOCH es indefinido.</p>
+<p class="Pp">delay NOMBRE_EVENTO [, SEGUNDOS_DURACION [, LISTA_PARAMETROS] ]</p>
+<p class="Pp"><b>delay()</b> borra todos los temporizadores existentes en la
+    sesión actual con el mismo NOMBRE_EVENTO. Luego establece un nuevo temporizador,
+    llamado NOMBRE_EVENTO, que se activará con NOMBRE_EVENTO en la sesión actual
+    cuando hayan transcurrido SEGUNDOS_DURACION desde &quot;ahora&quot;. Se puede
+    pasar una LISTA_PARAMETROS opcional al manejador del temporizador.</p>
+<p class="Pp">Omitir SEGUNDOS_DURACION y los parámetros subsiguientes hace que
+    <b>delay()</b> borre los temporizadores NOMBRE_EVENTO en la sesión actual sin
+    establecer uno nuevo.</p>
+<p class="Pp">SEGUNDOS_DURACION puede ser o incluir segundos fraccionarios. Como
+    con todos los temporizadores de POE, la precisión disminuye drásticamente
+    después de 1/100 de segundo. El rendimiento variará según la velocidad de tu
+    CPU y la resolución de tiempo de tu sistema operativo.</p>
+<p class="Pp">La cola de eventos de POE está ordenada por tiempo, por lo que un
+    temporizador cuya fecha de vencimiento sea anterior a <b>time()</b> se
+    entregará antes que otros eventos, pero no antes que los temporizadores con
+    fechas de vencimiento aún más tempranas. Por lo tanto, una llamada a
+    <b>delay()</b> con una SEGUNDOS_DURACION cero o negativa salta al frente de la
+    cola.</p>
+<p class="Pp"><b>delay()</b> puede considerarse una forma abreviada de
+    <b>alarm()</b>, pero existen sutiles diferencias en los problemas de tiempo.
+    Este código es aproximadamente equivalente al ejemplo de <b>alarm()</b>.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;delay( tick =&gt; 1, 0 );
+    },
+    tick =&gt; sub {
+      print &quot;tick $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;delay( tock =&gt; 1, $_[ARG0] + 1 );
+    },
+    tock =&gt; sub {
+      print &quot;tock $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;delay( tick =&gt; 1, $_[ARG0] + 1 );
+    },
+  }
+);</pre>
+<p class="Pp"><b>delay()</b> devuelve 0 en caso de éxito o un motivo de fallo:
+    EINVAL si NOMBRE_EVENTO es indefinido.</p>
+<p class="Pp">delay_add NOMBRE_EVENTO, SEGUNDOS_DURACION [, LISTA_PARAMETROS]</p>
+<p class="Pp"><b>delay_add()</b> se utiliza para añadir un nuevo temporizador de
+    retraso llamado NOMBRE_EVENTO sin borrar los temporizadores existentes.
+    SEGUNDOS_DURACION es un parámetro obligatorio. Por lo demás, la semántica es
+    idéntica a la de <b>delay()</b>.</p>
+<p class="Pp">Un programa puede utilizar <b>delay_add()</b> sin utilizar primero
+    <b>delay()</b>.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;delay_add( tick =&gt; 1.0, 1_000_000 );
+      $_[KERNEL]-&gt;delay_add( tick =&gt; 1.5, 2_000_000 );
+    },
+    tick =&gt; sub {
+      print &quot;tick $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;delay_add( tock =&gt; 1, $_[ARG0] + 1 );
+    },
+    tock =&gt; sub {
+      print &quot;tock $_[ARG0]\n&quot;;
+      $_[KERNEL]-&gt;delay_add( tick =&gt; 1, $_[ARG0] + 1 );
+    },
+  }
+);</pre>
+<p class="Pp"><b>delay_add()</b> devuelve 0 en caso de éxito o EINVAL si
+    NOMBRE_EVENTO o TIEMPO_EPOCH es indefinido.</p>
+<p class="Pp"><i>Temporizadores basados en identificadores</i></p>
+<p class="Pp">Una segunda forma de gestionar los temporizadores es a través de
+    identificadores. Configurar una alarma o un retraso con los métodos
+    &quot;identificador&quot; permite a un programa manipular varios temporizadores
+    con el mismo nombre en la misma sesión. Sin embargo, como se ha tratado en
+    <b>alarm()</b> y <b>delay()</b>, es posible mezclar llamadas de temporizadores
+    nombrados e identificados, pero las consecuencias pueden no ser siempre las
+    esperadas.</p>
+<p class="Pp">alarm_set NOMBRE_EVENTO, TIEMPO_EPOCH [, LISTA_PARAMETROS]</p>
+<p class="Pp"><b>alarm_set()</b> establece una alarma, devolviendo un identificador
+    único que se puede utilizar para ajustar o eliminar la alarma más tarde. A
+    diferencia de <b>alarm()</b>, no borra previamente los temporizadores
+    existentes con el mismo NOMBRE_EVENTO. Por lo demás, la semántica es idéntica a
+    la de <b>alarm()</b>.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[HEAP]{alarm_id} = $_[KERNEL]-&gt;alarm_set(
+        party =&gt; time() + 1999
+      );
+      $_[KERNEL]-&gt;delay(raid =&gt; 1);
+    },
+    raid =&gt; sub {
+      $_[KERNEL]-&gt;alarm_remove( delete $_[HEAP]{alarm_id} );
+    },
+  }
+);</pre>
+<p class="Pp"><b>alarm_set()</b> devuelve falso si falla y establece $! con la
+    explicación. $! será EINVAL si NOMBRE_EVENTO o TIEMPO es indefinido.</p>
+<p class="Pp">alarm_adjust ID_ALARMA, DELTA_SEGUNDOS</p>
+<p class="Pp"><b>alarm_adjust()</b> ajusta la hora de vencimiento de un temporizador
+    existente en DELTA_SEGUNDOS, que puede ser positivo o negativo. Incluso puede
+    ser cero, pero eso no es muy útil. En caso de éxito, devuelve la nueva hora de
+    vencimiento del temporizador desde el inicio de la época de UNIX.</p>
+<p class="Pp">Es posible utilizar <b>alarm_adjust()</b> en temporizadores creados
+    por <b>delay_set()</b>, así como por <b>alarm_set()</b>.</p>
+<p class="Pp">Este ejemplo adelanta la hora de vencimiento de una alarma diez
+    segundos.</p>
+<pre>use POSIX qw(strftime);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[HEAP]{alarm_id} = $_[KERNEL]-&gt;alarm_set(
+        party =&gt; time() + 1999
+      );
+      $_[KERNEL]-&gt;delay(postpone =&gt; 1);
+    },
+    postpone =&gt; sub {
+      my $new_time = $_[KERNEL]-&gt;alarm_adjust(
+        $_[HEAP]{alarm_id}, -10
+      );
+      print(
+        &quot;Now we're gonna party like it's &quot;,
+        strftime(&quot;%F %T&quot;, gmtime($new_time)), &quot;\n&quot;
+      );
+    },
+  }
+);</pre>
+<p class="Pp"><b>alarm_adjust()</b> devuelve falso booleano si falla, estableciendo
+    $! en el motivo. $! puede ser EINVAL si ID_ALARMA o DELTA_SEGUNDOS son
+    indefinidos. Puede ser ESRCH si ID_ALARMA ya no se refiere a un temporizador
+    pendiente. $! también puede contener EPERM si ID_ALARMA es válido pero
+    pertenece a otra sesión.</p>
+<p class="Pp">alarm_remove ID_ALARMA</p>
+<p class="Pp"><b>alarm_remove()</b> elimina la alarma identificada por ALARM_ID.
+    ALARM_ID proviene de una llamada anterior a <b>alarm_set()</b> o
+    <b>delay_set()</b>.</p>
+<p class="Pp">Al tener éxito, <b>alarm_remove()</b> devuelve algo verdadero según
+    su contexto. En un contexto de lista, devuelve tres elementos: el nombre del
+    evento de la alarma eliminada, la hora UNIX en la que debía activarse y una
+    referencia a la LISTA_DE_PARÁMETROS (si la hay) asignada al temporizador
+    cuando se creó. Si es necesario, el temporizador puede volver a configurarse
+    con esta información.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[HEAP]{alarm_id} = $_[KERNEL]-&gt;alarm_set(
+        party =&gt; time() + 1999
+      );
+      $_[KERNEL]-&gt;delay(raid =&gt; 1);
+    },
+    raid =&gt; sub {
+      my ($name, $time, $param) = $_[KERNEL]-&gt;alarm_remove(
+        $_[HEAP]{alarm_id}
+      );
+      print(
+        &quot;Se eliminó la alarma para el evento $name programada para las $time con @$param\n&quot;
+      );
+      # O volver a configurarla, si lo deseas. Posiblemente después de modificarla.
+      $_[KERNEL]-&gt;alarm_set($name, $time, @$param);
+    },
+  }
+);</pre>
+<p class="Pp">En un contexto escalar, devuelve una referencia a una lista de los
+    tres elementos anteriores.</p>
+<pre># Eliminar y restablecer una alarma.
+my $alarm_info = $_[KERNEL]-&gt;alarm_remove( $alarm_id );
+my $new_id = $_[KERNEL]-&gt;alarm_set(
+  $alarm_info[0], $alarm_info[1], @{$alarm_info[2]}
+);</pre>
+<p class="Pp">Sin embargo, al fallar, <b>alarm_remove()</b> devuelve un valor
+    booleano falso y establece $! con la razón por la que la llamada falló:</p>
+<p class="Pp">EINVAL ("Argumento inválido") indica un problema con uno o más
+    parámetros, generalmente un ALARM_ID indefinido.</p>
+<p class="Pp">ESRCH ("No such process") indica que ALARM_ID no se refería a una
+    alarma pendiente.</p>
+<p class="Pp">EPERM ("Operation not permitted"). Una sesión no puede eliminar
+    una alarma que no le pertenece.</p>
+<p class="Pp">alarm_remove_all</p>
+<p class="Pp"><b>alarm_remove_all()</b> elimina todos los temporizadores
+    pendientes para la sesión actual, independientemente del método de creación o
+    tipo. Este método no toma argumentos. Devuelve información sobre las alarmas
+    que fueron eliminadas, ya sea como una lista de alarmas o una referencia a una
+    lista, dependiendo de si <b>alarm_remove_all()</b> se llama en contexto
+    escalar o de lista.</p>
+<p class="Pp">La información de cada alarma eliminada es idéntica al formato
+    explicado en <b>alarm_remove()</b>.</p>
+<pre>sub some_event_handler {
+  my @removed_alarms = $_[KERNEL]-&gt;alarm_remove_all();
+  foreach my $alarm (@removed_alarms) {
+    my ($name, $time, $param) = @$alarm;
+    ...;
+  }
+}</pre>
+<p class="Pp">delay_set EVENT_NAME, DURATION_SECONDS [, PARAMETER_LIST]</p>
+<p class="Pp"><b>delay_set()</b> establece un temporizador para DURATION_SECONDS
+    en el futuro. El temporizador se enviará al código asociado con EVENT_NAME en
+    la sesión actual. Una LISTA_DE_PARÁMETROS opcional se pasará al manejador.
+    Devuelve el mismo tipo de información que <b>alarm_set()</b>.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;delay_set(&quot;later&quot;, 5, &quot;hello&quot;, &quot;world&quot;);
+    },
+    later =&gt; sub {
+      print &quot;@_[ARG0..#$_]\n&quot;;
+    }
+  }
+);</pre>
+<p class="Pp">delay_adjust ALARM_ID, SECONDS_FROM_NOW</p>
+<p class="Pp"><b>delay_adjust()</b> cambia la hora de vencimiento de un
+    temporizador a SECONDS_FROM_NOW. Es útil para actualizar temporizadores de
+    tipo watchdog o de tiempo de espera. En caso de éxito, devuelve la nueva hora
+    absoluta UNIX en la que vencerá el temporizador.</p>
+<p class="Pp">Es posible que <b>delay_adjust()</b> ajuste temporizadores creados
+    por <b>alarm_set()</b>, así como por <b>delay_set()</b>.</p>
+<pre>use POSIX qw(strftime);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    # Configuración.
+    # ... omitido.
+    got_input =&gt; sub {
+      my $new_time = $_[KERNEL]-&gt;delay_adjust(
+        $_[HEAP]{input_timeout}, 60
+      );
+      print(
+        &quot;Se actualizó el tiempo de espera de entrada. El próximo puede ocurrir a las &quot;,
+        strftime(&quot;%F %T&quot;, gmtime($new_time)), &quot;\n&quot;
+      );
+    },
+  }
+);</pre>
+<p class="Pp">En caso de fallo, devuelve falso booleano y establece $! a una razón
+    para el fallo. Consulte la explicación de $! para <b>alarm_adjust()</b>.</p>
+<p class="Pp">delay_remove no es necesario</p>
+<p class="Pp">No existe <b>delay_remove()</b>. Todos los temporizadores son
+    internamente idénticos, por lo que <b>alarm_remove()</b> funcionará con los
+    IDs de temporizador devueltos por <b>delay_set()</b>.</p>
+<p class="Pp">delay_remove_all no es necesario</p>
+<p class="Pp">No existe <b>delay_remove_all()</b>. Todos los temporizadores son
+    internamente idénticos, por lo que <b>alarm_remove_all()</b> los borra a
+    todos, independientemente de cómo fueron creados.</p>
+<p class="Pp"><i>Comparación</i></p>
+<p class="Pp">A continuación, se presenta una tabla para ayudar a comparar los
+    diversos métodos de envío de mensajes retardados</p>
+<pre>+-----------+------------------+---------------------+------------+
+|           | argumento de     | anula otros eventos | devuelve al |
+| método    | tiempo           | del mismo nombre    | éxito      |
++-----------+------------------+---------------------+------------+
+| delay_set | segundos desde   | N                   | alarm_id   |
+|           | ahora            |                     |            |
+| delay     | segundos desde   | S                   | 0 (falso)  |
+|           | ahora            |                     |            |
+| alarm_set | tiempo de época  | N                   | alarm_id   |
+|           | UNIX             |                     |            |
+| alarm     | tiempo de época  | S                   | 0 (falso)  |
+|           | UNIX             |                     |            |
++-----------+------------------+---------------------+------------+</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Identificadores_de_Sesión_(IDs_y_Alias)'><a class='permalink' href='#Identificadores_de_Sesión_(IDs_y_Alias)'>Identificadores de Sesión (IDs y Alias)</a></h2>
+<p class="Pp">Una sesión puede ser referenciada por sus referencias de objeto
+    (ya sean bendecidas o convertidas a cadena), un ID de sesión o uno o más
+    nombres simbólicos que llamamos alias.</p>
+<p class="Pp">Cada sesión está representada por un objeto, por lo que las
+    referencias de sesión son bastante sencillas. POE::Kernel puede referenciar
+    estos objetos. Por ejemplo, <b>post()</b> puede usar <span class="Li">$_</span>[SENDER]
+    como destino:</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub { $_[KERNEL]-&gt;alias_set(&quot;echoer&quot;) },
+    ping =&gt; sub {
+      $_[KERNEL]-&gt;post( $_[SENDER], &quot;pong&quot;, @_[ARG0..$#_] );
+    }
+  }
+);</pre>
+<p class="Pp">POE también reconoce objetos de Sesión convertidos a cadena para
+    mayor comodidad y como una forma de referencia débil. Aquí <span class="Li">$_</span>[SENDER]
+    se envuelve en comillas para convertirlo a cadena:</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub { $_[KERNEL]-&gt;alias_set(&quot;echoer&quot;) },
+    ping =&gt; sub {
+      $_[KERNEL]-&gt;post( &quot;$_[SENDER]&quot;, &quot;pong&quot;, @_[ARG0..$#_] );
+    }
+  }
+);</pre>
+<p class="Pp">Cada sesión recibe un ID único en el momento de su creación. No
+    habrá dos sesiones activas con el mismo ID, pero los IDs pueden reutilizarse
+    con el tiempo. La combinación de un ID de kernel y un ID de sesión debería
+    ser suficiente como identificador único global.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub { $_[KERNEL]-&gt;alias_set(&quot;echoer&quot;) },
+    ping =&gt; sub {
+      $_[KERNEL]-&gt;delay(
+        pong_later =&gt; rand(5), $_[SENDER]-&gt;ID, @_[ARG0..$#_]
+      );
+    },
+    pong_later =&gt; sub {
+      $_[KERNEL]-&gt;post( $_[ARG0], &quot;pong&quot;, @_[ARG1..$#_] );
+    }
+  }
+);</pre>
+<p class="Pp">Los kernels también mantienen un espacio de nombres o diccionario
+    global de sesiones que puede usarse para mapear un alias simbólico a una
+    sesión. Una vez que se ha creado un mapeo de alias, ese alias puede usarse
+    para referirse a la sesión donde sea que se pueda especificar una sesión.</p>
+<p class="Pp">En los ejemplos anteriores, cada servicio de eco ha establecido un
+    alias de &quot;echoer&quot;. Otra sesión puede enviar una solicitud de ping a la
+    sesión de eco utilizando ese alias en lugar de un objeto de sesión o un ID.
+    Por ejemplo:</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub { $_[KERNEL]-&gt;post(echoer =&gt; ping =&gt; &quot;whee!&quot; ) },
+    pong =&gt; sub { print &quot;@_[ARG0..$#_]\n&quot; }
+  }
+);</pre>
+<p class="Pp">Una sesión con un alias no se detendrá hasta que toda la demás
+    actividad se haya detenido. Los alias se tratan como una especie de observador
+    de eventos. Los eventos provienen de sesiones activas. Por lo tanto, los alias
+    se vuelven inútiles cuando ya no quedan sesiones activas. En lugar de dejar
+    el programa en ejecución en un estado de &quot;zombi&quot;, POE detecta esta
+    condición de interbloqueo y activa una limpieza. Consulte &quot;Signal
+    Classes&quot; para obtener más información.</p>
+<p class="Pp"><i>alias_set ALIAS</i></p>
+<p class="Pp"><b>alias_set()</b> mapea un ALIAS en el diccionario de POE::Kernel a
+    la sesión actual. El ALIAS puede usarse posteriormente casi en cualquier lugar
+    donde se espere una referencia de sesión, una referencia convertida a cadena o
+    un ID.</p>
+<p class="Pp">Las sesiones pueden tener más de un alias. Cada alias debe definirse
+    en una llamada separada a <b>alias_set()</b>. Un solo alias no puede hacer
+    referencia a más de una sesión.</p>
+<p class="Pp">Se muestran ejemplos de alias múltiples anteriormente.</p>
+<p class="Pp"><b>alias_set()</b> devuelve 0 en caso de éxito, o un indicador de
+    error distinto de cero: EEXIST ("File exists") indica que el alias ya está
+    asignado a otra sesión diferente.</p>
+<p class="Pp"><i>alias_remove ALIAS</i></p>
+<p class="Pp"><b>alias_remove()</b> elimina un ALIAS para la sesión actual del
+    diccionario de POE::Kernel. El ALIAS ya no hará referencia a la sesión
+    actual. Esto no afecta negativamente a los eventos que ya se han enviado a la
+    cola de POE. La resolución de alias ocurre en el momento de <b>post()</b>, no
+    en el momento de la entrega.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[KERNEL]-&gt;alias_set(&quot;short_window&quot;);
+      $_[KERNEL]-&gt;delay(close_window =&gt; 1);
+    },
+    close_window =&gt; {
+      $_[KERNEL]-&gt;alias_remove(&quot;short_window&quot;);
+    }
+  }
+);</pre>
+<p class="Pp"><b>alias_remove()</b> devuelve 0 en caso de éxito o un código de
+    error distinto de cero: ESRCH ("No such process") indica que el ALIAS no está
+    actualmente en el diccionario de POE::Kernel. EPERM ("Operation not
+    permitted") significa que la sesión actual no puede eliminar el ALIAS porque
+    está en uso por alguna otra sesión.</p>
+<p class="Pp"><i>alias_resolve ALIAS</i></p>
+<p class="Pp"><b>alias_resolve()</b> devuelve una referencia de sesión que
+    corresponde a un ALIAS dado. De hecho, el ALIAS puede ser una referencia de
+    sesión convertida a cadena, un ID de sesión o un alias registrado previamente
+    por <b>alias_set()</b>.</p>
+<p class="Pp">Un uso para <b>alias_resolve()</b> es detectar si otra sesión ha
+    desaparecido:</p>
+<pre>unless (defined $_[KERNEL]-&gt;alias_resolve(&quot;Elvis&quot;)) {
+  print &quot;Elvis ha dejado el edificio.\n&quot;;
+}</pre>
+<p class="Pp">Como se mencionó anteriormente, <b>alias_resolve()</b> devuelve una
+    referencia de sesión o undef en caso de fallo. El fallo también establece $!
+    a ESRCH ("No such process") cuando el ALIAS no está actualmente en el
+    diccionario de POE::Kernel.</p>
+<p class="Pp"><i>alias_list [SESSION_REFERENCE]</i></p>
+<p class="Pp"><b>alias_list()</b> devuelve una lista de alias asociados con una
+    SESIÓN específica, o con la sesión actual si se omite SESSION.
+    <b>alias_list()</b> devuelve una lista vacía si la SESIÓN solicitada no tiene
+    alias.</p>
+<p class="Pp">SESSION puede ser una referencia de sesión (bendecida o convertida
+    a cadena), un ID de sesión o un alias de sesión.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    $_[KERNEL]-&gt;alias_set(&quot;mi&quot;);
+    print(
+      &quot;Los nombres que me doy: &quot;,
+      join(&quot;, &quot;, $_[KERNEL]-&gt;alias_list()),
+      &quot;\n&quot;
+    );
+  }
+);</pre>
+<p class="Pp"><i>ID_id_to_session SESSION_ID</i></p>
+<p class="Pp"><b>ID_id_to_session()</b> traduce un ID de sesión a una referencia de
+    sesión. Es un subconjunto de propósito especial de <b>alias_re</p>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS">SYNOPSIS</h1>
+<pre>    use POE::Kernel;
+
+    # Session and session ID lookup
+    my $session_id = $_[KERNEL]-&gt;ID();
+    my $session_ref = $_[KERNEL]-&gt;ID_id_to_session($session_id);
+    my $id = $_[KERNEL]-&gt;ID_session_to_id($_[SENDER]);
+
+    # I/O Watchers
+    $_[KERNEL]-&gt;select_read($handle, &quot;event_name&quot;, @args);
+    $_[KERNEL]-&gt;select_write($handle, &quot;event_name&quot;, @args);
+    $_[KERNEL]-&gt;select_expedite($handle, &quot;event_name&quot;, @args);
+    $_[KERNEL]-&gt;select_pause_read($handle);
+    $_[KERNEL]-&gt;select_resume_read($handle);
+    $_[KERNEL]-&gt;select_pause_write($handle);
+    $_[KERNEL]-&gt;select_resume_write($handle);
+    $_[KERNEL]-&gt;select($handle, $read_event, $write_event, $expedite_event, @args);
+
+    # Session Management
+    POE::Session-&gt;create(...);
+    $_[KERNEL]-&gt;ID();
+    $_[KERNEL]-&gt;ID_id_to_session($session_id);
+    $_[KERNEL]-&gt;ID_session_to_id($session_ref);
+    $_[KERNEL]-&gt;yield();
+    $_[KERNEL]-&gt;pause();
+    $_[KERNEL]-&gt;resume();
+    $_[KERNEL]-&gt;sig_child();
+    $_[KERNEL]-&gt;sig_parent();
+    $_[KERNEL]-&gt;detach_child($session_id);
+    $_[KERNEL]-&gt;detach_myself();
+    $_[KERNEL]-&gt;get_session_by_name($name);
+    $_[KERNEL]-&gt;get_session_by_package($package);
+    $_[KERNEL]-&gt;get_caller();
+    $_[KERNEL]-&gt;get_current_session();
+    $_[KERNEL]-&gt;sig_global(@signals);
+    $_[KERNEL]-&gt;sig_unblock(@signals);
+    $_[KERNEL]-&gt;sig_unpause(@signals);
+    $_[KERNEL]-&gt;run();
+    $_[KERNEL]-&gt;stop();
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION">DESCRIPTION</h1>
+<p class="Pp">POE::Kernel is the heart of the POE event loop. It's responsible
+    for dispatching events, managing timers and I/O watchers, and generally keeping
+    things running.</p>
+<p class="Pp">There is only one POE::Kernel instance, and it's available via the
+    special variable <tt>$_[KERNEL]</tt>.</p>
+<section class="Ss">
+<h2 class="Ss" id='Kernel_Methods'><a class='permalink' href='#Kernel_Methods'>Kernel Methods</a></h2>
+<p class="Pp">All POE::Kernel methods are available to any session. If you are
+    calling a POE::Kernel method from within a POE::Session state, you may
+    access it as <tt>$_[KERNEL]</tt>. Otherwise, you may call it as
+    <tt>POE::Kernel-&gt;instance()-&gt;method()</tt>.</p>
+<p class="Pp">The following methods are available:</p>
+<section class="Ss">
+<h2 class="Ss" id='Session_IDs_and_References'><a class='permalink' href='#Session_IDs_and_References'>Session IDs and References</a></h2>
+<p class="Pp"><i>ID()</i></p>
+<p class="Pp"><b>ID()</b> returns the session ID of the current session. This is
+    primarily used when a session needs to keep track of other sessions, or when
+    it needs to pass its session ID to another process.</p>
+<p class="Pp"><i>ID_id_to_session SESSION_ID</i></p>
+<p class="Pp"><b>ID_id_to_session()</b> converts a session ID into a POE::Session
+    object. This is useful when a session needs to interact with another session
+    whose ID it already knows.</p>
+<p class="Pp">This is the inverse of <b>ID()</b>. This method is a wrapper around
+    the Kernel's internal session hash, which is slightly more efficient than
+    calling POE::Session-&gt;<b>resolve_ids()</b>, but less flexible. Use
+    this method when you are certain that you have the correct session ID and
+    want the fastest possible lookup. The POE::Session-&gt;<b>solve()</b> method
+    is also available and is also slightly faster and somewhat less flexible.</p>
+<pre>unless (defined $_[KERNEL]-&gt;ID_id_to_session($session_id)) {
+  print &quot;Session $session_id doesn't exist.\n&quot;;
+}</pre>
+<p class="Pp"><b>ID_id_to_session()</b> returns undef if a lookup failed. $!
+    will be set to ESRCH (&quot;No such process&quot;).</p>
+<p class="Pp"><i>ID_session_to_id SESSION_REFERENCE</i></p>
+<p class="Pp"><b>ID_session_to_id()</b> converts a blessed or stringified
+    SESSION_REFERENCE into a session ID. It's more practical for stringified
+    references, as programs can call the POE::Session <b>ID()</b> method on the
+    blessed ones. These statements are equivalent:</p>
+<pre>$id = $_[SENDER]-&gt;ID();
+$id = $_[KERNEL]-&gt;ID_session_to_id($_[SENDER]);
+$id = $_[KERNEL]-&gt;ID_session_to_id(&quot;$_[SENDER]&quot;);</pre>
+<p class="Pp">As with other POE::Kernel lookup methods,
+    <b>ID_session_to_id()</b> returns undef on failure, setting $! to ESRCH
+    (&quot;No such process&quot;).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='I/O_Watchers_(Selects)'><a class='permalink' href='#I/O_Watchers_(Selects)'>I/O   Watchers (Selects)</a></h2>
+<p class="Pp">No event system would be complete without the ability to
+    asynchronously watch for I/O events. POE::Kernel implements the lowest level
+    watchers, which are called &quot;selects&quot; because they were
+    historically implemented using Perl's built-in <a href='/man/select.2.en'>select(2)</a>
+  function.</p>
+<p class="Pp">Applications handle I/O readiness events by performing some
+    activity on the underlying filehandle. Read-readiness might be handled by
+    reading from the handle. Write-readiness by writing to it.</p>
+<p class="Pp">All I/O watcher events include two parameters.
+    <span class="Li">&quot;ARG0&quot;</span> contains the handle that is ready
+    for work. <span class="Li">&quot;ARG1&quot;</span> contains an integer
+    describing what's ready.</p>
+<pre>sub handle_io {
+  my ($handle, $mode) = @_[ARG0, ARG1];
+  print &quot;File $handle is ready for &quot;;
+  if ($mode == 0) {
+    print &quot;reading&quot;;
+  }
+  elsif ($mode == 1) {
+    print &quot;writing&quot;;
+  }
+  elsif ($mode == 2) {
+    print &quot;out-of-band reading&quot;;
+  }
+  else {
+    die &quot;unknown mode $mode&quot;;
+  }
+  print &quot;\n&quot;;
+  # ... do something here
+}</pre>
+<p class="Pp">The remaining parameters, <span class="Li">@_[ARG2..$%_]</span>,
+    contain additional parameters that were passed to the POE::Kernel method
+    that created the watcher.</p>
+<p class="Pp">POE::Kernel conditions filehandles to be 8-bit clean and
+    non-blocking. Programs that need them conditioned differently should set
+    them up after starting POE I/O watchers. If you are running a Perl older
+    than 5.8.1 and is using tied filehandles, you need to set non-blocking mode
+    yourself as IO::Handle does not work well. See
+    <a href='https://rt.cpan.org/Ticket/Display.html?id=67545'>https://rt.cpan.org/Ticket/Display.html?id=67545</a> for more info.</p>
+<p class="Pp">I/O watchers will prevent sessions from stopping.</p>
+<p class="Pp"><i>select_read FILE_HANDLE [, EVENT_NAME [, ADDITIONAL_PARAMETERS]
+    ]</i></p>
+<p class="Pp"><b>select_read()</b> starts or stops the current session from
+    watching for incoming data on a given FILE_HANDLE. The watcher is started if
+    EVENT_NAME is specified, or stopped if it's not. ADDITIONAL_PARAMETERS, if
+    specified, will be passed to the EVENT_NAME handler as
+    <span class="Li">@_[ARG2..$#_]</span>.</p>
+<pre>POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      $_[HEAP]{socket} = IO::Socket::INET-&gt;new(
+        PeerAddr =&gt; &quot;localhost&quot;,
+        PeerPort =&gt; 25,
+      );
+      $_[KERNEL]-&gt;select_read( $_[HEAP]{socket}, &quot;got_input&quot; );
+      $_[KERNEL]-&gt;delay(timed_out =&gt; 1);
+    },
+    got_input =&gt; sub {
+      my $socket = $_[ARG0];
+      while (sysread($socket, my $buf = &quot;&quot;, 8192)) {
+        print $buf;
+      }
+    },
+    timed_out =&gt; sub {
+      $_[KERNEL]-&gt;select_read( delete $_[HEAP]{socket} );
+    },
+  }
+);</pre>
+<p class="Pp"><b>select_read()</b> does not return anything significant.</p>
+<p class="Pp"><i>select_write FILE_HANDLE [, EVENT_NAME [,
+    ADDITIONAL_PARAMETERS] ]</i></p>
+<p class="Pp"><b>select_write()</b> follows the same semantics as
+    <b>select_read()</b>, but it starts or stops a watcher that looks for
+    write-readiness. That is, when EVENT_NAME is delivered, it means that
+    FILE_HANDLE is ready to be written to.</p>
+<p class="Pp"><b>select_write()</b> does not return anything significant.</p>
+<p class="Pp"><i>select_expedite FILE_HANDLE [, EVENT_NAME [,
+    ADDITIONAL_PARAMETERS] ]</i></p>
+<p class="Pp"><b>select_expedite()</b> does the same sort of thing as
+    <b>select_read()</b> and <b>select_write()</b>, but it watches a FILE_HANDLE
+    for out-of-band data ready to be input from a FILE_HANDLE. Hardly anybody
+    uses this, but it exists for completeness' sake.</p>
+<p class="Pp">An EVENT_NAME event will be delivered whenever the FILE_HANDLE can
+    be read from out-of-band. Out-of-band data is considered
+    &quot;expedited&quot; because it is often ahead of a socket's normal
+  data.</p>
+<p class="Pp"><b>select_expedite()</b> does not return anything significant.</p>
+<p class="Pp"><i>select_pause_read FILE_HANDLE</i></p>
+<p class="Pp"><b>select_pause_read()</b> is a lightweight way to pause a
+    FILE_HANDLE input watcher without performing all the bookkeeping of a
+    <b>select_read()</b>. It's used with <b>select_resume_read()</b> to
+    implement input flow control.</p>
+<p class="Pp">Input that occurs on FILE_HANDLE will backlog in the operating
+    system buffers until <b>select_resume_read()</b> is called.</p>
+<p class="Pp">A side effect of bypassing the <b>select_read()</b> bookkeeping is
+    that a paused FILE_HANDLE will not prematurely stop the current session.</p>
+<p class="Pp"><b>select_pause_read()</b> does not return anything
+  significant.</p>
+<p class="Pp"><i>select_resume_read FILE_HANDLE</i></p>
+<p class="Pp"><b>select_resume_read()</b> resumes a FILE_HANDLE input watcher
+    that was previously paused by <b>select_pause_read()</b>. See
+    <b>select_pause_read()</b> for more discussion on lightweight input flow
+    control.</p>
+<p class="Pp">Data backlogged in the operating system due to a
+    <b>select_pause_read()</b> call will become available after
+    <b>select_resume_read()</b> is called.</p>
+<p class="Pp"><b>select_resume_read()</b> does not return anything
+  significant.</p>
+<p class="Pp"><i>select_pause_write FILE_HANDLE</i></p>
+<p class="Pp"><b>select_pause_write()</b> pauses a FILE_HANDLE output watcher
+    the same way <b>select_pause_read()</b> does for input. Please see
+    <b>select_pause_read()</b> for further discussion.</p>
+<p class="Pp"><i>select_resume_write FILE_HANDLE</i></p>
+<p class="Pp"><b>select_resume_write()</b> resumes a FILE_HANDLE output watcher
+    the same way that <b>select_resume_read()</b> does for input. See
+    <b>select_resume_read()</b> for further discussion.</p>
+<p class="Pp"><i>select FILE_HANDLE [, EV_READ [, EV_WRITE [, EV_EXPEDITE [,
+    ARGS] ] ] ]</i></p>
+<p class="Pp">POE::Kernel's <b>select()</b> method sets or clears a
+    FILE_HANDLE's read, write and expedite watchers at once. It's a little more
+    expensive than calling <b>select_read()</b>, <b>select_write()</b> and
+    <b>select_expedite()</b> manually, but it's significantly more
+  convenient.</p>
+<p class="Pp">Defined event names enable their corresponding watchers, and
+    undefined event names disable them. This turns off all the watchers for a
+    FILE_HANDLE:</p>
+<pre>sub stop_io {
+  $_[KERNEL]-&gt;select( $_[HEAP]{file_handle} );
+}</pre>
+<p class="Pp">This statement:</p>
+<pre>$_[KERNEL]-&gt;select( $file_handle, undef, &quot;write_event&quot;, undef, @stuff );</pre>
+<p class="Pp">is equivalent to:</p>
+<pre>$_[KERNEL]-&gt;select_read( $file_handle );
+$_[KERNEL]-&gt;select_write( $file_handle, &quot;write_event&quot;, @stuff );
+$_[KERNEL]-&gt;select_expedite( $file_handle );</pre>
+<p class="Pp">POE::Kernel's <b>select()</b> should not be confused with Perl's
+    built-in <b>select()</b> function.</p>
+<p class="Pp">As with the other I/O watcher methods, <b>select()</b> does not
+    return a meaningful value.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Session_Management'><a class='permalink' href='#Session_Management'>Session   Management</a></h2>
+<p class="Pp">Sessions are dynamic. They may be created and destroyed during a
+    program's lifespan. When a session is created, it becomes the
+    &quot;child&quot; of the current session. The creator -- the current session
+    -- becomes its &quot;parent&quot; session. This is loosely modeled after
+    UNIX processes.</p>
+<p class="Pp">The most common session management is done by creating new
+    sessions and allowing them to eventually stop.</p>
+<p class="Pp">Every session has a parent, even the very first session created.
+    Sessions without obvious parents are children of the program's POE::Kernel
+    instance.</p>
+<p class="Pp">Child sessions will keep their parents active. See &quot;Session
+    Lifespans&quot; for more about why sessions stay alive.</p>
+<p class="Pp">The parent/child relationship tree also governs the way many
+    signals are dispatched. See &quot;Common Signal Dispatching&quot; for more
+    information on that.</p>
+<p class="Pp"><i>Session Management Events (_start, _stop, _parent,
+  _child)</i></p>
+<p class="Pp">POE::Kernel provides four session management events: _start,
+    _stop, _parent and _child. They are invoked synchronously whenever a session
+    is newly created or just about to be destroyed.</p>
+<dl class="Bl-tag">
+  <dt>_start</dt>
+  <dd>_start should be familiar by now. POE dispatches the _start event to
+      initialize a session after it has been registered under POE::Kernel. What
+      is not readily apparent, however, is that it is invoked before the
+      POE::Session constructor returns.
+    <p class="Pp">Within the _start handler, the event's sender is the session
+        that created the new session. Otherwise known as the new session's
+        <i>parent</i>. Sessions created before POE::Kernel-&gt;<b>run()</b> is
+        called will be descendents of the program's POE::Kernel singleton.</p>
+    <p class="Pp">The _start handler's return value is passed to the parent
+        session in a _child event, along with the notification that the parent's
+        new child was created successfully. See the discussion of _child for
+        more details.</p>
+        <pre>POE::Session-&gt;create(
+  inline_states =&gt; { _start=&gt; \&amp;_start },
+  args =&gt; [ $some, $args ]
+);
+sub _start {
+  my ( $some, $args ) = @_[ ARG0, ARG1 ];
+  # ....
+}
+</pre>
+  </dd>
+  <dt>_stop</dt>
+  <dd>_stop is a little more mysterious. POE calls a _stop handler when a
+      session is irrevocably about to be destroyed. Part of session destruction
+      is the forcible reclamation of its resources (events, timers, message
+      events, etc.) so it's not possible to <b>post()</b> a message from _stop's
+      handler. A program is free to try, but the event will be destroyed before
+      it has a chance to be dispatched.
+    <p class="Pp">the _stop handler's return value is passed to the parent's
+        _child event. See _child for more details.</p>
+    <p class="Pp">_stop is usually invoked when a session has no further reason
+        to live, although signals may cause them to stop sooner.</p>
+    <p class="Pp">The corresponding _child handler is invoked synchronously just
+        after _stop returns.</p>
+  </dd>
+  <dt>_parent</dt>
+  <dd>_parent is used to notify a child session when its parent has changed.
+      This usually happens when a session is first created. It can also happen
+      when a child session is detached from its parent. See detach_child and
+      &quot;detach_myself&quot;.
+    <p class="Pp">_parent's ARG0 contains</p>
+  </dd>
+</dl>
+</section>
+</section>
+</body>
+</html>
+el padre anterior de la sesión, y
+        ARG1 contiene su nuevo padre.</p>
+        <pre>sub _parent {
+  my ( $old_parent, $new_parent ) = @_[ ARG0, ARG1 ];
+  print(
+    &quot;Sesión &quot;, $_[SESSION]-&gt;ID,
+    &quot; padre cambiado de sesión &quot;, $old_parent-&gt;ID,
+    &quot; a sesión &quot;, $new_parent-&gt;ID,
+    &quot;\n&quot;
+  );
+}
+</pre>
+  </dd>
+  <dt>_child</dt>
+  <dd>_child notifica a una sesión cuando una sesión hija ha sido creada,
+      destruida, o reasignada a o desde otro padre. Se despacha usualmente cuando
+      las sesiones son creadas o destruidas. También puede ocurrir cuando
+      una sesión es desvinculada de su padre.
+    <p class="Pp">_child incluye información en la porción de &quot;argumentos&quot;
+        de <span class="Li">@_</span>. Típicamente ARG0, ARG1 y ARG2,
+        pero estos pueden ser sobreescritos por una clase POE::Session diferente:</p>
+    <p class="Pp">ARG0 contiene una cadena que describe lo que ha sucedido con el
+        hijo. La cadena puede ser 'create' (la sesión hija ha sido creada),
+        'gain' (el hijo ha sido entregado por otra sesión), o 'lose' (la
+        sesión hija se ha detenido o ha sido entregada).</p>
+    <p class="Pp">En todos los casos, ARG1 contiene una referencia a la sesión
+        hija.</p>
+    <p class="Pp">En el caso 'create', ARG2 contiene el valor devuelto por el
+        manejador _start de la sesión hija. De igual manera, ARG2 contiene el
+        valor de retorno del manejador _stop para el caso 'lose'.</p>
+        <pre>sub _child {
+  my( $reason, $child ) = @_[ ARG0, ARG1 ];
+  if( $reason eq 'create' ) {
+    my $retval = $_[ ARG2 ];
+  }
+  # ...
+}
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Los eventos se entregan en órdenes específicos.</p>
+<p class="Pp">Cuando se crea una nueva sesión:</p>
+<dl class="Bl-tag">
+  <dt>1.</dt>
+  <dd>Se llama al constructor de la sesión.</dd>
+  <dt>2.</dt>
+  <dd>La sesión se pone en juego. Es decir, POE::Kernel la incluye en su
+      contabilidad.</dd>
+  <dt>3.</dt>
+  <dd>La nueva sesión recibe _start.</dd>
+  <dt>4.</dt>
+  <dd>La sesión padre recibe _child ('create'), la referencia a la nueva sesión,
+      y el valor de retorno del _start de la nueva sesión.</dd>
+  <dt>5.</dt>
+  <dd>El constructor de la sesión devuelve.</dd>
+</dl>
+<p class="Pp">Cuando una sesión antigua se detiene:</p>
+<dl class="Bl-tag">
+  <dt>1.</dt>
+  <dd>Si la sesión tiene hijos propios, estos son entregados al padre de la
+      sesión. Esto activa uno o más eventos _child ('gain') en el padre, y un
+      _parent en cada hijo.</dd>
+  <dt>2.</dt>
+  <dd>Una vez despojada de sus hijos, la sesión que se detiene recibe un evento
+      _stop.</dd>
+  <dt>3.</dt>
+  <dd>El padre de la sesión detenida recibe un evento _child ('lose') con la
+      referencia del hijo saliente y el valor de retorno del manejador _stop.</dd>
+  <dt>4.</dt>
+  <dd>La sesión detenida se elimina del juego, al igual que todos sus recursos
+      restantes.</dd>
+  <dt>5.</dt>
+  <dd>Se comprueba si el padre de la sesión está inactivo. Si es así, comenzará la
+      recolección de basura sobre él, y también se detendrá.</dd>
+</dl>
+<p class="Pp">Cuando una sesión es desvinculada de su padre:</p>
+<dl class="Bl-tag">
+  <dt>1.</dt>
+  <dd>El padre de la sesión que se desvincula es notificado con un evento
+      _child ('lose'). El valor de retorno del manejador _stop es undef ya que
+      el hijo no se está deteniendo realmente.</dd>
+  <dt>2.</dt>
+  <dd>La sesión desvinculada es notificada con un evento _parent de que su nuevo
+      padre es el propio POE::Kernel.</dd>
+  <dt>3.</dt>
+  <dd>Los datos de contabilidad de POE::Kernel se ajustan para reflejar el cambio
+      de paternidad.</dd>
+  <dt>4.</dt>
+  <dd>Se comprueba si el padre anterior de la sesión está inactivo. Si es así,
+      comenzará la recolección de basura sobre él, y también se detendrá.</dd>
+</dl>
+<p class="Pp"><i>Métodos de Gestión de Sesiones</i></p>
+<p class="Pp">Estos métodos permiten desvincular sesiones de sus padres en los
+    raros casos en que la relación padre/hijo se interpone.</p>
+<p class="Pp">detach_child CHILD_SESSION</p>
+<p class="Pp"><b>detach_child()</b> desvincula una CHILD_SESSION específica de la
+    sesión actual. Si tiene éxito, CHILD_SESSION se convertirá en hija de la
+    instancia POE::Kernel, y <b>detach_child()</b> devolverá verdadero. Sin
+    embargo, en caso de fallo, <b>detach_child()</b> devuelve falso y establece
+    $! para explicar la naturaleza del fallo:</p>
+<dl class="Bl-tag">
+  <dt id="ESRCH"><a class="permalink" href="#ESRCH">ESRCH (&quot;No such
+    process&quot;).</a></dt>
+  <dd>La CHILD_SESSION no es una sesión válida.</dd>
+  <dt id="EPERM"><a class="permalink" href="#EPERM">EPERM (&quot;Operation not
+    permitted&quot;).</a></dt>
+  <dd>La CHILD_SESSION existe, pero no es hija de la sesión actual.</dd>
+</dl>
+<p class="Pp"><b>detach_child()</b> generará eventos "_parent" y/o "_child" a las
+    sesiones apropiadas. Ver Eventos de Gestión de Sesiones para una explicación
+    detallada de estos eventos. Ver arriba el orden en que se generan los
+    eventos.</p>
+<p class="Pp">detach_myself</p>
+<p class="Pp"><b>detach_myself()</b> desvincula la sesión actual de su padre
+    actual. El nuevo padre será la instancia POE::Kernel en ejecución. Devuelve
+    verdadero en caso de éxito. En caso de fallo, devuelve falso y establece
+    <span class="Li">$!</span> para explicar la naturaleza del fallo:</p>
+<dl class="Bl-tag">
+  <dt id="EPERM~2"><a class="permalink" href="#EPERM~2">EPERM (&quot;Operation
+    not permitted&quot;).</a></dt>
+  <dd>La sesión actual ya es hija de POE::Kernel, por lo que no puede ser
+      desvinculada.</dd>
+</dl>
+<p class="Pp"><b>detach_child()</b> generará eventos "_parent" y/o "_child" a las
+    sesiones apropiadas. Ver Eventos de Gestión de Sesiones para una explicación
+    detallada de estos eventos. Ver arriba el orden en que se generan los
+    eventos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Señales'><a class='permalink' href='#Señales'>Señales</a></h2>
+<p class="Pp">POE::Kernel proporciona métodos a través de los cuales un programa
+    puede registrar interés en las señales que llegan, puede entregar sus
+    propias señales sin recurrir a llamadas al sistema, y puede indicar que las
+    señales han sido manejadas para que los comportamientos predeterminados no
+    sean necesarios.</p>
+<p class="Pp">Las señales son por naturaleza una *acción a distancia*, y su
+    implementación requiere sincronización generalizada entre sesiones (y
+    reentrancia en el despachador, pero ese es un detalle de implementación).
+    Perfeccionar la semántica ha demostrado ser difícil, pero POE intenta hacer
+    lo Correcto siempre que es posible.</p>
+<p class="Pp">POE no registra manejadores de <span class="Li">%SIG</span> para
+    señales hasta que se llama a <b>sig()</b> para vigilarlas. Por lo tanto, el
+    comportamiento predeterminado de una señal ocurre para las señales no
+    manejadas. Es decir, SIGINT detendrá el programa sin piedad, SIGWINCH no
+    hará nada, SIGTSTP pausará un programa, y así sucesivamente.</p>
+<p class="Pp"><i>Clases de Señales</i></p>
+<p class="Pp">Hay tres clases de señales. Cada clase define un comportamiento
+    predeterminado para la señal y si el predeterminado puede ser sobreescrito.
+    Son:</p>
+<p class="Pp">Señales benignas, consultivas o informativas</p>
+<p class="Pp">Estos son tres nombres para la misma clase de señal. Las señales de
+    esta clase notifican a una sesión de un evento pero no terminan la sesión
+    si no se manejan.</p>
+<p class="Pp">Es posible que una aplicación cree sus propias señales benignas.
+    Ver &quot;signal&quot; abajo.</p>
+<p class="Pp">Señales terminales</p>
+<p class="Pp">Las señales terminales matarán sesiones si no son manejadas por una
+    llamada a &quot;sig_handled&quot;(). Las señales del SO que usualmente matan o
+    volcan un proceso se consideran terminales en POE, pero nunca activan un
+    coredump. Estas son: HUP, INT, QUIT y TERM.</p>
+<p class="Pp">Hay dos señales terminales creadas y usadas dentro de POE:</p>
+<dl class="Bl-tag">
+  <dt id="DIE"><a class="permalink" href="#DIE">DIE</a></dt>
+  <dd><span class="Li">&quot;DIE&quot;</span> notifica a las sesiones que ha ocurrido
+      una excepción de Perl. Ver &quot;Manejo de Excepciones&quot; para
+      detalles.</dd>
+  <dt id="IDLE"><a class="permalink" href="#IDLE">IDLE</a></dt>
+  <dd>La señal <span class="Li">&quot;IDLE&quot;</span> se utiliza para notificar
+      a las sesiones restantes que un programa se ha quedado sin cosas que
+      hacer.</dd>
+</dl>
+<p class="Pp">Señales no enmascarables</p>
+<p class="Pp">Las señales no enmascarables son terminales independientemente de si
+    se llama a <b>sig_handled()</b>. El término proviene de &quot;NMI&quot;, la
+    interrupción de CPU no enmascarable generada usualmente por una excepción de
+    hardware irrecuperable.</p>
+<p class="Pp">Las sesiones que reciben una señal no enmascarable se detendrán
+    inevitablemente. POE implementa dos señales no enmascarables:</p>
+<dl class="Bl-tag">
+  <dt id="ZOMBIE"><a class="permalink" href="#ZOMBIE">ZOMBIE</a></dt>
+  <dd>Esta señal no enmascarable se dispara si un programa ha recibido una señal
+      <span class="Li">&quot;IDLE&quot;</span> pero no se ha reiniciado ni ha
+      salido. El programa se ha convertido en un zombi (es decir, no está ni
+      muerto ni vivo, y solo existe para consumir cerebros... er... memoria).
+      La señal <span class="Li">&quot;ZOMBIE&quot;</span> actúa como un bate de
+      cricket en la cabeza, derribando al zombi, para siempre.</dd>
+  <dt id="UIDESTROY"><a class="permalink" href="#UIDESTROY">UIDESTROY</a></dt>
+  <dd>Esta señal no enmascarable indica que la interfaz de usuario de un programa
+      se ha cerrado, y el programa debe tomar la indirecta del usuario y
+      desaparecer también. Generalmente se genera cuando se cierra un widget
+      GUI particular.</dd>
+</dl>
+<p class="Pp"><i>Despacho Común de Señales</i></p>
+<p class="Pp">La mayoría de las señales no se despachan a una única sesión. La
+    linaje de sesiones de POE (padres e hijos) forma una especie de árbol
+    familiar. Cuando se envía una señal a una sesión, primero pasa a través de
+    cualquier hijo (y nieto, y así sucesivamente) que también esté interesado
+    en la señal.</p>
+<p class="Pp">En el caso de señales terminales, si alguna de las sesiones por las
+    que pasa una señal llama a &quot;sig_handled&quot;(), entonces la señal se
+    considera atendida. Sin embargo, si ninguna de ellas lo hace, todo el árbol
+    de sesiones con raíz en la sesión de destino se termina. Por ejemplo,
+    consideremos este árbol de sesiones:</p>
+<pre>POE::Kernel
+  Sesión 2
+    Sesión 4
+    Sesión 5
+  Sesión 3
+    Sesión 6
+    Sesión 7</pre>
+<p class="Pp">POE::Kernel es el padre de las sesiones 2 y 3. La sesión 2 es el
+    padre de las sesiones 4 y 5. Y la sesión 3 es el padre de 6 y 7.</p>
+<p class="Pp">Una señal enviada a la Sesión 2 también puede ser despachada a las
+    sesiones 4 y 5 porque son hijos de 2. Las sesiones 4 y 5 solo recibirán la
+    señal si han registrado el observador apropiado. Si la señal es terminal, y
+    ninguno de los observadores de señales en las sesiones 2, 4 y 5 llamó a
+    <span class="Li">sig_handled()</span>, las 3 sesiones serán
+    terminadas.</p>
+<p class="Pp">La instancia POE::Kernel del programa se considera una sesión para
+    fines de despacho de señales. Por lo tanto, cualquier señal enviada a
+    POE::Kernel se propagará a través de cada sesión interesada en todo el
+    programa. De hecho, así es como se manejan las señales del SO: se registra
+    un manejador de señales global para reenviar la señal a POE::Kernel.</p>
+<p class="Pp"><i>Semántica de Señales</i></p>
+<p class="Pp">Todas las señales vienen con el nombre de la señal en ARG0. El
+    nombre de la señal es tal como aparece en <span class="Li">%SIG</span>, con una
+    excepción: las señales de procesos hijos son siempre &quot;CHLD&quot; incluso
+    si el sistema operativo actual las reconoce como &quot;CLD&quot;.</p>
+<p class="Pp">Ciertas señales tienen semántica especial:</p>
+<p class="Pp">SIGCHLD</p>
+<p class="Pp">SIGCLD</p>
+<p class="Pp">Tanto <span class="Li">&quot;SIGCHLD&quot;</span> como
+    <span class="Li">&quot;SIGCLD&quot;</span> indican que un proceso hijo ha salido
+    o ha sido terminado por alguna señal. El nombre real de la señal varía entre
+    sistemas operativos, pero POE usa <span class="Li">&quot;CHLD&quot;</span>
+    independientemente.</p><p class="Pp">El interés en <span class="Li">&quot;SIGCHLD&quot;</span> se
+    registra utilizando el método &quot;sig_child&quot;. El método &quot;sig&quot;()
+    también funciona, pero no es tan conveniente.</p>
+<p class="Pp">El evento <span class="Li">&quot;SIGCHLD&quot;</span> incluye
+    tres parámetros:</p>
+<dl class="Bl-tag">
+  <dt id="ARG0"><a class="permalink" href="#ARG0">ARG0</a></dt>
+  <dd><span class="Li">&quot;ARG0&quot;</span> contiene la cadena 'CHLD' (incluso
+      si el sistema operativo lo llama SIGCLD, SIGMONKEY o algo más).</dd>
+  <dt id="ARG1"><a class="permalink" href="#ARG1">ARG1</a></dt>
+  <dd><span class="Li">&quot;ARG1&quot;</span> contiene el ID del proceso del
+      proceso hijo finalizado.</dd>
+  <dt id="ARG2"><a class="permalink" href="#ARG2">ARG2</a></dt>
+  <dd>Y <span class="Li">&quot;ARG2&quot;</span> contiene el valor de
+      <span class="Li">$?</span> para el proceso finalizado.</dd>
+</dl>
+<p class="Pp">Ejemplo:</p>
+<pre>sub sig_CHLD {
+  my( $name, $PID, $exit_val ) = @_[ ARG0, ARG1, ARG2 ];
+  # ...
+}</pre>
+<p class="Pp">SIGPIPE</p>
+<p class="Pp">SIGPIPE rara vez se usa, ya que POE proporciona eventos que hacen lo
+    mismo. Sin embargo, SIGPIPE es compatible si lo necesita. A diferencia de la
+    mayoría de los eventos, SIGPIPE se distribuye directamente a la sesión activa
+    cuando se captura. Salvo condiciones de carrera, la sesión activa debería ser
+    la que provocó que el sistema operativo enviara la señal en primer lugar.</p>
+<p class="Pp">La señal SIGPIPE todavía se propagará a las sesiones hijas.</p>
+<p class="Pp">ARG0 es &quot;PIPE&quot;. No hay otra información asociada a esta
+    señal.</p>
+<p class="Pp">SIGWINCH</p>
+<p class="Pp">Los cambios de tamaño de ventana pueden generar una gran cantidad de
+    señales muy rápidamente. Esto puede no ser un problema al usar perl 5.8.0 o
+    posterior, pero las versiones anteriores pueden no aceptar bien tal abuso. Ha
+    sido advertido.</p>
+<p class="Pp">ARG0 es &quot;WINCH&quot;. No hay otra información asociada a esta
+    señal.</p>
+<p class="Pp"><i>Manejo de Excepciones</i></p>
+<p class="Pp">POE::Kernel solo proporciona una forma de manejo de excepciones: la
+    señal <span class="Li">&quot;DIE&quot;</span>.</p>
+<p class="Pp">Cuando el manejo de excepciones está habilitado (por defecto),
+    POE::Kernel envuelve la invocación del estado en <span class="Li">&quot;eval{}&quot;</span>.
+    Si el manejador de eventos genera una excepción, generalmente con
+    <span class="Li">&quot;die&quot;</span>, POE::Kernel enviará una señal
+    <span class="Li">&quot;DIE&quot;</span> a la sesión de destino del evento.</p>
+<p class="Pp"><span class="Li">&quot;ARG0&quot;</span> es el nombre de la señal,
+    <span class="Li">&quot;DIE&quot;</span>.</p>
+<p class="Pp"><span class="Li">&quot;ARG1&quot;</span> es un hashref que describe
+    la excepción:</p>
+<dl class="Bl-tag">
+  <dt id="error_str"><a class="permalink" href="#error_str">error_str</a></dt>
+  <dd>El texto de la excepción. En otras palabras, <span class="Li">$@</span>.</dd>
+  <dt id="dest_session"><a class="permalink" href="#dest_session">dest_session</a></dt>
+  <dd>Objeto de sesión del estado que generó la excepción. En otras palabras,
+      <span class="Li">$_[SESSION]</span> en la función que murió.</dd>
+  <dt id="event"><a class="permalink" href="#event">event</a></dt>
+  <dd>Nombre del evento que murió.</dd>
+  <dt id="source_session"><a class="permalink" href="#source_session">source_session</a></dt>
+  <dd>Objeto de sesión que envió el evento original. Es decir,
+      <span class="Li">$_[SENDER]</span> en la función que murió.</dd>
+  <dt id="from_state"><a class="permalink" href="#from_state">from_state</a></dt>
+  <dd>Estado desde el cual se envió el evento original. Es decir,
+      <span class="Li">$_[CALLER_STATE]</span> en la función que murió.</dd>
+  <dt id="file"><a class="permalink" href="#file">file</a></dt>
+  <dd>Nombre del archivo desde el que se envió el evento. Es decir,
+      <span class="Li">$_[CALLER_FILE]</span> en la función que murió.</dd>
+  <dt id="line"><a class="permalink" href="#line">line</a></dt>
+  <dd>Número de línea desde el que se envió el evento. Es decir,
+      <span class="Li">$_[CALLER_LINE]</span> en la función que murió.</dd>
+</dl>
+<p class="Pp"><i>Tenga en cuenta que la discusión anterior asume que está utilizando
+    la semántica de llamada de POE::Session.</i></p>
+<p class="Pp">Tenga en cuenta que la señal <span class="Li">&quot;DIE&quot;</span>
+    se envía a la sesión que generó la excepción, no a la sesión que envió el
+    evento que causó que se generara la excepción.</p>
+<pre>sub _start {
+  $poe_kernel-&gt;sig( DIE =&gt; 'sig_DIE' );
+  $poe_kernel-&gt;yield( 'some_event' );
+}
+sub some_event {
+  die &quot;¡No me gustó eso!&quot;;
+}
+sub sig_DIE {
+  my( $sig, $ex ) = @_[ ARG0, ARG1 ];
+  # $sig es 'DIE'
+  # $ex es el hash de la excepción
+  warn &quot;$$: error in $ex-&gt;{event}: $ex-&gt;{error_str}&quot;;
+  $poe_kernel-&gt;sig_handled();
+  # Enviar la señal a la sesión que envió el evento original.
+  if( $ex-&gt;{source_session} ne $_[SESSION] ) {
+    $poe_kernel-&gt;signal( $ex-&gt;{source_session}, 'DIE', $sig, $ex );
+  }
+}</pre>
+<p class="Pp">El manejo de excepciones incorporado de POE::Kernel se puede
+    deshabilitar estableciendo la constante
+    <span class="Li">&quot;POE::Kernel::CATCH_EXCEPTIONS&quot;</span> a
+    cero. Al igual que con otras constantes de configuración en tiempo de
+    compilación, debe establecerse antes de que se compile POE::Kernel:</p>
+<pre>BEGIN {
+  package POE::Kernel;
+  use constant CATCH_EXCEPTIONS =&gt; 0;
+}
+use POE;</pre>
+<p class="Pp">o</p>
+<pre>sub POE::Kernel::CATCH_EXCEPTIONS () { 0 }
+use POE;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='M_todos_del_Vigilante_de_Se_ales'><a class='permalink' href='#M_todos_del_Vigilante_de_Se_ales'>Métodos del Vigilante de Señales</a></h2>
+<p class="Pp">Y finalmente los métodos mismos.</p>
+<p class="Pp"><i>sig NOMBRE_SEÑAL [, NOMBRE_EVENTO [, LISTA] ]</i></p>
+<p class="Pp"><b>sig()</b> registra o anula el registro de un evento
+    NOMBRE_EVENTO para una NOMBRE_SEÑAL particular, con una LISTA opcional de
+    parámetros que se pasarán al manejador de la señal, después de cualquier
+    dato que venga con la señal.</p>
+<p class="Pp">Si NOMBRE_EVENTO está definido, se registra el manejador de
+    señal. De lo contrario, se anula su registro.</p>
+<p class="Pp">Cada sesión puede registrar solo un manejador por NOMBRE_SEÑAL. Las
+    registraciones posteriores reemplazarán a las anteriores. Sin embargo, múltiples
+    sesiones pueden vigilar la misma señal.</p>
+<p class="Pp">Los NOMBRE_SEÑAL son generalmente los mismos que los miembros de
+    <span class="Li">%SIG</span>, con dos excepciones. Primero,
+    <span class="Li">&quot;CLD&quot;</span> es un alias de <span class="Li">&quot;CHLD&quot;</span>
+    (aunque vea &quot;sig_child&quot;). Y segundo, es posible enviar y manejar
+    señales creadas por la aplicación y que no tengan base en el sistema
+    operativo.</p>
+<pre>sub handle_start {
+  $_[KERNEL]-&gt;sig( INT =&gt; &quot;event_ui_shutdown&quot; );
+  $_[KERNEL]-&gt;sig( bat =&gt; &quot;holy_searchlight_batman&quot; );
+  $_[KERNEL]-&gt;sig( signal =&gt; &quot;main_screen_turn_on&quot; );
+}</pre>
+<p class="Pp">El sistema operativo puede que nunca sea capaz de generar las dos
+    últimas señales, pero una sesión POE puede hacerlo usando el método
+    &quot;signal&quot;() de POE::Kernel.</p>
+<p class="Pp">Más tarde, la sesión puede decidir no manejar las señales:</p>
+<pre>sub handle_ui_shutdown {
+  $_[KERNEL]-&gt;sig( &quot;INT&quot; );
+  $_[KERNEL]-&gt;sig( &quot;bat&quot; );
+  $_[KERNEL]-&gt;sig( &quot;signal&quot; );
+}</pre>
+<p class="Pp">Más de una sesión puede registrar interés en la misma señal, y una
+    sesión puede eliminar sus propios vigilantes de señales sin afectar a los de
+    otras sesiones.</p>
+<p class="Pp"><b>sig()</b> no devuelve un valor significativo.</p>
+<p class="Pp"><i>sig_child ID_PROCESO [, NOMBRE_EVENTO [, LISTA] ]</i></p>
+<p class="Pp"><b>sig_child()</b> es una forma conveniente de entregar un evento
+    NOMBRE_EVENTO cuando un ID_PROCESO particular ha terminado. Una LISTA opcional
+    de parámetros se pasará al manejador de señales después de la información de
+    <b>waitpid()</b>.</p>
+<p class="Pp">El vigilante puede ser eliminado en cualquier momento llamando a
+    <b>sig_child()</b> solo con el ID_PROCESO.</p>
+<p class="Pp">Una sesión puede registrar tantos manejadores de
+    <b>sig_child()</b> como sea necesario, pero una sesión solo puede tener uno
+    por ID_PROCESO.</p>
+<p class="Pp">Los vigilantes de <b>sig_child()</b> son de un solo uso. Se
+    eliminan automáticamente una vez que se ha entregado el NOMBRE_EVENTO. No
+    tiene sentido seguir vigilando una señal que nunca volverá a llegar. Otros
+    manejadores de señales persisten hasta que se eliminan.</p>
+<p class="Pp">Los vigilantes de <b>sig_child()</b> mantienen una sesión activa
+    mientras estén activos. Esto es único entre los vigilantes de señales de POE.</p>
+<p class="Pp">Los programas que deseen cosechar procesos hijos de manera confiable
+    deben asegurarse de llamar a <b>sig_child()</b> antes de devolver el control
+    del manejador de eventos que bifurcó el proceso. De lo contrario, POE::Kernel
+    puede tener la oportunidad de llamar a <b>waitpid()</b> antes de que se haya
+    registrado un vigilante de eventos apropiado.</p>
+<p class="Pp">Los programas que cosechan procesos con <b>waitpid()</b> deben
+    eliminar los vigilantes de POE para los mismos IDs de proceso, de lo contrario,
+    POE esperará indefinidamente a procesos que nunca envían señales.</p>
+<p class="Pp"><b>sig_child()</b> no devuelve un valor significativo.</p>
+<pre>sub forked_parent {
+  my( $heap, $pid, $details ) = @_[ HEAP, ARG0, ARG1 ];
+  $poe_kernel-&gt;sig_child( $pid, 'sig_child', $details );
+}
+sub sig_child {
+  my( $heap, $sig, $pid, $exit_val, $details ) = @_[ HEAP, ARG0..ARG3 ];
+  my $details = delete $heap-&gt;{ $pid };
+  warn &quot;$$: Child $pid exited&quot;
+  # .... también, $details ha sido pasado desde forked_parent()
+  # a través de sig_child()
+}</pre>
+<p class="Pp"><i>sig_handled</i></p>
+<p class="Pp"><b>sig_handled()</b> informa a POE::Kernel que la señal que se
+    está distribuyendo actualmente ha sido manejada por la sesión activa
+    actualmente. Si la señal es terminal, la llamada a
+    <b>sig_handled()</b> evita que POE::Kernel detenga las sesiones que
+    recibieron la señal.</p>
+<p class="Pp">Una única señal puede distribuirse a varias sesiones. Solo una
+    necesita llamar a <b>sig_handled()</b> para evitar que todo el grupo se
+    detenga. Sin embargo, si ninguna de ellas la llama, entonces todas se detienen
+    juntas.</p>
+<p class="Pp"><b>sig_handled()</b> no devuelve un valor significativo.</p>
+<pre>sub _start {
+  $_[KERNEL]-&gt;sig( INT =&gt; 'sig_INT' );
+}
+sub sig_INT {
+  warn &quot;$$ SIGINT&quot;;
+  $_[KERNEL]-&gt;sig_handled();
+}</pre>
+<p class="Pp"><i>signal SESIÓN, NOMBRE_SEÑAL [, LISTA_ARGUMENTOS]</i></p>
+<p class="Pp"><b>signal()</b> publica una señal NOMBRE_SEÑAL a una SESIÓN
+    específica con una LISTA_ARGUMENTOS opcional que se pasará a todos los
+    manejadores interesados. Como se mencionó en otros lugares, la señal puede
+    entregarse a los hijos, nietos, etc. de SESIÓN. Y si SESIÓN es el propio
+    POE::Kernel, entonces todas las sesiones interesadas recibirán la
+    señal.</p>
+<p class="Pp">Es posible enviar una señal en POE que no exista en el sistema
+    operativo. <b>signal()</b> coloca la señal directamente en la cola de eventos
+    de POE como si proviniera del sistema operativo, pero no se limita a las
+    señales reconocidas por <b>kill()</b>. POE utiliza algunas de estas señales
+    ficticias para sus propias notificaciones globales.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>sub some_event_handler {
+  # Enciende todas las pantallas principales.
+  $_[KERNEL]-&gt;signal( $_[KERNEL], &quot;signal&quot; );
+}</pre>
+<p class="Pp"><b>signal()</b> devuelve verdadero en caso de éxito. En caso de
+    fallo, devuelve falso después de establecer $! para explicar la naturaleza
+    del fallo:</p>
+<dl class="Bl-tag">
+  <dt id="ESRCH~2"><a class="permalink" href="#ESRCH~2">ESRCH (&quot;No such
+    process&quot;)</a></dt>
+  <dd>La SESIÓN no existe.</dd>
+</dl>
+<p class="Pp">Debido a que todas las sesiones son hijas de POE::Kernel, enviar una
+    señal al kernel propagará la señal a todas las sesiones. Esta es una forma barata
+    de <i>multidifusión</i>.</p>
+<pre>$_[KERNEL]-&gt;signal( $_[KERNEL], 'shutdown' );</pre>
+<p class="Pp"><i>signal_ui_destroy OBJETO_WIDGET</i></p>
+<p class="Pp"></p>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Destruction_Management'><a class='permalink' href='#Destruction_Management'>Gestión de Destrucción</a></h2>
+<p class="Pp"><b>signal_ui_destroy()</b> asocia la destrucción de un
+    WIDGET_OBJECT particular con la destrucción completa de la interfaz de usuario
+    del programa. Cuando el WIDGET_OBJECT se destruye, POE::Kernel emite la señal
+    UIDESTROY no enmascarable, que desencadena rápidamente la destrucción masiva
+    de todas las sesiones activas. POE::Kernel-&gt;<b>run()</b> regresa poco
+    después.</p>
+<pre>sub setup_ui {
+  $_[HEAP]{main_widget} = Gtk-&gt;new(&quot;toplevel&quot;);
+  # ... poblar el widget principal aquí ...
+  $_[KERNEL]-&gt;signal_ui_destroy( $_[HEAP]{main_widget} );
+}</pre>
+<p class="Pp">La detección de la destrucción de widgets es específica de cada
+    toolkit.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Event_Handler_Management'><a class='permalink' href='#Event_Handler_Management'>Gestión de Manejadores de Eventos</a></h2>
+<p class="Pp">Los métodos de gestión de manejadores de eventos permiten a las
+    sesiones intercambiar sus manejadores de eventos en tiempo de ejecución. Por
+    ejemplo, los objetos POE::Wheel utilizan <b>state()</b> para mezclar
+    dinámicamente sus propios manejadores de eventos en las sesiones que los
+    crean.</p>
+<p class="Pp">Estos métodos solo afectan a la sesión actual; sería descortés
+    cambiar los manejadores de otra sesión.</p>
+<p class="Pp">Solo hay un método en este grupo. Dado que puede ser llamado de
+    varias maneras diferentes, puede ser más fácil de entender si cada uno se
+    documenta por separado.</p>
+<p class="Pp"><i>state EVENT_NAME [, REFERENCIA_DE_CÓDIGO]</i></p>
+<p class="Pp"><b>state()</b> establece o elimina un manejador para
+    EVENT_NAME en la sesión actual. La función a la que se refiere
+    REFERENCIA_DE_CÓDIGO será llamada cada vez que los eventos
+    EVENT_NAME se distribuyan a la sesión actual. Si se omite
+    REFERENCIA_DE_CÓDIGO, se eliminará el manejador para
+    EVENT_NAME.</p>
+<p class="Pp">Una sesión solo puede tener un manejador para un EVENT_NAME
+    dado. Los intentos posteriores de establecer un manejador para
+    EVENT_NAME reemplazarán a los manejadores anteriores con el mismo
+    nombre.</p>
+<pre># Dejar de prestar atención a la entrada. Decir adiós, y
+# activar un cierre de socket cuando se envía el mensaje.
+sub send_final_response {
+  $_[HEAP]{wheel}-&gt;put(&quot;KTHXBYE&quot;);
+  $_[KERNEL]-&gt;state( 'on_client_input' );
+  $_[KERNEL]-&gt;state( on_flush =&gt; \&amp;close_connection );
+}</pre>
+<p class="Pp"><i>state EVENT_NAME [, REFERENCIA_DE_OBJETO [, NOMBRE_DE_MÉTODO_DE_OBJETO]
+    ]</i></p>
+<p class="Pp">Establece o elimina un manejador para EVENT_NAME en la sesión
+    actual. Si se proporciona REFERENCIA_DE_OBJETO, ese objeto manejará el
+    evento. Se puede proporcionar un NOMBRE_DE_MÉTODO_DE_OBJETO opcional. Si no
+    se proporciona el nombre del método, POE buscará un método que coincida con
+    EVENT_NAME. Si se omite REFERENCIA_DE_OBJETO, se eliminará el manejador para
+    EVENT_NAME.</p>
+<p class="Pp">Una sesión solo puede tener un manejador para un EVENT_NAME
+    dado. Los intentos posteriores de establecer un manejador para
+    EVENT_NAME reemplazarán a los manejadores anteriores con el mismo
+    nombre.</p>
+<pre>$_[KERNEL]-&gt;state( 'some_event', $self );
+$_[KERNEL]-&gt;state( 'other_event', $self, 'other_method' );</pre>
+<p class="Pp"><i>state EVENT_NAME [, NOMBRE_DE_CLASE [, NOMBRE_DE_MÉTODO_DE_CLASE] ]</i></p>
+<p class="Pp">Esta forma de llamada a <b>state()</b> es virtualmente idéntica
+    a la forma de objeto.</p>
+<p class="Pp">Establece o elimina un manejador para EVENT_NAME en la sesión
+    actual. Si se proporciona NOMBRE_DE_CLASE, esa clase manejará el evento. Se
+    puede proporcionar un NOMBRE_DE_MÉTODO_DE_CLASE opcional. Si no se proporciona
+    el nombre del método, POE buscará un método que coincida con EVENT_NAME. Si
+    se omite NOMBRE_DE_CLASE, se eliminará el manejador para
+    EVENT_NAME.</p>
+<p class="Pp">Una sesión solo puede tener un manejador para un EVENT_NAME
+    dado. Los intentos posteriores de establecer un manejador para
+    EVENT_NAME reemplazarán a los manejadores anteriores con el mismo
+    nombre.</p>
+<pre>$_[KERNEL]-&gt;state( 'some_event', __PACKAGE__ );
+$_[KERNEL]-&gt;state( 'other_event', __PACKAGE__, 'other_method' );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Public_Reference_Counters'><a class='permalink' href='#Public_Reference_Counters'>Contadores de Referencias Públicas</a></h2>
+<p class="Pp">Los métodos de esta sección manipulan los contadores de referencias
+    en la sesión actual u otra sesión.</p>
+<p class="Pp">Cada sesión tiene un espacio de nombres para los contadores de
+    referencias manipulados por el usuario. Estos espacios de nombres están
+    asociados con el SESSION_ID de destino para los métodos de contador de
+    referencias, no con el llamador. Actualmente, nada impide que una sesión
+    disminuya un contador de referencias que fue incrementado por otra, pero no se
+    garantiza que este comportamiento continúe. Por ahora, depende de los
+    usuarios de estos métodos elegir nombres de contador oscuros para evitar
+    conflictos.</p>
+<p class="Pp">El conteo de referencias es una gran parte de la magia de POE.
+    Varios objetos (principalmente observadores de eventos y componentes)
+    mantienen referencias a las sesiones a las que pertenecen. &quot;Ciclos de
+    Vida de Sesión&quot; explica el concepto con más detalle.</p>
+<p class="Pp">La capacidad de mantener una sesión activa es a veces útil en una
+    aplicación o biblioteca. Por ejemplo, un componente puede mantener una
+    referencia pública a otra sesión mientras procesa una solicitud de esa
+    sesión. Al hacerlo, el componente garantiza que el solicitante todavía esté
+    presente cuando una respuesta esté eventualmente lista. Mantener una referencia
+    al objeto de la sesión no es suficiente. POE::Kernel tiene su propio mecanismo
+    interno de conteo de referencias.</p>
+<p class="Pp"><i>refcount_increment SESSION_ID, NOMBRE_DE_CONTADOR</i></p>
+<p class="Pp"><b>refcount_increment()</b> aumenta el valor del contador de
+    referencias NOMBRE_DE_CONTADOR para la sesión identificada por un
+    SESSION_ID. Para disuadir el uso de referencias de sesión, la sesión de
+    destino de <b>refcount_increment()</b> debe especificarse por su ID de
+    sesión.</p>
+<p class="Pp">La sesión de destino no se detendrá hasta que el valor de todos y
+    cada uno de sus contadores de referencias NOMBRE_DE_CONTADOR sea cero.
+    (En realidad, puede detenerse en algunos casos, como no poder manejar una
+    señal terminal).</p>
+<p class="Pp">Los contadores de referencias negativos son legales. Todavía deben
+    incrementarse a cero antes de que una sesión sea elegible para detenerse.</p>
+<pre>sub handle_request {
+  # Entre otras cosas, mantenga un recuento de referencias del remitente.
+  $_[KERNEL]-&gt;refcount_increment( $_[SENDER]-&gt;ID, &quot;pending request&quot;);
+  $_[HEAP]{requesters}{$request_id} = $_[SENDER]-&gt;ID;
+}</pre>
+<p class="Pp">Para que esto funcione, la sesión necesita una forma de recordar
+    el ID de <span class="Li">$_</span>[SENDER] para una solicitud dada.
+    Acostumbrados, la sesión genera un ID de solicitud y lo usa para rastrear
+    la solicitud hasta que se complete.</p>
+<p class="Pp"><b>refcount_increment()</b> devuelve el recuento de referencias
+    resultante (que puede ser cero) en caso de éxito. En caso de fallo, devuelve
+    undef y establece $! como la razón del error.</p>
+<p class="Pp">ESRCH: El SESSION_ID no se refiere a una sesión activa actualmente.</p>
+<p class="Pp"><i>refcount_decrement SESSION_ID, NOMBRE_DE_CONTADOR</i></p>
+<p class="Pp"><b>refcount_decrement()</b> reduce el valor del contador de
+    referencias NOMBRE_DE_CONTADOR para la sesión identificada por un
+    SESSION_ID. Es el contrapunto de <b>refcount_increment()</b>. Consulte
+    <b>refcount_increment()</b> para obtener más contexto.</p>
+<pre>sub finally_send_response {
+  # Entre otras cosas, liberar el recuento de referencias para el
+  # solicitante.
+  my $requester_id = delete $_[HEAP]{requesters}{$request_id};
+  $_[KERNEL]-&gt;refcount_decrement( $requester_id, &quot;pending request&quot;);
+}</pre>
+<p class="Pp">El ID de <span class="Li">$_</span>[SENDER] del solicitante se
+    recuerda y se elimina del heap (para evitar fugas de memoria). Se utiliza para
+    disminuir el contador de referencias que se incrementó al inicio de la
+    solicitud.</p>
+<p class="Pp"><b>refcount_decrement()</b> devuelve el recuento de referencias
+    resultante (que puede ser cero) en caso de éxito. En caso de fallo, devuelve
+    undef y $! se establecerá como la razón del fallo:</p>
+<p class="Pp">ESRCH: El SESSION_ID no se refiere a una sesión activa actualmente.</p>
+<p class="Pp">No es posible descubrir referencias públicas activas actualmente.
+    Consulte POE::API::Peek.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Kernel_State_Accessors'><a class='permalink' href='#Kernel_State_Accessors'>Accesorios de Estado del Kernel</a></h2>
+<p class="Pp">POE::Kernel proporciona algunos accesorios a su masivo cerebro para
+    que los desarrolladores de bibliotecas puedan tener un acceso conveniente a
+    los datos necesarios sin depender de sus llamadores para proporcionarlos.</p>
+<p class="Pp">Estos accesorios exponen formas de romper la encapsulación de la
+    sesión. Úselos con moderación y cuidado.</p>
+<p class="Pp"><i>get_active_session</i></p>
+<p class="Pp"><b>get_active_session()</b> devuelve una referencia a la sesión que
+    se está ejecutando actualmente, o una referencia a la instancia de
+    POE::Kernel del programa si no se está ejecutando ninguna sesión en ese
+    momento. El valor es equivalente a <span class="Li">$_[SESSION]</span> de
+    POE::Session.</p>
+<p class="Pp">Este método se agregó para bibliotecas que necesitan
+    <span class="Li">$_[SESSION]</span> pero no quieren incluirlo como un
+    parámetro en sus API.</p>
+<pre>sub some_housekeeping {
+  my( $self ) = @_;
+  my $session = $poe_kernel-&gt;get_active_session;
+  # hacer algo de mantenimiento en $session
+}</pre>
+<p class="Pp"><i>get_active_event</i></p>
+<p class="Pp"><b>get_active_event()</b> devuelve el nombre del evento que se
+    está distribuyendo actualmente. Devuelve una cadena vacía cuando se llama
+    fuera de la distribución de eventos. El valor es equivalente a
+    <span class="Li">$_[STATE]</span> de POE::Session.</p>
+<pre>sub waypoint {
+  my( $message ) = @_;
+  my $event = $poe_kernel-&gt;get_active_event;
+  print STDERR &quot;$$:$event:$mesage\n&quot;;
+}</pre>
+<p class="Pp"><i>get_event_count</i></p>
+<p class="Pp"><b>get_event_count()</b> devuelve el número de eventos pendientes
+    en la cola de eventos de POE. Se expone para autores de clases de
+    POE::Loop. Puede ser obsoleto en el futuro.</p>
+<p class="Pp"><i>get_next_event_time</i></p>
+<p class="Pp"><b>get_next_event_time()</b> devuelve la hora en que vence el
+    próximo evento, en un formato compatible con la función <b>time()</b> de
+    UNIX. Se expone para autores de clases de POE::Loop. Puede ser obsoleto en
+    el futuro.</p>
+<p class="Pp"><i>poe_kernel_loop</i></p>
+<p class="Pp"><b>poe_kernel_loop()</b> devuelve el nombre de la clase POE::Loop
+    que se utiliza para detectar y distribuir eventos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Session_Helper_Methods'><a class='permalink' href='#Session_Helper_Methods'>Métodos Auxiliares de Sesión</a></h2>
+<p class="Pp">Los métodos de este grupo exponen características para autores de
+    clases de POE::Session.</p>
+<p class="Pp"><i>session_alloc OBJETO_SESION [, ARGUMENTOS_INICIO]</i></p>
+<p class="Pp"><b>session_alloc()</b> asigna un contexto de sesión dentro de
+    POE::Kernel para un OBJETO_SESION recién creado. Una lista de
+    ARGUMENTOS_INICIO opcionales se pasará a la sesión como parte del evento
+    &quot;_start&quot;.</p>
+<p class="Pp">Se espera que el OBJETO_SESION siga un subconjunto de la
+    interfaz de POE::Session.</p>
+<p class="Pp">No hay <b>session_free()</b>. POE::Kernel determina cuándo debe
+    detenerse la sesión y realiza la limpieza necesaria después de distribuir
+    _stop a la sesión.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Miscellaneous_Methods'><a class='permalink' href='#Miscellaneous_Methods'>Métodos Misceláneos</a></h2>
+<p class="Pp">No sabemos dónde clasificar los métodos de esta sección.</p>
+<p class="Pp"><i>new</i></p>
+<p class="Pp">No es necesario llamar al método <b>new()</b> de POE::Kernel. Sin
+    embargo, hacerlo devolverá el objeto singleton POE::Kernel del
+  programa.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_EXPORTED_VARIABLES'><a class='permalink' href='#PUBLIC_EXPORTED_VARIABLES'>VARIABLES_EXPORTADAS_PÚBLICAS</a></h1>
+<p class="Pp">POE::Kernel exporta dos variables para su disfrute de codificación:
+    <span class="Li">$poe_kernel</span> y <span class="Li">$poe_main_window</span>.
+    POE::Kernel es utilizado implícitamente por PO</p>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>  use POE;
+
+  # POE variables and constants
+  $poe_kernel
+  $poe_main_window
+
+  # Debugging POE
+  POE::Kernel::ASSERT_DATA
+  POE::Kernel::ASSERT_DEFAULT
+  POE::Kernel::ASSERT_EVENTS
+  POE::Kernel::ASSERT_FILES
+  POE::Kernel::ASSERT_RETVALS
+  POE::Kernel::ASSERT_USAGE
+  POE::Kernel::TRACE_DEFAULT
+  POE::Kernel::TRACE_DESTROY
+  POE::Kernel::TRACE_EVENTS
+  POE::Kernel::TRACE_FILENAME
+  POE::Kernel::TRACE_FILES
+  POE::Kernel::TRACE_REFCNT
+  POE::Kernel::TRACE_RETVALS
+  POE::Kernel::TRACE_SESSIONS
+  POE::Kernel::TRACE_SIGNALS
+  POE::Kernel::USE_SIGCHLD</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">POE provides the following variables and constants for your
+    convenience and use.</p>
+<section class="Ss">
+<h2 class="Ss" id='$poe_kernel'><a class='permalink' href='#$poe_kernel'>$poe_kernel</a></h2>
+<p class="Pp">It's the POE::Kernel singleton. POE::Kernel is the heart of
+    any POE application, and <span class="Li">$poe_kernel</span> is a global
+    variable that contains a reference to it. If you are writing a POE kernel
+    helper library you will probably need to use this.</p>
+<p class="Pp">Otherwise, you will probably want to use <span class="Li">$_[KERNEL]</span>
+    instead. POE::Kernel methods are passed as the first argument to event
+    handlers.</p>
+<p class="Pp">When POE::Kernel is loaded, it sets <span class="Li">$poe_kernel</span>
+    to a reference to itself. This is not done in a <span class="Li">BEGIN</span>
+    block so that it may be done on demand. For example, if you use POE
+    you get POE::Kernel for free, and thus you get <span class="Li">$poe_kernel</span>
+    for free.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='$poe_main_window'><a class='permalink' href='#$poe_main_window'>$poe_main_window</a></h2>
+<p class="Pp">This variable is used by POE::Loop::Tk, and potentially by
+    other POE::Loop implementations that require an initial widget to be
+    created. It is not used by POE itself, but is passed to the application's
+    session code as part of the <span class="Li">_THEME</span> hash.</p>
+<p class="Pp">It is initially <span class="Li">undef</span>. POE::Loop::Tk will
+    create a Tk::Window widget and assign it to <span class="Li">$poe_main_window</span>.
+    This widget is then passed to the application's session in <span class="Li">_THEME-&gt;{main_window}</span>.</p>
+<p class="Pp">POE will shut down if the widget in <span class="Li">$poe_main_window</span>
+    is destroyed. This behaviour can be changed with POE::Kernel's
+    <span class="Li">signal_ui_destroy()</span> method.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEBUGGING_POE_AND_PROGRAMS_USING_IT'><a class='permalink' href='#DEBUGGING_POE_AND_PROGRAMS_USING_IT'>DEBUGGING   POE AND PROGRAMS USING IT</a></h1>
+<p class="Pp">POE includes a great deal of debugging code, both in the form of
+    fatal assertions and run-time traces. These may be enabled at compile time,
+    but there is no way to toggle them at run-time. This was done to avoid
+    run-time penalties in programs where debugging is not necessary. That is, in
+    most production cases.</p>
+<p class="Pp">Traces are verbose reminders of what's going on within POE. Each
+    is prefixed with a four-character field describing the POE subsystem that
+    generated it.</p>
+<p class="Pp">Assertions (asserts) are quiet but deadly, both in performance
+    (they cause a significant run-time performance hit) and because they cause
+    fatal errors when triggered.</p>
+<p class="Pp">The assertions and traces are useful for developing programs with
+    POE, but they were originally added to debug POE itself.</p>
+<p class="Pp">Each assertion and tracing group is enabled by setting a constant
+    in the POE::Kernel namespace to a true value.</p>
+<pre>  BEGIN {
+    package POE::Kernel;
+    use constant ASSERT_DEFAULT =&gt; 1;
+  }
+  use POE;
+</pre>
+<p class="Pp">Or the old-fashioned (and more concise) &quot;constant
+    subroutine&quot; method. This doesn't need the <span class="Li">BEGIN</span>
+    block since subroutine definitions are done at compile time.</p>
+<pre>  sub POE::Kernel::ASSERT_DEFAULT () { 1 }
+  use POE;
+</pre>
+<p class="Pp">The switches must be defined as constants before POE::Kernel is
+    first loaded. Otherwise Perl's compiler will not see the constants when
+    first compiling POE::Kernel, and the features will not be properly
+    enabled.</p>
+<p class="Pp">Assertions and traces may also be enabled by setting shell
+    environment variables. The environment variables are named after the
+    POE::Kernel constants with a <span class="Li">&quot;POE_&quot;</span>
+    prefix.</p>
+<pre>  POE_ASSERT_DEFAULT=1 POE_TRACE_DEFAULT=1 ./my_poe_program</pre>
+<p class="Pp">In alphabetical order:</p>
+<section class="Ss">
+<h2 class="Ss" id='ASSERT_DATA'><a class='permalink' href='#ASSERT_DATA'>ASSERT_DATA</a></h2>
+<p class="Pp">ASSERT_DATA enables run-time data integrity checks within
+    POE::Kernel and the classes that mix into it. POE::Kernel tracks a lot of
+    cross-referenced data, and this group of assertions ensures that it's
+    consistent.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;dt&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_ASSERT_DATA</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ASSERT_DEFAULT'><a class='permalink' href='#ASSERT_DEFAULT'>ASSERT_DEFAULT</a></h2>
+<p class="Pp">ASSERT_DEFAULT specifies the default value for assertions that are
+    not explicitly enabled or disabled. This is a quick and reliable way to make
+    sure all assertions are on.</p>
+<p class="Pp">No assertion uses ASSERT_DEFAULT directly, and this assertion flag
+    has no corresponding output prefix.</p>
+<p class="Pp">Turn on all assertions except ASSERT_EVENTS:</p>
+<pre>  sub POE::Kernel::ASSERT_DEFAULT () { 1 }
+  sub POE::Kernel::ASSERT_EVENTS  () { 0 }
+  use POE::Kernel;
+</pre>
+<p class="Pp">Prefix: (none)</p>
+<p class="Pp">Environment variable: <span class="Li">POE_ASSERT_DEFAULT</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ASSERT_EVENTS'><a class='permalink' href='#ASSERT_EVENTS'>ASSERT_EVENTS</a></h2>
+<p class="Pp">ASSERT_EVENTS mainly checks for attempts to dispatch events to
+    sessions that don't exist. This assertion can assist in the debugging of
+    strange, silent cases where event handlers are not called.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;ev&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_ASSERT_EVENTS</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ASSERT_FILES'><a class='permalink' href='#ASSERT_FILES'>ASSERT_FILES</a></h2>
+<p class="Pp">ASSERT_FILES enables some run-time checks in POE's filehandle
+    watchers and the code that manages them.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;fh&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_ASSERT_FILES</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ASSERT_RETVALS'><a class='permalink' href='#ASSERT_RETVALS'>ASSERT_RETVALS</a></h2>
+<p class="Pp">ASSERT_RETVALS upgrades failure codes from POE::Kernel's methods
+    from advisory return values to fatal errors. Most programmers don't check
+    the values these methods return, so ASSERT_RETVALS is a quick way to
+    validate one's assumption that all is correct.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;rv&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_ASSERT_RETVALS</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ASSERT_USAGE'><a class='permalink' href='#ASSERT_USAGE'>ASSERT_USAGE</a></h2>
+<p class="Pp">ASSERT_USAGE is the counterpoint to ASSERT_RETVALS. It enables
+    run-time checks that the parameters to POE::Kernel's methods are correct.
+    It's a quick (but not foolproof) way to verify a program's use of POE.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;us&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_ASSERT_USAGE</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_DEFAULT'><a class='permalink' href='#TRACE_DEFAULT'>TRACE_DEFAULT</a></h2>
+<p class="Pp">TRACE_DEFAULT specifies the default value for traces that are not
+    explicitly enabled or disabled. This is a quick and reliable way to ensure
+    your program generates copious output on the file named in TRACE_FILENAME or
+    STDERR by default.</p>
+<p class="Pp">To enable all traces except a few noisier ones:</p>
+<pre>  sub POE::Kernel::TRACE_DEFAULT () { 1 }
+  sub POE::Kernel::TRACE_EVENTS  () { 0 }
+  use POE::Kernel;
+</pre>
+<p class="Pp">Prefix: (none)</p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_DEFAULT</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_DESTROY'><a class='permalink' href='#TRACE_DESTROY'>TRACE_DESTROY</a></h2>
+<p class="Pp">TRACE_DESTROY causes every POE::Session object to dump the
+    contents of its <span class="Li">$_[HEAP]</span> when Perl destroys it. This
+    trace was added to help developers find memory leaks in their programs.</p>
+<p class="Pp">Prefix: A line that reads <span class="Li">&quot;----- Session
+    <span class="Li">$self</span> Leak Check -----&quot;</span>.</p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_DESTROY</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_EVENTS'><a class='permalink' href='#TRACE_EVENTS'>TRACE_EVENTS</a></h2>
+<p class="Pp">TRACE_EVENTS enables messages pertaining to POE's event queue's
+    activities: when events are enqueued, dispatched or discarded, and more.
+    It's great for determining where events go and when. Understandably this is
+    one of POE's more verbose traces.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;ev&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_EVENTS</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_FILENAME'><a class='permalink' href='#TRACE_FILENAME'>TRACE_FILENAME</a></h2>
+<p class="Pp">TRACE_FILENAME specifies the name of a file where POE's tracing
+    and assertion messages should go. It's useful if you want the messages but
+    have other plans for STDERR, which is where the messages go by default.</p>
+<p class="Pp">POE's tests use this so the trace and assertion code can be
+    instrumented during testing without spewing all over the terminal.</p>
+<p class="Pp">Prefix: (none)</p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_FILENAME</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_FILES'><a class='permalink' href='#TRACE_FILES'>TRACE_FILES</a></h2>
+<p class="Pp">TRACE_FILES enables or disables traces in POE's filehandle
+    watchers and the POE::Loop class that implements the lowest-level filehandle
+    multiplexing. This may be useful when tracking down strange behavior related
+    to filehandles.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;fh&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_FILES</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_REFCNT'><a class='permalink' href='#TRACE_REFCNT'>TRACE_REFCNT</a></h2>
+<p class="Pp">TRACE_REFCNT governs whether POE::Kernel will trace sessions'
+    reference counts. As discussed in &quot;Session Lifespans&quot;, POE does a
+    lot of reference counting, and the current state of a session's reference
+    counts determines whether the session lives or dies. It's common for
+    developers to wonder why a session stops too early or remains active too
+    long. TRACE_REFCNT can help explain why.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;rc&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_REFCNT</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_RETVALS'><a class='permalink' href='#TRACE_RETVALS'>TRACE_RETVALS</a></h2>
+<p class="Pp">TRACE_RETVALS can enable carping whenever a POE::Kernel method is
+    about to fail. It's a non-fatal but noisier form of ASSERT_RETVALS.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;rv&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_RETVALS</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_SESSIONS'><a class='permalink' href='#TRACE_SESSIONS'>TRACE_SESSIONS</a></h2>
+<p class="Pp">TRACE_SESSIONS enables trace messages that pertain to session
+    management. Notice will be given when sessions are created or destroyed, and
+    when the parent or child status of a session changes.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;ss&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_SESSIONS</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TRACE_SIGNALS'><a class='permalink' href='#TRACE_SIGNALS'>TRACE_SIGNALS</a></h2>
+<p class="Pp">TRACE_SIGNALS turns on (or off) traces in POE's signal handling
+    subsystem. Signal dispatch is one of POE's more complex parts, and the trace
+    messages may help application developers understand signal propagation and
+    timing.</p>
+<p class="Pp">Prefix: <span class="Li">&lt;sg&gt;</span></p>
+<p class="Pp">Environment variable: <span class="Li">POE_TRACE_SIGNALS</span></p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='USE_SIGCHLD'><a class='permalink' href='#USE_SIGCHLD'>USE_SIGCHLD</a></h2>
+<p class="Pp">Whether to use <span class="Li">$SIG{CHLD}</span> or to poll at an
+    interval.</p>
+<p class="Pp">This flag is enabled by default on Perl &gt;= 5.8.1 as it has
+    support for &quot;safe signals&quot;. Please see perlipc for the gory
+    details.</p>
+<p class="Pp">You might want to disable this if you are running a version of
+    Perl that is known to have bad signal handling, or if anything hijacks
+    <span class="Li">$SIG{CHLD}</span>. One module that is known to do this is
+    Apache.</p>
+<p class="Pp">Enabling this flag will cause child reaping to happen almost
+    immediately, as opposed to once per &quot;CHILD_POLLING_INTERVAL&quot;.</p>
+</section>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='CHILD_POLLING_INTERVAL'><a class='permalink' href='#CHILD_POLLING_INTERVAL'>CHILD_POLLING_INTERVAL</a></h2>
+<p class="Pp">El intervalo en el que se llama a <span class="Li">&quot;wait&quot;</span> para
+    determinar si los procesos hijos necesitan ser eliminados y la señal
+    <span class="Li">&quot;CHLD&quot;</span> emulada.</p>
+<p class="Pp">Por defecto es 1 segundo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='USE_SIGNAL_PIPE'><a class='permalink' href='#USE_SIGNAL_PIPE'>USE_SIGNAL_PIPE</a></h2>
+<p class="Pp">La única forma segura de manejar señales es implementar un modelo de
+    <em>compartir nada</em>. POE construye una <i>tubería de señales</i> que se
+    comunica entre los manejadores de señales y el bucle del kernel de POE de
+    manera segura y atómica. La tubería de señales se implementa con POE::Pipe::OneWay,
+    utilizando una <i>conduit</i> de <span class="Li">&quot;pipe&quot;</span> en Unix.
+    Desafortunadamente, la tubería de señales no es compatible con Windows y no
+    se usa en esa plataforma.</p>
+<p class="Pp">Si desea volver al comportamiento anterior de señales inseguro, debe
+    establecer <span class="Li">&quot;USE_SIGNAL_PIPE&quot;</span> a 0, o la
+    variable de entorno <span class="Li">&quot;POE_USE_SIGNAL_PIPE&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='CATCH_EXCEPTIONS'><a class='permalink' href='#CATCH_EXCEPTIONS'>CATCH_EXCEPTIONS</a></h2>
+<p class="Pp">Si POE debe ejecutar código del manejador de eventos dentro de un eval
+    { } y entregar la señal <span class="Li">&quot;DIE&quot;</span> en caso de
+    errores.</p>
+<p class="Pp">Ver "Manejo de Excepciones".</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENVIRONMENT_VARIABLES_FOR_TESTING'><a class='permalink' href='#ENVIRONMENT_VARIABLES_FOR_TESTING'>VARIABLES DE ENTORNO PARA PRUEBAS</a></h1>
+<p class="Pp">Las pruebas de POE son encantadoras, oscuras y profundas. Estas variables
+    de entorno permiten a los probadores tomar caminos menos transitados.</p>
+<section class="Ss">
+<h2 class="Ss" id='POE_DANTIC'><a class='permalink' href='#POE_DANTIC'>POE_DANTIC</a></h2>
+<p class="Pp">Windows y los Perls construidos para él tienden a ser malos haciendo
+    cosas UNIXy, aunque lo intentan. POE, al ser muy UNIXy, debe omitir muchas
+    pruebas de Windows. La variable de entorno POE_DANTIC, cuando es verdadera,
+    habilitará todas estas pruebas. Está destinada a ser utilizada de vez en
+    cuando para ver si Windows ha mejorado en alguna área.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">La sección VER TAMBIÉN en POE contiene una tabla de contenidos que cubre
+    toda la distribución de POE.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>ERRORES</a></h1>
+<ul class="Bl-bullet">
+  <li>No existe un mecanismo para evitar colisiones entre nombres de recuento de
+      referencias externas.</li>
+  <li>No existe un mecanismo para capturar excepciones generadas en otra sesión.</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTORES Y DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Por favor, consulte POE para obtener más información sobre autores y
+    colaboradores.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#USING_POE">USANDO POE</a></li>
+        
+            <li><a href="#PUBLIC_METHODS">MÉTODOS PÚBLICOS</a></li>
+        
+            <li><a href="#PUBLIC_EXPORTED_VARIABLES">VARIABLES PÚBLICAS EXPORTADAS</a></li>
+        
+            <li><a href="#DEBUGGING_POE_AND_PROGRAMS_USING_IT">DEPURACIÓN DE POE Y PROGRAMAS QUE LO USAN</a></li>
+        
+            <li><a href="#ENVIRONMENT_VARIABLES_FOR_TESTING">VARIABLES DE ENTORNO PARA PRUEBAS</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#BUGS">ERRORES</a></li>
+        
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTORES Y DERECHOS DE AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/POE::Kernel.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/POE::Kernel.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

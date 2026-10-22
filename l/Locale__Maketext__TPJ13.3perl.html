@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Locale::Maketext::TPJ13(3perl) — Manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Locale__Maketext__TPJ13.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl O GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Locale::Maketext::TPJ13(3perl)</td>
+    <td class="head-vol">Guía de Referencia del Programador de Perl</td>
+    <td class="head-rtitle">Locale::Maketext::TPJ13(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Locale::Maketext::TPJ13 -- artículo sobre localización de software</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre># Este es un artículo, no un módulo.</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">El siguiente artículo de Sean M. Burke y Jordan Lachler apareció por
+    primera vez en <i>The Perl Journal</i> #13 y tiene copyright 1999 The Perl
+    Journal. Aparece por cortesía de Jon Orwant y The Perl Journal. Este
+    documento puede ser distribuido bajo los mismos términos que el propio Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Localización_y_Perl:_gettext_falla,_Maketext_corrige'><a class='permalink' href='#Localización_y_Perl:_gettext_falla,_Maketext_corrige'>Localización y Perl: gettext falla, Maketext corrige</a></h1>
+<p class="Pp">por Sean M. Burke y Jordan Lachler</p>
+<p class="Pp">Este artículo señala casos en los que gettext (un sistema común para
+    localizar interfaces de software - es decir, hacer que funcionen en el idioma
+    de elección del usuario) falla debido a diferencias básicas entre los
+    idiomas humanos. Este artículo describe luego Maketext, un nuevo sistema
+    capaz de tratar correctamente estas diferencias.</p>
+<section class="Ss">
+<h2 class="Ss" id='Una_historia_de_horror_de_localización:_Podría_pasarte_a_ti'><a class='permalink' href='#Una_historia_de_horror_de_localización:_Podría_pasarte_a_ti'>Una historia de horror de localización: Podría pasarte a ti</a></h2>
+<div class="Bd-indent">&quot;Hay un número de lenguajes hablados por seres humanos en este
+    mundo.&quot;
+<p class="Pp">-- Harald Tveit Alvestrand, en RFC 1766, &quot;Etiquetas para la
+    Identificación de Lenguajes&quot;</p>
+</div>
+<p class="Pp">Imagina que tu tarea del día es localizar una pieza de software - y
+    afortunadamente para ti, la única salida que el programa emite son dos
+    mensajes, como estos:</p>
+<pre>Escané 12 directorios.
+Tu consulta coincidió con 10 archivos en 4 directorios.</pre>
+<p class="Pp">¿Qué tan difícil podría ser eso? Miras el código que produce el primer
+    elemento y dice:</p>
+<pre>printf(&quot;Escané %g directorios.&quot;,
+       $numero_de_directorios);</pre>
+<p class="Pp">Lo piensas y te das cuenta de que ni siquiera funciona bien para el
+    inglés, ya que puede producir esta salida:</p>
+<pre>Escané 1 directorios.</pre>
+<p class="Pp">Así que lo reescribes para que diga:</p>
+<pre>printf(&quot;Escané %g %s.&quot;,
+       $numero_de_directorios,
+       $numero_de_directorios == 1 ?
+         &quot;directorio&quot; : &quot;directorios&quot;,
+);</pre>
+<p class="Pp">...lo cual hace lo Correcto. (En caso de que no lo recuerdes,
+    &quot;%g&quot; es para la interpolación de números específica de la localización,
+    y &quot;%s&quot; es para la interpolación de cadenas).</p>
+<p class="Pp">Pero aún tienes que localizarlo para todos los idiomas para los que
+    estás produciendo este software, así que sacas Locale::gettext de CPAN para
+    poder acceder a las funciones C de <span class="Li">&quot;gettext&quot;</span>
+    de las que has oído hablar, que son estándar para las tareas de localización.</p>
+<p class="Pp">Y escribes:</p>
+<pre>printf(gettext(&quot;Escané %g %s.&quot;),
+       $conteo_escaneo_dir,
+       $conteo_escaneo_dir == 1 ?
+         gettext(&quot;directorio&quot;) : gettext(&quot;directorios&quot;),
+);</pre>
+<p class="Pp">Pero luego lees en el manual de gettext (Drepper, Miller y Pinard
+    1995) que esta no es una buena idea, ya que cómo una sola palabra como
+    &quot;directorio&quot; o &quot;directorios&quot; se traduce puede depender del
+    contexto - y esto es cierto, ya que en un idioma de casos como el alemán o el
+    ruso, podrías necesitar estas palabras con una terminación de caso diferente
+    en la primera instancia (donde la palabra es objeto de un verbo) que en la
+    segunda instancia, a la que aún no has llegado (donde la palabra es objeto de
+    una preposición, &quot;en <span class="Li">%g</span> directorios&quot;) -
+    asumiendo que estas mantienen la misma sintaxis cuando se traducen a esos
+    idiomas.</p>
+<p class="Pp">Así que, siguiendo el consejo del manual de gettext, reescribes:</p>
+<pre>printf( $conteo_directorios == 1 ?
+         gettext(&quot;Escané %g directorio.&quot;) :
+         gettext(&quot;Escané %g directorios.&quot;),
+       $conteo_directorios );</pre>
+<p class="Pp">Así que, envías un correo electrónico a tus varios traductores (el jefe
+    decide que los idiomas del día son chino, árabe, ruso e italiano, así que
+    tienes un traductor para cada uno), pidiendo traducciones para &quot;Escané
+    <span class="Li">%g</span> directorio.&quot; y &quot;Escané
+    <span class="Li">%g</span> directorios.&quot;. Cuando respondan, pondrás eso en
+    los léxicos para que gettext lo use cuando localice tu software, de modo que
+    cuando el usuario esté ejecutando bajo el locale &quot;zh&quot; (chino),
+    gettext(&quot;Escané <span class="Li">%g</span> directorio.&quot;) devolverá el
+    texto chino apropiado, con un &quot;%g&quot; allí donde printf pueda
+    luego interpolar <span class="Li">$dir_scan</span>.</p>
+<p class="Pp">Tu traductor chino responde de inmediato: dice que ambas frases se
+    traducen a lo mismo en chino, porque, en jerga lingüística, el chino
+    &quot;no tiene número como categoría gramatical&quot; - mientras que el inglés
+    sí. Es decir, el inglés tiene reglas gramaticales que se refieren al
+    &quot;número&quot;, es decir, si algo es gramaticalmente singular o plural; y
+    una de estas reglas es la que obliga a los sustantivos a tomar un sufijo plural
+    (generalmente &quot;s&quot;) cuando están en un contexto plural, como lo
+    están cuando siguen a un número distinto de &quot;uno&quot; (incluyendo,
+    curiosamente, &quot;cero&quot;). El chino no tiene tales reglas, y por lo tanto
+    solo tiene una frase donde el inglés tiene dos. Pero, no hay problema, puedes
+    hacer que esta única frase china aparezca como la traducción de las dos frases
+    inglesas en el léxico gettext &quot;zh&quot; para tu programa.</p>
+<p class="Pp">Alentado por esto, te sumerges en la segunda frase que tu software
+    necesita emitir: &quot;Tu consulta coincidió con 10 archivos en 4
+    directorios.&quot;. Notas que si quieres tratar las frases como indivisibles,
+    como aconseja sabiamente el manual de gettext, necesitas cuatro casos ahora,
+    en lugar de dos, para cubrir las permutaciones de singular y plural en los dos
+    elementos, <span class="Li">$conteo_archivos</span> y
+    <span class="Li">$conteo_directorios</span>. Así que intentas esto:</p>
+<pre>printf( $conteo_archivos == 1 ?
+  ( $conteo_directorios == 1 ?
+   gettext(&quot;Tu consulta coincidió con %g archivo en %g directorio.&quot;) :
+   gettext(&quot;Tu consulta coincidió con %g archivo en %g directorios.&quot;) ) :
+  ( $conteo_directorios == 1 ?
+   gettext(&quot;Tu consulta coincidió con %g archivos en %g directorio.&quot;) :
+   gettext(&quot;Tu consulta coincidió con %g archivos en %g directorios.&quot;) ),
+ $conteo_archivos, $conteo_directorios,
+);</pre>
+<p class="Pp">(El caso de &quot;1 archivo en 2 [o más] directorios&quot; podría,
+    supongo, ocurrir en el caso de enlaces simbólicos o algo por el estilo.)</p>
+<p class="Pp">Se te ocurre que este no es el código más bonito que has escrito
+    nunca, pero este parece ser el camino a seguir. Envías un correo a los
+    traductores pidiendo traducciones para estos cuatro casos. El chino responde
+    con la única frase a la que todas se traducen en chino, y esa frase tiene dos
+    &quot;%g&quot; como debe ser - pero hay un problema. La traduce palabra por
+    palabra al revés: &quot;En <span class="Li">%g</span> directorios contiene
+    <span class="Li">%g</span> archivos coincide con tu consulta.&quot; Las
+    posiciones <span class="Li">%g</span> están en un orden inverso a como están en
+    inglés. Te preguntas cómo harás para que gettext maneje eso.</p>
+<p class="Pp">Pero lo dejas a un lado por el momento y esperas optimista que los
+    otros traductores no tengan este problema, y que sus idiomas se porten mejor
+    - es decir, que sean como el inglés.</p>
+<p class="Pp">Pero el traductor árabe es el siguiente en escribir. Primero, tu código
+    para &quot;Escané <span class="Li">%g</span> directorio.&quot; o
+    &quot;Escané <span class="Li">%g</span> directorios.&quot; asume que solo hay
+    singular o plural. Pero, para usar de nuevo jerga lingüística, el árabe tiene
+    número gramatical, como el inglés (pero a diferencia del chino), pero es una
+    categoría de tres términos: singular, dual y plural. En otras palabras, la forma
+    de decir &quot;directorio&quot; depende de si hay un directorio, o
+    *dos* de ellos, o *más de dos* de ellos. Tu prueba de
+    <span class="Li">&quot;($directory == 1)&quot;</span> ya no sirve. Y significa
+    que donde el número de la categoría gramatical del inglés solo requiere las dos
+    permutaciones de la primera frase basadas en &quot;directorio [singular]&quot;
+    y &quot;directorios [plural]&quot;, el árabe tiene tres - y, peor aún, en la
+    segunda frase (&quot;Tu consulta coincidió con <span class="Li">%g</span>
+    archivo en <span class="Li">%g</span> directorio.&quot;), donde el inglés
+    tiene cuatro, el árabe tiene nueve. Percibes una tendencia exponencial
+    indeseable tomando forma.</p>
+<p class="Pp">Tu traductor italiano te responde diciendo que &quot;Escané 0
+    directorios&quot; (una posible salida en inglés de tu programa) suena forzado, y
+    que si crees que ese es un inglés aceptable, ese es tu problema, pero que
+    *simplemente no servirá* en el idioma de Dante. Insiste en que cuando
+    <span class="Li">$conteo_directorios</span> sea 0, tu programa debería producir
+    el texto italiano para &quot;No escaneé *ningún* directorio.&quot;. Y lo
+    mismo para &quot;No coincidió ningún archivo en ningún directorio&quot;,
+    aunque dice que la última parte</p>
+</div>
+</section>
+
+</article>
+            
+            
+
+            <div id="content-right">
+            </div>
+        </main>
+        <footer>
+        </footer>
+    </body>
+</html>
+<section class="Ss">
+<h2 class="Ss" id='The_Linguistic_View'><a class='permalink' href='#The_Linguistic_View'>La Vista Lenguística</a></h2>
+<div class="Bd-indent">&quot;Es más complejo de lo que piensas.&quot;
+<p class="Pp">-- El Octavo Principio de Networking, de RFC 1925</p>
+</div>
+<p class="Pp">La disciplina de la Lengua ha dedicado un gran esfuerzo en el último siglo intentando encontrar patrones gramaticales que se mantengan entre las lenguas; es un proceso constante de personas que hacen generalizaciones que deberían aplicarse a todas las lenguas, pero que finalmente fallan, a menudo por solo unas lenguas, por clases enteras de lenguas o incluso casi todas las lenguas del mundo, excepto el inglés. Se evidencian tendencias estadísticas generales en lo que es el "lenguaje promedio" en cuanto a qué reglas pueden parecer, deben parecer y no pueden parecer. Pero el "lenguaje promedio" es tan imposible de concebir como el "hombre promedio" -- se enfrenta a la realidad de que ninguna lenguaje (o persona) es realmente promedio. La sabiduría de la experiencia pasada nos lleva a creer que cualquier lenguaje puede hacer lo que quiera, en cualquier orden, con el apoyo de cualquier tipo de categorías gramaticales, como el caso, el número, el tiempo, características reales o metáforas de lo que las palabras se refieren, categorías arbitrarias o predecibles basadas en qué prefijos o sufijos pueden tomar las palabras, grados o medios de certeza sobre la verdad de las afirmaciones, y así sucesivamente.</p>
+<p class="Pp">Afortunadamente, la mayoría de las tareas de localización son un ejercicio de encontrar formas de traducir frases enteras, generalmente oraciones, cuando el contexto es relativamente estable, y la única variación en el contenido es generalmente el número que se expresa, como en las oraciones de ejemplo anteriores. Traducir oraciones específicas, completamente formadas, es, en práctica, bastante fácil, lo cual es bueno, ya que eso es lo que se encuentra en los libros de traducción que muchos turistas dependen de. Ahora, una frase dada (ya sea en un libro de traducción o en un lexicon de gettext) en un lenguaje puede tener una aplicabilidad mayor o menor que la traducción en otro lenguaje, por ejemplo, de manera estricta, en árabe, la frase "tu" en "Tu consulta...” tomaría una forma diferente dependiendo de si el usuario es masculino o femenino; por lo tanto, la traducción árabe "tu[feminina] consulta” es aplicable en menos casos que la frase correspondiente en inglés, que no distingue el género del usuario. (En la práctica, no es posible tener un programa que sepa el género del usuario, por lo tanto, el "tú" masculino en árabe es generalmente usado, por defecto.)</p>
+<p class="Pp">Sin embargo, en general, estas sorpresas son raras cuando se traducen enteras oraciones, especialmente cuando el contexto funcional está limitado a la interacción de un ordenador con un usuario, ya sea para comunicar una realidad o para solicitar información. Por lo tanto, para fines de localización, la traducción por frases (generalmente por oraciones) es tanto la más sencilla como la más fácil.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Breaking_gettext'><a class='permalink' href='#Breaking_gettext'>Romper gettext</a></h2>
+<div class="Bd-indent">&quot;Debe funcionar.&quot;
+<p class="Pp">-- Primer Principio de Networking, RFC 1925</p>
+</div>
+<p class="Pp">Considera que las oraciones en un libro de traducciones de turista tienen dos tipos: las que no tienen espacios vacíos por llenar, como "¿Cómo llego al mercado?" y las que tienen uno o más espacios vacíos por llenar (y estos suelen estar vinculados a una lista de palabras que puedes poner en ese espacio: "pez", "patatas", "tomates", etc.). Los de espacios vacíos no son un problema, pero los que tienen espacios vacíos pueden no ser realmente sencillos. Si es un libro de traducciones de suara, por ejemplo, los autores probablemente no se preocuparon por explicar las complicadas formas en que el verbo "costar" cambia su prefijo inflectivo dependiendo del sustantivo que colocas en el espacio vacío. El comerciante en el mercado entenderá lo que estás diciendo aunque digas "¿cuánto cuestan estas patatas?" con el prefijo inflectivo incorrecto en "costar". Después de todo, tú no puedes hablar bien suara, eres solo un turista. Pero aunque los turistas puedan ser estúpidos, los ordenadores son supuestos ser inteligentes; el ordenador debería poder llenar el espacio vacío y aún así obtener resultados gramaticales.</p>
+<p class="Pp">En otras palabras, un registro de libro de traducciones toma algunos valores como parámetros (las cosas que llenas el espacio vacío o los espacios vacíos), y proporciona un valor basado en estos parámetros, donde la forma de obtener ese valor final a partir de los valores dados puede, en términos de lenguaje programático, involucrar una serie de operaciones arbitrariamente complejas. (En el caso de los chinos, sería totalmente sencillo, al menos en los casos como los ejemplos que se mencionan al inicio de este artículo; mientras que en el caso de ruso sería una serie de operaciones bastante complejas. Y en algunos lenguajes, la complejidad podría distribuirse de manera diferente: mientras que el acto de colocar una frase numérica delante de una frase sustantiva no es complejo por sí mismo, podría cambiar cómo tienes que, por ejemplo, inflectar un verbo en otra parte de la oración. Esto es lo que se llama en sintaxis "dependencias de distancia larga".)</p>
+<p class="Pp">Este habla de parámetros y complejidad arbitraria es simplemente otra forma de decir que un registro en un libro de traducciones es lo que en un lenguaje de programación se llamaria un "función". Así, para no perderse, esto es el núcleo de este artículo: "Una frase es una función; un libro de traducciones es un conjunto de funciones."</p>
+<p class="Pp">La razón por la que gettext se ve obligado a enfrentar obstáculos (como en la historia del horror del segundo persona) es que estás intentando usar una cadena (o peor, una elección entre varias cadenas) para realizar lo que realmente necesitas un función — lo cual es imposible. Realizar interpolación de (s)printf sobre las cadenas que obtienes de gettext permite hacer algunos cosas comunes pasablemente bien... a veces... un poco; pero, para reiterar lo que algunos dicen sobre el scripting de csh, "te engaña creyendo que puedes usarlo para cosas reales, pero no lo puedes, y no lo descubres hasta has gastado demasiado tiempo intentándolo, y por entonces es demasiado tarde."</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Replacing_gettext'><a class='permalink' href='#Replacing_gettext'>Sustituir gettext</a></h2>
+<p class="Pp">Entonces, qué necesita reemplazar gettext es un sistema que soporte lexemas de funciones en lugar de lexemas de cadenas. Una entrada en un lexema de este tipo debería <i>no</i> verse así:</p>
+<pre>&quot;J'ai trouv\xE9 %g fichiers dans %g r\xE9pertoires&quot;</pre>
+<p class="Pp">[\xE9 is e-acute in Latin-1. Some pod renderers would scream if I used the actual character here. -- SB]</p>
+<p class="Pp">pero en lugar de así, teniendo en cuenta que esto es solo un primer intento:</p>
+<pre>sub I_found_X1_files_in_X2_directories {
+  my( $files, $dirs ) = @_[0,1];
+  $files = sprintf(&quot;%g %s&quot;, $files,
+    $files == 1 ? 'fichier' : 'fichiers');
+  $dirs = sprintf(&quot;%g %s&quot;, $dirs,
+    $dirs == 1 ? &quot;r\xE9pertoire&quot; : &quot;r\xE9pertoires&quot;);
+  return &quot;J'ai trouv\xE9 $files dans $dirs.&quot;;
+}</pre>
+<p class="Pp">Ahora, no hay una manera particularmente obvia para almacenar cualquier cosa pero cadenas en un lexicon de gettext; por lo tanto, parece que tenemos que comenzar de nuevo y hacer algo mejor, de cero. Llamo a mi esfuerzo en desarrollar un sistema de sustitución de gettext "Maketext", o, en términos de CPAN, Locale::Maketext.</p>
+<p class="Pp">Cuando diseñé Maketext, elegí planear sus principales características en términos de "compliance con términos de buzzword". Y aquí están los términos de buzzword:</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Buzzwords:_Abstraction_and_Encapsulation'><a class='permalink' href='#Buzzwords:_Abstraction_and_Encapsulation'>Términos de Buzz: Abstracción y Encapsulación</a></h2>
+<p class="Pp">T</p>
+</section>
+La complejidad del lenguaje en el que está intentando generar una frase está completamente abstraída dentro del módulo Maketext de esa interfaz. Cuando llama:
+
+```perl
+print $lang->maketext("You have [quant,_1,piece] of new mail.",
+                     scalar(@messages));
+```
+
+usted no sabe (y de hecho, no puede saber fácilmente) si esto implicará mucho razonamiento, como en ruso (si $lang es un manejador del módulo ruso), o relativamente poco, como en chino. Ese tipo de abstracción y encapsulación pueden fomentar otras palabras de moda agradables como modularización y estratificación, dependiendo de las decisiones de diseño que tome.
+
+## Palabra de moda: Isomorfismo
+
+"Isomorfismo" significa "tener la misma estructura o forma"; en discusiones de diseño de programas, la palabra adquiere un significado especial y específico de que su implementación de una solución a un problema *tiene la misma estructura* que, digamos, una descripción verbal informal de la solución, o quizás del problema en sí. El isomorfismo es, considerando todo, algo bueno: así es como debería ser la resolución de problemas (y la implementación de soluciones).
+
+¿Qué está mal con el código que usa gettext como este...
+
+```perl
+printf( $file_count == 1 ?
+  ( $directory_count == 1 ?
+   "Your query matched %g file in %g directory." :
+   "Your query matched %g file in %g directories." ) :
+  ( $directory_count == 1 ?
+   "Your query matched %g files in %g directory." :
+   "Your query matched %g files in %g directories." ),
+ $file_count, $directory_count,
+);
+```
+
+...es, en primer lugar, que no está bien abstraído: estas formas de probar el número gramatical (como en las expresiones como "foo == 1 ? forma_singular : forma_plural") deberían abstraerse a cada módulo de idioma, ya que la forma de obtener el número gramatical es específica del idioma.
+
+Pero, en segundo lugar, no es isomorfo: la "solución" (es decir, las entradas del libro de frases) para el chino se mapea de estas cuatro frases en inglés a la única frase china que sirve para todas ellas. En otras palabras, la solución informal sería "La forma de decir lo que quieres en chino es con la única frase 'Para tu pregunta, en Y directorios encontrarías X archivos'" -- y por lo tanto, la solución implementada debería ser, de forma isomórfica, simplemente una forma directa de lanzar esa única frase, con los numerales debidamente interpolados. No debería tener que mapearse desde la complejidad de otros idiomas a la simplicidad de este.
+
+## Palabra de moda: Herencia
+
+Hay una gran cantidad de reutilización posible para compartir frases entre módulos de dialectos relacionados, o para compartir funciones auxiliares entre idiomas relacionados. (Por "funciones auxiliares", me refiero a funciones que no producen texto de frases, sino que, por ejemplo, devuelven una respuesta a "¿este número requiere un sustantivo en plural después de él?". Dichas funciones auxiliares se usarían en la lógica interna de las funciones que realmente producen texto de frases).
+
+En el caso de compartir frases, considere que tiene una interfaz ya localizada para el inglés americano (probablemente al haber sido escrita con ese como idioma nativo, pero eso es incidental). Localizarla para el inglés del Reino Unido debería ser, en términos prácticos, solo una cuestión de revisarla con una persona británica con la instrucción de indicar qué pocas frases se beneficiarían de un cambio en la ortografía o posiblemente de una redacción menor. En ese caso, debería poder colocar en el módulo de localización del inglés del Reino Unido *solo* aquellas frases que son específicas del Reino Unido, y para el resto, *heredar* del módulo de inglés americano. (Y espero que esta misma situación se aplique al portugués brasileño y continental, posiblemente con algunos idiomas *muy* estrechamente relacionados como el checo y el eslovaco, y posiblemente con las "versiones" ligeramente diferentes del chino mandarín escrito, tal como he oído que existen en Taiwán y China continental).
+
+En cuanto a compartir funciones auxiliares, considere el problema de los números rusos del principio de este artículo; obviamente, querrá escribir solo una vez el código complicado que, dado un valor numérico, devolvería alguna especificación de qué caso y número debe usar un sustantivo cuantificado dado. Pero suponga que descubre, al localizar una interfaz para, digamos, el ucraniano (un idioma eslavo relacionado con el ruso, hablado por varios millones de personas, muchas de las cuales se sentirían aliviadas al encontrar que la interfaz de su sitio web o software está disponible en su idioma), que las reglas en ucraniano son las mismas que en ruso para la cuantificación, y probablemente para muchas otras funciones gramaticales. Si bien puede que no haya frases en común entre el ruso y el ucraniano, aún podría optar por que el módulo ucraniano herede del módulo ruso, solo para heredar todos los diversos métodos gramaticales. O, probablemente mejor organizativamente, podría mover esas funciones a un módulo llamado "_E_Slavic" o algo similar, del cual el ruso y el ucraniano podrían heredar funciones útiles, pero que (presumiblemente) no proporcionaría ningún léxico.
+
+## Palabra de moda: Concisión
+
+Vale, la concisión no es una palabra de moda. Pero debería serlo, así que decreto que como nueva palabra de moda, "concisión" significa que las cosas comunes y simples deben poder expresarse en muy pocas líneas (o quizás incluso solo unos pocos caracteres) de código -- llámelo un caso especial de "hacer fáciles las cosas simples y posibles las cosas difíciles", y vea también el papel que desempeñó en el lenguaje MIDI::Simple, discutido en otro lugar de este número [TPJ#13].
+
+Considere nuestro primer intento de una entrada en nuestro "libro de frases de funciones":
+
+```perl
+sub I_found_X1_files_in_X2_directories {
+  my( $files, $dirs ) = @_[0,1];
+  $files = sprintf("%g %s", $files,
+    $files == 1 ? 'fichier' : 'fichiers');
+  $dirs = sprintf("%g %s", $dirs,
+    $dirs == 1 ? "répertoire" : "répertoires");
+  return "J'ai trouvé $files dans $dirs.";
+}
+```
+
+Puede que sienta que un léxico (para usar un término genérico no comprometedor para una colección de cosas que sabe decir, independientemente de si son frases o palabras) que consiste en funciones *expresadas* como arriba haría que el código sea bastante largo y repetitivo, incluso si sabiamente reescribe esto para tener cuantificación (como llamamos a agregar una expresión numérica a una frase nominal) como una función llamada así:
+
+```perl
+sub I_found_X1_files_in_X2_directories {
+  my( $files, $dirs ) = @_[0,1];
+  $files = quant($files, "fichier");
+  $dirs =  quant($dirs,  "répertoire");
+  return "J'ai trouvé $files dans $dirs.";
+}
+```
+
+Y también puede sentir que no desea molestar a sus traductores teniendo que escribir código Perl; preferiría mucho que pasaran su *tiempo tan costoso* solo en la traducción. Y esto sin mencionar la casi imposibilidad de encontrar un traductor comercial que supiera siquiera Perl básico.
+
+En una implementación inicial de Maketext, el léxico de cada módulo de idioma se veía así:
+
+```perl
+%Lexicon = (
+  "I found %g files in %g directories"
+  => sub {
+     my( $files, $dirs ) = @_[0,1];
+     $files = quant($files, "fichier");
+     $dirs =  quant($dirs,  "répertoire");
+     return "J'ai trouvé $files dans $dirs.";
+   },
+ ... y así sucesivamente con otras asignaciones de frase => sub ...
+);
+```
+
+pero inmediatamente me puse a buscar una forma más concisa de denotar básicamente la misma función de frase, una forma que también serviría para denotar concisamente *la mayoría* de las funciones de frase en el léxico para *la mayoría* de los idiomas. Después de mucho tiempo e incluso algo de pensamiento real, decidí este sistema:
+
+*   Donde un valor en un hash %Lexicon es una cadena con contenido en lugar de una subrutina anónima (o, concebiblemente, una referencia de código), se interpretaría como una especie de expresión abreviada de lo que hace la subrutina. Cuando se accede por primera vez en una sesión, se analiza, se convierte en código Perl y luego se evalúa en una subrutina anónima; luego esa subrutina reemplaza la cadena original en ese léxico. (De esa manera, el trabajo de analizar y evaluar la forma abreviada para una frase dada no se realiza más de una vez por sesión).
+
+*   Las llamadas a "maketext" (ya que así se llama la función principal de Maketext) ocurren a través de un "manejador de sesión de idioma", conceptualmente muy parecido a un manejador de IO, en el sentido de que se abre uno al comienzo de la sesión y se utiliza para "enviar señales" a un objeto para que devuelva el texto deseado.
+
+Así que, esto:
+
+```perl
+$lang->maketext("You have [quant,_1,piece] of new mail.",
+               scalar(@messages));
+```
+
+básicamente significa esto: busque en el léxico de $lang (que puede heredar de cualquier número de otros léxicos), y encuentre la función que asociamos con la cadena "You have [quant,_1,piece] of new mail" (que es, y debería ser, una "forma abreviada" funcional para esta función en el idioma nativo - inglés en este caso). Si encuentra dicha función, llámela con $lang como su primer parámetro (como si fuera un método), y luego una copia de scalar(@messages) como segundo, y luego devuelva ese valor. Si se encontró esa función, pero estaba en forma abreviada en lugar de ser una función completamente especificada, analícela y conviértala en una función antes de llamarla la primera vez.
+
+*   La forma abreviada usa código entre corchetes para indicar llamadas a métodos que deben realizarse. Una explicación completa no es necesaria aquí, pero algunos ejemplos serán suficientes:
+
+```
+"You have [quant,_1,piece] of new mail."
+```
+
+El código anterior es una forma abreviada de, y se interpretará como, esto:
+
+```perl
+sub {
+  my $handle = $_[0];
+  my(@params) = @_;
+  return join '',
+    "You have ",
+    $handle->quant($params[1], 'piece'),
+    "of new mail.";
+}
+```
+
+donde "quant" es el nombre de un método que está utilizando para cuantificar el sustantivo "piece" con el número $params[0].
+
+Una cadena sin llamadas entre corchetes, como esta:
+
+```
+"Your search expression was malformed."
+```
+
+es un caso degenerado, y simplemente se convierte en:
+
+```perl
+sub { return "Your search expression was malformed." }
+```
+
+Sin embargo, no todo lo que se puede escribir en código Perl se puede escribir en el sistema de abreviaturas anterior, ni mucho menos. Por ejemplo, considere el traductor italiano del principio de este artículo, que quería el italiano para "No encontré ningún archivo" como un caso especial, en lugar de "Encontré 0 archivos". Eso no se pudo especificar (al menos no de forma fácil o sencilla) en nuestro sistema de abreviaturas, y tendría que escribirse completo, así:
+
+```
+s
+```<section class="Ss">
+<h2 class="Ss" id='The_Devil_in_the_Details'><a class='permalink' href='#The_Devil_in_the_Details'>El diablo está en los detalles</a></h2>
+<p class="Pp">Hay más detalles en Maketext que se describen aquí; por ejemplo, los detalles de cómo las etiquetas de idioma ("en-US", "i-pwn", "fi") o las identidades de localización ("en_US") interactúan con los nombres reales de los módulos ("BogoQuery/Locale/en_us.pm") y lo que se produce como magia; también los detalles de cómo registrar (y posiblemente negociar) qué formato de codificación de caracteres devolverá Maketext (UTF-8? Latin-1? KOI8?); está la interesante observación de que Maketext es para localización, pero no tiene en sí mismo un "use locale;" en el código. Para los curiosos, hay detalles alarmantes sobre cómo implemento realmente algo como la herencia de datos para que las búsquedas en los hashes de %Lexicon de los módulos puedan paralelizar la forma en que Perl implementa la herencia de métodos.</p>
+<p class="Pp">Y, lo más importante, están todos los detalles prácticos de cómo derivar realmente de Maketext para que puedas usarlo en tus interfaces, y las diversas herramientas y convenciones para iniciar y mantener módulos de idioma individuales.</p>
+<p class="Pp">Todo esto está cubierto en la documentación de Locale::Maketext y de los módulos que vienen con él, disponibles en CPAN. Después de haber leído este artículo, que aborda el por qué de Maketext, la documentación, que aborda el cómo hacerlo, debería ser bastante sencilla.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='The_Proof_in_the_Pudding:_Localizing_Web_Sites'><a class='permalink' href='#The_Proof_in_the_Pudding:_Localizing_Web_Sites'>La prueba en el pudín: Localización de sitios web</a></h2>
+<p class="Pp">Maketext y gettext tienen una notable diferencia: gettext está en C, accesible a través de llamadas a bibliotecas de C, mientras que Maketext está en Perl, y realmente no puede funcionar sin un intérprete Perl (aunque supongo que podría escribirse en C). Accidentes históricos (y no necesariamente acertados) han hecho que el lenguaje C++ sea el más común para la implementación de aplicaciones como procesadores de texto, navegadores web y aplicaciones internas como sistemas de consultas personalizados. Las condiciones actuales hacen que sea poco probable que el próximo tipo de aplicación de este tipo se escriba en Perl, aunque sea claro que se hará por razones de personalización e inercia, no por consideración de cuál es la mejor herramienta para el trabajo.</p>
+<p class="Pp">Sin embargo, otros accidentes históricos han hecho que Perl sea un lenguaje bien aceptado para el diseño de programas de servidor (generalmente en forma de CGI) para interfaces de sitios web. La localización de páginas estáticas en sitios web es trivial, y se puede hacer con características de negociación de idioma simples en servidores como Apache, o con inclusiones de texto adecuadas en plantillas de diseño. Sin embargo, creo que la localización de sistemas de búsqueda basados en Perl (o otros tipos de contenido dinámico) en sitios web, ya sea públicos o con acceso restringido, es donde Maketext verá su mayor uso.</p>
+<p class="Pp">Supongo que solo el sitio web excepcional se localizará para inglés, chino, italiano, árabe, ruso y otros idiomas, como se menciona al principio del artículo, es decir, para recordar los idiomas, que es la clave, y no decir nada de alemán, español, francés, japonés, finés, híbrido, etc., que benefician de muchas personas programadas o vistas en la web.</p>
+<p class="Pp">Sin embargo, la creciente internacionalización de la web (medida en cantidad de contenido, en número de escritores o programadores de contenido, o en tamaño de audiencias de contenido) hace que sea cada vez más probable que la interfaz a servicios web dinámicos para el contenido promedio se localice en dos o tres idiomas. Me gustaría que Maketext hiciera esa tarea lo más sencilla posible, y eliminara las barreras anteriores para la localización de idiomas distintos al inglés.</p>
+<pre>__END__</pre>
+<p class="Pp">Sean M. Burke (sburke@cpan.org) tiene un máster en lenguas de la Universidad de Northwestern; se especializa en tecnología de lenguas. Jordan Lachler (lachler@unm.edu) es un estudiante de doctorado en la Facultad de Lenguas de la Universidad de Nuevo México; se especializa en morfología y pedagogía de lenguas nativas de América del Norte.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='References'><a class='permalink' href='#References'>Referencias</a></h2>
+<p class="Pp">Alvestrand, Harald Tveit. 1995. <i>RFC 1766: Tags for the</i> <i>Identification of Languages.</i>
+<span class="Li">&quot;<a href='http://www.ietf.org/rfc/rfc1766.txt'>http://www.ietf.org/rfc/rfc1766.txt</a>&quot;</span> [Ahora ver RFC 3066.]</p>
+<p class="Pp">Callon, Ross, editor. 1996. <i>RFC 1925: The Twelve</i> <i>Networking Truths.</i>
+<span class="Li">&quot;<a href='http://www.ietf.org/rfc/rfc1925.txt'>http://www.ietf.org/rfc/rfc1925.txt</a>&quot;</span></p>
+<p class="Pp">Drepper, Ulrich, Peter Miller y Fran&#x00E7;ois Pinard. 1995-2001. <span class="Li">&quot;gettext&quot;</span> GNU. Disponible en <span class="Li">&quot;&lt;ftp://prep.ai.mit.edu/pub/gnu/&gt;&quot;</span>, con documentos extensos en el tarball de la distribución. [Desde que escribí este artículo en 1998, ahora veo que los documentos de gettext intentan más para adaptarse al plural. Si han llegado a conclusiones útiles de él es otro tema. — SMB, mayo 2001]</p>
+<p class="Pp">Forbes, Nevill. 1964. <i>Russian Grammar.</i> Tercera edición, revisada por J. C. Dumbreck. Editorial Oxford.</p>
+</section>
+</section>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del man" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic-1.0-Perl O GPL-1.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Contenido de tabla de índices</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#Localization_and_Perl:_gettext_breaks,_Maketext_fixes">Localización y Perl: gettext falla, Maketext corrige</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Formatos otros:
+        
+            <a href="/man/Locale::Maketext::TPJ13.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Locale::Maketext::TPJ13.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               de la web.
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
+<p>Mantén la estructura del archivo.</p>
+<footer>
+    <p>se, a menos que los contenidos de los manuales de usuario, que tienen su propia licencia especificada en el paquete correspondiente de Arch Linux.</p>
+</footer>
+<body>
+</body>
+</html>

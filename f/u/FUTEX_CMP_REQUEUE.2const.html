@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FUTEX_CMP_REQUEUE(2const) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">FUTEX_CMP_REQUEUE.2const</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/any/man-pages/">man-pages</a></p>
+<p class="lic">Licencias: BSD-2-Clause, BSD-3-Clause, BSD-4.3TAHOE, BSD-4-Clause-UC, GPL-1.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-3.0-or-later, LGPL-3.0-linking-exception, LicenseRef-Public-Domain, LicenseRef-UltraPermissive, Linux-man-pages-1-para, Linux-man-pages-copyleft, Linux-man-pages-copyleft-2-para, Linux-man-pages-copyleft-var, MIT, Spencer-94</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">FUTEX_CMP_REQUEUE(2const)</td>
+    <td class="head-vol"></td>
+    <td class="head-rtitle">FUTEX_CMP_REQUEUE(2const)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">FUTEX_CMP_REQUEUE - compara un futex, despierta a algunos en espera y
+    recoloca a otros</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LIBRARY'><a class='permalink' href='#LIBRARY'>BIBLIOTECA</a></h1>
+<p class="Pp">Biblioteca C estándar (<i>libc</i>,&#x00A0;<i>-lc</i>)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre><b>#include &lt;linux/futex.h&gt;</b>  /* Definición de constantes <b>FUTEX_*</b> */
+<b>#include &lt;sys/syscall.h&gt;</b>  /* Definición de constantes <b>SYS_*</b> */
+<b>#include &lt;unistd.h&gt;</b></pre>
+<pre><b>long syscall(SYS_futex, uint32_t *</b><i>uaddr</i><b>, FUTEX_CMP_REQUEUE,</b>
+<b>             uint32_t </b><i>val</i><b>, uint32_t </b><i>val2</i><b>, uint32_t *</b><i>uaddr2</i><b>,</b>
+<b>             uint32_t </b><i>val3</i><b>);</b></pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esta operación primero comprueba si la ubicación <i>uaddr</i>
+    todavía contiene el valor <i>val3</i>. Si no es así, la operación falla con el
+    error <b>EAGAIN</b>. De lo contrario, la operación despierta a un máximo de
+    <i>val</i> asistentes que están esperando en el futex en <i>uaddr</i>. Si hay
+    más de <i>val</i> asistentes, los asistentes restantes se eliminan de la cola de
+    espera del futex de origen en <i>uaddr</i> y se agregan a la cola de espera del
+    futex de destino en <i>uaddr2</i>. El argumento <i>val2</i> especifica un
+    límite superior en el número de asistentes que se recolocan en el futex en
+    <i>uaddr2</i>.</p>
+<p class="Pp">La lectura de <i>uaddr</i> es un acceso atómico a la memoria (es decir,
+    utilizando instrucciones atómicas de máquina de la arquitectura respectiva).
+    Esta lectura, la comparación con <i>val3</i> y la recolocación de cualquier
+    asistente se realizan de forma atómica y totalmente ordenada con respecto a
+    otras operaciones en la misma palabra futex.</p>
+<p class="Pp">Los valores típicos a especificar para <i>val</i> son 0 o 1.
+    (Especificar <i>val</i> como <b>INT_MAX</b> no es útil, ya que haría que la
+    operación <b>FUTEX_CMP_REQUEUE</b> fuera equivalente a
+    <b>FUTEX_WAKE</b>(2const).) El valor límite especificado a través de
+    <i>val2</i> suele ser 1 o <b>INT_MAX</b>. (Especificar <i>val2</i> como 0 no
+    es útil, ya que haría que la operación <b>FUTEX_CMP_REQUEUE</b> fuera
+    equivalente a <b>FUTEX_WAKE</b>(2const).)</p>
+<p class="Pp">La operación <b>FUTEX_CMP_REQUEUE</b> se añadió como reemplazo de la
+    anterior <b>FUTEX_REQUEUE</b>(2const). La diferencia es que la comprobación
+    del valor en <i>uaddr</i> se puede utilizar para garantizar que la
+    recolocación ocurra solo bajo ciertas condiciones, lo que permite evitar
+    condiciones de carrera en ciertos casos de uso.</p>
+<p class="Pp">Tanto <b>FUTEX_REQUEUE</b>(2const) como <b>FUTEX_CMP_REQUEUE</b> pueden
+    utilizarse para evitar despertares de tipo "rebaño atronador" que podrían
+    ocurrir al usar <b>FUTEX_WAKE</b>(2const) en casos donde todos los asistentes
+    despertados necesitan adquirir otro futex. Considere el siguiente escenario,
+    donde varios hilos asistentes están esperando en B, una cola de espera implementada
+    utilizando un futex:</p>
+<p class="Pp">
+  <br/>
+</p>
+<pre>lock(A)
+while (!check_value(V)) {
+    unlock(A);
+    block_on(B);
+    lock(A);
+};
+unlock(A);</pre>
+<p class="Pp">Si un hilo despertador utilizara <b>FUTEX_WAKE</b>(2const), todos
+    los asistentes que esperan en B se despertarían e intentarían adquirir el
+    bloqueo A. Sin embargo, despertar a todos los hilos de esta manera sería
+    inútil, ya que todos excepto uno de los hilos volverían a bloquearse
+    inmediatamente en el bloqueo A. Por el contrario, una operación de recolocación
+    despierta a solo un asistente y mueve a los demás a la cerradura A, y cuando
+    el asistente despertado desbloquea A, el siguiente asistente puede
+    proceder.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUE'><a class='permalink' href='#RETURN_VALUE'>VALOR DE RETORNO</a></h1>
+<p class="Pp">En caso de error, se devuelve -1 y <i>errno</i> se establece para
+    indicar el error.</p>
+<p class="Pp">En caso de éxito, <b>FUTEX_CMP_REQUEUE</b> devuelve el número total
+    de asistentes que fueron despertados o recolocados en el futex para la palabra
+    futex en <i>uaddr2</i>. Si este valor es mayor que <i>val</i>, entonces la
+    diferencia es el número de asistentes recolocados en el futex para la palabra
+    futex en <i>uaddr2</i>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORS'><a class='permalink' href='#ERRORS'>ERRORES</a></h1>
+<p class="Pp">Ver <a href='/man/futex.2.en'>futex(2)</a>.</p>
+<dl class="Bl-tag">
+  <dt id="EAGAIN"><a class="permalink" href="#EAGAIN"><b>EAGAIN</b></a></dt>
+  <dd>El valor apuntado por <i>uaddr</i> no es igual al valor esperado
+      <i>val3</i>.</dd>
+  <dt id="EFAULT"><a class="permalink" href="#EFAULT"><b>EFAULT</b></a></dt>
+  <dd><i>uaddr2</i> no apuntaba a una dirección válida del espacio de usuario.</dd>
+  <dt id="EINVAL"><a class="permalink" href="#EINVAL"><b>EINVAL</b></a></dt>
+  <dd><i>uaddr2</i> no apunta a un objeto válido; es decir, la dirección no está
+      alineada a cuatro bytes.</dd>
+  <dt id="EINVAL~2"><a class="permalink" href="#EINVAL~2"><b>EINVAL</b></a></dt>
+  <dd>El kernel detectó una inconsistencia entre el estado del espacio de usuario en
+      <i>uaddr</i> y el estado del kernel; es decir, detectó un asistente que espera
+      en <b>FUTEX_LOCK_PI</b>(2const) o
+      <b>FUTEX_LOCK_PI2</b>(2const) en <i>uaddr</i>.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='STANDARDS'><a class='permalink' href='#STANDARDS'>ESTÁNDARES</a></h1>
+<p class="Pp">Linux.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HISTORY'><a class='permalink' href='#HISTORY'>HISTORIA</a></h1>
+<p class="Pp">Linux 2.6.7.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/futex.2.en'>futex(2)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-09-21</td>
+    <td class="foot-os">Páginas del manual de Linux 6.16</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/any/man-pages/">core/man-pages</a></dd>
+        <dt>Versión:</dt>
+        <dd>6.16-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.kernel.org/doc/man-pages/">https://www.kernel.org/doc/man-pages/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>BSD-2-Clause, BSD-3-Clause, BSD-4.3TAHOE, BSD-4-Clause-UC, GPL-1.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-3.0-or-later, LGPL-3.0-linking-exception, LicenseRef-Public-Domain, LicenseRef-UltraPermissive, Linux-man-pages-1-para, Linux-man-pages-copyleft, Linux-man-pages-copyleft-2-para, Linux-man-pages-copyleft-var, MIT, Spencer-94</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/core/man-pages/">/listing/core/man-pages/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#LIBRARY">BIBLIOTECA</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#RETURN_VALUE">VALOR DE RETORNO</a></li>
+        
+            <li><a href="#ERRORS">ERRORES</a></li>
+        
+            <li><a href="#STANDARDS">ESTÁNDARES</a></li>
+        
+            <li><a href="#HISTORY">HISTORIA</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/FUTEX_CMP_REQUEUE.2const.es.txt">txt</a>, 
+        
+            <a href="/man/FUTEX_CMP_REQUEUE.2const.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

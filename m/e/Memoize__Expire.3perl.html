@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Memoize::Expire(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Memoize__Expire.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Memoize::Expire(3perl)</td>
+    <td class="head-vol">Guía del programador de Perl</td>
+    <td class="head-rtitle">Memoize::Expire(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Memoize::Expire - Módulo plug-in para la expiración automática de
+    valores memorizados</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Memoize;
+use Memoize::Expire;
+tie my %cache =&gt; 'Memoize::Expire',
+                   LIFETIME =&gt; $tiempo_de_vida,    # En segundos
+                   NUM_USES =&gt; $n_usos;
+memoize 'funcion', SCALAR_CACHE =&gt; [HASH =&gt; \%cache ];</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Memoize::Expire es un módulo plug-in para Memoize. Permite que los
+    valores cacheados de las funciones memorizadas expiren automáticamente. Este
+    manual asume que ya estás familiarizado con el módulo Memoize. Si no es así,
+    deberías estudiar primero ese manual detenidamente, prestando especial
+    atención a la característica HASH.</p>
+<p class="Pp">Memoize::Expire es una capa de software que puedes insertar entre
+    Memoize y cualquier paquete subyacente que implemente la caché. La capa
+    presenta una variable hash cuyos valores expiran cuando se vuelven demasiado
+    viejos, han sido usados demasiadas veces, o ambos. Le dices a
+    <span class="Li">&quot;Memoize&quot;</span> que use este hash olvidadizo como
+    su caché en lugar del predeterminado, que es un hash normal.</p>
+<p class="Pp">Para especificar un tiempo límite en tiempo real, proporciona la
+    opción <span class="Li">&quot;LIFETIME&quot;</span> con un valor numérico.
+    Los datos cacheados expirarán después de esta cantidad de segundos y se
+    buscarán de nuevo cuando expiren. Cuando un elemento de datos se busca de
+    nuevo, su tiempo de vida se restablece.</p>
+<p class="Pp">Si especificas <span class="Li">&quot;NUM_USES&quot;</span> con un
+    argumento de <i>n</i>, cada elemento de datos cacheado será descartado y
+    buscado de nuevo después de la <i>n</i>-ésima vez que lo accedas. Cuando un
+    elemento de datos se busca de nuevo, su número de usos se restablece.</p>
+<p class="Pp">Si especificas ambos argumentos, los datos serán descartados de la
+    caché cuando se cumpla cualquiera de las condiciones de expiración.</p>
+<p class="Pp">Memoize::Expire utiliza un hash real internamente para almacenar
+    los datos cacheados. Puedes usar la opción
+    <span class="Li">&quot;HASH&quot;</span> de Memoize::Expire para proporcionar
+    un hash enlazado en lugar del hash ordinario que Memoize::Expire usará
+    normalmente. Puedes usar esta característica para añadir Memoize::Expire como
+    una capa entre un hash persistente en disco y Memoize. Si haces esto, obtienes
+    una caché persistente en disco cuyas entradas expiran automáticamente. Por
+    ejemplo:</p>
+<pre>#   Memoize
+#      |
+#   Memoize::Expire  impone la política de expiración de datos
+#      |
+#   DB_File  implementa la persistencia de datos en un archivo en disco
+#      |
+#   Archivo en disco
+use Memoize;
+use Memoize::Expire;
+use DB_File;
+# Configurar persistencia
+tie my %disk_cache =&gt; 'DB_File', $filename, O_CREAT|O_RDWR, 0666];
+# Configurar política de expiración, proporcionando el hash persistente como objetivo
+tie my %cache =&gt; 'Memoize::Expire',
+                   LIFETIME =&gt; $tiempo_de_vida,    # En segundos
+                   NUM_USES =&gt; $n_usos,
+                   HASH =&gt; \%disk_cache;
+# Configurar memorización, proporcionando el hash persistente expirante para la caché
+memoize 'funcion', SCALAR_CACHE =&gt; [ HASH =&gt; \%cache ];</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACE'><a class='permalink' href='#INTERFACE'>INTERFAZ</a></h1>
+<p class="Pp">No hay nada especial en Memoize::Expire. Es solo un ejemplo. Si no te
+    gusta la política que implementa, eres libre de escribir tu propio módulo de
+    política de expiración que implemente la política que desees. Aquí te mostramos
+    cómo hacerlo. Supongamos que tu módulo se llamará MyExpirePolicy.</p>
+<p class="Pp">Resumen corto: Necesitas crear un paquete que defina cuatro
+    métodos:</p>
+<dl class="Bl-tag">
+  <dt id="TIEHASH"><a class="permalink" href="#TIEHASH"> TIEHASH</a></dt>
+  <dd>Construye y devuelve el objeto caché.</dd>
+  <dt id="EXISTS"><a class="permalink" href="#EXISTS"> EXISTS</a></dt>
+  <dd>Dado un argumento de función, ¿está el valor de función correspondiente en
+      la caché y, si es así, es lo suficientemente reciente como para usarlo?</dd>
+  <dt id="FETCH"><a class="permalink" href="#FETCH"> FETCH</a></dt>
+  <dd>Dado un argumento de función, busca el valor de función correspondiente en
+      la caché y devuélvelo.</dd>
+  <dt id="STORE"><a class="permalink" href="#STORE"> STORE</a></dt>
+  <dd>Dado un argumento de función y el valor de función correspondiente, almácenalos
+      en la caché.</dd>
+  <dt id="CLEAR"><a class="permalink" href="#CLEAR"> CLEAR</a></dt>
+  <dd>(Opcional.) Limpia la caché completamente.</dd>
+</dl>
+<p class="Pp">El usuario que quiera que la caché de memorización expire según tu
+    política dirá así:</p>
+<pre>tie my %cache =&gt; 'MyExpirePolicy', args...</;
+memoize 'funcion', SCALAR_CACHE =&gt; [HASH =&gt; \%cache];</pre>
+<p class="Pp">Esto invocará
+    <span class="Li">&quot;MyExpirePolicy-&gt;TIEHASH(args)&quot;</span>.
+    MyExpirePolicy::TIEHASH debería hacer lo que sea apropiado para configurar la
+    caché y debería devolver el objeto caché al llamador.</p>
+<p class="Pp">Por ejemplo, MyExpirePolicy::TIEHASH podría crear un objeto que
+    contenga un hash normal de Perl (que usará para almacenar los valores
+    cacheados) y alguna información adicional sobre los argumentos y la antigüedad
+    de los datos y cosas así. Llamemos a este objeto
+    <span class="Li"><i>&quot;C&quot;</i></span><i></i>.</p>
+<p class="Pp">Cuando Memoize necesite comprobar si una entrada ya está en la
+    caché, invocará
+    <span class="Li">&quot;C-&gt;EXISTS(key)&quot;</span>.
+    <span class="Li">&quot;key&quot;</span> es el argumento de la función
+    normalizado. MyExpirePolicy::EXISTS debería devolver 0 si la clave no está en
+    la caché, o si ha expirado, y 1 si hay un valor no expirado en la caché. No
+    debería devolver <span class="Li">&quot;undef&quot;</span>, porque hay un
+    error en algunas versiones de Perl que causará un FETCH espurio si el método
+    EXISTS devuelve <span class="Li">&quot;undef&quot;</span>.</p>
+<p class="Pp">Si tu función EXISTS devuelve verdadero, Memoize intentará obtener
+    el valor cacheado invocando
+    <span class="Li">&quot;C-&gt;FETCH(key)&quot;</span>. MyExpirePolicy::FETCH
+    debería devolver el valor cacheado. De lo contrario, Memoize llamará a la
+    función memorizada para calcular el valor apropiado, y lo almacenará en la
+    caché llamando a <span class="Li">&quot;C-&gt;STORE(key, value)&quot;</span>.</p>
+<p class="Pp">Aquí tienes un ejemplo muy breve de un módulo de política que expira
+    cada elemento de la caché después de diez segundos.</p>
+<pre>package Memoize::TenSecondExpire;
+sub TIEHASH {
+  my ($package, %args) = @_;
+  my $cache = $args{HASH} || {};
+  bless $cache =&gt; $package;
+}
+sub EXISTS {
+  my ($cache, $key) = @_;
+  if (exists $cache-&gt;{$key} &amp;&amp;
+      $cache-&gt;{$key}{EXPIRE_TIME} &gt; time) {
+    return 1
+  } else {
+    return 0;  # NO devolver undef aquí
+  }
+}
+sub FETCH {
+  my ($cache, $key) = @_;
+  return $cache-&gt;{$key}{VALUE};
+}
+sub STORE {
+  my ($cache, $key, $newvalue) = @_;
+  $cache-&gt;{$key}{VALUE} = $newvalue;
+  $cache-&gt;{$key}{EXPIRE_TIME} = time + 10;
+}</pre>
+<p class="Pp">Para usar esta política de expiración, el usuario diría</p>
+<pre>use Memoize;
+tie my %cache10sec =&gt; 'Memoize::TenSecondExpire';
+memoize 'funcion', SCALAR_CACHE =&gt; [HASH =&gt; \%cache10sec];</pre>
+<p class="Pp">Memoize llamaría entonces a
+    <span class="Li">&quot;funcion&quot;</span> siempre que un valor cacheado estuviera
+    completamente ausente o fuera más antiguo de diez segundos.</p>
+<p class="Pp">Siempre debes admitir un argumento
+    <span class="Li">&quot;HASH&quot;</span> para
+    <span class="Li">&quot;TIEHASH&quot;</span> que enlace la caché subyacente
+    para que el usuario pueda especificar que la caché también es persistente o
+    que tiene alguna otra semántica interesante. El ejemplo anterior demuestra cómo
+    hacerlo, al igual que <span class="Li">&quot;Memoize::Expire&quot;</span>.</p>
+<p class="Pp">Otro módulo de ejemplo, Memoize::Saves, está disponible en una
+    distribución separada en CPAN. Implementa una política que te permite
+    especificar que ciertos valores de función siempre se buscarán de nuevo. Ver la
+    documentación para más detalles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ALTERNATIVES'><a class='permalink' href='#ALTERNATIVES'>ALTERNATIVAS</a></h1>
+<p class="Pp">Brent Powers tiene un módulo Memoize::ExpireLRU que fue diseñado para
+    funcionar con Memoize y proporciona la expiración de datos menos usados
+    recientemente. La caché se mantiene en un número fijo de entradas, y cuando
+    llegan nuevos datos, los datos menos usados recientemente se expiran.</p>
+<p class="Pp">El módulo Tie::Cache de Joshua Chamas puede ser útil como gestor de
+    expiración. (Si pruebas esto, por favor, házmelo saber cómo funciona).</p>
+<p class="Pp">Si desarrollas algún gestor de expiración útil que creas que debería
+    distribuirse con Memoize, por favor, házmelo saber.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEATS'><a class='permalink' href='#CAVEATS'>ADVERTENCIAS</a></h1>
+<p class="Pp">Este módulo es experimental y puede contener errores. Por favor,
+    reporta los errores a la dirección de abajo.</p>
+<p class="Pp">El número de usos se almacena como un entero sin signo de 16 bits, por
+    lo que no puede exceder 65535.</p>
+<p class="Pp">Debido a la granularidad del reloj, los tiempos de expiración pueden
+    ocurrir hasta un segundo antes de lo esperado. Por ejemplo, supón que almacenas
+    un valor con un tiempo de vida de diez segundos y lo almacenas a las 12:00:00.998
+    de un día determinado. Memoize mirará el reloj y verá las 12:00:00. Luego, 9.01
+    segundos después, a las 12:00:10.008 intentas leerlo de nuevo. Memoize mirará el
+    reloj y verá las 12:</p>
+</div>
+</section>
+
+            </article>
+            <aside id="content-right">
+                
+            </aside>
+        </main>
+        <footer>
+            <script>
+                var element = document.getElementById("man-page-content");
+                if (element) {
+                    element.style.display = "block";
+                }
+            </script>
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Memoize::Expire</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<p class="Pp">Esta sección describe el uso de la biblioteca. Si estás usando <span class="Li">&quot;Time::HiRes&quot;</span>, el valor probablemente no expirará.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esta biblioteca se enfoca en la expiración de valores en el uso de Memoize.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACE'><a class='permalink' href='#INTERFACE'>INTERFAZ</a></h1>
+<p class="Pp">Esta biblioteca ofrece un interfaz para la expiración de valores.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ALTERNATIVES'><a class='permalink' href='#ALTERNATIVES'>ALTERNATIVAS</a></h1>
+<p class="Pp">Otras alternativas de la biblioteca.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEATS'><a class='permalink' href='#CAVEATS'>CABIDAS</a></h1>
+<p class="Pp">Cavidades de uso.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Mark-Jason Dominus</p>
+<p class="Pp">Mike Cariaso proporcionó insight valioso sobre la mejor manera de resolver este problema.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/perl.1.en'>perl(1)</a></p>
+<p class="Pp">La manpage de Memoize.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar la página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información de paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Contenido de índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#INTERFACE">INTERFAZ</a></li>
+        
+            <li><a href="#ALTERNATIVAS">ALTERNATIVAS</a></li>
+        
+            <li><a href="#CAVEATS">CABIDAS</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otras formatos:
+        
+            <a href="/man/Memoize::Expire.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Memoize::Expire.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>La web está disponible bajo la licencia de <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por los contenidos de las páginas de manual, que tienen sus propias licencias especificadas en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

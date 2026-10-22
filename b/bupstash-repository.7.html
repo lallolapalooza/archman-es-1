@@ -1,0 +1,308 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>bupstash-repository(7) — Páginas man del manual </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">bupstash-repository(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/bupstash/">bupstash</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">(</td>)
+    <td class="head-vol"></td>
+    <td class="head-rtitle"></td>(</tr>)</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<p class="Pp">Descripción general </p>del formato del repo</section>sitorio de bupstash.
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp">La parte más importante de bupstash es el repositorio. Es donde
+    se almacenan todos los datos en una forma mayormente cifrada. El cliente de bupstash interactúa
+    con el repositorio a través de stdin/stdout del proceso bupstash-serve(1). Esto
+    puede ser local, o a través de un protocolo como </p>ssh.
+<p class="Pp">Debido a que la mayoría de los datos están cifrados, la estructura del repositorio es bastante
+    </p>simple.
+<p class="Pp">Archivos</p>:
+<p class="Pp">``` repo ├── data │
+    ├── ... │ └──
+    5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03
+    ├── items │ ├──
+    031d91b342fc76b8a4b32e2a8d12e4d0 │ └──
+    ffaa0127fd9938aa0a3eaf6070aa947d ├── meta │
+    ├── gc_generation │ ├──
+    gc_dirty │ ├── schema_version │
+    └── storage_engine ├── wal
+    │ ├── ... │ └──
+    00000000N.wal ├── repo.oplog ├──
+    repo.lock ├── tx.lock ├── tx.seq
+    └── tx.</p>wal
+<p class="Pp">``</p>`
+<section class="Ss">
+<h2 class="Ss" id='repo.oplog'><a class='permalink' href='#repo.oplog'>repo.</a></h2>oplog
+<p class="Pp">Este archivo es un libro de registro de solo inserción donde cada entrada es una operación de registro codificada en
+    <a href='https://baremessages.org/'>https://baremessages.</a>org/ con el siguiente </p>formato:
+<p class="Pp">``</p>`
+<p class="Pp">type Xid data<i>16;</i> type Address data<i>3</i>2</p>;
+<p class="Pp">type AddItem { id: Xid metadata: VersionedItemMetadata </p>}
+<p class="Pp">type RemoveItems { items: []Xid </p>}
+<p class="Pp">type RecoverRemoved </p>{}
+<p class="Pp">type V1VersionedItemMetadata { // obsoleto </p>}
+<p class="Pp">type V2VersionedItemMetadata { // obsoleto </p>}
+<p class="Pp">type V3VersionedItemMetadata { primary_key_id: Xid,
+    unix_timestamp_millis: u64, tree_height: usize, address: Address,
+    encryped_metadata: data </p>}
+<p class="Pp">struct V3SecretItemMetadata { plain_text_hash: data<i>32
+</i>    send_key_id: Xid, hash_key_part_2: data<i>32,</i> tags: Map[String]String,
+  </p>}
+<p class="Pp">``</p>`
+<p class="Pp">Es importante notar que todos los metadatos como las etiq</p>uetas de búsqueda están almacenados
+    cifrados y no son</section> legibles sin una clave maestra o una clave de metadatos.
+<section class="Ss">
+<h2 class="Ss" id='repo.lock'><a class='permalink' href='#repo.lock'>repo.</a></h2>lock
+<p class="Pp">Este bloqueo se mantiene exclusivamente durante la </p>recolección de basura y de forma
+    compartida du</section>rante las operaciones que modifican el repositorio.
+<section class="Ss">
+<h2 class="Ss" id='tx.lock'><a class='permalink' href='#tx.lock'>tx.</a></h2>lock
+<p class="Pp">Bupstash usa <b>tx.</b>lock y <b>tx.wal para coordin</b>ar ediciones
+    a </p>prueba de fallos en </section>múltiples archivos.
+<section class="Ss">
+<h2 class="Ss" id='tx.wal'><a class='permalink' href='#tx.wal'>tx.</a></h2>wal
+<p class="Pp">Este archivo es un WAL <a href='https://baremessages.org/'>(write ahead log) codificado </a>en
+    https://baremessages.org/ con el siguiente </p>esquema:
+<p class="Pp">``</p>`
+<p class="Pp">type Begin { sequence_number: u64, }</p>;
+<p class="Pp">type End {}</p>;
+<p class="Pp">type CreateFile { path: String, data_size: Uint, }</p>;
+<p class="Pp">type WriteFileAt { path: String, offset: Uint, data_size: Uint,
+  }</p>;
+<p class="Pp">type Remove { path: String, }</p>;
+<p class="Pp">type Rename { path: String, to: String, }</p>;
+<p class="Pp">type Mkdir { path: String, }</p>;
+<p class="Pp">``</p>`
+<p class="Pp">Los últimos 32 bytes del write ahead log son el hash blake3 de
+    los contenidos anteriores del </p>archivo.
+<p class="Pp">Cuando bupstash necesita modificar los metadatos del repositorio, primero escribe
+    un archivo wal y lo vacía en el disco, luego realiza las operaciones dadas en
+    secuencia. En caso de fallo, las operaciones se reproducirán de nuevo, previniendo la pérdida
+    de </p>datos.
+<p class="Pp">No elimine un write ahead log</p> si ve uno, es crítico para
+  </section>  la integridad de los datos.
+<section class="Ss">
+<h2 class="Ss" id='tx.seq'><a class='permalink' href='#tx.seq'>tx.</a></h2>seq
+<p class="Pp">Un archivo que contiene un núm</p>ero de secuencia utilizado pa</section>ra numerar los archivos
+  WAL.
+<section class="Ss">
+<h2 class="Ss" id='data/'><a class='permalink' href='#data/'>data</a></h2>/
+<p class="Pp">Este directorio contiene un conjunto de fragmentos de datos cifrados y deduplicados.
+    El nombre del archivo corresponde a un hash HMAC de los
+    contenidos sin cifrar, de modo que si dos fragmentos se añaden al repositorio con
+    el mismo hmac, solo necesitan almacenarse una </p>vez.
+<p class="Pp">Este directorio no se usa cuando el repo</p>sitorio está configurado para
+    motor</section>es de almacenamiento distintos de "Dir".
+<section class="Ss">
+<h2 class="Ss" id='items/'><a class='permalink' href='#items/'>items</a></h2>/
+<p class="Pp">Este directorio contiene un archivo por cada elemento, donde los contenidos
+    del archivo son un <b>VersionedItemMetadata codificado como se describ</b>e en la
+    sección repo.oplog. Cuando un eleme</p>nto se elimina y está pendiente de la recolecci</section>ón de basura
+    se le añade el sufijo .removed.
+<section class="Ss">
+<h2 class="Ss" id='meta/storage_engine'><a class='permalink' href='#meta/storage_engine'>meta/storage_engin</a></h2>e
+<p class="Pp">Contiene la especificación del motor de almacenamiento en JSON, que permite
+    el almacenamiento</p> de fragmentos de datos en formatos de almacenamiento externos o alternativos. Este archivo es
+   </section> editable por humanos para ayudar en migraciones manuales de datos entre formatos
+    soportados.
+<section class="Ss">
+<h2 class="Ss" id='meta/schema_version'><a class='permalink' href='#meta/schema_version'>meta/schema_versio</a></h2>n
+<p class="Pp">Este archivo contiene</p> la versión del esque</section>ma de un repositorio.
+<section class="Ss">
+<h2 class="Ss" id='meta/gc_generation'><a class='permalink' href='#meta/gc_generation'>meta/gc_generatio</a></h2>n
+<p class="Pp">Cada vez que ocurre una recolección de basur</p>a, este archivo se modifica y
+    se usa par</section>a invalidar las cachés del lado del cliente.
+<section class="Ss">
+<h2 class="Ss" id='meta/gc_dirty'><a class='permalink' href='#meta/gc_dirty'>meta/gc_dirt</a></h2>y
+<p class="Pp">Este archivo marca si una recolección de basura fue inte</p>rrumpida
+    prematuramente y se usa para la recuperaci</section>ón tras fallos. Este archivo no siempre
+  está presente.
+<section class="Ss">
+<h2 class="Ss" id='wal/'><a class='permalink' href='#wal/'>wal</a></h2>/
+<p class="Pp">Cuando la variable de entorno BUPSTASH_KEEP_WAL=1 está configurada para el <b>proceso bupstash
+    serve, es</b>te directorio contiene los arc</p>hivos WAL históricos que pued</section>en
+    usarse para la recupera</section>ción en un punto en el tiempo.
+<section class="Sh">
+<h1 class="Sh" id='The_hash_tree_structure'><a class='permalink' href='#The_hash_tree_structure'>La   estructura del árbol de </a></h1>hash
+<p class="Pp">Bupstash almacena flujos arbitrarios de datos en el repositorio dividiendo
+    el flujo en fragmentos, direccionando los fragmentos con hmac, luego
+    comprimiendo y cifrando los fragmentos con la porción de clave pública de una
+    clave de bupstash. Cada fragmento se almacena entonces en el directorio de datos en un archivo
+    nombrado según el hash hmac de los contenidos. A medida que generamos una secuencia de
+    fragmentos con direcciones hmac correspondientes, podemos construir una estructura de árbol
+    a partir de estas direcciones. Los nodos hoja del árbol son simplemente los datos
+    cifrados. Otros nodos en el árbol son simplemente listas sin cifrar de hashes hmac,
+    que pueden apuntar a nodos hoja cifrados u otros subárboles. La idea clave
+    detrás del árbol de hash es que podemos convertir un flujo arbitrario de datos en una
+    única dirección HMAC con fragmentos de tamaño aproximadamente igual. Cuando se añaden múltiples
+    árboles de hash al repositorio, comparten estructura y permiten la
+    </p>deduplicación.
+<p class="Pp">Este esquema de direccionamiento y cifrado tiene algunas propiedades
+    </p>importantes:
+<dl class="Bl-tag">
+  <dt></dt>○
+  <dd>El propietario del repositorio <i>no puede </i>adivinar el contenido de los fragmentos ya que la clave HMAC es
+      desconocida para </dd>él.
+  <dt></dt>○
+  <dd>El propietario del repositorio <i>no </i>puede descifrar las hojas del árbol de hash, ya que
+      están </dd>cifradas.
+  <dt></dt>○
+  <dd>El propietario del repositorio <i>puede </i>iterar el árbol de hash para la recolección de </dd>basura.
+  <dt></dt>○
+  <dd>El propietario del repositorio <i>puede </i>ejecutar la recolección de basura sin recuperar
+      los nodos hoja del almacenamiento en </dd>frío.
+  <dt></dt>○
+  <dd>El propietario del repositorio <i>puede </i>transmitir un flujo de nodos del árbol de hash a un
+      cliente sin idas y vueltas de </dd>red.
+  <dt></dt>○
+  <dd>Un cliente <i>puede </i>enviar flujos de datos a un repositorio sin compartir la
+      clave de </dd>cifrado.
+  <dt></dt>○
+  <dd>Un cliente <i>puede </i>recuperar y verificar un flujo de datos verificando
+    los </dd>hmacs.
+  <dt>
+  </dt>
+  <dd></dd>
+</dl>
+<p class="Pp">Estas propiedades son deseables para permitir una reco</p>lección de basura de alto
+    rendimiento y transmisió</section>n de datos con pre-carga en el lado del
+  repositorio.
+<section class="Sh">
+<h1 class="Sh" id='Chunking_and_deduplication'><a class='permalink' href='#Chunking_and_deduplication'>División   y </a></h1>deduplicación
+<p class="Pp">Los datos se deduplican dividiendo un flujo de datos en pequeños fragmentos,
+    y nunca almacenando el mismo fragmento dos veces. El rendimiento de esta
+    deduplicación se determina así por cómo se definen los puntos de división de los fragmentos. Para
+    lectores curiosos: bupstash usa algo conocido como 'fragmentación de</p>finida por contenido' para encontrar </section>divisiones de fragmentos eficientes.
+<section class="Sh">
+<h1 class="Sh" id='Chunk_formats'><a class='permalink' href='#Chunk_formats'>Formatos de </a></h1>fragmentos
+<p class="Pp">Los fragmentos en la base de datos son de uno de los siguientes tipos; en general, conocemos el tipo de un fragmento basándonos en los metadatos del elemento y la altura del árbol de </p>hash.
+<section class="Ss">
+<h2 class="Ss" id='Encrypted_data_chunk'><a class='permalink' href='#Encrypted_data_chunk'>Fragmento de datos </a></h2>cifrados
+<p class="Pp">Estos fragmentos forman las raíces de nuestros árboles de hash; contienen datos cifrados. Contienen un paquete de intercambio de claves, con suficiente información para que la clave maestra derive la clave de </p>sesión.
+<p class="Pp"><b>KEY_EXCHANGE_PACKET1_BYTES[PACKET1_SZ] ||
+    ENCRYPTED_BYTES[...</b></p>]
+<p class="Pp">Después de la descifrado, el fragmento se comprime opcionalmente, por lo que son datos comprimidos, o datos con un byte de pie </p>nulo.
+<p class="Pp"><b>COMPRESSED_DATA[...] || DECOMPRESSED_SIZE[4] ||
+    COMPRESSION_TYPE[1</b></p>]
+<p class="Pp"></p>o
+<p class="Pp"><b>DATA[...] || </b></p>0x00
+<p class="Pp">Los tipos de compresión válidos </p>son:
+<dl class="Bl-tag">
+  <dt></dt>○
+  <dd>1 == compresión </dd>lz4.
+  <dt></dt>○
+  <dd>2 == compresión </dd>zstd.
+  <dt>
+  </dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Hash_tree_node_chunk'><a class='permalink' href='#Hash_tree_node_chunk'>Fragmento de nodo del árbol de </a></h2>hash
+<p class="Pp">Estos fragmentos forman nodos no hoja en nuestro árbol de hash; consisten en una lista de direcciones precedida por el número total de fragmentos de datos que se encuentran debajo de ellas en el </p>árbol.
+<p class="Pp"><b>NUM_DATA_CHUNKS[8] ADDRESS[ADDRESS_SZ] NUM_DATA_CHUNKS[8]
+    ADDRESS[ADDRESS_SZ] NUM_DATA_CHUNKS[8] ADDRESS[ADDRESS_SZ]
+    NUM_DATA_CHUNKS[8] ADDRESS[ADDRESS_SZ] ..</b></p>.
+<p class="Pp">Estas direcciones deben seguirse recursivamente para leer nuestros fragmentos de datos; estas d</p>irecciones corresponden a fragmentos de datos cuando la altura del árbol es 0. Los recuentos d</section>e fragmentos pueden usarse para buscar eficientemente desplazamientos de dirección en el árbol.
+<section class="Ss">
+<h2 class="Ss" id='Format_of_key_exchange_bytes'><a class='permalink' href='#Format_of_key_exchange_bytes'>Formato de los bytes de intercambio de </a></h2>claves
+<p class="Pp">Próx</p>imam</section>ent</section>e...
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   </a></h1>TAMBIÉN
+<p class="Pp">bup</p>sta</section>sh</div>(1)
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os"></td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/bupstash/">extra/bup</a></dd>stash
+        <dt>Vers</dt>ión:
+        <dd>0.12.</dd>0-3
+        <dt>Upst</dt>ream:
+        <dd><a href="https://bupstash.io">https://bupstash.</a></dd>io
+        <dt>Licen</dt>cias:
+        <dd>M</dd>IT
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/bupstash/">/listi</a></dd>ng/ext</dl>ra/bup</section>stash/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#The_hash_tree_structure">La estructura </a></li>del árbol de hash
+        
+            <li><a href="#Chunking_and_deduplication">Fragmentación y </a></li>deduplicación
+        
+            <li><a href="#Chunk_formats">Formatos </a></li>de fragmentos
+        
+            <li><a href="#SEE_ALSO">VE</a></li>R </ul>TAM</nav>BI</details>ÉN
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/bupstash-repository.7.en.txt">t</a>xt, 
+        
+            <a href="/man/bupstash-repository.7.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licen</a>cia, excepto por el contenido</p> de las páginas de manual, qu</footer>e tienen su propia licencia </body>especificada en el paquete c</html>orrespondiente de Arch Linux.

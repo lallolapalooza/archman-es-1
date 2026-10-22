@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Params::Check(3perl) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Params__Check.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Params::Check(3perl)</td>
+    <td class="head-vol">Perl Programmers Reference Guide</td>
+    <td class="head-rtitle">Params::Check(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Params::Check - Un mecanismo genérico de análisis/verificación de entrada.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Params::Check qw[check allow last_error];
+sub fill_personal_info {
+    my %hash = @_;
+    my $x;
+    my $tmpl = {
+        firstname   =&gt; { required   =&gt; 1, defined =&gt; 1 },
+        lastname    =&gt; { required   =&gt; 1, store =&gt; \$x },
+        gender      =&gt; { required   =&gt; 1,
+                         allow      =&gt; [qr/M/i, qr/F/i],
+                       },
+        married     =&gt; { allow      =&gt; [0,1] },
+        age         =&gt; { default    =&gt; 21,
+                         allow      =&gt; qr/^\d+$/,
+                       },
+        phone       =&gt; { allow =&gt; [ sub { return 1 if /$valid_re/ },
+                                    '1-800-PERL' ]
+                       },
+        id_list     =&gt; { default        =&gt; [],
+                         strict_type    =&gt; 1
+                       },
+        employer    =&gt; { default =&gt; 'NSA', no_override =&gt; 1 },
+    };
+    ### check() returns a hashref of parsed args on success ###
+    my $parsed_args = check( $tmpl, \%hash, $VERBOSE )
+                        or die qw[Could not parse arguments!];
+    ... other code here ...
+}
+my $ok = allow( $colour, [qw|blue green yellow|] );
+my $error = Params::Check::last_error();</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Params::Check es un mecanismo genérico de análisis/verificación de entrada.</p>
+<p class="Pp">Te permite validar la entrada a través de una plantilla. El único
+    requisito es que los argumentos deben ser con nombre.</p>
+<p class="Pp">Params::Check puede hacer lo siguiente por ti:</p>
+<ul class="Bl-bullet">
+  <li>Convertir todas las claves a minúsculas</li>
+  <li>Verificar si se han proporcionado todos los argumentos requeridos</li>
+  <li>Establecer los argumentos que no se han proporcionado a su valor predeterminado</li>
+  <li>Descartar los argumentos que no son compatibles y advertir sobre ellos al
+    usuario</li>
+  <li>Validar los argumentos proporcionados por el usuario basándose en cadenas,
+    expresiones regulares, listas o incluso subrutinas</li>
+  <li>Forzar la integridad del tipo si es necesario</li>
+</ul>
+<p class="Pp">La mayor parte del poder de Params::Check proviene de su plantilla,
+    que discutiremos a continuación:</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Template'><a class='permalink' href='#Template'>Plantilla</a></h1>
+<p class="Pp">Como puedes ver en la sinopsis, basándose en tu plantilla, los
+    argumentos proporcionados serán validados.</p>
+<p class="Pp">La plantilla puede tomar un conjunto diferente de reglas por clave
+    que se utiliza.</p>
+<p class="Pp">Las siguientes reglas están disponibles:</p>
+<dl class="Bl-tag">
+  <dt id="default"><a class="permalink" href="#default">default</a></dt>
+  <dd>Este es el valor predeterminado si el usuario no proporcionó ninguno. Este
+      también es el tipo al que <span class="Li">&quot;strict_type&quot;</span>
+      mirará al verificar la integridad del tipo (ver abajo).</dd>
+  <dt id="required"><a class="permalink" href="#required">required</a></dt>
+  <dd>Un indicador booleano que indica si este argumento era un argumento
+      requerido. Si se marca como requerido y no se proporciona,
+      <b>check()</b> fallará.</dd>
+  <dt id="strict_type"><a class="permalink" href="#strict_type">strict_type</a></dt>
+  <dd>Esto realiza una verificación <span class="Li">ref()</span> en el argumento
+      proporcionado. El <span class="Li">&quot;ref&quot;</span> del argumento
+      debe ser el mismo que el <span class="Li">&quot;ref&quot;</span> del valor
+      predeterminado para que esta verificación sea exitosa.
+    <p class="Pp">Esto es muy útil si insistes en tomar una referencia de matriz
+        como argumento, por ejemplo.</p>
+  </dd>
+  <dt id="defined"><a class="permalink" href="#defined">defined</a></dt>
+  <dd>Si esta clave de plantilla es verdadera, exige que si esta clave es
+      proporcionada por la entrada del usuario, su valor esté
+      <span class="Li">&quot;definido&quot;</span>. Esto simplemente significa
+      que al usuario no se le permite pasar
+      <span class="Li">&quot;undef&quot;</span> como valor para esta clave y es
+      equivalente a:
+    <br/>
+     allow =&gt; sub { defined <span class="Li">$_</span>[0] &amp;&amp; OTROS
+      TESTS }</dd>
+  <dt id="no_override"><a class="permalink" href="#no_override">no_override</a></dt>
+  <dd>Esto te permite especificar <span class="Li">&quot;constantes&quot;</span>
+      en tu plantilla. Es decir, las claves que no se pueden modificar por el
+      usuario. Prácticamente te permite mantener todos tus datos
+      <span class="Li">&quot;configurables&quot;</span> en un solo lugar; la
+      plantilla de <span class="Li">&quot;Params::Check&quot;</span>.</dd>
+  <dt id="store"><a class="permalink" href="#store">store</a></dt>
+  <dd>Esto te permite pasar una referencia a un escalar, en el que se almacenarán
+      los datos:
+        <pre>my $x;
+my $args = check(foo =&gt; { default =&gt; 1, store =&gt; \$x }, $input);
+</pre>
+    <p class="Pp">Esto es básicamente una abreviatura para decir:</p>
+        <pre>my $args = check( { foo =&gt; { default =&gt; 1 }, $input );
+my $x    = $args-&gt;{foo};
+</pre>
+    <p class="Pp">Puedes alterar la variable global
+        <span class="Li">$Params::Check::NO_DUPLICATES</span> para controlar
+        si la clave <span class="Li">&quot;store&quot;</span> todavía estará
+        presente en tu conjunto de resultados. Ver la sección
+        &quot;Variables Globales&quot; abajo.</p>
+  </dd>
+  <dt id="allow"><a class="permalink" href="#allow">allow</a></dt>
+  <dd>Un conjunto de criterios utilizados para validar una pieza particular de
+      datos si debe cumplir con reglas específicas.
+    <p class="Pp">Ver la función <span class="Li">allow()</span> para
+      detalles.</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Functions'><a class='permalink' href='#Functions'>Funciones</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='check(_\%tmpl,_\%args,_%5B$verbose%5D_);'><a class='permalink' href='#check(_\%tmpl,_\%args,_%5B$verbose%5D_);'>check( \%tmpl, \%args, [$verbose] );</a></h2>
+<p class="Pp">Esta función no se exporta por defecto, por lo que tendrás que
+    solicitarla a través de:</p>
+<pre>use Params::Check qw[check];</pre>
+<p class="Pp">o usar su nombre completamente calificado en su lugar.</p>
+<p class="Pp"><span class="Li">&quot;check&quot;</span> toma una lista de
+    argumentos, como sigue:</p>
+<dl class="Bl-tag">
+  <dt id="Template~2"><a class="permalink" href="#Template~2">Plantilla</a></dt>
+  <dd>Este es una referencia de hash que contiene una plantilla como se explica
+      en las secciones <span class="Li">&quot;SINOPSIS&quot;</span> y
+      <span class="Li">&quot;Plantilla&quot;</span>.</dd>
+  <dt id="Arguments"><a class="permalink" href="#Arguments">Argumentos</a></dt>
+  <dd>Esta es una referencia a un hash de argumentos con nombre que necesitan ser
+      verificados.</dd>
+  <dt id="Verbose"><a class="permalink" href="#Verbose">Verbose</a></dt>
+  <dd>Un booleano para indicar si <span class="Li">&quot;check&quot;</span>
+      debe ser verboso y advertir sobre lo que salió mal en una verificación o
+      no.
+    <p class="Pp">Puedes habilitar esto en todo el programa estableciendo la
+        variable de paquete <span class="Li">$Params::Check::VERBOSE</span> a un
+        valor verdadero. Para detalles, ver la sección sobre
+        <span class="Li">&quot;Variables Globales&quot;</span> abajo.</p>
+  </dd>
+</dl>
+<p class="Pp"><span class="Li">&quot;check&quot;</span> devolverá cuando falle,
+    o un hashref con claves en minúsculas de argumentos analizados cuando tenga
+    éxito.</p>
+<p class="Pp">Así que una llamada típica a check se vería así:</p>
+<pre>my $parsed = check( \%template, \%arguments, $VERBOSE )
+                or warn q[Arguments could not be parsed!];</pre>
+<p class="Pp">Gran parte del comportamiento de <span class="Li">check()</span>
+    puede ser alterado estableciendo variables de paquete. Ver la sección de
+    <span class="Li">&quot;Variables Globales&quot;</span> para detalles sobre
+  esto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='allow(_$test_me,_\@criteria_);'><a class='permalink' href='#allow(_$test_me,_\@criteria_);'>allow( $test_me, \@criteria );</a></h2>
+<p class="Pp">La función que maneja la clave
+    <span class="Li">&quot;allow&quot;</span> en la plantilla también está
+    disponible para uso independiente.</p>
+<p class="Pp">La función toma como primer argumento una clave para probar contra,
+    y como segundo argumento cualquier forma de criterios que también sean
+    permitidos por la clave <span class="Li">&quot;allow&quot;</span> en la
+  plantilla.</p>
+<p class="Pp">Puedes usar los siguientes tipos de valores para allow:</p>
+<dl class="Bl-tag">
+  <dt id="string"><a class="permalink" href="#string">cadena</a></dt>
+  <dd>El argumento proporcionado DEBE ser igual a la cadena para que la validación
+      sea exitosa.</dd>
+  <dt id="regexp"><a class="permalink" href="#regexp">expresión regular</a></dt>
+  <dd>El argumento proporcionado DEBE coincidir con la expresión regular para que
+      la validación sea exitosa.</dd>
+  <dt id="subroutine"><a class="permalink" href="#subroutine">subrutina</a></dt>
+  <dd>La subrutina proporcionada DEBE devolver verdadero para que la validación
+      sea exitosa y el argumento aceptado.
+    <p class="Pp">(Esto es particularmente útil para datos más complicados).</p>
+  </dd>
+  <dt id="array"><a class="permalink" href="#array">ref de matriz</a></dt>
+  <dd>El argumento proporcionado DEBE ser igual a uno de los elementos del ref de
+      matriz para que la validación sea exitosa. Un ref de matriz puede contener
+      todos los valores anteriores.</dd>
+</dl>
+<p class="Pp">Devuelve verdadero si la clave coincidió con los criterios, o falso
+    en caso contrario.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss"><b>last_error()</b></h2>
+<p class="Pp">Devuelve una cadena que contiene todas las advertencias y errores
+    informados durante la última vez que se llamó a
+    <span class="Li">&quot;check&quot;</span>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Global_Variables'><a class='permalink' href='#Global_Variables'>Variables Globales</a></h1>
+<p class="Pp">Se pueden alterar las siguientes variables de paquete para cambiar el
+    comportamiento de Params::Check:</p>
+<dl class="Bl-tag">
+  <dt id="Params::Check::VERBOSE"><a class="permalink" href="#Params::Check::VERBOSE">$Params::Check::VERBOSE</a></dt>
+  <dd>Si se establece en verdadero, <span class="Li">check()</span> será más
+      verboso y advertirá sobre problemas con los argumentos proporcionados.
+      Por defecto, es falso.</dd>
+  <dt id="Params::Check::WARN"><a class="permalink" href="#Params::Check::WARN">$Params::Check::WARN</a></dt>
+  <dd>Si se establece en verdadero, <span class="Li">check()</span> emitirá una
+      advertencia sobre argumentos no reconocidos. Por defecto, es verdadero.</dd>
+  <dt id="Params::Check::STRICT"><a class="permalink" href="#Params::Check::STRICT">$Params::Check::STRICT</a></dt>
+  <dd>Si se establece en verdadero, <span class="Li">check()</span> emitirá una
+      advertencia sobre argumentos no reconocidos. Por defecto, es falso.</dd>
+  <dt id="Params::Check::NO_DUPLICATES"><a class="permalink" href="#Params::Check::NO_DUPLICATES">$Params::Check::NO_DUPLICATES</a></dt>
+  <dd>Si se establece en verdadero, la clave utilizada con la opción
+      <span class="Li">&quot;store&quot;</span> no se incluirá en el hashref
+      devuelto por <span class="Li">check()</span>. Por defecto, es falso.</dd>
+  <dt id="Params::Check::ALLOW_UNDEF"><a class="permalink" href="#Params::Check::ALLOW_UNDEF">$Params::Check::ALLOW_UNDEF</a></dt>
+  <dd>Por defecto, <span class="Li">check()</span> falla si un valor requerido o
+      verificado es <span class="Li">undef</span>. Si esta variable se establece
+      en verdadera, permitirá explícitamente que <span class="Li">undef</span>
+      pase las verificaciones, excepto cuando se especifica explícitamente
+      <span class="Li">&quot;defined =&gt; 1&quot;</span>.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Author'><a class='permalink' href='#Author'>Autor</a></h1>
+<p class="Pp">Gisle Repstad &lt;gisle@highpoint.com&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Version'><a class='permalink' href='#Version'>Versión</a></h1>
+<p class="Pp">$Revision: 1.12 $</p>
+<p class="Pp">07/18/98</p>
+</section>
+</div>
+</section>
+
+                
+            </article>
+            
+        </main>
+        <footer>
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="referrer" content="no-referrer">
+        <meta name="robots" content="noindex, nofollow">
+        <title>Params::Check(3perl) — Params::Check — Manual de Perl</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="stylesheet" href="/css/manual.css">
+        <link rel="prev" href="Params::Util.3perl.html">
+        <link rel="next" href="Perl.1.html">
+        <link rel="contents" href="#TOC">
+    </head>
+    <body>
+        
+        <main class="container">
+            <article>
+                <div class="manual-page">
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+<p class="Pp">Params::Check - A module for checking parameters passed to
+    subroutines.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+<pre>
+    use Params::Check;
+    my $check = new Params::Check( template );
+    my $result = $check-&gt;check( args );
+    # or
+    my $result = Params::Check::check( template, args );
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+<p class="Pp">Params::Check is a module that helps in checking the parameters
+    passed to a subroutine. It allows you to define a template that specifies
+    what parameters are expected, their types, and other constraints. It then
+    checks the actual arguments passed to the subroutine against this template.</p>
+<p class="Pp">This module is useful for creating robust and user-friendly
+    subroutines, as it can catch errors early and provide informative messages
+    about incorrect arguments.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="Template"><a class="permalink" href="#Template">Template</a></h1>
+<p class="Pp">The template is a hashref that defines the expected parameters.
+    Each key in the hashref is a parameter name, and its value is another
+    hashref containing the parameter's attributes. Some common attributes
+    include:</p>
+<dl class="Bl-tag">
+<dt id="type"><span class="Li">&quot;type&quot;</span></dt>
+<dd>Specifies the expected data type of the parameter (e.g., 'scalar',
+        'arrayref', 'hashref', 'coderef').</dd>
+<dt id="default"><span class="Li">&quot;default&quot;</span></dt>
+<dd>A default value to use if the parameter is not provided.</dd>
+<dt id="required"><span class="Li">&quot;required&quot;</span></dt>
+<dd>A boolean value indicating whether the parameter is mandatory.</dd>
+<dt id="store"><span class="Li">&quot;store&quot;</span></dt>
+<dd>If true, the value of the parameter will be stored in a scalar variable
+        (passed as an argument to the <span class="Li">check</span> method).</dd>
+<dt id="defined"><span class="Li">&quot;defined&quot;</span></dt>
+<dd>If true, the parameter's value must be defined (not <span class="Li">undef</span>).</dd>
+<dt id="matches"><span class="Li">&quot;matches&quot;</span></dt>
+<dd>A regular expression that the parameter's value must match.</dd>
+</dl>
+<p class="Pp">Example template:</p>
+<pre>
+    my $template = {
+        name     =&gt; { type =&gt; 'string', required =&gt; 1 },
+        age      =&gt; { type =&gt; 'integer', default =&gt; 0 },
+        callback =&gt; { type =&gt; 'coderef' },
+        options  =&gt; { type =&gt; 'hashref', default =&gt; sub { {} } },
+    };
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="Functions"><a class="permalink" href="#Functions">Functions</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="new"><a class="permalink" href="#new">new</a></h2>
+<p class="Pp">Creates a new Params::Check object with the given template.</p>
+<pre>
+    my $check = Params::Check-&gt;new( $template );
+</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="check"><a class="permalink" href="#check">check</a></h2>
+<p class="Pp">Checks the provided arguments against the template associated with
+    the Params::Check object or a given template.</p>
+<p class="Pp">It returns a hashref containing the validated parameters. If
+    validation fails, it returns <span class="Li">false</span> and an error
+    message can be retrieved using <span class="Li">Params::Check::last_error</span>.</p>
+<pre>
+    my $result = $check-&gt;check( @args );
+    # or
+    my $result = Params::Check::check( $template, @args );
+</pre>
+<p class="Pp">Options can be passed to the <span class="Li">check</span> method
+    as a hashref before the arguments:</p>
+<pre>
+    my $result = $check-&gt;check( { strict_type =&gt; 1 }, @args );
+</pre>
+<dl class="Bl-tag">
+<dt id="strict_type"><span class="Li">&quot;strict_type&quot;</span></dt>
+<dd>If true, performs stricter type checking. For example, it will reject
+        integers for string parameters.</dd>
+<dt id="allow_unknown"><span class="Li">&quot;allow_unknown&quot;</span></dt>
+<dd>If true, unknown parameters in the arguments will not cause an error and
+        will be included in the returned hashref.</dd>
+<dt id="strip_leading_dashes"><span class="Li">&quot;strip_leading_dashes&quot;</span></dt>
+<dd>If true, leading dashes from parameter names will be removed (e.g.,
+        <span class="Li">-key</span> becomes <span class="Li">key</span>).</dd>
+<dt id="no_duplicates"><span class="Li">&quot;no_duplicates&quot;</span></dt>
+<dd>If true, parameters marked with <span class="Li">store</span> in the
+        template will be removed from the returned hashref.</dd>
+<dt id="preserve_case"><span class="Li">&quot;preserve_case&quot;</span></dt>
+<dd>If true, parameter names will not be converted to lowercase. This disables
+        case-insensitive matching.</dd>
+<dt id="only_allow_defined"><span class="Li">&quot;only_allow_defined&quot;</span></dt>
+<dd>If true, all parameter values must be defined.</dd>
+<dt id="sanity_check_template"><span class="Li">&quot;sanity_check_template&quot;</span></dt>
+<dd>If true, the template itself will be checked for errors. This can slow
+        down performance.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="last_error"><a class="permalink" href="#last_error">last_error</a></h2>
+<p class="Pp">Returns the last error message encountered during a <span class="Li">check</span>
+    operation. This is a static method.</p>
+<pre>
+    my $error = Params::Check::last_error();
+</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="carp"><a class="permalink" href="#carp">carp</a></h2>
+<p class="Pp">The <span class="Li">carp</span> method is called when a validation
+    error occurs and the global variable <span class="Li">$Params::Check::VERBOSE</span>
+    is set. It is exported upon request.</p>
+<p class="Pp">This is useful if you want to report then some other way than
+    <span class="Li">&quot;carp&quot;</span>'ing when the verbose flag is
+    on.</p>
+<p class="Pp">It is exported upon request.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="Global_Variables"><a class="permalink" href="#Global_Variables">Global
+    Variables</a></h1>
+<p class="Pp">The behaviour of Params::Check can be altered by changing the
+    following global variables:</p>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::VERBOSE"><a class="permalink" href="#$Params::Check::VERBOSE">$Params::Check::VERBOSE</a></h2>
+<p class="Pp">This controls whether Params::Check will issue warnings and
+    explanations as to why certain things may have failed. If you set it to 0,
+    Params::Check will not output any warnings.</p>
+<p class="Pp">The default is 1 when warnings are enabled, 0 otherwise;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::STRICT_TYPE"><a class="permalink" href="#$Params::Check::STRICT_TYPE">$Params::Check::STRICT_TYPE</a></h2>
+<p class="Pp">This works like the
+    <span class="Li">&quot;strict_type&quot;</span> option you can pass to
+    <span class="Li">&quot;check&quot;</span>, which will turn on
+    <span class="Li">&quot;strict_type&quot;</span> globally for all calls to
+    <span class="Li">&quot;check&quot;</span>.</p>
+<p class="Pp">The default is 0;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::ALLOW_UNKNOWN"><a class="permalink" href="#$Params::Check::ALLOW_UNKNOWN">$Params::Check::ALLOW_UNKNOWN</a></h2>
+<p class="Pp">If you set this flag, unknown options will still be present in the
+    return value, rather than filtered out. This is useful if your subroutine is
+    only interested in a few arguments, and wants to pass the rest on blindly to
+    perhaps another subroutine.</p>
+<p class="Pp">The default is 0;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::STRIP_LEADING_DASHES"><a class="permalink" href="#$Params::Check::STRIP_LEADING_DASHES">$Params::Check::STRIP_LEADING_DASHES</a></h2>
+<p class="Pp">If you set this flag, all keys passed in the following manner:</p>
+<pre>
+function( -key =&gt; 'val' );
+</pre>
+<p class="Pp">will have their leading dashes stripped.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::NO_DUPLICATES"><a class="permalink" href="#$Params::Check::NO_DUPLICATES">$Params::Check::NO_DUPLICATES</a></h2>
+<p class="Pp">If set to true, all keys in the template that are marked as to be
+    stored in a scalar, will also be removed from the result set.</p>
+<p class="Pp">Default is false, meaning that when you use
+    <span class="Li">&quot;store&quot;</span> as a template key,
+    <span class="Li">&quot;check&quot;</span> will put it both in the scalar you
+    supplied, as well as in the hashref it returns.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::PRESERVE_CASE"><a class="permalink" href="#$Params::Check::PRESERVE_CASE">$Params::Check::PRESERVE_CASE</a></h2>
+<p class="Pp">If set to true, Params::Check will no longer convert all keys from
+    the user input to lowercase, but instead expect them to be in the case the
+    template provided. This is useful when you want to use similar keys with
+    different casing in your templates.</p>
+<p class="Pp">Understand that this removes the case-insensitivity feature of
+    this module.</p>
+<p class="Pp">Default is 0;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::ONLY_ALLOW_DEFINED"><a class="permalink" href="#$Params::Check::ONLY_ALLOW_DEFINED">$Params::Check::ONLY_ALLOW_DEFINED</a></h2>
+<p class="Pp">If set to true, Params::Check will require all values passed to be
+    <span class="Li">&quot;defined&quot;</span>. If you wish to enable this on a
+    'per key' basis, use the template option
+    <span class="Li">&quot;defined&quot;</span> instead.</p>
+<p class="Pp">Default is 0;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::SANITY_CHECK_TEMPLATE"><a class="permalink" href="#$Params::Check::SANITY_CHECK_TEMPLATE">$Params::Check::SANITY_CHECK_TEMPLATE</a></h2>
+<p class="Pp">If set to true, Params::Check will sanity check templates,
+    validating for errors and unknown keys. Although very useful for debugging,
+    this can be somewhat slow in hot-code and large loops.</p>
+<p class="Pp">To disable this check, set this variable to
+    <span class="Li">&quot;false&quot;</span>.</p>
+<p class="Pp">Default is 1;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::WARNINGS_FATAL"><a class="permalink" href="#$Params::Check::WARNINGS_FATAL">$Params::Check::WARNINGS_FATAL</a></h2>
+<p class="Pp">If set to true, Params::Check will
+    <span class="Li">&quot;croak&quot;</span> when an error during template
+    validation occurs, rather than return
+    <span class="Li">&quot;false&quot;</span>.</p>
+<p class="Pp">Default is 0;</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="$Params::Check::CALLER_DEPTH"><a class="permalink" href="#$Params::Check::CALLER_DEPTH">$Params::Check::CALLER_DEPTH</a></h2>
+<p class="Pp">This global modifies the argument given to
+    <span class="Li">caller()</span> by
+    <span class="Li">Params::Check::check()</span> and is useful if you have a
+    custom wrapper function around
+    <span class="Li">Params::Check::check()</span>. The value must be an
+    integer, indicating the number of wrapper functions inserted between the
+    real function call and <span class="Li">Params::Check::check()</span>.</p>
+<p class="Pp">Example wrapper function, using a custom stacktrace:</p>
+<pre>
+sub check {
+    my ($template, $args_in) = @_;
+    local $Params::Check::WARNINGS_FATAL = 1;
+    local $Params::Check::CALLER_DEPTH = $Params::Check::CALLER_DEPTH + 1;
+    my $args_out = Params::Check::check($template, $args_in);
+    my_stacktrace(Params::Check::last_error) unless $args_out;
+    return $args_out;
+}</pre>
+<p class="Pp">Default is 0;</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="Acknowledgements"><a class="permalink" href="#Acknowledgements">Acknowledgements</a></h1>
+<p class="Pp">Thanks to Richard Soderberg for his performance improvements.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="BUG_REPORTS"><a class="permalink" href="#BUG_REPORTS">BUG
+    REPORTS</a></h1>
+<p class="Pp">Please report bugs or other issues to
+    &lt;bug-params-check@rt.cpan.org&gt;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHOR"><a class="permalink" href="#AUTHOR">AUTHOR</a></h1>
+<p class="Pp">This module by Jos Boumans &lt;kane@cpan.org&gt;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="COPYRIGHT"><a class="permalink" href="#COPYRIGHT">COPYRIGHT</a></h1>
+<p class="Pp">This library is free software; you may redistribute and/or modify
+    it under the same terms as Perl itself.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Version:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licenses:</dt>
+        <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#Template">Template</a></li>
+        
+            <li><a href="#Functions">Functions</a></li>
+        
+            <li><a href="#Global_Variables">Global Variables</a></li>
+        
+            <li><a href="#Acknowledgements">Acknowledgements</a></li>
+        
+            <li><a href="#BUG_REPORTS">BUG REPORTS</a></li>
+        
+            <li><a href="#AUTHOR">AUTHOR</a></li>
+        
+            <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/Params::Check.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Params::Check.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

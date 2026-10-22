@@ -1,0 +1,338 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Font::TTF::Manual(3pm) — Páginas man del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Font__TTF__Manual(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-font-ttf/">perl-font-ttf</a></p>
+<p class="lic">Licencias: Artistic2.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Font::TTF::Manual(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Font::TTF::Manual(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Font::TTF::Manual - Información sobre el conjunto de módulos completo</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTRODUCTION'><a class='permalink' href='#INTRODUCTION'>INTRODUCCIÓN</a></h1>
+<p class="Pp">Este documento examina todo el tema de cómo los distintos módulos
+    de TrueType Font trabajan juntos. Como tal, es en parte información sobre
+    este sistema de fuentes y en parte información sobre fuentes TrueType en
+    general.</p>
+<p class="Pp">Debido a la interrelación entre tantas tablas en una fuente
+    TrueType, diferentes tablas harán expectativas sobre qué otras tablas
+    existen. Como mínimo, una fuente debería consistir en una
+    <span class="Li">"head"</span> tabla y una
+    <span class="Li">"maxp"</span> tabla. El sistema ha sido diseñado
+    alrededor de la expectativa de que las tablas necesarias para el
+    renderizado de fuentes en el entorno de Windows existan. Pero las
+    dependencias entre tablas se han mantenido en lo que se considera
+    necesario.</p>
+<p class="Pp">Este conjunto de módulos no está destinado a ser una suite de
+    edición de fuentes simple de usar y sin cerebro, sino como un conjunto de
+    clases de bajo nivel, para ensuciarse las manos, para quienes entienden
+    las complejidades (y hay muchas) de las fuentes TrueType. Para este fin,
+    si te equivocas en las estructuras de datos, etc., entonces este conjunto
+    de módulos no te lo dirá y felizmente creará fuentes que no funcionan.</p>
+<p class="Pp">¡En el momento de escribir esto, no todas las tablas TrueType
+    existentes han sido implementadas! Solo las tablas básicas centrales de
+    TrueType 1.0 (es decir, sin tablas de mapas de bits incrustadas, sin
+    tablas de tipo PostScript, sin tablas OpenType y sin tablas GX) han sido
+    implementadas. Si quieres ayudar implementando otra tabla o dos, por
+    favor, adelante y envíame tu código. Para una lista completa de tablas,
+    ver Font::TTF::Font.</p>
+<section class="Ss">
+<h2 class="Ss" id='Design_Principles'><a class='permalink' href='#Design_Principles'>Principios de Diseño</a></h2>
+<p class="Pp">PERL no es C++. C++ fomenta que se escriban métodos para cambiar
+    y leer cada variable de instancia en una clase. Si hiciéramos esto en
+    este programa PERL, los resultados serían bastante grandes y lentos.
+    En su lugar, ya que la mayoría del acceso será de lectura, exponemos
+    tanto como sea posible del almacenamiento interno de un objeto al acceso
+    del usuario directamente a través de una búsqueda en hash. La ventaja que
+    esto da es grande. Por ejemplo, siguiendo una cadena de variables de
+    instancia, buscar el
+    <span class="Li">"yMax"</span> parámetro para un glifo particular
+    se convierte en:</p>
+<pre>$f-&gt;{'loca'}{'glyphs'}[$glyph]{'yMax'}</pre>
+<p class="Pp">O, si nos sentimos muy perezosos y no nos importa esperar:</p>
+<pre>$f-&gt;{'loca'}{'glyphs'}[$f-&gt;{'cmap'}-&gt;ms_lookup(0x41)]{'yMax'}</pre>
+<p class="Pp">La desventaja de este método es que obliga a los usuarios del
+    módulo a comportarse bien. Por lo tanto, no te toma de la mano y asegura
+    que si haces un cambio en una tabla, que la tabla esté marcada como <i>sucia</i>, o que
+    otras tablas se actualicen en consecuencia.</p>
+<p class="Pp">Corresponde al desarrollador de la aplicación entender las
+    implicaciones de los cambios que hace a una fuente, y tomar la acción
+    necesaria para asegurar que los datos que obtiene son los que quiere.
+    Así, podrías ir y cambiar el <span class="Li">"yMax"</span> valor en un
+    glifo y producir una nueva fuente con este cambio, pero depende de ti
+    asegurar que los detalles del cuadro delimitador de la fuente en la
+    <span class="Li">"head"</span> tabla sean correctos, e incluso que
+    tu cambio de <span class="Li">"yMax"</span> esté bien
+  motivado.</p>
+<p class="Pp">Para ayudar con el uso del sistema, cada módulo (o tabla) no
+    solo describirá los métodos que soporta, que son relativamente pocos,
+    sino también las variables de instancia que soporta, que son muchas. La
+    mayoría de las variables reflejan directamente los atributos de la tabla
+    como se especifica en la especificación OpenType, disponible de Microsoft
+    (<a href='http://www.microsoft.com/typography'>http://www.microsoft.com/typography</a>), Adobe y Apple. Una lista de
+    los nombres usados también se da en cada módulo, pero no necesariamente
+    con alguna descripción adicional. Después de todo, ¡este código no es un
+    manual de TrueType también!</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Conventions'><a class='permalink' href='#Conventions'>Convenciones</a></h2>
+<p class="Pp">Hay varias convenciones usadas en este sistema.</p>
+<p class="Pp">Primero consideramos las convenciones de documentación con
+    respecto a las variables de instancia. Cada variable de instancia está
+    marcada indicando si es una <b>(P)</b>rivate variable que los usuarios del módulo no se espera que
+    lean y ciertamente no escriban, o una <b>(R)</b>ead only variable que los
+    usuarios pueden querer leer pero no escribir.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<p class="Pp">Esta sección examina varios métodos y cómo los distintos módulos
+    trabajan con estos métodos.</p>
+<section class="Ss">
+<h2 class="Ss" id='read_and_read_dat'><a class='permalink' href='#read_and_read_dat'>read   y read_dat</a></h2>
+<p class="Pp">Antes de que las estructuras de datos de una tabla puedan ser
+    accedidas, necesitan ser llenadas desde algún lugar. La forma usual de
+    hacer esto es leer una fuente TrueType existente. Esto puede lograrse
+    mediante:</p>
+<pre>$f = Font::TTF::Font-&gt;open($filename) || die "Unable to read $filename";</pre>
+<p class="Pp">Esto abrirá una fuente existente y leerá su directorio de
+    cabecera. Nota que en este punto, ninguna de las tablas en la fuente ha
+    sido leída. (En realidad, las <span class="Li">"head"</span> y
+    <span class="Li">"maxp"</span> tablas son leídas en este punto también
+    ya que contienen los parámetros comúnmente requeridos de):</p>
+<pre>$f-&gt;{'head'}{'unitsPerEm'}
+$f-&gt;{'maxp'}{'numGlyphs'}</pre>
+<p class="Pp">Para poder acceder a la información de una tabla, es
+    primero necesario <span class="Li">"read"</span> (leerla). Considera
+    intentar encontrar el ancho de avance de un carácter de espacio (U+0020).
+    El siguiente código debería hacerlo:</p>
+<pre>$f = Font::TTF::Font-&gt;open($ARGV[0]);
+$snum = $f-&gt;{'cmap'}-&gt;ms_lookup(0x0020);
+$sadv = $f-&gt;{'hmtx'}{'advance'}[$snum];
+print $sadv;</pre>
+<p class="Pp">Esto resultaría en que se imprimiera el valor cero, lo cual está
+    lejos de ser correcto. Pero ¿por qué? La primera línea leería
+    correctamente el directorio de la fuente. La segunda línea, por cierto,
+    localizaría correctamente el carácter de espacio en el cmap de Windows
+    (asumiendo una fuente no codificada como símbolo). La tercera línea no
+    tendría éxito en su tarea ya que la
+    <span class="Li">"hmtx"</span> tabla no ha sido llenada desde
+    el archivo de fuente. Para lograr lo que queremos, primero necesitaríamos
+    causar que sea leída:</p>
+<pre>$f-&gt;{'hmtx'}-&gt;read;
+$sadv = $f-&gt;{'hmtx'}{'advance'}[$snum];</pre>
+<p class="Pp">O para aquellos que son demasiado perezosos para escribir
+    múltiples líneas,
+    <span class="Li">"read"</span> devuelve el objeto que lee. Así
+    que podríamos escribir:</p>
+<pre>$sadv = $f-&gt;{'hmtx'}-&gt;read-&gt;{'advance'}[$snum];</pre>
+<p class="Pp">¿Por qué, si siempre tenemos que leer tablas antes de acceder a
+    la información de ellas, no tuvimos que hacer esto para la
+    <span class="Li">"cmap"</span> tabla? La respuesta está en la
+    llamada al método. Detecta que la tabla no ha sido leída y la lee por
+    nosotros. Esto generalmente sucederá con todas las llamadas a métodos, es
+    solo cuando hacemos acceso directo a datos que tenemos que tomar la
+    responsabilidad de leer la tabla primero.</p>
+<p class="Pp">Leer una tabla no necesariamente resulta en que todos los datos
+    sean colocados en las estructuras de datos internas. En el caso de una
+    tabla simple
+    <span class="Li">"read"</span> es suficiente. De hecho, el caso normal
+    es que <span class="Li">"read_dat"</span> lee los datos
+    del archivo en una variable de instancia llamada <span class="Li">'
+    dat'</span> (incluyendo el espacio) y no en las estructuras de datos.</p>
+<p class="Pp">Esto es verdad excepto para la
+    <span class="Li">"glyph"</span> clase que representa un glifo
+    individual. Aquí el proceso está invertido. Leer un
+    <span class="Li">"glyph"</span> lee los datos del glifo en la <span class="Li">' dat'</span> variable de instancia y establece varios atributos de cabecera
+    para el glifo (<span class="Li">"xMin"</span>,
+    <span class="Li">"numContours"</span>, etc.). Los datos son
+    convertidos de la variable a estructuras de datos a través del
+    <span class="Li">"read_dat"</span> método.</p>
+<p class="Pp">El objetivo, por lo tanto, es que
+    <span class="Li">"read"</span> haga lo natural (leer
+    en estructuras de datos para aquellas tablas y elementos para los que es
+    útil -- todos excepto <span class="Li">"glyph"</span> en el presente) y
+    <span class="Li">"read_dat"</span> debería hacer lo antinatural:
+    leer solo los datos binarios para tablas normales y convertir datos
+    binarios a estructuras de datos para <span class="Li">"glyph"</span>s.</p>
+<p class="Pp">En resumen, por lo tanto, usa
+    <span class="Li">"read"</span> a menos que quieras hackear con
+    los internos de glifos, en cuyo caso ver Font::TTF::Glyph para más
+  detalles.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='update'><a class='permalink' href='#update'>update</a></h2>
+<p class="Pp">El objetivo de este método es permitir que los varios elementos de datos en una
+    <span class="Li">"read"</span> fuente se actualicen a sí mismos. Todas
+    las tablas saben cómo actualizarse a sí mismas. Todas las tablas tambiéninformación de la fuente
+    que no puede ser <i>actualizada</i> pero es nuevo conocimiento en la fuente. Como
+    resultado, ciertas tablas no hacen nada cuando se actualizan. Por lo tanto,
+    podemos construir una jerarquía de actualización de tablas, con las tablas independientes en la
+    parte inferior y <span class="Li">"Font"</span> en la parte superior:</p>
+<pre>       +--loca
+       |
+ glyf--+--maxp
+       |
+       +---+--head
+           |
+ hmtx------+--hhea
+ cmap-----OS/2
+ name--
+ post--
+Hay una dependencia universal importante que le corresponde al usuario
+    mantener actualizada. Esta es C&lt;maxp/numOfGlyphs&gt; que se usa para iterar sobre todos
+    los glifos. Nótese que los glifos en sí no se guardan en la tabla C&lt;glyph&gt; sino en la
+    tabla C&lt;loca&gt;, de modo que añadir glifos, etc. automáticamente implica mantener
+    la tabla C&lt;loca&gt; actualizada.</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Creating_fonts'><a class='permalink' href='#Creating_fonts'>Creando   fuentes</a></h2>
+<p class="Pp">Supongamos que estamos creando una fuente desde cero. ¿Cuánta información
+    necesitamos proporcionar y cuánto hará
+    <span class="Li">"update"</span> por nosotros?</p>
+<p class="Pp">Se requiere la siguiente información:</p>
+<pre>$f-&gt;{'loca'}{'glyphs'}
+$f-&gt;{'head'}{'upem'}
+$f-&gt;{'maxp'}{'numGlyphs'}   (no proviene de $f-&gt;{'loca'}{'glyphs'})
+$f-&gt;{'hmtx'}{'advance'}
+$f-&gt;{'post'}['format'}
+$f-&gt;{'post'}{'VAL'}
+$f-&gt;{'cmap'}
+$f-&gt;{'name'}</pre>
+<p class="Pp">Casi todo lo demás se calcula por usted. Los detalles de lo que
+    se necesita para un glifo se pueden encontrar en Font::TTF::Glyph. Una vez que tenemos toda la
+    información que necesitamos (y hay mucho más que podría añadir) simplemente hacemos</p>
+<pre>$f-&gt;dirty;          # marcar todas las tablas como sucias
+$f-&gt;update;         # actualizar la fuente</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Martin Hosken <a href='http://scripts.sil.org/FontUtils'>http://scripts.sil.org/FontUtils</a>. (véase
+    CONTRIBUTORS para otros autores).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSING'><a class='permalink' href='#LICENSING'>LICENCIA</a></h1>
+<p class="Pp">Copyright (c) 1998-2016, SIL International
+  (<a href='http://www.sil.org'>http://www.sil.org</a>)</p>
+<p class="Pp">Este módulo se publica bajo los términos de la Licencia Artística
+    2.0. Para más detalles, consulte el texto completo de la licencia en el archivo LICENSE.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-font-ttf/">extra/perl-font-ttf</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.06-6</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Font-TTF">https://search.cpan.org/dist/Font-TTF</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic2.0</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-font-ttf/">/listing/extra/perl-font-ttf/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#INTRODUCTION">INTRODUCCIÓN</a></li>
+        
+            <li><a href="#METHODS">MÉTODOS</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#LICENSING">LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Font::TTF::Manual.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Font::TTF::Manual.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

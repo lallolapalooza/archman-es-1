@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>X11::Protocol::Ext::DOUBLE_BUFFER(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">X11__Protocol__Ext__DOUBLE_BUFFER(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-x11-protocol-other/">perl-x11-protocol-other</a></p>
+<p class="lic">Licencias: GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">X11::Protocol::Ext::DOUBLE_BUFFER(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">X11::Protocol::Ext::DOUBLE_BUFFER(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">X11::Protocol::Ext::DOUBLE_BUFFER - doble buffer fuera de pantalla para
+    ventanas</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>use X11::Protocol;
+$X = X11::Protocol-&gt;new;
+$X-&gt;init_extension('DOUBLE-BUFFER')
+  or print &quot;La extensión DOUBLE-BUFFER no está disponible&quot;;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La extensión DOUBLE-BUFFER permite a un programa dibujar en un
+    &quot;buffer trasero&quot; fuera de pantalla en una ventana y, cuando esté listo,
+    intercambiarlo por el &quot;buffer frontal&quot; visible para el usuario. Un
+    buffer trasero es un objeto dibujable con el mismo tamaño, profundidad,
+    visibilidad, etc., que la ventana propiamente dicha.</p>
+<p class="Pp">Dibujar fuera de pantalla y luego intercambiar para que sea visible
+    es bueno para animaciones fluidas cuadro por cuadro o si algún dibujo es
+    complejo o está mal implementado y tiene efectos de parpadeo si se hiciera
+    directamente en la ventana.</p>
+<p class="Pp">El dibujo fuera de pantalla también puede implementarse con un
+    pixmap y copiarlo en la ventana, pero el servidor podría implementar un buffer
+    trasero de manera más eficiente. En particular, el buffer trasero solo
+    necesita ser las porciones visibles de una ventana, por lo que no se usa
+    memoria para áreas superpuestas.</p>
+<p class="Pp">El servidor podría admitir el doble buffering solo en ciertos
+    visuales. <span class="Li">DbeGetVisualInfo()</span> lista los que son
+    soportados, o simplemente intente crear un buffer trasero para una ventana y
+    espere una respuesta de error.</p>
+<p class="Pp">Vea <i>examples/dbe-swap.pl</i> para un programa simple que dibuja
+    con doble buffering.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SOLICITUDES'><a class='permalink' href='#SOLICITUDES'>SOLICITUDES</a></h1>
+<p class="Pp">Las siguientes solicitudes se ponen a disposición con un
+    <span class="Li">init_extension()</span> por cada &quot;EXTENSIONS&quot; en
+    X11::Protocol.</p>
+<pre>my $bool = $X-&gt;init_extension('DOUBLE-BUFFER');</pre>
+<dl class="Bl-tag">
+  <dt>&quot;($server_major, $server_minor) = $X-&gt;DbeGetVersion
+    ($client_major, $client_minor)&quot;</dt>
+  <dd>Negocia una versión de protocolo con el servidor.
+      <span class="Li">$client_major</span> y
+      <span class="Li">$client_minor</span> son lo que el cliente desearía,
+      <span class="Li">$server_major</span> y
+      <span class="Li">$server_minor</span> devueltos son lo que el servidor
+      hará, lo cual podría ser menor a lo solicitado (pero no mayor).
+    <p class="Pp">El código aquí soporta 1.0 y negocia automáticamente dentro
+        de <span class="Li">init_extension()</span>, por lo que el uso directo
+        de <span class="Li">DbeGetVersion()</span> no es necesario.</p>
+  </dd>
+  <dt>&quot;$X-&gt;DbeAllocateBackBufferName ($window, $buffer,
+    $action_hint)&quot;</dt>
+  <dd>Crea <span class="Li">$buffer</span> (un nuevo XID) como el buffer trasero
+      en <span class="Li">$window</span>. <span class="Li">$buffer</span> es
+      un objeto dibujable y puede usarse con todas las operaciones de dibujo
+      habituales.
+        <pre>my $buffer = $X-&gt;new_rsrc;
+$X-&gt;DbeAllocateBackBufferName ($window, $buffer, 'Copied');
+</pre>
+    <p class="Pp"><span class="Li">$action_hint</span> es la <span class="Li">$action</span>
+        más probable en solicitudes posteriores de
+        <span class="Li">DbeSwapBuffers()</span> (ver más abajo). Pero esto es solo
+        una pista y no restringe lo que se puede hacer.</p>
+    <p class="Pp">Si <span class="Li">$window</span> ya tiene doble buffering,
+        entonces <span class="Li">$buffer</span> se convierte en otra referencia
+        a ese buffer trasero.</p>
+    <p class="Pp">Si <span class="Li">$window</span> se destruye
+        (<span class="Li">DestroyWindow()</span>), entonces
+        <span class="Li">$buffer</span> continúa existiendo y aún debería ser
+        desasignado (abajo), pero intentar dibujar en él genera una respuesta
+        de error de <span class="Li">&quot;Resource&quot;</span>.</p>
+  </dd>
+  <dt>&quot;$X-&gt;DbeDellocateBackBufferName ($buffer)&quot;</dt>
+  <dd>Desasigna <span class="Li">$buffer</span> y libera ese XID.
+    <p class="Pp">Si se han realizado múltiples solicitudes de
+        <span class="Li">DbeAllocateBackBufferName()</span> en una ventana,
+        entonces todos los otros XIDs continúan refiriéndose al buffer trasero de
+        la ventana. El buffer subyacente permanece hasta que todos los XIDs de
+        buffer para él sean desasignados.</p>
+  </dd>
+  <dt>&quot;$X-&gt;DbeSwapBuffers ($window1,$action1,
+    $window2,$action2,...)&quot;</dt>
+  <dd>Intercambia los buffers frontal y trasero en cada
+      <span class="Li">$window</span> (XIDs) dado. El buffer trasero se vuelve
+      visible y lo que era el frontal se convierte en el trasero.
+        <pre>$X-&gt;DbeSwapBuffers ($window1, 'Background',
+                    $window2, 'Untouched');
+</pre>
+    <p class="Pp">Solo se intercambia el contenido, los XIDs no cambian, por lo
+        que <span class="Li">$window</span> sigue siendo el frente visible de la
+        ventana y cualquier XID de <span class="Li">$buffer</span> asociado a
+        ella sigue siendo el trasero.</p>
+    <p class="Pp">Los contenidos de cada buffer trasero después del intercambio se
+        controlan mediante la <span class="Li">$action</span> correspondiente para
+        cada ventana (tipo de cadena &quot;DbeSwapAction&quot;),</p>
+        <pre> $action        contenido del nuevo buffer trasero
+---------       ----------------------------------
+&quot;Undefined&quot;     contenido indefinido
+&quot;Background&quot;    limpiado al fondo de la ventana
+&quot;Untouched&quot;     dejado con el contenido actual (anteriormente visible)
+&quot;Copied&quot;        contenido del buffer trasero anterior (sin cambios)
+</pre>
+    <p class="Pp">&quot;Untouched&quot; significa que el contenido del buffer
+        frontal se intercambia al buffer trasero sin cambios.</p>
+    <p class="Pp">&quot;Copied&quot; es como si el contenido del buffer trasero
+        se copiara al frontal, haciendo que ambos sean iguales.</p>
+  </dd>
+  <dt>&quot;$X-&gt;DbeBeginIdiom ()&quot;</dt>
+  <dd></dd>
+  <dt>&quot;$X-&gt;DbeEndIdiom ()&quot;</dt>
+  <dd>Indica al servidor que una secuencia de operaciones de intercambio y/o
+      dibujo entre Begin y End podría hacerse como una combinación atómica para
+      un mayor rendimiento. Si el servidor no reconoce la secuencia, la ejecuta
+      secuencialmente como de costumbre.
+    <p class="Pp">Si hay un <span class="Li">DbeSwapBuffers()</span> en el idioma,
+        debe ser la primera solicitud, inmediatamente después de
+      <span class="Li">Begin</span>.</p>
+        <pre># intercambiar y luego limpiar el buffer trasero con un stipple GC
+# ¡no hay garantía de que ningún servidor optimice esto!
+$X-&gt;DbeBeginIdiom;
+$X-&gt;DbeSwapBuffers ($window, 'Undefined');
+$X-&gt;PolyFillRectangle ($buffer, $gc, [0,0,$width,$height]);
+$X-&gt;DbeEndIdiom;
+</pre>
+    <p class="Pp">No es necesario que haya un intercambio en un idioma. Por
+        ejemplo, un <span class="Li">CopyArea()</span> de algunas partes del
+        buffer trasero a la ventana podría estar en un Begin/End y quizás ser
+        optimizado por el servidor.</p>
+        <pre>$X-&gt;DbeBeginIdiom;
+$X-&gt;CopyArea ($buffer, $window,  # del buffer a la ventana
+              $gc, $x,$y,$width,$height, $dstx,$dsty);
+# más cosas...
+$X-&gt;DbeEndIdiom;
+</pre>
+    <p class="Pp">La idea de agrupar idiomas es tener una forma flexible de
+        expresar combinaciones de operaciones, incluidas cosas aún no
+        imaginadas, en lugar de añadir solicitudes específicas al protocolo. En
+        principio, el servidor siempre puede optimizar solicitudes consecutivas,
+        pero eso depende de que lleguen al servidor juntas. Un
+        <span class="Li">DbeBeginIdiom()</span> es como un permiso para que el
+        servidor posponga la ejecución de las solicitudes y espere, si lo desea,
+        a ver si lo que sigue se puede combinar.</p>
+  </dd>
+  <dt>&quot;@infos = $X-&gt;DbeGetVisualInfo ($drawable1, $drawable2,
+    ...)&quot;</dt>
+  <dd></dd>
+  <dt>&quot;@infos = $X-&gt;DbeGetVisualInfo ()&quot;</dt>
+  <dd>Para cada <span class="Li">$drawable</span>, devuelve una lista de los IDs
+      visuales en esa pantalla que admiten doble buffering.
+        <pre>my ($info_aref_drawable1, $info_aref_drawable2)
+  = $X-&gt;DbeGetVisualInfo ($drawable1, $drawable2);
+</pre>
+    <p class="Pp">Si no se proporcionan drawables, devuelve información sobre cada
+        pantalla del servidor.</p>
+        <pre>my @list_of_info_aref = $X-&gt;DbeGetVisualInfo ();
+</pre>
+    <p class="Pp">Cada valor devuelto es un arrayref. Cada arrayref contiene una
+        lista de pares de ID visual y datos visuales,</p>
+        <pre># cada $info_aref es
+[ $visual_id1, [ $depth, $perflevel ],
+  $visual_id2, [ $depth, $perflevel ],
+  ...
+]
+</pre>
+    <p class="Pp"><span class="Li">$depth</span> es la profundidad visual, la misma
+        que en la información del servidor
+        <span class="Li">&quot;$X-&gt;{'visuals'}-&gt;{$visual_id}-&gt;{'depth'}&quot;</span>.</p>
+    <p class="Pp"><span class="Li">$perflevel</span> es un entero que indica qué
+        tan bueno es el rendimiento del doble buffering en este visual. Un valor
+        más alto significa un mayor rendimiento, pero el número real no tiene
+        significado y, en particular, no se puede comparar entre diferentes
+        servidores.</p>
+    <p class="Pp">Si se consulta sobre la pantalla de un solo drawable, use un
+        contexto de lista como el siguiente. El resultado en contexto escalar
+        aún no está especificado.</p>
+        <pre>my ($info_aref) = $X-&gt;DbeGetVisualInfo ($X-&gt;root);
+</pre>
+    <p class="Pp">El visual + nivel de rendimiento son pares, por lo que se pueden
+        poner en un hash para verificar la compatibilidad con el doble buffering
+        en un visual dado,</p>
+        <pre>my %hash = @$info_aref;   # pares $visualid =&gt; [$d,$p]
+if ($hash{$my_visual_id}) {
+  print &quot;doble buffering está disponible en my_visual_id\n&quot;;
+}
+</pre>
+    <p class="Pp">Si tienes una opción de igual</p>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+    </body>
+</html>
+<html>
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+        <title>X11::Protocol::Ext::DOUBLE_BUFFER(3pm)</title>
+        <link rel="stylesheet" type="text/css" href="https://archlinux.org/static/styles/manual.css">
+        <link rel="icon" href="https://archlinux.org/static/favicon.ico">
+    </head>
+    <body>
+        <article>
+            
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp"><span class="Nm">X11::Protocol::Ext::DOUBLE_BUFFER</span> - extension
+    for X Double Buffering Extension.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre>    use X11::Protocol::Ext::DOUBLE_BUFFER;
+    my $X = X11::Protocol::Connection-&gt;new;
+    $X-&gt;init_extension('DOUBLE_BUFFER') || die ...;
+    my $buffer = $X-&gt;DbeAllocateBuffer(...);
+    ...
+    $X-&gt;DbeDeallocateBuffer($buffer);
+    ...
+    my $info_aref = $X-&gt;DbeGetVisualInfo;
+    ...
+    my $window = $X-&gt;DbeGetBackBufferAttributes($buffer);
+    ...
+    my $num = $X-&gt;num(&quot;DbeSwapAction&quot;, &quot;Background&quot;);
+    ...
+    $X-&gt;DbeSwapBuffers($buffer, $action);
+    ...
+    $X-&gt;DbeBeginPicture($drawable, $client_major_version, $client_minor_version);
+    ...
+    $X-&gt;DbeEndPicture($drawable);
+    ...
+    $X-&gt;DbeSetvislosti($buffer, $vislosti_type, $vislosti_value);
+    ...
+    $X-&gt;DbeGetvislosti($buffer);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">This module is an X11 protocol extension for the Double Buffering
+    Extension.</p>
+<p class="Pp">The extension is needed by applications needing to draw to off-screen
+    buffers and then swap them into view, to avoid flicker.</p>
+<p class="Pp">This module is usually used indirectly via a higher level module like
+    <span class="Nm">X11::Protocol::Screen</span>, which knows how to enable the
+    extension.</p>
+<p class="Pp">If you need to use this module directly then you must call
+    <span class="Li">$X-&gt;init_extension('DOUBLE_BUFFER')</span> to enable the
+    extension.</p>
+<p class="Pp">The module provides the following methods:</p>
+<dl class="Bl-tag">
+  <dt id="DbeAllocateBuffer"><a class="permalink" href="#DbeAllocateBuffer">$buffer = $X-&gt;DbeAllocateBuffer($visual, $width, $height, $depth)</a></dt>
+  <dd>Allocate a double buffer. Return the buffer id (an integer).</dd>
+  <dt id="DbeDeallocateBuffer"><a class="permalink" href="#DbeDeallocateBuffer">$X-&gt;DbeDeallocateBuffer($buffer)</a></dt>
+  <dd>Deallocate a double buffer.</dd>
+  <dt id="DbeSwapBuffers"><a class="permalink" href="#DbeSwapBuffers">$X-&gt;DbeSwapBuffers($buffer, $action)</a></dt>
+  <dd>Swap the buffers. <span class="Li">$action</span> is one of the
+      <span class="Li">DbeSwapAction</span> enum types.</dd>
+  <dt id="DbeBeginPicture"><a class="permalink" href="#DbeBeginPicture">$X-&gt;DbeBeginPicture($drawable, $client_major_version, $client_minor_version)</a></dt>
+  <dd>Begin drawing a picture into a drawable. This is needed to get the
+      correct buffer for drawing. <span class="Li">$client_major_version</span>
+      and <span class="Li">$client_minor_version</span> are the versions of the
+      DBE protocol the client supports.</dd>
+  <dt id="DbeEndPicture"><a class="permalink" href="#DbeEndPicture">$X-&gt;DbeEndPicture($drawable)</a></dt>
+  <dd>End drawing a picture into a drawable.</dd>
+  <dt id="DbeSetvislosti"><a class="permalink" href="#DbeSetvislosti">$X-&gt;DbeSetvislosti($buffer, $vislosti_type, $vislosti_value)</a></dt>
+  <dd>Setvislosti for a buffer. <span class="Li">$vislosti_type</span> is an integer
+      identifying the type ofvislosti. <span class="Li">$vislosti_value</span> is
+      the value.</dd>
+  <dt id="DbeGetvislosti"><a class="permalink" href="#DbeGetvislosti">$vislosti_aref = $X-&gt;DbeGetvislosti($buffer)</a></dt>
+  <dd>Getvislosti for a buffer. Returns a list reference of
+      vislosti_type/vislosti_value pairs.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REQUESTS'><a class='permalink' href='#REQUESTS'>REQUESTS</a></h1>
+<dl class="Bl-tag">
+  <dt id="DbeGetVisualInfo"><a class="permalink" href="#DbeGetVisualInfo">$info_aref = $X-&gt;DbeGetVisualInfo()</a></dt>
+  <dd>Return a list reference of hash references, each containing information
+      about a visual suitable for double buffering. The keys are:</dd>
+</dl>
+<div class="Bd-indent">
+<pre>    'visual' => XID visual id
+    'depth' => integer depth
+    'perflevel' => integer performance level (higher is better)
+    'agemask' => integer agemask</pre>
+</div>
+<p class="Pp">The <span class="Li">perflevel</span> can be used to choose a visual
+    with good performance. The extension is intended to be used with visuals that
+    have a performance level > 0.</p>
+<p class="Pp">If the server does not support DBE then it returns an empty list
+    reference.</p>
+<p class="Pp">Use <span class="Li">X11::Protocol::List::Pairwise</span>'s grep
+    and map functions to filter this list, eg:</p>
+<div class="Bd-indent">
+<pre>    my $best_visual_href = $X-&gt;List-&gt;grep(sub { $_-&gt;{perflevel} &gt; 0 },
+                                     $X-&gt;DbeGetVisualInfo)-&gt;first;</pre>
+</div>
+<p class="Pp">Or just get the info without any filtering, so the application
+    display then the performance level might be compared to choose the best.</p>
+<p class="Pp"><span class="Li">&quot;List::Pairwise&quot;</span> has some
+    grep and map functions for pair lists like the
+    <span class="Li">$info_aref</span>.</p>
+<p class="Pp">See <i>examples/dbe-info.pl</i> for a simple program printing
+    this info.</p>
+<dl class="Bl-tag">
+  <dt id="DbeGetBackBufferAttributes"><a class="permalink" href="#DbeGetBackBufferAttributes">$window = $X-&gt;DbeGetBackBufferAttributes ($buffer)</a></dt>
+  <dd>Return the window (an integer XID) which <span class="Li">$buffer</span>
+      is for. If its target window has been destroyed
+      (<span class="Li">DestroyWindow()</span>) then the return is
+      &quot;None&quot;.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ENUM_TYPES'><a class='permalink' href='#ENUM_TYPES'>ENUM   TYPES</a></h1>
+<p class="Pp">The following types are available for
+    <span class="Li">&quot;$X-&gt;interp()&quot;</span> and
+    <span class="Li">&quot;$X-&gt;num()&quot;</span>, after
+    <span class="Li">init_extension()</span>.</p>
+<dl class="Bl-tag">
+  <dt id="DbeSwapAction"><a class="permalink" href="#DbeSwapAction">DbeSwapAction</a></dt>
+  <dd>
+    <pre>"Undefined"    0
+"Background"   1
+"Untouched"    2
+"Copied"       3
+</pre>
+  </dd>
+</dl>
+<p class="Pp">For example,</p>
+<pre>my $num = $X-&gt;num(&quot;DbeSwapAction&quot;, &quot;Background&quot;);
+# sets $num to 2</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">In some XFree86 3.x servers there was a bug in
+    <span class="Li">DbeGetVisualInfo()</span> where the reply length was
+    miscalculated, being bytes instead of CARD32s, resulting in a length value
+    bigger than the actual data sent. The symptom is the client hangs waiting
+    for data the length says should follow but which never does.</p>
+<p class="Pp">This affects all client code, including the Xlib
+    <span class="Li">XdbeGetVisualInfo()</span> as used for instance by the
+    <span class="Li">&quot;xdpyinfo&quot;</span> program.</p>
+<p class="Pp">Is there a good way to notice the problem? Probably not beyond
+    looking at the server name and version and either forbidding the request or
+    doing something nasty to the way <span class="Li">handle_input()</span>
+    reads as a workaround.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<p class="Pp">X11::Protocol, X11::Protocol::Ext::Composite</p>
+<p class="Pp"><i>/usr/share/doc/x11proto-xext-dev/dbe.txt.gz</i></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HOME_PAGE'><a class='permalink' href='#HOME_PAGE'>HOME   PAGE</a></h1>
+<p class="Pp"><a href='http://user42.tuxfamily.org/x11-protocol-other/index.html'>http://user42.tuxfamily.org/x11-protocol-other/index.html</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENSE</a></h1>
+<p class="Pp">Copyright 2011, 2012, 2013, 2014, 2017 Kevin Ryde</p>
+<p class="Pp">X11-Protocol-Other is free software; you can redistribute it
+    and/or modify it under the terms of the GNU General Public License as
+    published by the Free Software Foundation; either version 3, or (at your
+    option) any later version.</p>
+<p class="Pp">X11-Protocol-Other is distributed in the hope that it will be
+    useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+    Public License for more details.</p>
+<p class="Pp">You should have received a copy of the GNU General Public License
+    along with X11-Protocol-Other. If not, see
+    <a href='http://www.gnu.org/licenses/'>http://www.gnu.org/licenses/</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-x11-protocol-other/">extra/perl-x11-protocol-other</a></dd>
+        <dt>Version:</dt>
+        <dd>31-5</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/X11-Protocol-Other/">https://search.cpan.org/dist/X11-Protocol-Other/</a></dd>
+        <dt>Licenses:</dt>
+        <dd>GPL</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-x11-protocol-other/">/listing/extra/perl-x11-protocol-other/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#REQUESTS">REQUESTS</a></li>
+        
+            <li><a href="#ENUM_TYPES">ENUM TYPES</a></li>
+        
+            <li><a href="#BUGS">BUGS</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+            <li><a href="#HOME_PAGE">HOME PAGE</a></li>
+        
+            <li><a href="#LICENSE">LICENSE</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/X11::Protocol::Ext::DOUBLE_BUFFER.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/X11::Protocol::Ext::DOUBLE_BUFFER.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

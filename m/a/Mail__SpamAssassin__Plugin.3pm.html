@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Mail::SpamAssassin::Plugin(3) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Mail__SpamAssassin__Plugin(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/spamassassin/">spamassassin</a></p>
+<p class="lic">Licencias: APACHE</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Mail::SpamAssassin::Plugin(3pm)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Mail::SpamAssassin::Plugin(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Mail::SpamAssassin::Plugin - Clase base del plugin de SpamAssassin</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SINOPSIS"><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="configuración_de_SpamAssassin:"><a class='permalink' href='#configuración_de_SpamAssassin:'>Configuración de SpamAssassin:</a></h2>
+<pre>loadplugin MyPlugin /path/to/myplugin.pm</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="código_Perl:"><a class='permalink' href='#código_Perl:'>Código Perl:</a></h2>
+<pre>package MyPlugin;
+use Mail::SpamAssassin::Plugin;
+our @ISA = qw(Mail::SpamAssassin::Plugin);
+sub new {
+  my ($class, $mailsa) = @_;
+  # el boilerplate perlobj usual para crear un objeto de subclase
+  $class = ref($class) || $class;
+  my $self = $class-&gt;SUPER::new($mailsa);
+  bless ($self, $class);
+  # luego registrar una regla eval, si se desea...
+  $self-&gt;register_eval_rule (&quot;check_for_foo&quot;);
+  # y devolver el nuevo objeto plugin
+  return $self;
+}
+...métodos...
+1;</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCIÓN"><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esta es la clase base para los plugins de SpamAssassin; todos los
+    plugins deben ser objetos que implementen esta clase.</p>
+<p class="Pp">Esta clase proporciona métodos stub (sin operación) para todas las
+    llamadas que un plugin puede recibir. Se espera que tu plugin sobrescriba uno
+    o más de estos stubs para realizar sus acciones.</p>
+<p class="Pp">SpamAssassin implementa una cadena de plugins; cada evento de llamada
+    se pasa a cada uno de los objetos de plugin registrados en turno. Cualquier
+    plugin puede llamar a
+    <span class="Li">&quot;$self-&gt;inhibit_further_callbacks()&quot;</span> para
+    bloquear la entrega de ese evento a los plugins posteriores en la cadena. Esto
+    es útil si el plugin ha manejado el evento y no habrá necesidad de que los
+    plugins posteriores lo manejen también.</p>
+<p class="Pp">Si buscas escribir una simple regla eval, salta directamente a
+    <span class="Li">register_eval_rule()</span>, abajo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="INTERFAZ"><a class='permalink' href='#INTERFAZ'>INTERFAZ</a></h1>
+<p class="Pp">En todas las APIs de plugin a continuación,
+    <span class="Li">&quot;options&quot;</span> se refiere a una referencia a un hash
+    que contiene pares de nombre-valor. Esto se utiliza para garantizar la
+    compatibilidad futura, en el sentido de que podemos agregar nuevas opciones en
+    el futuro sin afectar a los objetos construidos para una versión anterior de
+    la API.</p>
+<p class="Pp">Por ejemplo, así sería cómo imprimir el elemento
+    <span class="Li">&quot;line&quot;</span> en un método
+    <span class="Li">parse_config()</span>:</p>
+<pre>sub parse_config {
+  my ($self, $opts) = @_;
+  print &quot;MyPlugin: parse_config got &quot;.$opts-&gt;{line}.&quot;\n&quot;;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MÉTODOS"><a class='permalink' href='#MÉTODOS'>MÉTODOS</a></h1>
+<p class="Pp">Los siguientes métodos pueden ser sobrescritos por las subclases para
+    manejar eventos.</p>
+<dl class="Bl-tag">
+  <dt>$plugin = MyPluginClass-&gt;new ($mailsaobject)</dt>
+  <dd>Constructor. Los plugins que necesiten registrarse a sí mismos deberán definir
+      los suyos propios; el constructor de la superclase predeterminado funcionará
+      bien para los plugins que solo sobrescriban un método.
+    <p class="Pp">Nota: las subclases deben proporcionar el
+        <span class="Li">$mailsaobject</span> al constructor de la superclase,
+        así:</p>
+        <pre>my $self = $class-&gt;SUPER::new($mailsaobject);
+</pre>
+    <p class="Pp">Nota sobre el ciclo de vida: los plugins que necesiten almacenar
+        estado por escaneo no deben almacenarlo en el objeto Plugin; en su lugar,
+        esto debe almacenarse en el objeto PerMsgStatus, ver
+        <span class="Li">check_start()</span> abajo. También se recomienda que la
+        configuración se almacene en el objeto Conf; ver
+        <span class="Li">parse_config()</span>.</p>
+  </dd>
+  <dt>$plugin-&gt;parse_config ( { options ... } )</dt>
+  <dd>Analiza una línea de configuración que aún no se ha manejado.
+      <span class="Li">&quot;options&quot;</span> es una referencia a un hash
+      que contiene estas opciones:</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="line"><a class="permalink" href="#line">line</a></dt>
+  <dd>La línea de texto de configuración a analizar. Se le han quitado los espacios
+      en blanco al principio y al final, y los comentarios.</dd>
+  <dt id="key"><a class="permalink" href="#key">key</a></dt>
+  <dd>La clave de configuración; es decir, la primera "palabra" de la línea.</dd>
+  <dt id="value"><a class="permalink" href="#value">value</a></dt>
+  <dd>El valor de configuración; todo lo que sigue a la primera "palabra" y el
+      espacio en blanco posterior.</dd>
+  <dt id="conf"><a class="permalink" href="#conf">conf</a></dt>
+  <dd>El objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en el cual se
+      debe almacenar la información de configuración.</dd>
+  <dt id="user_config"><a class="permalink" href="#user_config">user_config</a></dt>
+  <dd>Un booleano: <span class="Li">1</span> si se está leyendo la configuración
+      de un usuario, <span class="Li">0</span> si se están leyendo los archivos
+      de configuración a nivel de sistema.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Si la línea de configuración fue una configuración manejada por este
+    plugin, la implementación del método debe llamar a
+    <span class="Li">&quot;$self-&gt;inhibit_further_callbacks()&quot;</span>.</p>
+<p class="Pp">Si la configuración no es manejada por este plugin, el método debe
+    devolver <span class="Li">0</span> para que un plugin posterior pueda
+    manejarla, o para que SpamAssassin pueda mostrar un mensaje de advertencia al
+    usuario si ningún plugin la entiende.</p>
+<p class="Pp">Nota sobre el ciclo de vida: se sugiere que la configuración se
+    almacene en el objeto <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span>
+    en uso, en lugar del propio objeto plugin. Esto se puede encontrar como
+    <span class="Li">&quot;$plugin-&gt;{main}-&gt;{conf}&quot;</span>, o como
+    &quot;conf&quot; en el hash de referencia <span class="Li">$options</span>
+    arriba. Al almacenarlo en <span class="Li">&quot;conf&quot;</span>, esto permite
+    que la precedencia de configuración por usuario y a nivel de sistema se maneje
+    correctamente.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;finish_parsing_start ( { options ... } )</dt>
+  <dd>Indica que la configuración a nivel de sistema se ha leído completamente, pero
+      las estructuras de datos internas aún no se han creado. Es posible usar esta
+      llamada para modificar dinámicamente la configuración ya leída o agregar
+      nuevas opciones de configuración.
+    <p class="Pp"><span class="Li">&quot;options&quot;</span> es una referencia a
+        un hash que contiene estas opciones:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="conf~2"><a class="permalink" href="#conf~2">conf</a></dt>
+  <dd>El objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en el cual se
+      debe almacenar la información de configuración.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Nota: no hay garantías de que las estructuras de datos internas de
+    SpamAssassin no cambien de una versión a otra. En particular, para esta llamada
+    de plugin, si modificas las estructuras de datos de reglas en un plugin de
+    terceros, todas las apuestas están canceladas hasta que exista una API para
+    modificar esos datos de configuración.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;finish_parsing_end ( { options ... } )</dt>
+  <dd>Indica que el análisis de la configuración a nivel de sistema acaba de
+      finalizar y SpamAssassin está casi listo para comprobar los mensajes.
+    <p class="Pp"><span class="Li">&quot;options&quot;</span> es una referencia a
+        un hash que contiene estas opciones:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="conf~3"><a class="permalink" href="#conf~3">conf</a></dt>
+  <dd>El objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en el cual se
+      debe almacenar la información de configuración.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Nota: no hay garantías de que las estructuras de datos internas de
+    SpamAssassin no cambien de una versión a otra. En particular, para esta llamada
+    de plugin, si modificas las estructuras de datos de reglas en un plugin de
+    terceros, todas las apuestas están canceladas hasta que exista una API para
+    modificar esos datos de configuración.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;user_conf_parsing_start ( { options ... } )</dt>
+  <dd>Indica que la configuración por usuario se ha leído completamente, pero no se
+      ha convertido a estructuras de datos internas. Es posible usar esta llamada
+      para modificar dinámicamente la configuración ya leída o agregar nuevas
+      opciones de configuración.
+    <p class="Pp">Si
+        <span class="Li">&quot;allow_user_rules&quot;</span> está habilitado en
+        la configuración, es posible que se hayan agregado reglas adicionales
+        desde que se llamó a la invocación de la llamada de plugin
+        <span class="Li">&quot;finish_parsing_start&quot;</span>.</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="conf~4"><a class="permalink" href="#conf~4">conf</a></dt>
+  <dd>El objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en el cual se
+      debe almacenar la información de configuración.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Nota: no hay garantías de que las estructuras de datos internas de
+    SpamAssassin no cambien de una versión a otra. En particular, para esta llamada
+    de plugin, si modificas las estructuras de datos de reglas en un plugin de
+    terceros, todas las apuestas están canceladas hasta que exista una API para
+    modificar esos datos de configuración.</p>
+</div>
+<dl class="Bl-tag">
+<dt>$plugin-&gt;user_conf_parsing_end ( { options ... } )</dt>
+<dd> Señala que el análisis de la configuración por usuario acaba de finalizar y
+    SpamAssassin está casi listo para revisar mensajes. Si
+    <span class="Li">&quot;allow_user_rules&quot;</span> está habilitado en la
+    configuración, es posible que se hayan agregado reglas adicionales desde que
+    se llamó a la invocación del hook del plugin
+    <span class="Li">&quot;finish_parsing_end&quot;</span>.
+    <p class="Pp"><span class="Li">&quot;options&quot;</span> es una referencia a
+        un hash que contiene estas opciones:</p>
+</dd>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="conf~5"><a class="permalink" href="#conf~5">conf</a></dt>
+  <dd>El objeto <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en
+      el que se deben almacenar los datos de configuración.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Nota: no hay garantía de que las estructuras de datos internas de
+    SpamAssassin no cambien de una versión a otra. En particular para este hook
+    de plugin, si modifica las estructuras de datos de reglas en un plugin de
+    terceros, todas las apuestas están perdidas hasta que exista una API para
+    modificar esos datos de configuración.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;signal_user_changed ( { options ... } )</dt>
+  <dd>Señala que el usuario actual ha cambiado a uno nuevo.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="username"><a class="permalink" href="#username">username</a></dt>
+  <dd>El nombre de usuario del nuevo usuario.</dd>
+  <dt id="user_dir"><a class="permalink" href="#user_dir">user_dir</a></dt>
+  <dd>El directorio de inicio del nuevo usuario. (equivalente a
+      <span class="Li">&quot;~&quot;</span>.)</dd>
+  <dt id="userstate_dir"><a class="permalink" href="#userstate_dir">userstate_dir</a></dt>
+  <dd>El directorio de almacenamiento del nuevo usuario. (equivalente a
+      <span class="Li">&quot;~/.spamassassin&quot;</span>.)</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;services_authorized_for_username ( { options ... } )</dt>
+  <dd>Valida que un nombre de usuario dado esté autorizado para usar ciertos servicios.
+    <p class="Pp">Para autorizar a un usuario, el plugin debe primero verificar
+        que puede manejar cualquiera de los servicios pasados al método y luego
+        establecer el valor de cada servicio permitido en verdadero (o cualquier
+        valor no negativo).</p>
+    <p class="Pp">Los servicios actualmente soportados son: bayessql</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="username~2"><a class="permalink" href="#username~2">username</a></dt>
+  <dd>Un nombre de usuario</dd>
+  <dt id="services"><a class="permalink" href="#services">services</a></dt>
+  <dd>Referencia a un hash que contiene los servicios que desea verificar.
+    <p class="Pp">{</p>
+        <pre>'bayessql' =&gt; 0
+</pre>
+    <p class="Pp">}</p>
+  </dd>
+  <dt id="conf~6"><a class="permalink" href="#conf~6">conf</a></dt>
+  <dd>El objeto <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en
+      el que se deben almacenar los datos de configuración.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;compile_now_start ( { options ... } )</dt>
+  <dd>Esto se llama al principio de
+      <b>Mail::SpamAssassin::compile_now()</b> para que los plugins puedan
+      realizar cualquier inicialización necesaria para SpamAssassin multiproceso
+      (como spamd o mass-check -j).</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="use_user_prefs"><a class="permalink" href="#use_user_prefs">use_user_prefs</a></dt>
+  <dd>El valor de la opción <span class="Li">$use_user_prefs</span> en
+      <b>compile_now()</b>.</dd>
+  <dt id="keep_userstate"><a class="permalink" href="#keep_userstate">keep_userstate</a></dt>
+  <dd>El valor de la opción <span class="Li">$keep_userstate</span> en
+      <b>compile_now()</b>.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;compile_now_finish ( { options ... } )</dt>
+  <dd>Esto se llama al final de <b>Mail::SpamAssassin::compile_now()</b> para
+      que los plugins puedan realizar cualquier inicialización necesaria para
+      SpamAssassin multiproceso (como spamd o mass-check -j).</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="use_user_prefs~2"><a class="permalink" href="#use_user_prefs~2">use_user_prefs</a></dt>
+  <dd>El valor de la opción <span class="Li">$use_user_prefs</span> en
+      <b>compile_now()</b>.</dd>
+  <dt id="keep_userstate~2"><a class="permalink" href="#keep_userstate~2">keep_userstate</a></dt>
+  <dd>El valor de la opción <span class="Li">$keep_userstate</span> en
+      <b>compile_now()</b>.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_start ( { options ... } )</dt>
+  <dd>Señala que una operación de verificación de mensajes está comenzando.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus"><a class="permalink" href="#permsgstatus">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.
+    <p class="Pp">Nota de ciclo de vida: se recomienda que las reglas que necesiten
+        rastrear el estado de las pruebas por escaneo almacenen ese estado en este
+        objeto, no en el objeto del plugin en sí, ya que el objeto del plugin se
+        compartirá entre todos los escáneres activos.</p>
+    <p class="Pp">El mensaje que se está escaneando es accesible a través de la
+        API <span class="Li">&quot;$permsgstatus-&gt;get_message()&quot;</span>;
+        también hay una serie de otras APIs públicas en ese objeto. Ver el
+        perldoc de
+        <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>.</p>
+  </dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_main ( { options ... } )</dt>
+  <dd>Señala que un mensaje debe ser verificado. Tenga en cuenta que las
+      implementaciones de este hook deben devolver <span class="Li">1</span>.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~2"><a class="permalink" href="#permsgstatus~2">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_tick ( { options ... } )</dt>
+  <dd>Se llama periódicamente durante una operación de verificación de mensajes.
+      Una devolución de llamada configurada para este método es un buen lugar para
+      ejecutar un bucle de eventos que maneje eventos de red activados en un método
+      <span class="Li">&quot;parse_metadata&quot;</span>, por ejemplo.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~3"><a class="permalink" href="#permsgstatus~3">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_dnsbl ( { options ... } )</dt>
+  <dd>Se llama cuando se están iniciando búsquedas DNSBL u otras búsquedas de red,
+      lo que implica una prioridad de ejecución actual de -100. Este es el lugar
+      para iniciar sus propias búsquedas de red iniciadas asincrónicamente.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~4"><a class="permalink" href="#permsgstatus~4">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_post_dnsbl ( { options ... } )</dt>
+  <dd>Se llama después de que se hayan recopilado los resultados de DNSBL. Este es
+      un buen lugar para recopilar sus propias búsquedas de red iniciadas
+      asincrónicamente.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~5"><a class="permalink" href="#permsgstatus~5">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_cleanup ( { options ... } )</dt>
+  <dd>Se llama justo antes de que finalice la verificación del mensaje y antes del
+      posible autoaprendizaje. Esto garantiza que siempre se llamará, a
+      diferencia de check_tick y check_post_dnsbl. Se utiliza para limpiar
+      devoluciones de llamada pendientes o hijos creados, última oportunidad para
+      que las reglas se activen.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~6"><a class="permalink" href="#permsgstatus~6">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_post_learn ( { options ... } )</dt>
+  <dd>Se llama después de que el autoaprendizaje haya ocurrido (o no). Si desea
+      realizar un aprendizaje adicional, independientemente de si ocurre o no el
+      autoaprendizaje, este es el lugar para hacerlo.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~7"><a class="permalink" href="#permsgstatus~7">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo. La puntuación actual, los nombres de las reglas que se
+      activaron, etc. se pueden recuperar utilizando las APIs públicas de este
+      objeto.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;check_end ( { options ... } )</dt>
+  <dd>Señala que una operación de verificación de mensajes ha finalizado y los
+      resultados están a punto de ser devueltos al llamador.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~8"><a class="permalink" href="#permsgstatus~8">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo. La puntuación actual, los nombres de las reglas que se
+      activaron, etc. se pueden recuperar utilizando las APIs públicas de este
+      objeto.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;finish_tests ( { options ... } )</dt>
+  <dd>Se llama a través de
+      <span class="Li">&quot;Mail::SpamAssassin::finish&quot;</span>.
+      Esto debería limpiar cualquier prueba que un plugin haya agregado al
+      espacio de nombres.
+    <p class="Pp">En ciertas circunstancias, los plugins pueden encontrar útil
+        compilar funciones perl del conjunto de reglas sobre la marcha. Es
+        importante eliminarlas una vez que el objeto
+        <span class="Li">&quot;Mail::SpamAssassin&quot;</span> se elimina, sin
+        embargo, y esta API lo permite.</p>
+    <p class="Pp">Cada plugin es responsable de sus propias funciones perl
+        generadas.</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="conf~7"><a class="permalink" href="#conf~7">conf</a></dt>
+  <dd>El objeto <span class="Li">&quot;Mail::SpamAssassin::Conf&quot;</span> en
+      el que se deben almacenar los datos de configuración.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Ver también la API auxiliar
+    <span class="Li">&quot;register_generated_rule_method&quot;</span>, más
+    adelante.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;extract_metadata ( { options ... } )</dt>
+  <dd>Señala que un mensaje se está extrayendo para obtener metadatos. Algunos
+      plugins pueden desear agregar sus propios metadatos también.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="msg"><a class="permalink" href="#msg">msg</a></dt>
+  <dd>El objeto <span class="Li">&quot;Mail::SpamAssassin::Message&quot;</span>
+      para este mensaje.</dd>
+  <dt id="permsgstatus~9"><a class="permalink" href="#permsgstatus~9">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;parsed_metadata ( { options ... } )</dt>
+  <dd>Señala que los metadatos de un mensaje han sido analizados y ahora pueden
+      ser accedidos por el plugin.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~10"><a class="permalink" href="#permsgstatus~10">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;start_rules ( { options ... } )</dt>
+  <dd>Se llama antes de probar un conjunto de reglas de un tipo y prioridad
+      determinados.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="permsgstatus~11"><a class="permalink" href="#permsgstatus~11">permsgstatus</a></dt>
+  <dd>El objeto de contexto
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus&quot;</span>
+      para este escaneo.</dd>
+</dl>
+</div>{
+  "title": "Mail::SpamAssassin::Plugin - SpamAssassin Plug-in Interface",
+  "sections": [
+    {
+      "type": "description",
+      "content": "Los plug-ins son la forma en que SpamAssassin puede ser extendido y personalizado. Son módulos Perl que se ejecutan durante el proceso de escaneo de un mensaje.\n\nCada llamada a un método en un plug-in se realiza con un hash de opciones, que contiene información contextual sobre el mensaje que se está escaneando y el estado del escaneo.\n\nEl objeto de contexto principal es \"Mail::SpamAssassin::PerMsgStatus\", que se pasa a la mayoría de los métodos de plug-in. Este objeto contiene información sobre el mensaje, incluyendo su puntuación, cabeceras y otros datos relevantes."
+    },
+    {
+      "type": "method",
+      "name": "$plugin->wanted_actions",
+      "description": "Devuelve una lista de las acciones que este plug-in desea realizar. Las acciones disponibles se describen en la documentación de Mail::SpamAssassin::Constants.",
+      "return": {
+        "type": "array",
+        "description": "Una lista de cadenas que representan las acciones deseadas."
+      }
+    },
+    {
+      "type": "method",
+      "name": "$plugin->init",
+      "description": "Se llama al inicio del escaneo de un mensaje para inicializar el estado del plug-in para ese mensaje.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->check_action",
+      "description": "Se llama para verificar si este plug-in desea realizar una acción determinada.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        },
+        {
+          "name": "action",
+          "description": "La acción que se está comprobando."
+        }
+      ],
+      "return": {
+        "type": "boolean",
+        "description": "Devuelve 1 si el plug-in desea realizar la acción, 0 en caso contrario."
+      }
+    },
+    {
+      "type": "method",
+      "name": "$plugin->get_rule_set",
+      "description": "Devuelve el conjunto de reglas que este plug-in desea utilizar para la clasificación.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        },
+        {
+          "name": "ruletype",
+          "description": "El tipo de reglas que se van a realizar."
+        },
+        {
+          "name": "priority",
+          "description": "El nivel de prioridad de las reglas que se van a realizar."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->hit_rule",
+      "description": "Se llama cuando una regla se dispara.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        },
+        {
+          "name": "ruletype",
+          "description": "El tipo de la regla que se disparó."
+        },
+        {
+          "name": "rulename",
+          "description": "El nombre de la regla que se disparó."
+        },
+        {
+          "name": "score",
+          "description": "La puntuación de la regla en el conjunto de puntuaciones activas."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->ran_rule",
+      "description": "Se llama después de que se ha probado una regla, ya sea que se haya disparado o no. Cuando la regla se dispara, la devolución de llamada hit_rule siempre se llama antes que esta.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        },
+        {
+          "name": "ruletype",
+          "description": "El tipo de la regla que se probó."
+        },
+        {
+          "name": "rulename",
+          "description": "El nombre de la regla que se probó."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->autolearn_discriminator",
+      "description": "Controla si un mensaje recién escaneado debe ser aprendido como spam o ham. Este método debe devolver 1 para aprender el mensaje como spam, 0 para aprender como ham, o \"undef\" para no aprender del mensaje en absoluto.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        }
+      ],
+      "return": {
+        "type": "mixed",
+        "description": "1 para aprender como spam, 0 para aprender como ham, undef para no aprender."
+      }
+    },
+    {
+      "type": "method",
+      "name": "$plugin->autolearn",
+      "description": "Señala que un mensaje está a punto de ser aprendido automáticamente como ham o spam.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        },
+        {
+          "name": "isspam",
+          "description": "1 si el mensaje es spam, 0 si es ham."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->per_msg_finish",
+      "description": "Señala que un objeto \"Mail::SpamAssassin::PerMsgStatus\" está siendo destruido, y cualquier contexto por escaneo mantenido en ese objeto por este plug-in también debe ser destruido. Normalmente, las variables miembro en el objeto \"PerMsgStatus\" se limpiarán automáticamente, pero si su plug-in ha creado una referencia circular en ese objeto, este es el lugar para romperlas para que la recolección de basura pueda operar correctamente.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->have_shortcircuited",
+      "description": "¿La operación de escaneo actual se ha \"cortocircuitado\"? En otras palabras, ¿se puede omitir el escaneo adicional, ya que el mensaje ya está clasificado definitivamente como spam o ham? Los plug-ins deben devolver 0 para indicar que el escaneo debe continuar, o 1 para indicar que el cortocircuito ha tenido efecto.",
+      "options": [
+        {
+          "name": "permsgstatus",
+          "description": "El objeto de contexto \"Mail::SpamAssassin::PerMsgStatus\" para este escaneo."
+        }
+      ],
+      "return": {
+        "type": "integer",
+        "description": "0 para continuar escaneando, 1 para cortocircuitar."
+      }
+    },
+    {
+      "type": "method",
+      "name": "$plugin->bayes_learn",
+      "description": "Se llama al final de una operación de aprendizaje bayesiano. Esta fase es el mejor lugar para mapear el valor del token crudo (original) al valor con hash SHA1.",
+      "options": [
+        {
+          "name": "toksref",
+          "description": "Referencia al hash devuelto por la llamada a tokenize. El hash tiene el formato de: {'Valor Hash SHA1' => 'valor crudo (original)', ...}. NOTA: Esta estructura de datos ha cambiado desde que se introdujo originalmente en la versión 3.0.0. Los valores ya no son hashes anónimos de Perl, son una sola cadena que contiene el valor del token crudo. Puede comprobar la compatibilidad con versiones anteriores comprobando si el valor de una clave es una referencia a un HASH de Perl, por ejemplo: if (ref($toksref-&gt;{$sometokenkey}) eq 'HASH') {... Si lo es, entonces está utilizando la interfaz antigua, de lo contrario, está utilizando la interfaz actual."
+        },
+        {
+          "name": "isspam",
+          "description": "Valor booleano que indica qué tipo de mensaje representan los tokens; si es verdadero, el mensaje se especificó como spam, falso es no spam. Tenga en cuenta que cuando la función es 'scan', el valor de isspam no es válido."
+        },
+        {
+          "name": "msgid",
+          "description": "ID del mensaje generado del mensaje que se acaba de aprender."
+        },
+        {
+          "name": "msgatime",
+          "description": "Fecha de recepción del mensaje actual o la hora actual si no se pudo determinar la fecha de recepción. Además, si la fecha de recepción es más de 24 horas en el futuro, se restablecerá a la fecha y hora actuales."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->bayes_forget",
+      "description": "Se llama al final de una operación de olvido bayesiano.",
+      "options": [
+        {
+          "name": "toksref",
+          "description": "Referencia al hash devuelto por la llamada a tokenize. Consulte la documentación de bayes_learn para obtener información adicional sobre el formato."
+        },
+        {
+          "name": "isspam",
+          "description": "Valor booleano que indica qué tipo de mensaje representan los tokens; si es verdadero, el mensaje se especificó como spam, falso es no spam. Tenga en cuenta que cuando la función es 'scan', el valor de isspam no es válido."
+        },
+        {
+          "name": "msgid",
+          "description": "ID del mensaje generado del mensaje que se acaba de olvidar."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->bayes_scan",
+      "description": "Se llama al final de una operación de escaneo bayesiano. NOTA: No se llamará en caso de error o si el mensaje se omite de otra manera.",
+      "options": [
+        {
+          "name": "toksref",
+          "description": "Referencia al hash devuelto por la llamada a tokenize. Consulte la documentación de bayes_learn para obtener información adicional sobre el formato."
+        },
+        {
+          "name": "probsref",
+          "description": "Referencia al hash de probabilidades calculadas para los tokens encontrados en la base de datos. {'Valor Hash SHA1' => {'prob' => 'probabilidad calculada', 'spam_count' => 'Número total de mensajes spam con token', 'ham_count' => 'Número total de mensajes ham con token', 'atime' => 'Valor atime para el token en la base de datos'} }"
+        },
+        {
+          "name": "score",
+          "description": "Puntuación calculada para este mensaje en particular."
+        },
+        {
+          "name": "msgatime",
+          "description": "atime calculado del mensaje que se acaba de aprender; tenga en cuenta que puede haber sido ajustado si se determinó que estaba demasiado en el futuro."
+        },
+        {
+          "name": "significant_tokens",
+          "description": "Referencia a una matriz de los tokens encontrados significativos para determinar la puntuación de este mensaje."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->plugin_report",
+      "description": "Se llama si el mensaje debe ser reportado como spam. Si el sistema de informes está disponible, la variable \"$options-&gt;{report}-&gt;report_available}\" debe establecerse en 1; si el sistema de informes informó correctamente el mensaje, la variable \"$options-&gt;{report}-&gt;report_return}\" debe establecerse en 1.",
+      "options": [
+        {
+          "name": "report",
+          "description": "Referencia al objeto Reporter (\"$options-&gt;{report}\" en el párrafo anterior)."
+        },
+        {
+          "name": "text",
+          "description": "Referencia a una copia del mensaje sin formato de marcado en formato de cadena escalar."
+        },
+        {
+          "name": "msg",
+          "description": "Referencia al objeto del mensaje original."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->plugin_revoke",
+      "description": "Se llama si el mensaje debe ser reportado como ham (revoca un informe de spam). Si el sistema de informes está disponible, la variable \"$options-&gt;{revoke}-&gt;revoke_available}\" debe establecerse en 1; si el sistema de informes revocó correctamente el mensaje, la variable \"$options-&gt;{revoke}-&gt;revoke_return}\" debe establecerse en 1.",
+      "options": [
+        {
+          "name": "revoke",
+          "description": "Referencia al objeto Reporter (\"$options-&gt;{revoke}\" en el párrafo anterior)."
+        },
+        {
+          "name": "text",
+          "description": "Referencia a una copia del mensaje sin formato de marcado en formato de cadena escalar."
+        },
+        {
+          "name": "msg",
+          "description": "Referencia al objeto del mensaje original."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->welcomelist_address",
+      "description": "Anteriormente whitelist_address, que funcionará de forma intercambiable hasta la versión 4.1. Se llama cuando se realiza una solicitud para agregar una dirección a una lista de direcciones persistente.",
+      "options": [
+        {
+          "name": "address",
+          "description": "La dirección que desea agregar."
+        },
+        {
+          "name": "cli_p",
+          "description": "Indica si la llamada se realiza desde una interfaz de línea de comandos."
+        }
+      ]
+    },
+    {
+      "type": "method",
+      "name": "$plugin->blocklist_address",
+      "description": "Se llama cuando se solicita agregar una dirección a una lista de bloqueo persistente."
+    }
+  ]
+}
+<dd>Anteriormente blacklist_address, que funcionará de forma intercambiable hasta la versión 4.1.
+    <p class="Pp">Se llama cuando se realiza una solicitud para agregar una dirección a una
+        lista de direcciones persistente.</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="address~2"><a class="permalink" href="#address~2">address</a></dt>
+  <dd>La dirección que deseas agregar.</dd>
+  <dt id="cli_p~2"><a class="permalink" href="#cli_p~2">cli_p</a></dt>
+  <dd>Indica si la llamada se está realizando desde una interfaz de línea de comandos.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;remove_address( { options ... } )</dt>
+  <dd>Se llama cuando se realiza una solicitud para eliminar una dirección de una lista de direcciones persistente.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="address~3"><a class="permalink" href="#address~3">address</a></dt>
+  <dd>La dirección que deseas eliminar.</dd>
+  <dt id="cli_p~3"><a class="permalink" href="#cli_p~3">cli_p</a></dt>
+  <dd>Indica si la llamada se está realizando desde una interfaz de línea de comandos.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;spamd_child_init ()</dt>
+  <dd>Se llama en cada proceso hijo nuevo cuando se inicia bajo spamd.</dd>
+  <dt>$plugin-&gt;log_scan_result ( { options ... } )</dt>
+  <dd>Se llama cuando spamd ha completado el escaneo de un mensaje. Actualmente, solo spamd
+      llama a esta API.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="result"><a class="permalink" href="#result">result</a></dt>
+  <dd>La línea <span class="Li">'result: ...'</span> de este escaneo. El formato es como se describe en
+      <a href='https://wiki.apache.org/spamassassin/SpamdSyslogFormat'>https://wiki.apache.org/spamassassin/SpamdSyslogFormat</a>.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;spamd_child_post_connection_close ()</dt>
+  <dd>Se llama cuando el hijo regresa de manejar una conexión.
+    <p class="Pp">Si hubo un error de aceptación, el hijo morirá y este código no se llamará.</p>
+  </dd>
+  <dt>$plugin-&gt;finish ()</dt>
+  <dd>Se llama cuando el objeto
+      <span class="Li">&quot;Mail::SpamAssassin&quot;</span>
+      se destruye.</dd>
+  <dt>$plugin-&gt;learner_new ()</dt>
+  <dd>Se utiliza para soportar clasificadores probabilísticos entrenados por humanos como el conjunto de reglas BAYES_*. Se llama cuando un nuevo
+      objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Bayes&quot;</span>
+      ha sido creado; típicamente cuando está a punto de comenzar el escaneo de un nuevo usuario.</dd>
+  <dt>$plugin-&gt;learn_message ()</dt>
+  <dd>Entrena el clasificador con un mensaje de entrenamiento.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="isspam~4"><a class="permalink" href="#isspam~4">isspam</a></dt>
+  <dd>1 si el mensaje es spam, 0 si no lo es.</dd>
+  <dt id="msg~4"><a class="permalink" href="#msg~4">msg</a></dt>
+  <dd>El objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Message&quot;</span>
+      del mensaje.</dd>
+  <dt id="id"><a class="permalink" href="#id">id</a></dt>
+  <dd>Una cadena opcional de identificación del mensaje, utilizada internamente para etiquetar el
+      mensaje. Si es <span class="Li">&quot;undef&quot;</span>, se generará una. Debe ser única para ese mensaje.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;forget_message ()</dt>
+  <dd>Indica al clasificador que 'olvide' su entrenamiento sobre un mensaje específico.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="msg~5"><a class="permalink" href="#msg~5">msg</a></dt>
+  <dd>El objeto
+      <span class="Li">&quot;Mail::SpamAssassin::Message&quot;</span>
+      del mensaje.</dd>
+  <dt id="id~2"><a class="permalink" href="#id~2">id</a></dt>
+  <dd>Una cadena opcional de identificación del mensaje, utilizada internamente para etiquetar el
+      mensaje. Si es <span class="Li">&quot;undef&quot;</span>, se generará una. Debe ser única para ese mensaje.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;learner_sync ()</dt>
+  <dd>Indica al clasificador que 'sincronice' los cambios pendientes contra la base de datos de entrenamiento del usuario actual. Esto es llamado por
+      <span class="Li">&quot;sa-learn --sync&quot;</span>.
+    <p class="Pp">Si no necesita implementar esto para su clasificador, cree una implementación que solo contenga
+        <span class="Li">&quot;return 1&quot;</span>.</p>
+  </dd>
+  <dt>$plugin-&gt;learner_expire_old_training ()</dt>
+  <dd>Indica al clasificador que realice una limpieza infrecuente y que consume mucho tiempo de la base de datos de entrenamiento del usuario actual. Esto es llamado por
+      <span class="Li">&quot;sa-learn --force-expire&quot;</span>.
+    <p class="Pp">Si no necesita implementar esto para su clasificador, cree una implementación que solo contenga
+        <span class="Li">&quot;return 1&quot;</span>.</p>
+  </dd>
+  <dt>$plugin-&gt;learner_is_scan_available ()</dt>
+  <dd>Debe devolver 1 si es posible utilizar los datos de entrenamiento del usuario actual para una operación de escaneo de mensajes, o 0 en caso contrario.</dd>
+  <dt>$plugin-&gt;learner_dump_database ()</dt>
+  <dd>Vuelca información sobre los datos de entrenamiento del usuario actual a
+      <span class="Li">&quot;stdout&quot;</span>. Esto es llamado por
+      <span class="Li">&quot;sa-learn --dump&quot;</span>.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="magic"><a class="permalink" href="#magic">magic</a></dt>
+  <dd>Se establece en 1 si se deben volcar metadatos de nombre-valor "mágicos".</dd>
+  <dt id="toks"><a class="permalink" href="#toks">toks</a></dt>
+  <dd>Se establece en 1 si se debe volcar la base de datos de tokens.</dd>
+  <dt id="regex"><a class="permalink" href="#regex">regex</a></dt>
+  <dd>Ya sea <span class="Li">&quot;undef&quot;</span> para volcar todos los tokens, o un
+      valor que especifica un subconjunto de expresiones regulares de los tokens a
+      volcar.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;learner_close ()</dt>
+  <dd>Cierra cualquier base de datos abierta.</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="quiet"><a class="permalink" href="#quiet">quiet</a></dt>
+  <dd>Se establece en 1 si los mensajes de advertencia deben suprimirse.</dd>
+</dl>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HELPER_APIS'><a class='permalink' href='#HELPER_APIS'>APIS AUXILIARES</a></h1>
+<p class="Pp">Estos métodos proporcionan una API para que los plugins se registren y reciban eventos específicos, o controlen el comportamiento de la cadena de devolución de llamadas.</p>
+<dl class="Bl-tag">
+  <dt>$plugin-&gt;register_eval_rule ($nameofevalsub, $ruletype)</dt>
+  <dd>Los plugins que implementan una prueba de evaluación necesitarán llamar a esto, para que
+      SpamAssassin llame al objeto cuando se encuentre esa prueba de evaluación. Consulte la sección
+      <b>REGISTRO DE REGLAS DE EVALUACIÓN</b> para obtener detalles completos.
+    <p class="Pp">Desde la versión 4.0, se puede especificar un <span class="Li">$ruletype</span> opcional para garantizar que la función de evaluación no se pueda llamar con un tipo de regla incorrecto desde la configuración, por ejemplo, si el usuario utiliza &quot;header FOO
+        <b>eval:foobar()</b>&quot; en lugar de &quot;body FOO
+        <b>eval:foobar()</b>&quot;. Una discrepancia resultará en un error de lint.
+        <span class="Li">$ruletype</span> puede ser uno de:</p>
+        <pre>$Mail::SpamAssassin::Conf::TYPE_HEAD_EVALS
+$Mail::SpamAssassin::Conf::TYPE_BODY_EVALS  (permite tanto body como rawbody)
+$Mail::SpamAssassin::Conf::TYPE_RAWBODY_EVALS
+$Mail::SpamAssassin::Conf::TYPE_FULL_EVALS
+</pre>
+  </dd>
+  <dt>$plugin-&gt;register_generated_rule_method ($nameofsub)</dt>
+  <dd>En ciertas circunstancias, los plugins pueden encontrar útil compilar funciones perl
+      desde el conjunto de reglas, sobre la marcha. Es importante eliminarlos una vez que el
+      objeto <span class="Li">&quot;Mail::SpamAssassin&quot;</span> sea eliminado, sin embargo, y esta API lo permite.
+    <p class="Pp">Una vez que se ha generado el método <span class="Li">$nameofsub</span>, llame a esta API con el nombre del método (incluyendo el ámbito completo del paquete). Esto indica que es un fragmento temporal de código generado, construido a partir del conjunto de reglas de SpamAssassin, y cuando se llame a
+        <span class="Li">Mail::SpamAssassin::finish()</span>, el
+        método será destruido.</p>
+    <p class="Pp">Esta API se añadió en SpamAssassin 3.2.0.</p>
+  </dd>
+  <dt>$plugin-&gt;register_method_priority($methodname, $priority)</dt>
+  <dd>Indica que el método llamado <span class="Li">$methodname</span> en el objeto actual tiene una prioridad de devolución de llamada de
+      <span class="Li">$priority</span>.
+    <p class="Pp">Esto es utilizado por el manejador de plugins para determinar el orden relativo de las devoluciones de llamada; los plugins con prioridades numéricas más bajas se llaman antes que los plugins con prioridades numéricas más altas. Cada método puede tener un valor de prioridad diferente. El valor predeterminado es
+        <span class="Li">0</span>. El orden de las devoluciones de llamada a métodos con igual prioridad no está definido.</p>
+    <p class="Pp">Típicamente, solo necesita preocuparse por esto si necesita asegurarse de que el método de su plugin se llame antes que la implementación de ese método en otro plugin. Debe llamarse desde el constructor de su plugin.</p>
+    <p class="Pp">Esta API se añadió en SpamAssassin 3.2.0.</p>
+  </dd>
+  <dt>$plugin-&gt;<b>inhibit_further_callbacks()</b></dt>
+  <dd>Indica al manejador de plugins que inhiba las llamadas a otros plugins en la cadena de plugins para la devolución de llamada actual. Se utiliza con frecuencia al analizar configuraciones utilizando
+      <span class="Li">parse_config()</span>.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LOGGING'><a class='permalink' href='#LOGGING'>REGISTRO</a></h1>
+<dl class="Bl-tag">
+  <dt id="Mail::SpamAssassin::Plugin::dbg($message)"><a class="permalink" href="#Mail::SpamAssassin::Plugin::dbg($message)">Mail::SpamAssassin::Plugin::dbg($message)</a></dt>
+  <dd>Muestra un mensaje de depuración <span class="Li">$message</span>, si el
+      objeto SpamAssassin se está ejecutando con la depuración activada.
+    <p class="Pp"><i>NOTA:</i> Esta función no está disponible en el espacio de nombres del paquete de plugins generales y no se puede llamar a través de
+        <span class="Li">$self</span>-&gt;<b>dbg()</b>. Si un plugin desea mostrar información de depuración, debe llamar a
+        <span class="Li">Mail::SpamAssassin::Plugin::dbg($msg)</span>.</p>
+  </dd>
+  <dt id="Mail::SpamAssassin::Plugin::info($message)"><a class="permalink" href="#Mail::SpamAssassin::Plugin::info($message)">Mail::SpamAssassin::Plugin::info($message)</a></dt>
+  <dd>Muestra un mensaje informativo <span class="Li">$message</span>, si el
+      objeto SpamAssassin se está ejecutando con mensajes informativos activados.
+    <p class="Pp"><i>NOTA:</i> Esta función no está disponible en el espacio de nombres del paquete de plugins generales y no se puede llamar a través de
+        <span class="Li">$self</span>-&gt;<b>info()</b>. Si un plugin desea mostrar información de depuración, debe llamar a
+        <span class="Li">Mail::SpamAssassin::Plugin::info($msg)</span>.</p>
+    <p class="Pp">En general, es mejor que los plugins utilicen el módulo
+        <span class="Li">&quot;Mail::SpamAssassin::Logger&quot;</span> para importar
+        <span class="Li">&quot;dbg&quot;</span> e
+        <span class="Li">&quot;info&quot;</span> directamente, de la siguiente manera:</p>
+        <pre>use Mail::SpamAssassin::Logger;
+dbg(&quot;some message&quot;);
+info(&quot;some other message&quot;);
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REGISTERING_EVAL_RULES'><a class='permalink' href='#REGISTERING_EVAL_RULES'>REGISTRO DE REGLAS DE EVALUACIÓN</a></h1>
+<p class="Pp">Los plugins que implementan una prueba de evaluación deben registrar los métodos que se pueden llamar desde las reglas en los archivos de configuración, en el constructor de la clase del plugin.</p>
+<p class="Pp">Por ejemplo,</p>
+<pre>$plugin-&gt;register_eval_rule ('check_for_foo', $Mail::SpamAssassin::Conf::TYPE_HEAD_EVALS)</pre>
+<p class="Pp">hará que
+    <span class="Li">&quot;$plugin-&gt;check_for_foo()&quot;</span>
+    sea llamado para la siguiente regla de SpamAssassin:</p>
+<pre>header   FOO_RULE     eval:check_for_foo()</pre>
+<p class="Pp">Tenga en cuenta que las reglas de evaluación reciben los siguientes argumentos:</p>
+<dl class="Bl-tag">
+  <dt id="The"><a class="perma">El</a></dt>
+</dl>
+<div class="section">
+  <h1 class="Sh" id="NOMBRE"><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+  <p class="Pp">Mail::SpamAssassin::Plugin</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="SINTAXIS"><a class='permalink' href='#SINTAXIS'>SINTAXIS</a></h1>
+  <p class="Pp">Mail::SpamAssassin::Plugin</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="DESCRIPCION"><a class='permalink' href='#DESCRIPCION'>DESCRIPCIÓN</a></h1>
+  <p class="Pp">Este plugin es un objeto que permite ejecutar reglas de prueba evaluada (eval) en el contexto de SpamAssassin.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="INTERFAZ"><a class='permalink' href='#INTERFAZ'>INTERFAZ</a></h1>
+  <p class="Pp">El plugin se registra como un objeto de prueba evaluada (eval) que se puede invocar en el contexto de SpamAssassin.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="METODOS"><a class='permalink' href='#METODOS'>MÉTODOS</a></h1>
+  <p class="Pp">El plugin puede invocar métodos de prueba evaluada (eval) que se pueden registrar como reglas de prueba.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="APIS_DE_AUXILIO"><a class='permalink' href='#APIS_DE_AUXILIO'>APIS DE AUXILIO</a></h1>
+  <p class="Pp">El plugin puede invocar apis de auxilio que se pueden registrar como reglas de prueba.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="LOGGING"><a class='permalink' href='#LOGGING'>LOGGING</a></h1>
+  <p class="Pp">El plugin puede registrar logs de prueba evaluada (eval) que se pueden registrar como reglas de prueba.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="REGISTRAR_REGLAS_DE_PRUEBA_EVALUADA"><a class='permalink' href='#REGISTRAR_REGLAS_DE_PRUEBA_EVALUADA'>REGISTRAR REGLAS DE PRUEBA EVALUADA</a></h1>
+  <p class="Pp">El plugin puede registrar reglas de prueba evaluada (eval) que se pueden invocar en el contexto de SpamAssassin.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id="ARGS_ESTANDAR_PARA_LAS_REGLAS"><a class='permalink' href='#ARGS_ESTANDAR_PARA_LAS_REGLAS'>ARGS ESTANDAR PARA LAS REGLAS</a></h1>
+  <p class="Pp">El plugin se registra con los mismos argumentos que un objeto de prueba evaluada (eval) estándar. Las reglas diferentes reciben información distinta.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id='COMPATIBILIDAD_INVERSA'><a class='permalink' href='#COMPATIBILIDAD_INVERSA'>COMPATIBILIDAD INVERSA</a></h1>
+  <p class="Pp">Si necesitas determinar si una específica método de ayuda está disponible en Mail::SpamAssassin::Plugin, puedes usar:</p>
+<pre>if ($self-&gt;can(&quot;name_of_method&quot;)) { ... }</pre>
+</div>
+<div class="section">
+  <h1 class="Sh" id='VER_TAMBIEN'><a class='permalink' href='#VER_TAMBIEN'>VER TAMBIEN</a></h1>
+  <p class="Pp"><a href='/man/Mail::SpamAssassin.3.en'>Mail::SpamAssassin(3)</a></p>
+  <p class="Pp"><a href='/man/Mail::SpamAssassin::PerMsgStatus.3.en'>Mail::SpamAssassin::PerMsgStatus(3)</a></p>
+  <p class="Pp"><a href='https://wiki.apache.org/spamassassin/PluginWritingTips'>https://wiki.apache.org/spamassassin/PluginWritingTips</a></p>
+  <p class="Pp"><a href='https://issues.apache.org/SpamAssassin/show_bug.cgi?id=2163'>https://issues.apache.org/SpamAssassin/show_bug.cgi?id=2163</a></p>
+</div>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+<aside id="sidebar">
+  <section class="search">
+    <form action="/search" class="search direct-search" role="search">
+      <input type="search" placeholder="Buscar página de man" name="q" value="" />
+      <input type="submit" name="go" value="Ir" />
+    </form>
+  </section>
+  <section class="package-info">
+    <p>Información de paquete:</p>
+    <dl>
+      <dt>Nombre del paquete:</dt>
+      <dd><a href="https://www.archlinux.org/packages/extra/x86_64/spamassassin/">extra/spamassassin</a></dd>
+      <dt>Versión:</dt>
+      <dd>4.0.1-5</dd>
+      <dt>Upstream:</dt>
+      <dd><a href="https://spamassassin.apache.org">https://spamassassin.apache.org</a></dd>
+      <dt>Licencias:</dt>
+      <dd>APACHE</dd>
+      <dt>Manuales:</dt>
+      <dd><a href="/listing/extra/spamassassin/">/listing/extra/spamassassin/</a></dd>
+    </dl>
+  </section>
+  <details>
+    <summary>Contenido de índice</summary>
+    <nav class="toc">
+      <ul>
+        <li><a href="#NOMBRE">NOMBRE</a></li>
+        <li><a href="#SINTAXIS">SINTAXIS</a></li>
+        <li><a href="#DESCRIPCION">DESCRIPCIÓN</a></li>
+        <li><a href="#INTERFAZ">INTERFAZ</a></li>
+        <li><a href="#METODOS">MÉTODOS</a></li>
+        <li><a href="#APIS_DE_AUXILIO">APIS DE AUXILIO</a></li>
+        <li><a href="#LOGGING">LOGGING</a></li>
+        <li><a href="#REGISTRAR_REGLAS_DE_PRUEBA_EVALUADA">REGISTRAR REGLAS DE PRUEBA EVALUADA</a></li>
+        <li><a href="#ARGS_ESTANDAR_PARA_LAS_REGLAS">ARGS ESTANDAR PARA LAS REGLAS</a></li>
+        <li><a href="#COMPATIBILIDAD_INVERSA">COMPATIBILIDAD INVERSA</a></li>
+        <li><a href="#VER_TAMBIEN">VER TAMBIEN</a></li>
+      </ul>
+    </nav>
+  </details>
+  <nav class="other-formats">
+    <p>Otras formas de formato:</p>
+    <a href="/man/Mail::SpamAssassin::Plugin.3pm.en.txt">txt</a>, 
+    <a href="/man/Mail::SpamAssassin::Plugin.3pm.en.raw">raw</a>
+  </nav>
+</aside>
+<footer>
+  
+  <p>La web está disponible bajo la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>, a menos que los contenidos de las páginas de manuales tengan su propia licencia especificada en el paquete correspondiente de Arch Linux.</p>
+</footer>

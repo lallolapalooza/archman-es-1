@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>dconf(7) — Páginas manuales de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">dconf(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/dconf/">dconf</a></p>
+<p class="lic">Licencias: LGPL-2.1-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DCONF(7)</td>
+    <td class="head-vol">Convenciones y misceláneos</td>
+    <td class="head-rtitle">DCONF(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">dconf - Un sistema de configuración</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">dconf es un sistema de almacenamiento simple de clave/valor que está fuertemente
+    optimizado para la lectura. Esto lo convierte en un sistema ideal para almacenar
+    preferencias del usuario (las cuales se leen miles de veces por cada vez que el usuario
+    cambia una). Fue creado con este caso de uso en mente.</p>
+<p class="Pp">Todas las preferencias se almacenan en un único archivo binario grande. Es posible
+    la estratificación de preferencias usando múltiples archivos (es decir: para valores
+    predeterminados del sitio). También se admite el bloqueo (lock-down). El archivo binario
+    de los valores predeterminados puede ser opcionalmente compilado a partir de un conjunto
+    de archivos de claves de texto plano.</p>
+<p class="Pp">dconf tiene una arquitectura parcial cliente/servidor. Utiliza D-Bus. El
+    servidor solo interviene en las escrituras (y no se activa en la sesión del usuario
+    hasta que el usuario modifica una preferencia). El servicio es inmutable y puede salir
+    libremente en cualquier momento (y por lo tanto es robusto frente a fallos). La lista de
+    rutas que cada proceso está vigilando se almacena dentro del propio demonio de D-Bus
+    (como reglas de coincidencia de señales de D-Bus).</p>
+<p class="Pp">Las lecturas se realizan mediante acceso directo (a través de mmap) a la base de
+    datos en disco, que es esencialmente una tabla hash. Por esta razón, las lecturas de
+    dconf típicamente implican cero llamadas al sistema y son comparables a una búsqueda en
+    una tabla hash en términos de velocidad. Hablando en términos prácticos, en configuraciones
+    simples no estratificadas, dconf es menos de 10 veces más lento que GHashTable.</p>
+<p class="Pp">Se asume que las escrituras solo ocurren en respuesta a la interacción explícita
+    del usuario (como hacer clic en una casilla de verificación en un diálogo de preferencias)
+    y por lo tanto no están optimizadas en absoluto. En algunos sistemas de archivos,
+    dconf-service llamará a fsync() en cada escritura, lo que puede introducir una latencia
+    de hasta 100ms. Esta latencia está oculta por las bibliotecas del cliente a través de un
+    mecanismo "rápido" inteligente que registra los cambios pendientes localmente (para que
+    puedan leerse de inmediato) hasta que el servicio señala que una escritura se ha completado.</p>
+<p class="Pp">El formato de base de datos binario que dconf usa por defecto no es
+    adecuado para su uso en NFS, donde mmap no funciona bien. Para manejar este
+    caso de uso común, dconf puede configurarse para colocar su base de datos binaria en
+    <b>XDG_RUNTIME_DIR</b> (que se garantiza que es local, pero no persistente)
+    y sincronizarla con un archivo de claves de texto plano en el directorio de inicio
+  del usuario.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PROFILES'><a class='permalink' href='#PROFILES'>PERFILES</a></h1>
+<p class="Pp">Un perfil es una lista de bases de datos de configuración que dconf consulta
+    para encontrar el valor de una clave. La base de datos personal del usuario siempre tiene
+    la máxima prioridad, seguida de las bases de datos del sistema en el orden prescrito
+    por el perfil.</p>
+<p class="Pp">Al inicio, dconf consulta la <b>DCONF_PROFILE</b> variable de
+    entorno. Si está definida, dconf intentará abrir el perfil con ese nombre, abortando si
+    eso falla. Si la variable de entorno no está definida, intentará abrir
+    el perfil llamado "user" y si eso falla, volverá a una
+    configuración interna fijada. dconf almacena sus perfiles en archivos
+    de texto. <b>DCONF_PROFILE</b> puede especificar una ruta relativa a un archivo en
+    /etc/dconf/profile/, o una ruta absoluta (como en el directorio de inicio
+    de un usuario). El nombre del perfil solo puede usar caracteres alfanuméricos o
+  '_'.</p>
+<p class="Pp">Un archivo de perfil podría verse como el siguiente:</p>
+<div class="Bd-indent">
+<pre>user-db:user
+system-db:local
+system-db:site
+</pre>
+</div>
+<p class="Pp">Cada línea en un perfil especifica una base de datos de dconf. La primera
+    línea indica la base de datos utilizada para escribir cambios, y las líneas restantes
+    indican bases de datos de solo lectura. (La primera línea debería especificar un user-db
+    o service-db, para que los usuarios puedan realmente hacer cambios de configuración.)</p>
+<p class="Pp">Una línea "user-db" especifica una base de datos de usuario. Estas
+    bases de datos se encuentran en <b>$XDG_CONFIG_HOME</b>/dconf/. El nombre del archivo
+    a abrir en ese directorio es exactamente como está escrito en el perfil. Este
+    archivo se espera que esté en el formato de base de datos binaria de dconf. Ten en cuenta que
+    <b>XDG_CONFIG_HOME</b> no puede ser definida/modificada por terminal o sesión,
+    porque entonces el escritor y el lector estarían trabajando en diferentes bases de datos (el
+    escritor es iniciado por DBus y no puede ver esa variable).</p>
+<p class="Pp">Una línea "service-db" instruye a dconf para colocar el archivo de
+    base de datos binario de la base de datos del usuario en <b>XDG_RUNTIME_DIR</b>. Dado que esta
+    ubicación no es persistente, el resto de la línea instruye a dconf cómo
+    almacenar la base de datos persistentemente. Una línea típica es service-db:keyfile/user,
+    que le dice a dconf sincronizar la base de datos binaria con un archivo de claves de texto plano en <b>$XDG_CONFIG_HOME</b>/dconf/user.txt. La sincronización es
+    bidireccional.</p>
+<p class="Pp">Una línea "system-db" especifica una base de datos del sistema. Estas
+    bases de datos se encuentran en /etc/dconf/db/. De nuevo, el nombre del archivo a abrir
+    en ese directorio es exactamente como está escrito en el perfil y el archivo se
+    espera que esté en el formato de base de datos de dconf.</p>
+<p class="Pp">Si la <b>DCONF_PROFILE</b> variable de entorno no está definida y el
+    perfil "user" no puede abrirse, entonces el efecto es como si el
+    perfil fuera especificado por este archivo:</p>
+<div class="Bd-indent">
+<pre>user-db:user
+</pre>
+</div>
+<p class="Pp">Es decir, la base de datos personal del usuario es consultada y no hay
+    configuraciones del sistema.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='KEY_FILES'><a class='permalink' href='#KEY_FILES'>ARCHIVOS DE CLAVES</a></h1>
+<p class="Pp">Para facilitar la configuración del sistema con un editor de texto, dconf puede
+    poblar bases de datos a partir de archivos de claves de texto plano. Para cualquier base de datos del sistema dada,
+    los archivos de claves pueden colocarse en el directorio /etc/dconf/db/<i>database</i>.d/.
+    Los archivos de claves contienen grupos de configuraciones como sigue:</p>
+<div class="Bd-indent">
+<pre># Algunas configuraciones predeterminadas útiles para nuestro sitio
+[system/proxy/http]
+host='172.16.0.1'
+enabled=true
+[org/gnome/desktop/background]
+picture-uri='file:///usr/local/rupert-corp/company-wallpaper.jpeg'
+</pre>
+</div>
+<p class="Pp">Después de cambiar los archivos de claves, la base de datos necesita ser actualizada con la
+    <a href='/man/dconf.1.en'>dconf(1)</a> herramienta.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='LOCKS'><a class='permalink' href='#LOCKS'>BLOQUEOS</a></h1>
+<p class="Pp">Las bases de datos del sistema pueden contener 'bloqueos' para claves. Si un bloqueo para
+    una clave o subruta particular está instalado en una base de datos, entonces ninguna base de datos
+    listada por encima de esa en el perfil podrá modificar ninguna de las
+    configuraciones afectadas. Esto puede usarse para hacer cumplir configuraciones obligatorias.</p>
+<p class="Pp">Para añadir bloqueos a una base de datos, coloca archivos de texto en el
+    directorio /etc/dconf/db/<i>database</i>.d/locks, donde <i>database</i> es
+    el nombre de una base de datos del sistema, como se especifica en el perfil. Los archivos
+    contienen una lista de claves a bloquear, una por línea. Las líneas que comienzan con # son
+    ignoradas. Aquí hay un ejemplo:</p>
+<div class="Bd-indent">
+<pre># prevenir cambios en el fondo de la empresa
+/org/gnome/desktop/background/picture-uri
+</pre>
+</div>
+<p class="Pp">Después de cambiar los bloqueos, la base de datos necesita ser actualizada con la
+    <a href='/man/dconf.1.en'>dconf(1)</a> herramienta.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PORTABILITY'><a class='permalink' href='#PORTABILITY'>PORTABILIDAD</a></h1>
+<p class="Pp">dconf apunta principalmente a sistemas operativos de Software Libre. Teóricamente
+    funcionaría en Mac OS pero no tiene mucho sentido (ya que las aplicaciones de Mac OS
+    quieren almacenar preferencias en archivos plist). No es posible
+    usar dconf en Windows debido a la imposibilidad de renombrar sobre un archivo
+    que todavía está en uso (lo que es lo que hace dconf-service en cada
+  escritura).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='API_STABILITY'><a class='permalink' href='#API_STABILITY'>ESTABILIDAD DE LA API</a></h1>
+<p class="Pp">La API de dconf no es particularmente amigable, y no se garantiza
+    que sea estable. Debido a esto y a la falta de portabilidad, casi
+    seguramente querrás usar algún tipo de API envolvente alrededor de ella. La API envolvente
+    usada por las aplicaciones GTK+ y GNOME es <b>GSettings</b>[1], la cual es
+    incluida como parte de GLib. GSettings tiene backends para Windows (usando el
+    registro) y Mac OS (usando listas de propiedades) además de su backend de dconf y
+    es la API apropiada a usar para aplicaciones gráficas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/dconf-service.1.en'>dconf-service(1)</a>, <a href='/man/dconf-editor.1.en'>dconf-editor(1)</a>, <a href='/man/dconf.1.en'>dconf(1)</a>,
+    <b>GSettings</b>[1]</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTAS</a></h1>
+<dl class="Bl-tag">
+  <dt> 1.</dt>
+  <dd>GSettings</dd>
+</dl>
+<div class="Bd-indent"><a href='http://developer.gnome.org/gio/stable/GSettings.html'>http://developer.gnome.org/gio/stable/GSettings.html</a></div>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os">dconf</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/dconf/">extra/dconf</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.49.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://wiki.gnome.org/Projects/dconf">https://wiki.gnome.org/Projects/dconf</a></dd>
+        <dt>Licencias:</dt>
+        <dd>LGPL-2.1-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/dconf/">/listing/extra/dconf/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PROFILES">PERFILES</a></li>
+        
+            <li><a href="#KEY_FILES">ARCHIVOS DE CLAVES</a></li>
+        
+            <li><a href="#LOCKS">BLOQUEOS</a></li>
+        
+            <li><a href="#PORTABILITY">PORTABILIDAD</a></li>
+        
+            <li><a href="#API_STABILITY">ESTABILIDAD DE LA API</a></li>
+        
+            <li><a href="#SEE_ALSO">VÉASE TAMBIÉN</a></li>
+        
+            <li><a href="#NOTES">NOTAS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+<nav class="other-sections">
+    <p>En otras secciones:</p>
+    <ul>
+    
+        <li><a href="/man/dconf.1.en">dconf(1)</a></li>
+    
+    </ul>
+</nav>
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/dconf.7.en.txt">txt</a>, 
+        
+            <a href="/man/dconf.7.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

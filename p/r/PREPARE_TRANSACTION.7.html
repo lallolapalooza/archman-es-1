@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PREPARE_TRANSACTION(7) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">PREPARE_TRANSACTION(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/postgresql/">postgresql</a></p>
+<p class="lic">Licencias: PostgreSQL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">PREPARE TRANSACTION(7)</td>
+    <td class="head-vol">Documentación de PostgreSQL 18.1</td>
+    <td class="head-rtitle">PREPARE TRANSACTION(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">PREPARE_TRANSACTION - prepara la transacción actual para el
+    commit en dos fases</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>PREPARE TRANSACTION <i>id_transaccion</i></pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>PREPARE TRANSACTION</b> prepara la transacción actual para el
+    commit en dos fases. Después de este comando, la transacción ya no está
+    asociada con la sesión actual; en cambio, su estado se almacena completamente
+    en disco, y existe una probabilidad muy alta de que pueda completarse con
+    éxito, incluso si ocurre un fallo de la base de datos antes de que se solicite
+    el commit.</p>
+<p class="Pp">Una vez preparada, una transacción puede ser completada o revertida
+    más tarde con <b>COMMIT PREPARED</b> o <b>ROLLBACK PREPARED</b>,
+    respectivamente. Esos comandos pueden ser emitidos desde cualquier sesión, no
+    solo desde la que ejecutó la transacción original.</p>
+<p class="Pp">Desde el punto de vista de la sesión que emite el comando,
+    <b>PREPARE TRANSACTION</b> no es muy diferente de un comando <b>ROLLBACK</b>:
+    después de ejecutarlo, no hay ninguna transacción actual activa, y los efectos
+    de la transacción preparada ya no son visibles. (Los efectos volverán a ser
+    visibles si la transacción se completa.)</p>
+<p class="Pp">Si el comando <b>PREPARE TRANSACTION</b> falla por cualquier
+    motivo, se convierte en un <b>ROLLBACK</b>: la transacción actual se
+    cancela.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PARAMETERS'><a class='permalink' href='#PARAMETERS'>PARÁMETROS</a></h1>
+<p class="Pp"><i>id_transaccion</i></p>
+<div class="Bd-indent">Un identificador arbitrario que más tarde identifica esta
+  transacción para <b>COMMIT PREPARED</b> o <b>ROLLBACK PREPARED</b>. El
+  identificador debe ser escrito como un literal de cadena y debe tener menos de
+  200 bytes de longitud. No debe ser el mismo que el identificador utilizado para
+  ninguna transacción preparada actualmente.</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTAS</a></h1>
+<p class="Pp"><b>PREPARE TRANSACTION</b> no está pensado para ser utilizado en
+    aplicaciones o sesiones interactivas. Su propósito es permitir que un gestor
+    de transacciones externo realice transacciones globales atómicas a través de
+    múltiples bases de datos u otros recursos transaccionales. A menos que esté
+    escribiendo un gestor de transacciones, probablemente no debería usar
+    <b>PREPARE TRANSACTION</b>.</p>
+<p class="Pp">Este comando debe usarse dentro de un bloque de transacción. Use
+    <b>BEGIN</b> para iniciar uno.</p>
+<p class="Pp">Actualmente no está permitido <b>PREPARE</b> una transacción que
+    haya ejecutado operaciones que involucren tablas temporales o el espacio de
+    nombres temporal de la sesión, haya creado cursores WITH HOLD, o haya
+    ejecutado <b>LISTEN</b>, <b>UNLISTEN</b> o <b>NOTIFY</b>. Esas
+    características están demasiado ligadas a la sesión actual para ser útiles
+    en una transacción que se va a preparar.</p>
+<p class="Pp">Si la transacción modificó algún parámetro en tiempo de ejecución con
+    <b>SET</b> (sin la opción LOCAL), esos efectos persisten después de
+    <b>PREPARE TRANSACTION</b>, y no se verán afectados por ningún
+    <b>COMMIT PREPARED</b> o <b>ROLLBACK PREPARED</b> posterior. Por lo tanto,
+    en este único aspecto, <b>PREPARE TRANSACTION</b> actúa más como
+    <b>COMMIT</b> que como <b>ROLLBACK</b>.</p>
+<p class="Pp">Todas las transacciones preparadas actualmente disponibles se listan
+    en la vista del sistema pg_prepared_xacts.</p>
+<div class="Bd-indent">
+<br/>
+<b>Precaución</b>
+<br/>
+<p class="Pp">No es aconsejable dejar transacciones en estado preparado durante
+    mucho tiempo. Esto interferirá con la capacidad de <b>VACUUM</b> para
+    recuperar espacio y, en casos extremos, podría causar que la base de datos se
+    cierre para evitar el desbordamiento del ID de transacción (ver Sección&#x00A0;24.1.5).
+    Tenga en cuenta también que la transacción continúa manteniendo los bloqueos
+    que tuviera. El uso previsto de esta característica es que una transacción
+    preparada normalmente se completará o revertirá tan pronto como un gestor de
+    transacciones externo haya verificado que otras bases de datos también están
+    listas para completar.</p>
+<p class="Pp">Si no ha configurado un gestor de transacciones externo para
+    rastrear las transacciones preparadas y asegurarse de que se cierran
+    puntualmente, es mejor mantener la característica de transacción preparada
+    deshabilitada estableciendo max_prepared_transactions en cero. Esto evitará
+    la creación accidental de transacciones preparadas que luego puedan olvidarse
+    y eventualmente causar problemas.</p>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLOS</a></h1>
+<p class="Pp">Prepara la transacción actual para el commit en dos fases, usando
+    foobar como identificador de transacción:</p>
+<div class="Bd-indent">
+<pre>PREPARE TRANSACTION 'foobar';</pre>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COMPATIBILITY'><a class='permalink' href='#COMPATIBILITY'>COMPATIBILIDAD</a></h1>
+<p class="Pp"><b>PREPARE TRANSACTION</b> es una extensión de PostgreSQL. Está
+    destinado a ser utilizado por sistemas externos de gestión de transacciones,
+    algunos de los cuales están cubiertos por estándares (como X/Open XA), pero el
+    lado SQL de esos sistemas no está estandarizado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<p class="Pp">COMMIT PREPARED (<a href='/man/COMMIT_PREPARED.7.en'>COMMIT_PREPARED(7)</a>), ROLLBACK PREPARED
+    (<a href='/man/ROLLBACK_PREPARED.7.en'>ROLLBACK_PREPARED(7)</a>)</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025</td>
+    <td class="foot-os">PostgreSQL 18.1</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/postgresql/">extra/postgresql</a></dd>
+        <dt>Versión:</dt>
+        <dd>18.1-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.postgresql.org/">https://www.postgresql.org/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PostgreSQL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/postgresql/">/listing/extra/postgresql/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PARAMETERS">PARÁMETROS</a></li>
+        
+            <li><a href="#NOTES">NOTAS</a></li>
+        
+            <li><a href="#EXAMPLES">EJEMPLOS</a></li>
+        
+            <li><a href="#COMPATIBILITY">COMPATIBILIDAD</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/PREPARE_TRANSACTION.7.en.txt">txt</a>, 
+        
+            <a href="/man/PREPARE_TRANSACTION.7.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

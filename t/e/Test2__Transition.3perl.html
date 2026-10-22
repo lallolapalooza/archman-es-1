@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Test2::Transition(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Test2__Transition.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Test2::Transition(3perl)</td>
+    <td class="head-vol">Guía de referencia para programadores de Perl</td>
+    <td class="head-rtitle">Test2::Transition(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Test2::Transition - Notas de transición al actualizar a Test2</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCION'><a class='permalink' href='#DESCRIPCION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Aquí se documentan las dificultades y roturas relacionadas con la
+    actualización de Test2. La actualización hace que Test::Builder delegue en
+    Test2 internamente. Esta transición es en su mayoría transparente, pero hay
+    algunos casos que pueden causar problemas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COSAS_QUE_SE_ROMPEN'><a class='permalink' href='#COSAS_QUE_SE_ROMPEN'>COSAS QUE SE ROMPEN</a></h1>
+<p class="Pp">Esta es la lista de escenarios que se rompen con la nueva
+    implementación interna.</p>
+<section class="Ss">
+<h2 class="Ss" id='Condicionales_de_Test::Builder1.5/2'><a class='permalink' href='#Condicionales_de_Test::Builder1.5/2'>Condicionales de Test::Builder1.5/2</a></h2>
+<p class="Pp"><i>El problema</i></p>
+<p class="Pp">Hace unos años hubo dos intentos de actualizar/reemplazar
+    Test::Builder. Confusamente, estos se llamaron Test::Builder2 y
+    Test::Builder1.5, en ese orden. Muchas personas incluyeron condicionales en
+    su código para verificar el número de versión de Test::Builder y adaptar su
+    código en consecuencia.</p>
+<p class="Pp">Los proyectos Test::Builder2/1.5 fracasaron. Ahora el código
+    condicional que la gente agregó se ha convertido en un campo minado. La gran
+    mayoría de los módulos rotos por Test2 caen en esta categoría.</p>
+<p class="Pp"><i>La solución</i></p>
+<p class="Pp">La solución es eliminar todo el código relacionado con
+    Test::Builder1.5/2. Usa la API heredada de Test::Builder o usa Test2
+    directamente.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Reemplazo_del_singleton_de_Test::Builder'><a class='permalink' href='#Reemplazo_del_singleton_de_Test::Builder'>Reemplazo del singleton de Test::Builder</a></h2>
+<p class="Pp"><i>El problema</i></p>
+<p class="Pp">Algunos módulos de prueba reemplazaban la instancia singleton de
+    Test::Builder con su propia instancia o subclase. Esto se hacía generalmente
+    para interceptar o modificar los resultados a medida que ocurrían.</p>
+<p class="Pp">El singleton de Test::Builder es ahora un simple envoltorio de
+    compatibilidad para Test2. El singleton de Test::Builder ya no es el lugar
+    central para los resultados. Muchos resultados evitan por completo el
+    singleton de Test::Builder, lo que rompe cualquier comportamiento que se
+    pretendía al reemplazar el singleton.</p>
+<p class="Pp"><i>La solución</i></p>
+<p class="Pp">Si solo deseas interceptar todos los resultados en lugar de
+    enviarlos a TAP, deberías consultar la documentación de Test2::API y leer
+    sobre cómo insertar un nuevo hub en la pila de hubs. Reemplazar el hub
+    temporalmente es ahora la forma correcta de interceptar resultados.</p>
+<p class="Pp">Si tu objetivo es puramente la monitorización de eventos, usa el
+    método <span class="Li">&quot;Test2::Hub-&gt;listen()&quot;</span> exportado
+    por Test::More para observar los eventos a medida que se disparan. Si deseas
+    modificar los resultados antes de que se envíen a TAP, consulta el método
+    <span class="Li">&quot;Test2::Hub-&gt;filter()&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Acceso_directo_a_elementos_de_hash'><a class='permalink' href='#Acceso_directo_a_elementos_de_hash'>Acceso directo a elementos de hash</a></h2>
+<p class="Pp"><i>El problema</i></p>
+<p class="Pp">Algunos módulos miran directamente las claves hash en el singleton
+    de Test::Builder. El problema aquí es que el singleton de Test::Builder ya no
+    contiene nada importante.</p>
+<p class="Pp"><i>La solución</i></p>
+<p class="Pp">La solución es usar la API especificada en Test2::API para mirar o
+    modificar el estado según sea necesario.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Indentación_de_subpruebas'><a class='permalink' href='#Indentación_de_subpruebas'>Indentación de subpruebas</a></h2>
+<p class="Pp"><i>El problema</i></p>
+<p class="Pp">Un cambio temprano, de hecho el cambio que hizo de Test2 una idea,
+    fue un cambio en la indentación de la nota de subprueba. Se decidió que
+    sería más legible sacar la nota de la subprueba en lugar de tenerla en línea
+    con la subprueba:</p>
+<pre># subtest foo
+    ok 1 - blah
+    1..1
+ok 1 - subtest foo</pre>
+<p class="Pp">El estilo antiguo indentaba la nota:</p>
+<pre>    # subtest foo
+    ok 1 - blah
+    1..1
+ok 1 - subtest foo</pre>
+<p class="Pp">Esto rompe las pruebas que realizan comparaciones de cadenas de la
+    salida TAP.</p>
+<p class="Pp"><i>La solución</i></p>
+<pre>my $indent = $INC{'Test2/API.pm'} ? '' : '    ';
+is(
+    $subtest_output,
+    &quot;${indent}# subtest foo&quot;,
+    &quot;Got subtest note&quot;
+);</pre>
+<p class="Pp">Comprueba si <span class="Li">$INC{'Test2/API.pm'}</span> está
+    establecido; si lo está, no se debe esperar indentación. Si no está
+    establecido, entonces se está usando el antiguo Test::Builder y se debe
+    esperar indentación.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DISTRIBUCIONES_QUE_SE_ROMPEN_O_NECESITAN_SER_ACTUALIZADAS'><a class='permalink' href='#DISTRIBUCIONES_QUE_SE_ROMPEN_O_NECESITAN_SER_ACTUALIZADAS'>DISTRIBUCIONES QUE SE ROMPEN O NECESITAN SER ACTUALIZADAS</a></h1>
+<p class="Pp">Esta es una lista de módulos de CPAN que se sabe que se han roto por
+    la actualización en algún momento.</p>
+<section class="Ss">
+<h2 class="Ss" id='FUNCIONA_PERO_LAS_PRUEBAS_FALLARAN'><a class='permalink' href='#FUNCIONA_PERO_LAS_PRUEBAS_FALLARAN'>FUNCIONA PERO LAS PRUEBAS FALLARAN</a></h2>
+<p class="Pp">Estos módulos siguen funcionando correctamente, pero sus conjuntos de
+    pruebas no pasarán. Si ya tienes estos módulos instalados, puedes seguir
+    utilizándolos. Si intentas instalarlos después de actualizar Test::Builder,
+    necesitarás forzar la instalación o omitir las pruebas rotas.</p>
+<dl class="Bl-tag">
+  <dt id="Test::DBIx::Class::Schema"><a class="permalink" href="#Test::DBIx::Class::Schema">Test::DBIx::Class::Schema</a></dt>
+  <dd>Este módulo tiene una prueba que parece sortear un error de Test::Builder.
+      El error parece haber sido corregido por Test2, lo que significa que la
+      solución provoca un fallo. Esto se puede actualizar fácilmente, pero nadie
+      lo ha hecho todavía.
+    <p class="Pp">Conocido por estar roto en versiones: 1.0.9 y anteriores</p>
+  </dd>
+  <dt id="Device::Chip"><a class="permalink" href="#Device::Chip">Device::Chip</a></dt>
+  <dd>Las pruebas se rompen debido a la indentación de las subpruebas.
+    <p class="Pp">Conocido por estar roto en la versión 0.07. Aparentemente,
+        funciona bien en la 0.06. Se ha enviado un parche para corregir el
+        problema.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='SE_SUGIERE_ACTUALIZACION'><a class='permalink' href='#SE_SUGIERE_ACTUALIZACION'>SE SUGIERE ACTUALIZACIÓN</a></h2>
+<p class="Pp">Estos son módulos que no se rompieron, pero tenían conjuntos de pruebas
+    rotos que desde entonces han sido corregidos.</p>
+<dl class="Bl-tag">
+  <dt id="Test::Exception"><a class="permalink" href="#Test::Exception">Test::Exception</a></dt>
+  <dd>Las versiones antiguas funcionan bien, pero tienen un comportamiento menor
+      en el nombre de la prueba que se rompe con Test2. Las versiones antiguas ya
+      no se instalarán debido a esto. La última versión en CPAN se instalará
+      perfectamente. No es necesario actualizar, pero se recomienda.
+    <p class="Pp">Corregido en la versión: 0.43</p>
+  </dd>
+  <dt id="Data::Peek"><a class="permalink" href="#Data::Peek">Data::Peek</a></dt>
+  <dd>Algunas pruebas dependían de que <span class="Li">$!</span> y <span class="Li">$?</span>
+      se modificaran de maneras sutiles. Se aplicó un parche para corregir las
+      cosas que cambiaron.
+    <p class="Pp">El módulo en sí funciona bien, no es necesario actualizar.</p>
+    <p class="Pp">Corregido en la versión: 0.45</p>
+  </dd>
+  <dt id="circular::require"><a class="permalink" href="#circular::require">circular::require</a></dt>
+  <dd>Algunas pruebas eran frágiles y requerían que base.pm se cargara en una
+      etapa tardía. Test2 estaba cargando base.pm demasiado pronto. Las pruebas
+      se actualizaron para corregir esto.
+    <p class="Pp">El módulo en sí nunca se rompió, no necesitas actualizar.</p>
+    <p class="Pp">Corregido en la versión: 0.12</p>
+  </dd>
+  <dt id="Test::Module::Used"><a class="permalink" href="#Test::Module::Used">Test::Module::Used</a></dt>
+  <dd>Una prueba sorteaba un error de planificación ahora corregido. No hay
+      necesidad de actualizar si tienes una versión antigua instalada. Las
+      versiones nuevas se instalan bien si las deseas.
+    <p class="Pp">Corregido en la versión: 0.2.5</p>
+  </dd>
+  <dt id="Test::Moose::More"><a class="permalink" href="#Test::Moose::More">Test::Moose::More</a></dt>
+  <dd>Algunas pruebas eran frágiles, pero han sido corregidas. La rotura real
+      provino del cambio en la indentación del comentario de subprueba.
+    <p class="Pp">No es necesario actualizar, las versiones antiguas funcionan
+        bien. Solo las versiones nuevas se instalarán.</p>
+    <p class="Pp">Corregido en la versión: 0.025</p>
+  </dd>
+  <dt id="Test::FITesque"><a class="permalink" href="#Test::FITesque">Test::FITesque</a></dt>
+  <dd>Esto se rompió por una corrección de error en cómo se realiza la
+      planificación. La prueba se actualizó después de la corrección del error.
+    <p class="Pp">Corregido en la versión: 0.04</p>
+  </dd>
+  <dt id="Test::Kit"><a class="permalink" href="#Test::Kit">Test::Kit</a></dt>
+  <dd>Las versiones antiguas funcionan bien, pero no se instalaban porque
+      Test::Aggregate estaba en la cadena de dependencias. No debería ser
+      necesaria una actualización.
+    <p class="Pp">Corregido en la versión: 2.15</p>
+  </dd>
+  <dt id="autouse"><a class="permalink" href="#autouse">autouse</a></dt>
+  <dd>Una prueba se rompió porque dependía de que Scalar::Util no se cargara.
+      Test2 carga Scalar::Util. La prueba se actualizó para cargar Test2
+      después de verificar el estado de carga de Scalar::Util.
+    <p class="Pp">No hay necesidad de actualizar si ya lo tienes
+        instalado.</p>
+    <p class="Pp">Corregido en la versión: 1.11</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='NECESITA_ACTUALIZAR'><a class='permalink' href='#NECESITA_ACTUALIZAR'>NECESITA ACTUALIZAR</a></h2>
+<dl class="Bl-tag">
+  <dt id="Test::SharedFork"><a class="permalink" href="#Test::SharedFork">Test::SharedFork</a></dt>
+  <dd>Las versiones antiguas necesitan acceder directamente a</dd>
+</dl>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+        </main>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="TEST::BUILDER_INTERNALS_AND_TEST2"><a class="permalink" href="#TEST::BUILDER_INTERNALS_AND_TEST2">TEST::BUILDER INTERNALS AND TEST2</a></h1>
+<p class="Pp">This document is a guide for developers of test modules who want to
+    ensure compatibility with both Test::Builder and Test2.</p>
+<section class="Ss">
+<h2 class="Ss" id="INTRODUCTION"><a class="permalink" href="#INTRODUCTION">INTRODUCTION</a></h2>
+<p class="Pp">Test::Builder has been around for a long time. It is a decent
+    testing framework, but it has some design flaws that make it difficult to
+    work with. Test2 is a new testing framework that aims to fix these flaws.</p>
+<p class="Pp">This document is for authors of testing modules. It is not a user
+    guide.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="THE_PROBLEM_WITH_TEST::BUILDER"><a class="permalink" href="#THE_PROBLEM_WITH_TEST::BUILDER">THE PROBLEM WITH TEST::BUILDER</a></h2>
+<p class="Pp">Test::Builder is a singleton. This means that there is only one
+    instance of Test::Builder in a running Perl program. This is a problem for
+    testing modules, because it makes it difficult to test them in isolation. It
+    also makes it difficult to use multiple testing modules at the same time.</p>
+<p class="Pp">Test::Builder also has a number of internal methods that are not
+    documented and should not be used. These methods are subject to change without
+    notice, and can break your testing modules.</p>
+<p class="Pp">Finally, Test::Builder does not have good support for UTF-8. This
+    can lead to problems when testing modules that use UTF-8 characters.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="TEST2_THE_SOLUTION"><a class="permalink" href="#TEST2_THE_SOLUTION">TEST2 THE SOLUTION</a></h2>
+<p class="Pp">Test2 is a new testing framework that aims to fix the problems
+    with Test::Builder. It is designed to be more flexible and easier to work
+    with.</p>
+<p class="Pp">Test2 is not a singleton. It uses a context object to manage
+    testing state. This makes it easier to test modules in isolation, and to use
+    multiple testing modules at the same time.</p>
+<p class="Pp">Test2 also has a well-defined API. This means that its methods are
+    less likely to change, and that you can rely on them to work.</p>
+<p class="Pp">Finally, Test2 has good support for UTF-8. This makes it easier to
+    test modules that use UTF-8 characters.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="TESTED_AND_BROKEN_MODULES"><a class="permalink" href="#TESTED_AND_BROKEN_MODULES">TESTED AND BROKEN MODULES</a></h2>
+<p class="Pp">The following modules have been tested against Test2 and found to be
+    either fixed or still broken.</p>
+<section class="Ss">
+<h3 class="Ss" id="FIXED_MODULES"><a class="permalink" href="#FIXED_MODULES">FIXED MODULES</a></h3>
+<dl class="Bl-tag">
+  <dt id="Test::Aggregate::Simple"><a class="permalink" href="#Test::Aggregate::Simple">Test::Aggregate::Simple</a></dt>
+  <dd>This module worked by accessing the Test::Builder singleton hash. It has
+      been rewritten to use Test2::API.</dd>
+  <dt id="Test::Builder::Lazy"><a class="permalink" href="#Test::Builder::Lazy">Test::Builder::Lazy</a></dt>
+  <dd>This module monkey-patched Test::Builder. The new version uses Test2 to
+      do the same thing.</dd>
+  <dt id="Test::Builder::Module popis"><a class="permalink" href="#Test::Builder::Module popis">Test::Builder::Module popis</a></dt>
+  <dd>This module also monkey-patched Test::Builder. The new version uses
+      Test2::API. This module relies on the Test::Builder singleton hash</dd>
+  <dt id="Test::Builder::TestClass"><a class="permalink" href="#Test::Builder::TestClass">Test::Builder::TestClass</a></dt>
+  <dd>This module used Test::Builder internals. It has been updated to use
+      Test2::API.</dd>
+  <dt id="Test::Builder::TestLive"><a class="permalink" href="#Test::Builder::TestLive">Test::Builder::TestLive</a></dt>
+  <dd>This module used Test::Builder internals. It has been updated to use
+      Test2::API.</dd>
+  <dt id="Test::Count"><a class="permalink" href="#Test::Count">Test::Count</a></dt>
+  <dd>This module relied on Test::Builder's internal hash. It has been updated
+      to use Test2::API.</dd>
+  <dt id="Test::Doors"><a class="permalink" href="#Test::Doors">Test::Doors</a></dt>
+  <dd>This module relied on Test::Builder's internal hash. It has been updated
+      to use Test2::API.</dd>
+  <dt id="Test::Echo"><a class="permalink" href="#Test::Echo">Test::Echo</a></dt>
+  <dd>This module monkey-patched Test::Builder.</dd>
+  <dt id="Test::Exception"><a class="permalink" href="#Test::Exception">Test::Exception</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Fatal"><a class="permalink" href="#Test::Fatal">Test::Fatal</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::File"><a class="permalink" href="#Test::File">Test::File</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::InDistillation"><a class="permalink" href="#Test::InDistillation">Test::InDistillation</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Log"><a class="permalink" href="#Test::Log">Test::Log</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Log::Log4perl"><a class="permalink" href="#Test::Log::Log4perl">Test::Log::Log4perl</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::MyTrace"><a class="permalink" href="#Test::MyTrace">Test::MyTrace</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::NoTabs"><a class="permalink" href="#Test::NoTabs">Test::NoTabs</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Perl::Critic"><a class="permalink" href="#Test::Perl::Critic">Test::Perl::Critic</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Perl::Shell"><a class="permalink" href="#Test::Perl::Shell">Test::Perl::Shell</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Pod::Coverage"><a class="permalink" href="#Test::Pod::Coverage">Test::Pod::Coverage</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Pod::LinkCheck"><a class="permalink" href="#Test::Pod::LinkCheck">Test::Pod::LinkCheck</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Pretty"><a class="permalink" href="#Test::Pretty">Test::Pretty</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Run"></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Silence"><a class="permalink" href="#Test::Silence">Test::Silence</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Snapshot"></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Synopsis"></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Tag"><a class="permalink" href="#Test::Tag">Test::Tag</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Test"><a class="permalink" href="#Test::Test">Test::Test</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::TooStrict"><a class="permalink" href="#Test::TooStrict">Test::TooStrict</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Useallmodules"><a class="permalink" href="#Test::Useallmodules">Test::Useallmodules</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Warn"></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Weaken"><a class="permalink" href="#Test::Weaken">Test::Weaken</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::XML::Simple"><a class="permalink" href="#Test::XML::Simple">Test::XML::Simple</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test::Yui"><a class="permalink" href="#Test::Yui">Test::Yui</a></dt>
+  <dd>This module relied on Test::Builder internals. The latest version uses
+      Test2::API.</dd>
+  <dt id="Test2::API::Compat"><a class="permalink" href="#Test2::API::Compat">Test2::API::Compat</a></dt>
+  <dd>This module provides compatibility for Test::Builder. It has been updated
+      to use Test2::API.</dd>
+  <dt id="Test2::Require"><a class="permalink" href="#Test2::Require">Test2::Require</a></dt>
+  <dd>This module provides compatibility for Test::Builder. It has been updated
+      to use Test2::API.</dd>
+  <dt id="Test2::V0"><a class="permalink" href="#Test2::V0">Test2::V0</a></dt>
+  <dd>This module provides compatibility for Test::Builder. It has been updated
+      to use Test2::API.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h3 class="Ss" id="STILL_BROKEN_MODULES"><a class="permalink" href="#STILL_BROKEN_MODULES">STILL BROKEN MODULES</a></h3>
+<dl class="Bl-tag">
+  <dt id="Test::Builder::Clutch"><a class="permalink" href="#Test::Builder::Clutch">Test::Builder::Clutch</a></dt>
+  <dd>This module worked by overriding methods on the Test::Builder singleton,
+      and directly accessing hash values on the singleton. A new version has
+      been released that uses the Test2 API to accomplish the same result in a
+      saner way.</dd>
+  <dt id="Test::Dist::VersionSync"><a class="permalink" href="#Test::Dist::VersionSync">Test::Dist::VersionSync</a></dt>
+  <dd>This had Test::Builder2 conditionals. This was fixed by removing the
+      conditionals.</dd>
+  <dt id="Test::Modern"><a class="permalink" href="#Test::Modern">Test::Modern</a></dt>
+  <dd>This relied on
+      <span class="Li">&quot;Test::Builder-&gt;_try()&quot;</span> which was a
+      private method, documented as something nobody should use. This was fixed
+      by using a different tool.</dd>
+  <dt id="Test::More::Prefix"><a class="permalink" href="#Test::More::Prefix">Test::More::Prefix</a></dt>
+  <dd>Worked by applying a role that wrapped
+      <span class="Li">&quot;Test::Builder-&gt;_print_comment&quot;</span>.
+      Fixed by adding an event filter that modifies the message instead when
+      running under Test2.</dd>
+  <dt id="Test::Aggregate"><a class="permalink" href="#Test::Aggregate">Test::Aggregate</a></dt>
+  <dd>This distribution directly accesses the hash keys in the Test::Builder
+      singleton. It also approaches the problem from the wrong angle, please
+      consider using Test2::Aggregate for similar functionality and
+      Test2::Harness which allows module preloading at the harness level.</dd>
+  <dt id="Test::Wrapper"><a class="permalink" href="#Test::Wrapper">Test::Wrapper</a></dt>
+  <dd>This module directly uses hash keys in the Test::Builder singleton. This
+      module is also obsolete thanks to the benefits of Test2. Use
+      <span class="Li">intercept()</span> from Test2::API to achieve a similar
+      result.</dd>
+  <dt id="Test::ParallelSubtest"><a class="permalink" href="#Test::ParallelSubtest">Test::ParallelSubtest</a></dt>
+  <dd>This module overrides <span class="Li">Test::Builder::subtest()</span> and
+      <span class="Li">Test::Builder::done_testing()</span>. It also directly
+      accesses hash elements of the singleton. It has not yet been fixed.
+    <p class="Pp">Alternatives: Test2::AsyncSubtest and Test2::Workflow (not
+        stable).</p>
+  </dd>
+  <dt id="Test::Pretty"><a class="permalink" href="#Test::Pretty">Test::Pretty</a></dt>
+  <dd>See <a href='https://github.com/tokuhirom/Test-Pretty/issues/25'>https://github.com/tokuhirom/Test-Pretty/issues/25</a>
+    <p class="Pp">The author admits the module is crazy, and he is awaiting a
+        stable release of something new (Test2) to completely rewrite it in a
+        sane way.</p>
+  </dd>
+  <dt id="Net::BitTorrent"><a class="permalink" href="#Net::BitTorrent">Net::BitTorrent</a></dt>
+  <dd>The tests for this module directly access Test::Builder hash keys. Most,
+      if not all of these hash keys have public API methods that could be used
+      instead to avoid the problem.</dd>
+  <dt id="Test::Group"><a class="permalink" href="#Test::Group">Test::Group</a></dt>
+  <dd>It monkeypatches Test::Builder, and calls it &quot;black magic&quot; in
+      the code.</dd>
+  <dt id="Test::Flatten"><a class="permalink" href="#Test::Flatten">Test::Flatten</a></dt>
+  <dd>This modifies the Test::Builder internals in many ways. A better was to
+      accomplish the goal of this module is to write your own subtest function.</dd>
+  <dt id="Log::Dispatch::Config::TestLog"><a class="permalink" href="#Log::Dispatch::Config::TestLog">Log::Dispatch::Config::TestLog</a></dt>
+  <dd>Modifies Test::Builder internals.</dd>
+  <dt id="Test::Able"><a class="permalink" href="#Test::Able">Test::Able</a></dt>
+  <dd>Modifies Test::Builder internals.</dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MAKE_ASSERTIONS_SEND_EVENTS"><a class="permalink" href="#MAKE_ASSERTIONS_SEND_EVENTS">MAKE ASSERTIONS -&gt; SEND EVENTS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="LEGACY"><a class="permalink" href="#LEGACY">LEGACY</a></h2>
+<pre>use Test::Builder;
+# A majority of tools out there do this:
+# my $TB = Test::Builder-&gt;new;
+# This works, but has always been wrong, forcing Test::Builder to implement
+# subtests as a horrific hack. It also causes problems for tools that try
+# to replace the singleton (also discouraged).
+sub my_ok($;$) {
+    my ($bool, $name) = @_;
+    my $TB = Test::Builder-&gt;new;
+    $TB-&gt;ok($bool, $name);
+}
+sub my_diag($) {
+    my ($msg) = @_;
+    my $TB = Test::Builder-&gt;new;
+    $TB-&gt;diag($msg);
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="TEST2"><a class="permalink" href="#TEST2">TEST2</a></h2>
+<pre>use Test2::API qw/context/;
+sub my_ok($;$) {
+    my ($bool, $name) = @_;
+    my $ctx = context();
+    $ctx-&gt;ok($bool, $name);
+    $ctx-&gt;release;
+}
+sub my_diag($) {
+    my ($msg) = @_;
+    my $ctx = context();
+    $ctx-&gt;diag($msg);
+    $ctx-&gt;release;
+}</pre>
+<p class="Pp">The context object has API compatible implementations of the
+    following methods:</p>
+<dl class="Bl-tag">
+  <dt id="ok($bool,"><a class="permalink" href="#ok($bool,">ok($bool,
+    $name)</a></dt>
+  <dd></dd>
+  <dt id="diag(@messages)"><a class="permalink" href="#diag(@messages)">diag(@messages)</a></dt>
+  <dd></dd>
+  <dt id="note(@messages)"><a class="permalink" href="#note(@messages)">note(@messages)</a></dt>
+  <dd></dd>
+  <dt id="subtest($name,"><a class="permalink" href="#subtest($name,">subtest($name,
+    $code)</a></dt>
+  <dd></dd>
+</dl>
+<p class="Pp">If you are looking for helpers with
+    <span class="Li">&quot;is&quot;</span>,
+    <span class="Li">&quot;like&quot;</span>, and others, see Test2::Suite.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="WRAP_EXISTING_TOOLS"><a class="permalink" href="#WRAP_EXISTING_TOOLS">WRAP EXISTING TOOLS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="LEGACY_2"><a class="permalink" href="#LEGACY_2">LEGACY</a></h2>
+<pre>use Test::More;
+sub exclusive_ok {
+    my ($bool1, $bool2, $name) = @_;
+    # Ensure errors are reported 1 level higher
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+    $ok = $bool1 || $bool2;
+    $ok &amp;&amp;= !($bool1 &amp;&amp; $bool2);
+    ok($ok, $name);
+    return $bool;
+}</pre>
+<p class="Pp">Every single tool in the chain from this, to
+    <span class="Li">&quot;ok&quot;</span>, to anything
+    <span class="Li">&quot;ok&quot;</span> calls needs to increment the
+    <span class="Li">$Level</span> variable. When an error occurs Test::Builder
+    will do a trace to the stack frame determined by
+    <span class="Li">$Level</span>, and report that file+line as the one where
+    the error occurred. If you or any other tool you use forgets to set
+    <span class="Li">$Level</span> then errors will be reported to the wrong
+    place.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="TEST2_2"><a class="permalink" href="#TEST2_2">TEST2</a></h2>
+<pre>use Test::More;
+sub exclusive_ok {
+    my ($bool1, $bool2, $name) = @_;
+    # Grab and store the context, even if you do not need to use it
+    # directly.
+    my $ctx = context();
+    $ok = $bool1 || $bool2;
+    $ok &amp;&amp;= !($bool1 &amp;&amp; $bool2);
+    ok($ok, $name);
+    $ctx-&gt;release;
+    return $bool;
+}</pre>
+<p class="Pp">Instead of using <span class="Li">$Level</span> to perform a
+    backtrace, Test2 uses a context object. In this sample you create a context
+    object and store it. This locks the context (errors report 1 level up from
+    here) for all wrapped tools to find. You do not need to use the context
+    object, but you do need to store it in a variable. Once the sub ends the
+    <span class="Li">$ctx</span> variable is destroyed which lets future tools
+    find their own.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="USING_UTF8"><a class="permalink" href="#USING_UTF8">USING UTF8</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="LEGACY_3"><a class="permalink" href="#LEGACY_3">LEGACY</a></h2>
+<pre># Set the mode BEFORE anything loads Test::Builder
+use open ':std', ':encoding(utf8)';
+use Test::More;</pre>
+<p class="Pp">Or</p>
+<pre># Modify the filehandles
+my $builder = Test::More-&gt;builder;
+binmode $builder-&gt;output,         &quot;:encoding(utf8)&quot;;
+binmode $builder-&gt;failure_output, &quot;:encoding(utf8)&quot;;
+binmode $builder-&gt;todo_output,    &quot;:encoding(utf8)&quot;;</pre>
+</section>
+<section class=" Ss">
+<h2 class="Ss" id="TEST2_3"><a class="permalink" href="#TEST2_3">TEST2</a></h2>
+<pre>use Test2::API qw/test2_stack/;
+test2_stack-&gt;top-&gt;format-&gt;encoding('utf8');</pre>
+<p class="Pp">Though a much better way is to use the Test2::Plugin::UTF8 plugin,
+    which is part of Test2::Suite.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHORS_CONTRIBUTORS_AND_REVIEWERS"><a class="permalink" href="#AUTHORS_CONTRIBUTORS_AND_REVIEWERS">AUTHORS, CONTRIBUTORS AND REVIEWERS</a></h1>
+<p class="Pp">The following people have all contributed to this document in some
+    way, even if only for review.</p>
+<dl class="Bl-tag">
+  <dt id="Chad"><a class="permalink" href="#Chad">Chad Granum (EXODIST)
+    &lt;exodist@cpan.org&gt;</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SOURCE"><a class="permalink" href="#SOURCE">SOURCE</a></h1>
+<p class="Pp">The source code repository for Test2 can be found at
+    <a href='https://github.com/Test-More/test-more/'>https://github.com/Test-More/test-more/</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MAINTAINER"><a class="permalink" href="#MAINTAINER">MAINTAINER</a></h1>
+<dl class="Bl-tag">
+  <dt id="Chad~2"><a class="permalink" href="#Chad~2">Chad Granum
+    &lt;exodist@cpan.org&gt;</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="COPYRIGHT"><a class="permalink" href="#COPYRIGHT">COPYRIGHT</a></h1>
+<p class="Pp">Copyright Chad Granum &lt;exodist@cpan.org&gt;.</p>
+<p class="Pp">This program is free software; you can redistribute it and/or
+    modify it under the same terms as Perl itself.</p>
+<p class="Pp">See <a href='https://dev.perl.org/licenses/'>https://dev.perl.org/licenses/</a></p>
+</section>
+</section>
+/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPCION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#COSAS_QUE_SE_ROMPEN">COSAS QUE SE ROMPEN</a></li>
+        
+            <li><a href="#DISTRIBUCIONES_QUE_SE_ROMPEN_O_NECESITAN_SER_ACTUALIZADAS">DISTRIBUCIONES QUE SE ROMPEN O NECESITAN SER ACTUALIZADAS</a></li>
+        
+            <li><a href="#HACER_AFIRMACIONES_&gt;_ENVIAR_EVENTOS">HACER AFIRMACIONES -&gt; ENVIAR EVENTOS</a></li>
+        
+            <li><a href="#ENVOLVER_HERRAMIENTAS_EXISTENTES">ENVOLVER HERRAMIENTAS EXISTENTES</a></li>
+        
+            <li><a href="#USAR_UTF8">USAR UTF8</a></li>
+        
+            <li><a href="#AUTORES,_CONTRIBUIDORES_Y_REVISORES">AUTORES, CONTRIBUIDORES Y REVISORES</a></li>
+        
+            <li><a href="#FUENTE">FUENTE</a></li>
+        
+            <li><a href="#MAINTAINER">MAINTAINER</a></li>
+        
+            <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Test2::Transition.3perl.en.txt">txt</a>, 
+        
+            <a href="/man/Test2::Transition.3perl.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

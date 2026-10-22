@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::DNS::SEC::Tools::realm(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__DNS__SEC__Tools__realm(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">realm(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">realm(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Net::DNS::SEC::Tools::realm - Manipular un archivo realm de DNSSEC-Tools.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'> SINOPSIS</a></h1>
+<pre>use Net::DNS::SEC::Tools::realm;
+realm_lock();
+realm_read(&quot;localhost.realm&quot;);
+@rlmnames = realm_names();
+$flag = realm_exists(&quot;example&quot;);
+$rrec = realm_fullrec(&quot;example&quot;);
+%rrhash = %$rrec;
+$zname = $rrhash{&quot;maxttl&quot;};
+$val = realm_recval(&quot;example&quot;,&quot;state&quot;);
+realm_add(&quot;realm&quot;,&quot;example&quot;,\%realmfields);
+realm_del(&quot;example&quot;);
+realm_rename(&quot;example&quot;,&quot;test-realm&quot;);
+realm_setval(&quot;example&quot;,&quot;rollrec&quot;,&quot;example.rrf&quot;);
+realm_delfield(&quot;example&quot;,&quot;user&quot;);
+@realmfields = realm_fields();
+$count = realmrec_merge(&quot;primary.realm&quot;, &quot;new0.realm&quot;, &quot;new1.realm&quot;);
+@retvals = realmrec_split(&quot;new-realm.rrf&quot;, @list_of_realms);
+$default_file = realm_default();
+realm_write();
+realm_close();
+realm_discard();
+realm_unlock();</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'> DESCRIPCIÓN</a></h1>
+<p class="Pp">El módulo <b>Net::DNS::SEC::Tools::realm</b> manipula el contenido
+    de un archivo <i>realm</i> de DNSSEC-Tools. Los archivos <i>realm</i> describen
+    el estado de un entorno de rollover de zona, tal como lo gestionan los
+    programas de DNSSEC-Tools. Existen interfaces de módulo para buscar registros
+    <i>realm</i>, crear nuevos registros y modificar los existentes.</p>
+<p class="Pp">Un archivo <i>realm</i> está organizado en conjuntos de registros
+    <i>realm</i>. Los <i>realm</i>s describen el estado de un entorno de rollover.
+    Un <i>realm</i> consta de un conjunto de entradas de clave/valor. El siguiente
+    es un ejemplo de un <i>realm</i>:</p>
+<pre>realm &quot;production&quot;
+        state           &quot;active&quot;
+        realmdir        &quot;/usr/etc/dnssec-tools/realms/production&quot;
+        configdir       &quot;/usr/etc/dnssec-tools/configs/production&quot;
+        rollrec         &quot;production.rollrec&quot;
+        administrator   &quot;sysfolks@example.com&quot;
+        display         &quot;1&quot;
+        args            &quot;-loglevel phase -logfile log.prod -display&quot;
+        user            &quot;prodmgr&quot;</pre>
+<p class="Pp">El primer paso para usar este módulo debe ser leer el archivo
+    <i>realm</i>. La interfaz <b><i>realm_read()</i></b> lee el archivo y lo
+    analiza en un formato interno. Los registros del archivo se copian en una tabla
+    hash (para una fácil referencia por las rutinas de <b>realm.pm</b>) y en un
+    array (para preservar el formato y los comentarios).</p>
+<p class="Pp">Después de leer el archivo, su contenido se referencia usando
+    <b><i>realm_fullrec()</i></b> y <i></i><b><i>realm_recval()</i></b>. Las
+    interfaces <i></i><b><i>realm_add()</i></b> y <i></i><b><i>realm_setval()</i></b>
+    se utilizan para modificar el contenido de un registro <i>realm</i>.</p>
+<p class="Pp">Si el archivo <i>realm</i> ha sido modificado, debe ser escrito
+    explícitamente o los cambios no se guardarán. <b><i>realm_write()</i></b>
+    guarda el nuevo contenido en el disco. <i></i><b><i>realm_close()</i></b>
+    guarda el archivo y cierra el manejador de archivo de Perl para el archivo
+    <i>realm</i>. Si un archivo <i>realm</i> ya no se quiere tener abierto, pero
+    el contenido no debe guardarse, <i></i><b><i>realm_discard()</i></b>
+    descarta los datos, cierra el manejador de archivo <b>sin</b> guardar ningún
+    dato modificado.</p>
+<p class="Pp">Al leer un archivo <i>realm</i>, las líneas en blanco consecutivas
+    se colapsan en una sola línea en blanco. A medida que se agregan y eliminan
+    entradas <i>realm</i>, se fusionan archivos y se dividen archivos, es posible
+    que los bloques de líneas en blanco consecutivas crezcan. Esto evitará que estos
+    bloques crezcan excesivamente.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BLOQUEO_DE_REALM'><a class='permalink' href='#BLOQUEO_DE_REALM'> BLOQUEO DE REALM</a></h1>
+<p class="Pp">Este módulo incluye interfaces para sincronizar el acceso a los
+    archivos <i>realm</i>. Esta sincronización es muy simple y se basa en el bloqueo
+    y desbloqueo de un único archivo de bloqueo para todos los archivos
+    <i>realm</i>.</p>
+<p class="Pp">No se requiere el bloqueo de <i>realm</i> antes de usar este
+    módulo, pero se recomienda. El uso esperado de estas facilidades sigue:</p>
+<pre>realm_lock() || die &quot;no se puede bloquear el archivo realm\n&quot;;
+realm_read();
+... realizar otras operaciones de realm ...
+realm_close();
+realm_unlock();</pre>
+<p class="Pp">La sincronización se realiza de esta manera debido a la forma en que
+    se implementa la funcionalidad del módulo, así como a proporcionar flexibilidad
+    a los usuarios del módulo. También proporciona una clara delimitación en el
+    código de los llamadores en cuanto a dónde y cuándo se realiza el bloqueo de
+    <i>realm</i>.</p>
+<p class="Pp">Este método de sincronización tiene la desventaja de tener un
+    único archivo de bloqueo como cuello de botella para todo el acceso a los
+    archivos <i>realm</i>. Sin embargo, reduce la complejidad en las interfaces de
+    bloqueo y disminuye el número potencial de archivos de bloqueo requeridos.</p>
+<p class="Pp">El uso de un único archivo de sincronización puede no ser práctico en
+    instalaciones grandes. Si se encuentra que ese es el caso, entonces esto se
+    revisará.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACES_DE_REALM'><a class='permalink' href='#INTERFACES_DE_REALM'> INTERFACES DE REALM</a></h1>
+<p class="Pp">Las interfaces al módulo <b>realm.pm</b> se dan a continuación.</p>
+<dl class="Bl-tag">
+  <dt id="realm_add(realm_type,realm_name,fields)"><a class="permalink" href="#realm_add(realm_type,realm_name,fields)"><i>realm_add(realm_type,realm_name,fields)</i></a></dt>
+  <dd>Esta rutina agrega un nuevo <i>realm</i> al archivo <i>realm</i> y a la
+      representación interna del contenido del archivo. El <i>realm</i> se agrega
+      tanto a la tabla hash <span class="Li"><i>%realms</i></span> como al array
+      <i></i><span class="Li"><i>@realmlines</i></span>. Las entradas solo se
+      agregan si están definidas para <i>realms</i>.
+    <p class="Pp"><i>realm_type</i> es el tipo del <i>realm</i>. Debe ser
+        &quot;realm&quot;. <i>realm_name</i> es el nombre del <i>realm</i>.
+        <i>fields</i> es una referencia a una tabla hash que contiene los campos
+        <i>realm</i> de nombre/valor. Las claves de la tabla hash siempre se
+        convierten a minúsculas, pero los valores de entrada se dejan tal como se
+        dan.</p>
+    <p class="Pp">Se agrega una línea en blanco después de la última línea del nuevo
+        <i>realm</i>. El archivo <i>realm</i> no se escribe después de
+        <b><i>realm_add()</i></b>, aunque se marca internamente como modificado.</p>
+  </dd>
+  <dt id="realm_del(realm_name)"><a class="permalink" href="#realm_del(realm_name)"><i>realm_del(realm_name)</i></a></dt>
+  <dd>Esta rutina elimina un <i>realm</i> del archivo <i>realm</i> y de la
+      representación interna del contenido del archivo. El <i>realm</i> se elimina
+      tanto de la tabla hash <span class="Li"><i>%realms</i></span> como del array
+      <i></i><span class="Li"><i>@realmlines</i></span>.
+    <p class="Pp">Solo el <i>realm</i> en sí se elimina del archivo. Cualquier
+        comentario asociado y las líneas en blanco que lo rodean se dejan intactos.
+        El archivo <i>realm</i> no se escribe después de <b><i>realm_del()</i></b>,
+        aunque se marca internamente como modificado.</p>
+    <p class="Pp">Los valores de retorno son:</p>
+        <pre> 0   eliminación exitosa del realm
+-1   nombre desconocido
+</pre>
+  </dd>
+  <dt id="realm_close()"><a class="permalink" href="#realm_close()"><b><i>realm_close()</i></b><i></i></a></dt>
+  <dd>Esta interfaz guarda la versión interna del archivo <i>realm</i> (abierto
+      con <b><i>realm_read()</i></b>) y cierra el manejador de archivo.</dd>
+  <dt id="realm_delfield(realm_name,field)"><a class="permalink" href="#realm_delfield(realm_name,field)"><i>realm_delfield(realm_name,field)</i></a></dt>
+  <dd>Elimina el campo dado del <i>realm</i> especificado. El archivo <b>no</b> se
+      escribe después de actualizar el valor, pero se establece el indicador
+      interno de archivo modificado. El valor se guarda tanto en
+      <span class="Li"><i>%realms</i></span> como en
+      <i></i><span class="Li"><i>@realmlines</i></span>.
+    <p class="Pp">Valores de retorno:</p>
+        <pre>0 - fallo (realm no encontrado o realm no
+    contiene el campo)
+1 - éxito
+</pre>
+  </dd>
+  <dt id="realm_discard()"><a class="permalink" href="#realm_discard()"><b><i>realm_discard()</i></b><i></i></a></dt>
+  <dd>Esta rutina elimina un archivo <i>realm</i> del uso por parte de un
+      programa. Los datos almacenados internamente se eliminan y se cierra el
+      manejador de archivo <i>realm</i>. Sin embargo, los datos modificados no se
+      guardan antes de cerrar el manejador de archivo. Por lo tanto, los datos
+      modificados y nuevos se perderán.</dd>
+  <dt id="realm_exists(realm_name)"><a class="permalink" href="#realm_exists(realm_name)"><i>realm_exists(realm_name)</i></a></dt>
+  <dd>Esta rutina devuelve un indicador booleano que indica si existe el
+      <i>realm</i> nombrado en <i>realm_name</i>.</dd>
+  <dt id="realm_fullrec(realm_name)"><a class="permalink" href="#realm_fullrec(realm_name)"><i>realm_fullrec(realm_name)</i></a></dt>
+  <dd><b><i>realm_fullrec()</i></b> devuelve una referencia al <i>realm</i>
+      especificado en <i>realm_name</i>.</dd>
+  <dt id="realm_lock()"><a class="permalink" href="#realm_lock()"><b><i>realm_lock()</i></b><i></i></a></dt>
+  <dd><b><i>realm_lock()</i></b> bloquea el archivo de bloqueo de <i>realm</i>. Se
+      solicita un bloqueo exclusivo, por lo que la ejecución se suspenderá hasta que
+      se</dd>
+</dl>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+    </body>
+</html>
+Si el archivo de sincronización de realm no existe, se creará. Si el proceso no puede crear el archivo de sincronización, se devolverá un error.  
+Se devolverá éxito o fracaso.  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_merge(target_realm_file,"><a class="permalink" href="#realm_merge(target_realm_file,"><i>realm_merge(target_realm_file,  
+realm_file1, ... realm_fileN)</i></a></dt>  
+<dd>Esta interfaz fusiona los archivos de realm especificados. Lee cada archivo y parsea los mismos en un hash de realm y un array de contenidos de archivo. El resultado de la fusión se escribe en el archivo denominado por <i>target_realm_file</i>. Si otro <i>realm</i> está ya abierto, se cierra primero y se guarda antes de abrir el nuevo <i>realm</i>.  
+<dd>Si <i>target_realm_file</i> es un archivo existente de <i>realm</i>, se fusionará su contenido con los otros archivos que se pasan a <b><i>realm_merge()</i></b><i></i>. Si el archivo no existe, <b><i>realm_merge()</i></b><i></i> creará el archivo y fusionará los restantes archivos en él.</dd>  
+<dd>Una vez exitosa, <b><i>realm_read()</i></b><i></i> devuelve el número de <i>realm</i>s leídos del archivo.</dd>  
+<dd>Valores de retorno de error:</dd>  
+<dd>-1 no se especificaron archivos de <i>realm</i> para <b><i>realm_merge()</i></b><i></i>  
+-2 no se pudo crear el archivo de sincronización de <i>realm</i>  
+-3 no se pudo leer el primer archivo de <i>realm</i>  
+-4 se produjo un error al leer los nombres de <i>realm</i>  
+-5 los archivos de <i>realm</i> se duplicaron en la lista de archivos de <i>realm</i></dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_names()"><a class="permalink" href="#realm_names()"><b><i>realm_names()</i></b><i></i></a></dt>  
+<dd>Esta rutina devuelve una lista de los nombres de <i>realm</i> del archivo.</dd>  
+<dt id="realm_read(realm_file)"><a class="permalink" href="#realm_read(realm_file)"><i>realm_read(realm_file)</i></a></dt>  
+<dd>Esta interfaz lee el archivo de <i>realm</i> especificado y lo parsea en un hash de <i>realm</i> y un array de contenidos de archivo. <b><i>realm_read()</i></b><i></i> debe llamarse antes de cualquier llamada a las otras interfaces de <b><i>realm.pm</i></b>. Si otro <i>realm</i> está ya abierto, se cierra primero y se guarda antes de abrir el nuevo <i>realm</i>.  
+<dd><b><i>realm_read()</i></b><i></i> intenta abrir el archivo de <i>realm</i> para lectura y escritura. Si esto falla, intenta abrirlo solo para lectura.</dd>  
+<dd><b><i>realm_read()</i></b><i></i> es una interfaz de frente para <b><i>realm_readfile()</i></b><i></i>. Establece los datos guardados del módulo antes de leer un nuevo archivo de <i>realm</i>. Estas acciones de mantenimiento no se realizan por <b><i>realm_readfile()</i></b><i></i>.</dd>  
+<dd>Una vez exitosa, <b><i>realm_read()</i></b><i></i> devuelve el número de <i>realm</i>s leídos del archivo.</dd>  
+<dd>Valores de retorno de error:</dd>  
+<dd>-1 el archivo de <i>realm</i> especificado no existe  
+-2 no se pudo abrir el archivo de <i>realm</i>  
+-3 nombres duplicados en el archivo de <i>realm</i></dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_readfile(realm_file_handle)"><a class="permalink" href="#realm_readfile(realm_file_handle)"><i>realm_readfile(realm_file_handle)</i></a></dt>  
+<dd>Esta interfaz lee el archivo de desencriptado especificado y lo parsea en un hash de <i>realm</i> y un array de contenidos de archivo. El hash de <i>realm</i> y el array de contenidos de archivo no se limpian antes de añadir datos a ellos.  
+<dd>Una vez exitosa, <b><i>realm_read()</i></b><i></i> devuelve 0.</dd>  
+<dd>Valores de retorno de error:</dd>  
+<dd>-1 nombres duplicados en el archivo de <i>realm</i></dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_rectype(realm_name,rectype)"><a class="permalink" href="#realm_rectype(realm_name,rectype)"><i>realm_rectype(realm_name,rectype)</i></a></dt>  
+<dd>Establece el tipo de registro de <i>realm</i> especificado. El archivo no se escribe después de actualizar el valor, pero se establece el flag interno de modificación. El valor se guarda tanto en <span class="Li"><i>%realms</i></span><i></i> como en <i></i><span class="Li"><i>@realmlines</i></span><i></i>.  
+<dd><i>realm_name</i> es el nombre del <i>realm</i> que se modificará. <i>rectype</i> es el nuevo tipo de <i>realm</i>, que debe ser "realm".  
+<dd>Valores de retorno:</dd>  
+<dd>0 - error (tipo de registro inválido o <i>realm</i> no encontrado)  
+1 - éxito</dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_recval(realm_name,realm_field)"><a class="permalink" href="#realm_recval(realm_name,realm_field)"><i>realm_recval(realm_name,realm_field)</i></a></dt>  
+<dd>Esta rutina devuelve el valor de un campo específico en un <i>realm</i>. <i>realm_name</i> es el nombre del <i>realm</i> a consultar. <i>realm_field</i> es el nombre del campo dentro del <i>realm</i>.  
+<dd>Ejemplo: el archivo de <i>realm</i> actual contiene el siguiente <i>realm</i>:</dd>  
+<dd><pre>realm       "example"  
+    rollrec        "example.rrf"</pre>  
+<dd>La llamada:</dd>  
+<dd><pre>realm_recval("example", "rollrec")</pre>  
+<dd>devolverá el valor "example.rrf".</dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_rename(old_realm_name,new_realm_name)"><a class="permalink" href="#realm_rename(old_realm_name,new_realm_name)"><i>realm_rename(old_realm_name,new_realm_name)</i></a></dt>  
+<dd>Esta rutina cambia el nombre del <i>realm</i> especificado por <i>old_realm_name</i> a <i>new_realm_name</i>. El efecto real es cambiar el nombre en la línea de <i>realm</i> para que sea <i>new_realm_name</i>. El nombre se cambia solo en la versión interna del archivo de <i>realm</i>. El archivo no se cambia, pero debe ser guardado llamando a <b><i>realm_write()</i></b><i></i>, <b><i>realm_save()</i></b><i></i> o <b><i>realm_saveas()</i></b><i></i>.  
+<dd><i>old_realm_name</i> debe ser el nombre de un <i>realm</i> existente. Por el contrario, <i>new_realm_name</i> no debe ser el nombre de un <i>realm</i> existente.</dd>  
+<dd>Valores de retorno:</dd>  
+<dd>0 - éxito  
+-1 - <i>old_realm_name</i> es nulo o vacío  
+-2 - <i>new_realm_name</i> es nulo o vacío  
+-3 - <i>old_realm_name</i> no es un <i>realm</i> existente  
+-4 - <i>new_realm_name</i> ya es un <i>realm</i>  
+-5 - error interno que nunca debería ocurrir</dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_setval(realm_name,field,value)"><a class="permalink" href="#realm_setval(realm_name,field,value)"><i>realm_setval(realm_name,field,value)</i></a></dt>  
+<dd>Establece el valor de un par de nombre/campo en un <i>realm</i> especificado. El archivo no se escribe después de actualizar el valor, pero se establece el flag interno de modificación. El valor se guarda tanto en <span class="Li"><i>%realms</i></span><i></i> como en <i></i><span class="Li"><i>@realmlines</i></span><i></i>.  
+<dd><i>realm_name</i> es el nombre del <i>realm</i> que se modificará. Si el <i>realm</i> especificado no existe, se creará como un <i>realm</i>-tipo <i>realm</i>. <i>field</i> es el campo del <i>realm</i> a modificar. <i>value</i> es el nuevo valor del campo.</dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_split(new_realm_file,realm_names)"><a class="permalink" href="#realm_split(new_realm_file,realm_names)"><i>realm_split(new_realm_file,realm_names)</i></a></dt>  
+<dd>Mueve un conjunto de entradas de <i>realm</i> del archivo de <i>realm</i> actual a un nuevo archivo. Las entradas de <i>realm</i> movidas se eliminan tanto del archivo de <i>realm</i> actual como de los datos internos del módulo que representan ese archivo.  
+<dd>El parámetro <i>new_realm_file</i> contiene el nombre del nuevo archivo de <i>realm</i>. Si este archivo no existe, se creará. Si existe, las entradas de <i>realm</i> se añadirán a este archivo.</dd>  
+<dd><i>realm_names</i> es una lista de entradas de <i>realm</i> que se moverán del archivo de <i>realm</i> actual al archivo denominado por <i>new_realm_file</i>. Si algunos de los nombres dados de <i>realm</i> son inválidos, los nombres válidos se moverán al nuevo archivo y los nombres inválidos se devolverán en una lista al llamante.</dd>  
+<dd>Solo las entradas de <i>realm</i> se moverán al nuevo archivo de <i>realm</i>. Los comentarios asociados se dejarán en el archivo de <i>realm</i> actual.</dd>  
+<dd>Una vez exitosa, se devuelve el número de entradas de <i>realm</i> movidas. Los valores de retorno de error se dan abajo.</dd>  
+<dd>Valores de retorno de error:</dd>  
+<dd>-1 - no hay archivo de <i>realm</i> como destino en <i>new_realm_file</i>  
+-2 - no hay nombres de <i>realm</i> dados en <i>realm_names</i>  
+-3 - ninguno de los nombres de <i>realm</i> dados es un <i>realm</i> existente  
+-4 - no se puede abrir el archivo de <i>realm</i> en <i>new_realm_file</i>  
+-5 - los nombres de <i>realm</i> inválidos fueron especificados en <i>realm_names</i>, seguido por la lista de nombres inválidos.</dd>  
+
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+<dt id="realm_unlock()"><a class="permalink" href="#realm_unlock()"><b><i>realm_unlock()</i></b><i></i></a></dt>  
+<dd><b><i>realm_unlock()</i></b><i></i> desbloquea el archivo de sincronización de <i>realm</i>.</dd>  
+<dt id="realm_write()"><a class="permalink" href="#realm_write()"><b><i>realm_write()</i></b><i></i></a></dt>  
+<dd>Esta interfaz guarda la versión interna del archivo de <i>realm</i> (abierto con <b><i>realm_read()</i></b><i></i>). No cierra el handle del archivo. Como medida de eficiencia, se verifica primero el flag interno de modificación antes de escribir el archivo. Si el programa no ha modificado el contenido del archivo de <i>realm</i>, no se reescribirá.  
+<dd><b><i>realm_write()</i></b><i></i> obtiene un bloque exclusivo del archivo de <i>realm</i> mientras se escribe.</dd>  
+<dd>Se devuelve el éxito o el fracaso.</dd>  
+</dl>  
+</section>  
+<section class="Sh">
+<h1 class="Sh" id='REALM_INTERNAL_INTERFACES'><a class='permalink' href='#REALM_INTERNAL_INTERFACES'>INTERFACES INTERNAS DE REALM</a></h1>  
+<dd>Las interfaces descritas en esta sección están diseñadas para uso interno del módulo <b><i>realm.pm</i></b>. Sin embargo, hay situaciones en las que otras entidades pueden necesitarlas. Úselas con cuidado, ya que su uso incorrecto puede dañar o perder archivos de <i>realm</i>.</dd>  
+<dl class="Bl-tag">  
+<dd><a class="permalink" href="#realm_init()"><b><i>realm_init()</i></b><i></i></a></dd>  
+<dd>Esta rutina inicializa los datos internos de <i>realm</i>. Los cambios pendientes se perderán. Debe leer un nuevo archivo de <i>realm</i> antes de utilizar las interfaces de <b><i>realm.pm</i></b> nuevamente.</dd>  
+<dd><a class="permalink" href="#realm_default()"><b><i>realm_default()</i></b><i></i></a></dd>  
+<dd>Esta rutina devuelve el nombre del archivo de <i>realm</i> por defecto.</dd>  
+</dl>  
+</section>  
+<section class="Sh">
+<h1 class="Sh" id='REALM_DEBUGGING_INTERFACES'><a class='permalink' href='#REALM_DEBUGGING_INTERFACES'>INTERFACES DE DEPURACIÓN DE REALM</a></h1>  
+<dd>Las siguientes interfaces muestran información sobre el archivo de <i>realm</i> actualmente analizado. Están diseñadas para uso en depuración y pruebas, pero pueden ser útiles en otros momentos.</dd>  
+<dl class="Bl-tag">  
+<dd><a class="permalink" href="#realm_dump_hash()"><b><i>realm_dump_hash()</i></b><i></i></a></dd>  
+<dd>Esta rutina imprime el archivo de <i>realm</i> tal como se almacena internamente en un hash. Los <i>realm</i>s se imprimen en orden alfabético, con los campos ordenados alfabéticamente para cada <i>realm</i>. Los nuevos <i>realm</i>s y campos de <i>realm</i> se imprimen junto con los <i>realm</i>s y campos actuales. Los comentarios del archivo de <i>realm</i> no se incluyen en el hash.</dd>  
+<dd><a class="permalink" href="#realm_dump_array()"><b><i>realm_dump_array()</i></b><i></i></a></dd>  
+<dd>Esta rutina imprime el archivo de <i>realm</i> tal como se almacena internamente en un array. Los <i>realm</i>s se imprimen en el orden de g<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">El módulo <code class="Nm">Net::DNS::SEC::Tools::realm</code> proporciona una forma de
+    gestionar la información de dominio de nivel superior (TLD) utilizada por
+    las herramientas DNSSEC-Tools.</p>
+<p class="Pp">Este módulo se utiliza para acceder y manipular los datos de
+    dominio de nivel superior. No debe ser llamado directamente por el usuario;
+    en su lugar, debe ser llamado por las herramientas que proporciona este
+    paquete.</p>
+<p class="Pp">Los datos del dominio de nivel superior se almacenan en un archivo
+    de texto plano que se describe en la página del manual <a href='/man/realm.5.en'>realm(5)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BLOQUEO_DE_DOMINIO'><a class='permalink' href='#BLOQUEO_DE_DOMINIO'>BLOQUEO DE DOMINIO</a></h1>
+<p class="Pp">Si se intenta acceder a los datos del dominio de nivel superior
+    mientras otras herramientas los están modificando, el acceso podría ser
+    bloqueado. Esto se hace para evitar la corrupción de datos. El bloqueo es
+    realizado por el programa <a href='/man/realmchk.8.en'>realmchk(8)</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACES_DE_DOMINIO'><a class='permalink' href='#INTERFACES_DE_DOMINIO'>INTERFACES DE DOMINIO</a></h1>
+<p class="Pp">Las interfaces para el módulo <code class="Nm">Net::DNS::SEC::Tools::realm</code>
+    están disponibles a través de la API de Perl.</p>
+<p class="Pp">Las funciones exportadas incluyen:</p>
+<ul class="Bl-1">
+    <li><code class="fm">realm_read()</code>: lee el archivo de dominio de nivel
+        superior.</li>
+    <li><code class="fm">realm_write()</code>: escribe el archivo de dominio de nivel
+        superior.</li>
+    <li><code class="fm">realm_add_field()</code>: añade un campo a una entrada de
+        dominio de nivel superior existente.</li>
+    <li><code class="fm">realm_new()</code>: añade una nueva entrada de dominio de
+        nivel superior al archivo.</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACES_INTERNAS_DE_DOMINIO'><a class='permalink' href='#INTERFACES_INTERNAS_DE_DOMINIO'>INTERFACES INTERNAS DE DOMINIO</a></h1>
+<p class="Pp">Estas interfaces no deben ser llamadas directamente por el usuario.
+    Se utilizan internamente por otras funciones del módulo.</p>
+<ul class="Bl-1">
+    <li><code class="fm">_realm_lock()</code>: adquiere un bloqueo en el archivo de
+        dominio de nivel superior.</li>
+    <li><code class="fm">_realm_unlock()</code>: libera el bloqueo en el archivo de
+        dominio de nivel superior.</li>
+    <li><code class="fm">_realm_parse()</code>: analiza el contenido del archivo de
+        dominio de nivel superior.</li>
+    <li><code class="fm">_realm_format()</code>: formatea los datos del dominio de
+        nivel superior para escribirlos en el archivo.</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERFACES_DE_DEPURACIÓN_DE_DOMINIO'><a class='permalink' href='#INTERFACES_DE_DEPURACIÓN_DE_DOMINIO'>INTERFACES DE DEPURACIÓN DE DOMINIO</a></h1>
+<p class="Pp">Estas interfaces se pueden utilizar para depurar el módulo
+    <code class="Nm">Net::DNS::SEC::Tools::realm</code>.</p>
+<ul class="Bl-1">
+    <li><code class="fm">realm_debug()</code>: establece el nivel de depuración para
+        el módulo.</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ORDEN_DEL_ARCHIVO'><a class='permalink' href='#ORDEN_DEL_ARCHIVO'>ORDEN DEL ARCHIVO</a></h1>
+<p class="Pp">El archivo de dominio de nivel superior se almacena como un arreglo
+    de objetos de dominio de nivel superior. Cada objeto de dominio de nivel
+    superior es un arreglo de campos. Los campos se añaden al final del arreglo
+    de objetos de dominio de nivel superior. Los campos que se añaden a un objeto
+    de dominio de nivel superior existente se añaden al principio de la entrada
+    del objeto de dominio de nivel superior. Los comentarios y el espacio en
+    blanco vertical se conservan tal como se proporcionan en el archivo de
+    dominio de nivel superior.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DERECHOS_DE_AUTOR'><a class='permalink' href='#DERECHOS_DE_AUTOR'>DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Copyright 2012-2014 SPARTA, Inc. Todos los derechos reservados.
+    Consulte el archivo COPYING incluido con el paquete DNSSEC-Tools para
+    obtener más detalles.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Wayne Morrison, tewok@tislabs.com</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/lsrealm.1.en'>lsrealm(1)</a>, <a href='/man/realmchk.8.en'>realmchk(8)</a>, <a href='/man/realminit.8.en'>realminit(8)</a></p>
+<p class="Pp"><a href='/man/Net::DNS::SEC::Tools::realm.3.en'>Net::DNS::SEC::Tools::realm(3)</a>,</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-08-31</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>

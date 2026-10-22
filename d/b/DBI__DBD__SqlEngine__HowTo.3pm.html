@@ -1,0 +1,419 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBI::DBD::SqlEngine::HowTo(3pm) — Pages manuelles d'Arch
+</title>Arch Linux
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBI__DBD__SqlEngine__HowTo(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+
+        ribuée
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">par les utilisateurs
+DBI::DBD::</td>SqlEngine:
+    <td class="head-vol">:HowTo(3)
+NOM
+DBI::DBD::SqlEngine::</td>HowTo
+    <td class="head-rtitle">- Guide p</td>our créer</tr> un pilote</table> basé sur
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NO</a></h1>M
+<p class="Pp">DBI::DBD::SqlEngine
+RÉSUMÉ
+per</p>ldoc DBI::DBD::SqlEngine::HowT</section>o
+perldoc DBI
+perldoc DBI::DBD
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>perldoc DBI:</a></h1>:
+<pre>DBD::SqlEngine::Developers
+perldoc SQL::Eval
+perldoc DBI::DBD::SqlEngine
+perldoc</pre> DBI::DBD::SqlEngine::HowTo
+perldoc SQL::Statement::Embed
+DESCRIPTION
+Ce documen</section>t fournit un guide étape par étape pour créer un nouveau
+    DBD basé sur « DBI:
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>:DBD::</a></h1>SqlEngine
+<p class="Pp">». Il
+    suppose que vous avez lu attentivement la documentation du DBI
+    <span class="Li">et que vous
+    êtes </span>familier avec DBI::DBD et que vous avez lu et compris DBD::ExampleP.
+Ce document s'adresse aux développeurs expérimentés qui sont
+    vraiment sûrs qu'ils doivent investir du </p>temps
+<p class="Pp">lors de l'écriture d'un
+    nouveau pilote DBI. Écrire un pilote DBI n'est ni un projet de week-end ni
+    une tâche facile pour des codeurs amateurs après le travail. Prévoyez un ou
+    deux homme-mois de temps pour le premier démarrage.
+Ceux qui lisent encore devraient être capables de chanter les règles
+    de « </p>CREATING
+<p class="Pp">A NEW DRIVER » dans DBI::DBD.
+CRÉATION</p>   DE CLASSES DE PILOTES
+Avez-vous un</section>e entrée dans le registre DBD de DBI ?
+<section class="Sh">
+<h1 class="Sh" id='CREATING_DRIVER_CLASSES'><a class='permalink' href='#CREATING_DRIVER_CLASSES'>DBI::DBD::SqlEngine
+    </a></h1>s'attend
+<p class="Pp">à avoir un préfixe unique pour chaque classe de pilote dans la
+  chaîne d'héritage.
+Il est facile d'obtenir un préfixe - envoyez simplement une note </p>à
+<p class="Pp">l'équipe DBI (« GETTING_HELP » dans DBI). Si vous voulez pour une raison
+    quelconque cacher votre travail, regardez Class::Method::Modifiers pour
+    savoir comment envelopper une méthode de préfixe privée autour de
+    l'existant
+« driver_prefix ».
+Pour ce
+  <span class="Li">guide, </span>un pré</p>fixe de
+<p class="Pp">« foo_ » est supposé.
+Exemple   de
+    <span class="Li">squelette
+</span>package </p>DBD:
+<section class="Ss">
+<h2 class="Ss" id='Sample_Skeleton'><a class='permalink' href='#Sample_Skeleton'>:Foo;
+use </a></h2>strict;
+<pre>use warnings;
+use base qw(DBI::DBD::SqlEngine);
+use DBI ();
+our $VERSION = "0.001";
+package DBD::Foo::dr;
+our @ISA = qw(DBI::DBD::SqlEngine::dr);
+our $imp_data_size = 0;
+package DBD::Foo::db;
+our @ISA = qw(DBI::DBD::SqlEngine::db);
+our $imp_data_size = 0;
+package DBD::Foo::st;
+our @ISA = qw(DBI::DBD::SqlEngine::st);
+our $imp_data_size = 0;
+package DBD::Foo::Statement;
+our @ISA = qw(DBI::DBD::SqlEngine::Statement);
+package DBD::Foo::Table;
+our @ISA = qw(DBI::DBD::SqlEngine::Table);
+1;
+Minuscule, n'est-ce pas ? Et tout ce que vous avez maintenant est un
+    DBD nommé </pre>foo
+<p class="Pp">qui sera capable de gérer des tables temporaires, tant que
+    vous utilise</p>z SQL::Statement. Dans les environnements DBI::SQL::Nano, ce
+    DBD ne peu</section>t rien faire.
+Gestion   de vos propres attributs
+Avant de commencer à faire
+<section class="Ss">
+<h2 class="Ss" id='Deal_with_own_attributes'><a class='permalink' href='#Deal_with_own_attributes'>des choses utiles avec </a></h2>notre
+<p class="Pp">pilote DBI,
+    nous devons réfléchir à ce que nous voulons faire et comment nous voulons
+    le faire.
+Avons-nous besoin de réglages </p>accessibles
+<p class="Pp">par les utilisateurs ?
+    Avons-nous besoin d'informations d'état ? Tout cela est géré dans les
+    attributs des descripteurs de base de données (soyez prudent lorsque votre
+    DBD s'exécute « derrière » un proxy DBD::Gofer)</p>.
+<p class="Pp">Comment les attributs arrivent-ils dans le DBD et comment peuvent-ils
+    être récupérés par l'utilisateur ? Bonne question, mais vous devriez le
+    savoir car vous avez lu </p>la
+<p class="Pp"><span class="Li">documentation du DBI.
+« DBI::DBD::</span>SqlEngine::db:: <span class="Li">FETCH »
+    et
+« DBI::DBD::SqlEngine:</span>:db::STORE »
+    s'en occupent pour vous - tout ce qu'ils doivent savoir est quels noms
+    d'attributs sont valides et mutables ou immuables. Dites-leur
+    <span class="Li">en ajoutant
+« </span>init_valid_attributes » à </p>votre
+<pre>classe
+  db :
+sub init_valid_attributes
+{
+    my $dbh = $_[0];
+    $dbh-&gt;SUPER::init_valid_attributes ();
+    $dbh-&gt;{foo_valid_attrs} = {
+        foo_version         =&gt; 1,   # contient la version de ce pilote
+        foo_valid_attrs     =&gt; 1,   # contient les attributs valides des pilotes foo
+        foo_readonly_attrs  =&gt; 1,   # contient les attributs immuables des pilotes foo
+        foo_bar             =&gt; 1,   # contient l'attribut bar
+        foo_baz             =&gt; 1,   # contient l'attribut baz
+        foo_manager         =&gt; 1,   # contient le gestionnaire de l'instance de pilote
+        foo_manager_type    =&gt; 1,   # contient la classe de gestionnaire de l'instance de pilote
+    };
+    $dbh-&gt;{foo_readonly_attrs} = {
+        foo_version         =&gt; 1,   # s'assurer que personne ne modifie la version du pilote
+        foo_valid_attrs     =&gt; 1,   # ne pas permettre d'ajouter d'autres attributs valides ...
+        foo_readonly_attrs  =&gt; 1,   # ... ou de rendre les immuables mutables
+        foo_manager         =&gt; 1,   # le gestionnaire n'est défini qu'en interne
+    };
+    return $dbh;
+}
+Ouho - mais maintenant l'utilisateur ne peut </pre>pas
+<p class="Pp">assigner de nouveaux
+    gestionnaires ? C'est intentionnel, remplacez
+« STORE » pour gérer
+  cela <span class="Li">!
+sub </span>STORE ($$$)
+{
+    </p>my
+<pre>( $dbh, $attrib, $value ) = @_;
+    $dbh-&gt;SUPER::STORE( $attrib, $value );
+    # nous sommes toujours en vie, donc aucune exception n'est levée ...
+    # par DBI::DBD::SqlEngine::db::STORE
+    if ( $attrib eq "foo_manager_type" )
+    {
+        $dbh-&gt;{foo_manager} = $dbh-&gt;{foo_manager_type}-&gt;new();
+        # ... probablement corriger certains états basés sur le nouveau
+        # foo_manager_type - voir DBD::Sys pour un exemple
+    }
+}
+Mais ... mon pilote s'exécute </pre>sans
+<p class="Pp">gestionnaire jusqu'à ce que
+    quelqu'un assigne un
+« foo_manager_type ». Eh bien, non <span class="Li">-
+    il y a deux </span>endroits où vous pouvez initialiser les valeurs par défaut :
+sub init_default_attribute</p>s
+<pre>{
+    my ($dbh, $phase) = @_;
+    $dbh-&gt;SUPER::init_default_attributes($phase);
+    if( 0 == $phase )
+    {
+        # initialiser tous les attributs qui n'ont aucune connaissance des
+        # paramètres de l'utilisateur depuis le DSN ou le hachage d'attributs
+        $dbh-&gt;{foo_manager_type} = "DBD::Foo::Manager";
+    }
+    elsif( 1 == $phase )
+    {
+        # phase d'initialisation avec plus de connaissances depuis le DSN ou le
+        # hachage d'attributs
+        $dbh-&gt;{foo_manager} = $dbh-&gt;{foo_manager_type}-&gt;new();
+    }
+    return $dbh;
+}
+</pre>Jusqu'ici,
+<p class="Pp">nous pouvons empêcher les utilisateurs d'utiliser notre
+    pilote de base de données comme stockage de données pour n'impo</p>rte quoi et
+    n'importe quoi d'autre. Nous ne nous soucions que des choses vraiment
+    importantes pour la paix dans le</section> monde et des attributs similaires. Mais en
+    fait, le pilote ne peut toujours rien faire. Il peut faire moins que rien -
+<section class="Ss">
+<h2 class="Ss" id='User_comfort'><a class='permalink' href='#User_comfort'>entre-temps</a></h2>,
+<p class="Pp"><span class="Li">ce n'est plus une zone </span>de stockage
+    <span class="Li">stupide.</span>
+Confort   de l'utilisateur
+« DBI::DBD::SqlEngine » depuis
+0.05 consolide toutes les métadonnées
+    <span class="Li">persistantes d'une
+  </span>  table dans une seule structure stockée dans
+« $dbh-&gt;{sql_meta} ». Bien que
+    DBI::DBD::SqlEngine ne fournit qu'un accès en </p>lecture
+<p class="Pp">seule à cette
+    structure, les modifications sont toujours autorisées.
+    <span class="Li">Principalement, DBI:</span>:DBD::
+    <span class="Li">SqlEngine fournit l'accès </span>via
+    <span class="Li">les
+    accesseurs
+« </span>new_sql_engine_meta
+    <span class="Li">»,
+« </span>get_sql_engine_meta
+    <span class="Li">»,
+« get_single_table_meta </span>»,
+«
+    <span class="Li">set_single_table_meta »,
+</span>« set_sql_engine_meta » et
+« clear_sql_engine_meta ». Ces méthodes sont <span class="Li">facilement accessibles </span>par les utilisateurs via l'interface
+« $dbh-&gt;func
+    () » fournie par DBI. Eh </p>bien,
+<pre>beaucoup d'utilisateurs ne se sentent pas
+    à l'aise en appelant
+# ne pas exiger d'extension pour les tables </pre>cars
+<p class="Pp">$dbh-&gt;func ("cars", "f_ext", ".csv", "set_sql_engine_meta");
+DBI::DBD::SqlEngine injectera une méthode dans </p>votre
+<pre>pilote pour
+    augmenter le confort de l'utilisateur et permettre :
+# ne pas exiger </pre>d'extension
+<p class="Pp">pour les tables cars
+$dbh-&gt;foo_set_meta </p>("cars",
+<pre>"f_ext", ".csv");
+Mieux, mais ici et là les utilisateurs aiment faire :
+# ne pas exiger </pre>d'extension
+<p class="Pp">pour les tables cars
+$dbh-&gt;{foo_tables}-&gt;{cars}-&gt;{f_ext} = ".csv";
+Cette
+    <span class="Li">interface est fournie lorsque </span>les DBD dérivés définissent ce qui
+    suit dans
+</p>«
+<pre>init_valid_attributes » (revoir
+    « Gestion de vos propres attributs ») :
+sub init_valid_attributes
+{
+    my $dbh = $_[0];
+    $dbh-&gt;SUPER::init_valid_attributes ();
+    $dbh-&gt;{foo_valid_attrs} = {
+        foo_version         =&gt; 1,   # contient la version de ce pilote
+        foo_valid_attrs     =&gt; 1,   # contient les attributs valides des pilotes foo
+        foo_readonly_attrs  =&gt; 1,   # contient les attributs immuables des pilotes foo
+        foo_bar             =&gt; 1,   # contient l'attribut bar
+        foo_baz             =&gt; 1,   # contient l'attribut baz
+        foo_manager         =&gt; 1,   # contient le gestionnaire de l'instance de pilote
+        foo_manager_type    =&gt; 1,   # contient la classe de gestionnaire de l'instance de pilote
+        foo_meta            =&gt; 1,   # contient l'interface publique pour modifier les attributs méta de table
+    };
+    $dbh-&gt;{foo_readonly_attrs} = {
+        foo_version         =&gt; 1,   # asegurar que nadie modifique la versión del controlador
+        foo_valid_attrs     =&gt; 1,   # no permitir que se añadan más atributos válidos ...
+        foo_readonly_attrs  =&gt; 1,   # ... ni que se haga mutable lo inmutable
+        foo_manager         =&gt; 1,   # el gestor se establece solo internamente
+        foo_meta            =&gt; 1,   # asegurar que la interfaz pública para modificar los atributos meta de la tabla sea inmutable
+    };
+    $dbh-&gt;{foo_meta} = "foo_tables";
+    return $dbh;
+</pre>}
+<p class="Pp">Esto proporciona un hash vinculado en
+    <span class="Li">"$dbh-&gt;{foo_tables}" </span>y un hash vinculado
+    para los metadatos de cada tabla en
+    <span class="Li">"$dbh-&gt;{foo_tables}-&gt;{$table_name}".
+    </span>Las modificaciones de los atributos meta de la tabla se realizan usando los métodos
+  de la </p>tabla:
+<pre>sub get_table_meta_attr { ... }
+sub set_table_meta_attr { ... </pre>}
+<p class="Pp">Ambos métodos pueden ajustar el nombre del atributo por razones de
+    compatibilidad, p. ej. cuando versiones anteriores del DBD permitían usar
+    nombres diferentes para el mismo </p>indicador:
+<pre>my %compat_map = (
+                   abc =&gt; 'foo_abc',
+                   xyz =&gt; 'foo_xyz',
+                 );
+__PACKAGE__-&gt;register_compat_map( \%compat_map )</pre>;
+<p class="Pp">Si cualquier modificación del usuario en un atributo meta necesita
+    la reinicialización de la estructura meta (en el caso de
+    <span class="Li">"DBI::DBD::SqlEngine" </span>estos son los
+    atributos <span class="Li">"f_fi</span>le",
+    <span class="Li">"f_d</span>ir",
+    <span class="Li">"f_ext" </span>y
+    <span class="Li">"f_lockfile")</span>, informe a DBI::DBD::SqlEngine
+    </p>haciendo
+<pre>my %reset_on_modify = (
+                        foo_xyz =&gt; "foo_bar",
+                        foo_abc =&gt; "foo_bar",
+                      );
+__PACKAGE__-&gt;register_reset_on_modify( \%reset_on_modify )</pre>;
+<p class="Pp">El siguiente acceso a los metadatos de la tabla forzará
+    a DBI::DBD::SqlEngine a rehacer todo el proceso de inicialización de </p>metadatos.
+<p class="Pp">Cualquier acción adicional que deba realizarse puede manejarse en
+    <span class="Li">"table_meta_attr_changed</span>"</p>:
+<pre>sub table_meta_attr_changed
+{
+    my ($class, $meta, $attrib, $value) = @_;
+    ...
+    $class-&gt;SUPER::table_meta_attr_changed ($meta, $attrib, $value);
+</pre>}
+<p class="Pp">Esto se hace antes de que se establezca el nuevo valor en
+    <span class="Li">$meta, de modo que el man</span>ejador de cambio de atrib</p>uto puede actuar
+    depen</section>diendo del valor antiguo.
+<section class="Ss">
+<h2 class="Ss" id='Dealing_with_Tables'><a class='permalink' href='#Dealing_with_Tables'>Tratando con </a></h2>Tablas
+<p class="Pp">Pongámosle algo de vida - ya es hora de </p>hacerlo.
+<p class="Pp">Este es un buen momento para un pequeño desvío a
+    SQL::Statement::Embed que ayudará a acortar el siguiente párrafo. La
+    documentación en SQL::Statement::Embed sobre la incrustación en sus propios DBD's
+    funciona bastante bien con SQL::Statement y DBI::SQL::</p>Nano.
+<p class="Pp">La segunda mirada debería ir a DBI::DBD::SqlEngine::Developers para obte</p>ner una
+    visión general de la parte del controlador de la API de tabl</section>as. Normalmente no hay mucho que
+    hacer para un controlador sencillo.
+<section class="Ss">
+<h2 class="Ss" id='Testing'><a class='permalink' href='#Testing'>Prueba</a></h2>s
+<p class="Pp">Ahora deberías tener tu primer DBD propio. Fácil, ¿ver</p>dad? Pero
+    ¿funciona bien? Compruébalo escribiendo </section>pruebas y recuerda usar
+    dbd_edit_mm_attribs de DB</section>I::DBD para asegurar la prueba incluso de casos raros.
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTO</a></h1>R
+<p class="Pp">Esta guía está escrita por Jens Rehsack. DBI::DBD::SqlEngine está
+    escrito por Jens Rehsack usando código de DBD::File originalmente escrito por
+    Jochen Wiedmann y Jeff </p>Zucker.
+<p class="Pp">El módulo DBI::DBD::SqlEngine es actualmente mantenido </p>por
+<p class="Pp">H.Merijn Brand &lt; h.m.brand at </p>xs4all.nl &gt; y Jens Rehsack
+   </section> &lt; rehsack at googlemail.com &gt;
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>DERECHOS DE AUTOR Y </a></h1>LICENCIA
+<p class="Pp">Copyright (C) 2010 by H.Merijn Brand &amp; Jens </p>Rehsack
+<p class="Pp">Todos los derechos </p>reservados.
+<p class="Pp">Puedes distribuir y/o modificar libremente este mó</p>dulo bajo los
+    términos de la Licencia Pública</section> General de GNU (GPL) o la Licencia
+    Artística</div>, como se especifica en el archivo README de Perl.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07</td>-13
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/per</a></dd>l-dbi
+        <dt>Vers</dt>ión:
+        <dd>1.</dd>647-2
+        <dt>Upst</dt>ream:
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.</a></dd>org/dist/DBI/
+        <dt>Licen</dt>cias:
+        <dd>GPL, </dd>PerlArtistic
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/perl-dbi/">/listi</a></dd>ng/ext</dl>ra/per</section>l-dbi/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#CREATING_DRIVER_CLASSES">CREANDO CLASES </a></li>DE CONTROLADOR
+        
+            <li><a href="#AUTHOR">A</a></li>UTOR
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">DERECH</a></li>OS DE</ul> AUTOR</nav> Y LI</details>CENCIA
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBI::DBD::SqlEngine::HowTo.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/DBI::DBD::SqlEngine::HowTo.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> de Arch Linux correspondiente.

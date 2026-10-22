@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Wheel::Run(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Wheel__Run(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Wheel::Run(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">POE::Wheel::Run(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">POE::Wheel::Run - ejecutar de forma portable código bloqueante y programas en
+    subprocesos</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>#!/usr/bin/perl
+use warnings;
+use strict;
+use POE qw( Wheel::Run );
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start           =&gt; \&amp;on_start,
+    got_child_stdout =&gt; \&amp;on_child_stdout,
+    got_child_stderr =&gt; \&amp;on_child_stderr,
+    got_child_close  =&gt; \&amp;on_child_close,
+    got_child_signal =&gt; \&amp;on_child_signal,
+  }
+);
+POE::Kernel-&gt;run();
+exit 0;
+sub on_start {
+  my $child = POE::Wheel::Run-&gt;new(
+    Program =&gt; [ &quot;/bin/ls&quot;, &quot;-1&quot;, &quot;/&quot; ],
+    StdoutEvent  =&gt; &quot;got_child_stdout&quot;,
+    StderrEvent  =&gt; &quot;got_child_stderr&quot;,
+    CloseEvent   =&gt; &quot;got_child_close&quot;,
+  );
+  $_[KERNEL]-&gt;sig_child($child-&gt;PID, &quot;got_child_signal&quot;);
+  # Los eventos de la rueda incluyen el ID de la rueda.
+  $_[HEAP]{children_by_wid}{$child-&gt;ID} = $child;
+  # Los eventos de señal incluyen el ID del proceso.
+  $_[HEAP]{children_by_pid}{$child-&gt;PID} = $child;
+  print(
+    &quot;El proceso hijo con PID &quot;, $child-&gt;PID,
+    &quot; se inició como rueda &quot;, $child-&gt;ID, &quot;.\n&quot;
+  );
+}
+# Evento de rueda, incluyendo el ID de la rueda.
+sub on_child_stdout {
+  my ($stdout_line, $wheel_id) = @_[ARG0, ARG1];
+  my $child = $_[HEAP]{children_by_wid}{$wheel_id};
+  print &quot;PID &quot;, $child-&gt;PID, &quot; STDOUT: $stdout_line\n&quot;;
+}
+# Evento de rueda, incluyendo el ID de la rueda.
+sub on_child_stderr {
+  my ($stderr_line, $wheel_id) = @_[ARG0, ARG1];
+  my $child = $_[HEAP]{children_by_wid}{$wheel_id};
+  print &quot;PID &quot;, $child-&gt;PID, &quot; STDERR: $stderr_line\n&quot;;
+}
+# Evento de rueda, incluyendo el ID de la rueda.
+sub on_child_close {
+  my $wheel_id = $_[ARG0];
+  my $child = delete $_[HEAP]{children_by_wid}{$wheel_id};
+  # Puede haber sido recogido por on_child_signal().
+  unless (defined $child) {
+    print &quot;La rueda $wheel_id cerró todas las tuberías.\n&quot;;
+    return;
+  }
+  print &quot;PID &quot;, $child-&gt;PID, &quot; cerró todas las tuberías.\n&quot;;
+  delete $_[HEAP]{children_by_pid}{$child-&gt;PID};
+}
+sub on_child_signal {
+  print &quot;El PID $_[ARG1] salió con estado $_[ARG2].\n&quot;;
+  my $child = delete $_[HEAP]{children_by_pid}{$_[ARG1]};
+  # Puede haber sido recogido por on_child_close().
+  return unless defined $child;
+  delete $_[HEAP]{children_by_wid}{$child-&gt;ID};
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Wheel::Run ejecuta un programa o un bloque de código en un
+    subproceso, creado de la forma habitual: usando <b>fork()</b>. El proceso padre
+    puede intercambiar información con el hijo a través de los manejadores de
+    archivos STDIN, STDOUT y STDERR del hijo.</p>
+<p class="Pp">En el proceso padre, el objeto POE::Wheel::Run representa al
+    subproceso. Tiene métodos como <b>PID()</b> y <b>kill()</b> para consultar
+    y gestionar el subproceso.</p>
+<p class="Pp">El método <b>put()</b> de POE::Wheel::Run envía datos al STDIN
+    del hijo. La salida del hijo en STDOUT y STDERR puede ser despachada como
+    eventos dentro del padre, si se solicita.</p>
+<p class="Pp">POE::Wheel::Run también puede notificar al padre cuando el hijo
+    ha cerrado sus manejadores de archivos de salida. Algunos programas permanecen
+    activos, pero cierran sus manejadores de archivos de salida para indicar que
+    han terminado de escribir.</p>
+<p class="Pp">Una forma más fiable de detectar la salida del hijo es usar el
+    método <b>sig_child()</b> de POE::Kernel para esperar a que se recoja el
+    proceso de la rueda. De hecho, es vital usar <b>sig_child()</b> en todas las
+    circunstancias, ya que sin él, POE no intentará recoger los subprocesos.</p>
+<p class="Pp">No usar <b>sig_child()</b> ha llevado en el pasado a máquinas
+    bloqueadas. Los programas de larga ejecución han filtrado procesos, consumiendo
+    eventualmente todas las ranuras disponibles en la tabla de procesos y requiriendo
+    reinicios.</p>
+<p class="Pp">Dado que las fugas de procesos son tan graves, POE::Kernel verificará
+    esta condición al salir y mostrará un aviso si encuentra que los procesos se
+    están filtrando. Los desarrolladores deben prestar atención a estas advertencias.</p>
+<p class="Pp">POE::Wheel::Run se comunica con el subproceso de forma basada en
+    líneas por defecto. Los programas pueden anular esto especificando algún otro
+    objeto POE::Filter en &quot;StdinFilter&quot;, &quot;StdoutFilter&quot;,
+    &quot;StdioFilter&quot; y/o &quot;StderrFilter&quot;.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS_PÚBLICOS'><a class='permalink' href='#MÉTODOS_PÚBLICOS'>MÉTODOS PÚBLICOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Constructor'><a class='permalink' href='#Constructor'>Constructor</a></h2>
+<p class="Pp">Las subclases de POE::Wheel tienden a realizar mucha configuración para
+    que funcionen de manera más ligera y rápida. El constructor de POE::Wheel::Run
+    no es una excepción.</p>
+<p class="Pp"><i>new</i></p>
+<p class="Pp"><b>new()</b> crea y devuelve un nuevo objeto POE::Wheel::Run. Si
+    tiene éxito, el objeto representará un subproceso con ciertas cualidades
+    especificadas. También proporciona una interfaz orientada a objetos y basada en
+    eventos para interactuar de forma asíncrona con el proceso.</p>
+<p class="Pp">Conduit</p>
+<p class="Pp">Conduit especifica el mecanismo de comunicación entre procesos que
+    se utilizará para pasar datos entre el proceso padre y el hijo. Conduit puede
+    ser uno de &quot;pipe&quot;, &quot;socketpair&quot;, &quot;inet&quot;,
+    &quot;pty&quot; o &quot;pty-pipe&quot;. POE::Wheel::Run utilizará el Conduit
+    más apropiado para el sistema operativo en tiempo de ejecución (no en tiempo de
+    compilación), pero esto varía de un sistema operativo a otro.</p>
+<p class="Pp">Internamente, POE::Wheel::Run pasa el tipo de Conduit a
+    POE::Pipe::OneWay y POE::Pipe::TwoWay. Estas clases auxiliares se crearon para
+    hacer que la IPC sea portable y reutilizable. No requieren el resto de POE.</p>
+<p class="Pp">Tres tipos de Conduit utilizan tuberías o comunicación entre procesos
+    similar a tuberías: &quot;pipe&quot;, &quot;socketpair&quot; y
+    &quot;inet&quot;. Determinan si la IPC interna utiliza <b>pipe()</b>,
+    <b>socketpair()</b> o sockets de Internet. Estos valores de Conduit se pasan a
+    POE::Pipe::OneWay o POE::Pipe::TwoWay internamente.</p>
+<p class="Pp">El tipo de conduit &quot;pty&quot; ejecuta el subproceso bajo un pseudo-tty,
+    que es creado por IO::Pty. Los pseudo-ttys (ptys) convencen a los subprocesos de
+    que están interactuando con terminales en lugar de tuberías. Esto puede usarse para
+    engañar a programas como ssh para que crean que es seguro solicitar una contraseña,
+    aunque las identidades sin contraseña podrían ser mejores para eso.</p>
+<p class="Pp">El conduit &quot;pty&quot; no puede separar STDERR de STDOUT, pero
+    el modo &quot;pty-pipe&quot; sí puede.</p>
+<p class="Pp">El conduit &quot;pty-pipe&quot; utiliza un pty para STDIN y STDOUT
+    y una tubería unidireccional para STDERR. La tubería adicional mantiene la salida
+    de STDERR separada de STDOUT.</p>
+<p class="Pp">El módulo IO::Pty solo se carga si se utiliza &quot;pty&quot; o
+    &quot;pty-pipe&quot;. No es una dependencia hasta que realmente se necesita.</p>
+<p class="Pp">Winsize</p>
+<p class="Pp">Winsize establece el tamaño de la terminal del subproceso. Su valor debe
+    ser un arrayref con cuatro elementos. Los primeros dos elementos deben ser el
+    número de líneas y columnas para la ventana del terminal del hijo, respectivamente.
+    El último par de elementos describe las dimensiones X e Y del terminal en píxeles.
+    Si falta el último par, se calcularán a partir de las líneas y columnas usando un
+    tamaño de celda de 9x16.</p>
+<pre>$_[HEAP]{child} = POE::Wheel::Run-&gt;new(
+  # ... entre otras cosas ...
+  Winsize =&gt; [ 25, 80, 720, 400 ],
+);</pre>
+<p class="Pp">Winsize solo es válido para conduits que utilizan pseudo-ttys:
+    &quot;pty&quot; y &quot;pty-pipe&quot;. Otros conduits no simulan terminales,
+    por lo que no tienen tamaños de ventana.</p>
+<p class="Pp">Winsize por defecto es el tamaño de la ventana del proceso padre, asumiendo
+    que el proceso padre tiene un terminal para consultar.</p>
+<p class="Pp">CloseOnCall</p>
+<p class="Pp">CloseOnCall, cuando es verdadero, activa la emulación de cerrar al ejecutar
+    para subprocesos que en realidad no llaman a <b>exec()</b>. Estos serían casos
+    en los que el hijo está ejecutando un bloque de código en lugar de ejecutar un
+    programa externo. Por ejemplo:</p>
+<pre>$_[HEAP]{child} = POE::Wheel::Run-&gt;new(
+  # ... entre otras cosas ...
+  CloseOnCall =&gt; 1,
+  Program =&gt; \&amp;some_function,
+);</pre>
+<p class="Pp">CloseOnCall está desactivado (0) por defecto.</p>
+<p class="Pp">CloseOnCall funciona cerrando todos los descriptores de archivo
+    mayores que $^F en el proceso hijo antes de llamar al código de la aplicación.
+    Para más detalles, por favor consulte la discusión sobre $^F en perlvar.</p>
+<p class="Pp">StdioDriver</p>
+<p class="Pp">StdioDriver especifica un único objeto POE::Driver que se utilizará tanto
+    para STDIN como para STDOUT. Es equivalente a establecer &quot;StdinDriver&quot;
+    y &quot;StdoutDriver&quot; al mismo objeto POE::Driver.</p>
+<p class="Pp">POE::Wheel::Run creará y usará un controlador POE::Driver::SysRW si no
+    se especifica uno. Este es, con mucho, el caso de uso más común, por lo que es
+    el valor predeterminado.</p>
+<p class="Pp">StdinDriver</p>
+<p class="Pp"><span class="Li">&quot;StdinDriver&quot;</span> establece el POE::Driver
+    utilizado para escribir en el conducto IPC de STDIN del proceso hijo. Casi nunca
+    se necesita. Omitirlo permitirá a POE::Wheel::Run usar un objeto POE::Driver::SysRW
+    creado internamente.</p>
+<p class="Pp">StdoutDriver</p>
+<p class="Pp"><span class="Li">&quot;StdoutDriver&quot;</span> establece el objeto
+    POE::Driver que se utilizará para leer desde el STDOUT del proceso hijo</p>
+</section>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+    </body>
+</html>
+< பகுதிக>
+<apartado>
+<nombre> conduit </nombre>
+<p>
+Casi nunca es necesario. Si se omite, POE::Wheel::Run creará y utilizará internamente un objeto POE::Driver::SysRW.
+</p>
+</apartado>
+<apartado>
+<nombre> StderrDriver </nombre>
+<p>
+"StderrDriver" establece el controlador que se utilizará para leer desde el conducto STDERR del proceso hijo. Al igual que con "StdoutDriver", casi siempre es preferible dejar que POE::Wheel::Run instancie su propio controlador.
+</p>
+</apartado>
+<apartado>
+<nombre> CloseEvent </nombre>
+<p>
+CloseEvent contiene el nombre de un evento que la rueda emitirá cuando el proceso hijo cierre su último conducto de salida abierto. Esta es una notificación consistente de que el hijo ha terminado de enviar salida. Tenga en cuenta que no señala cuándo ha finalizado el proceso hijo. Los programas deben utilizar <b>sig_child()</b> para detectarlo.
+</p>
+<p>
+Si bien es imposible que ErrorEvent o StdoutEvent ocurran después de CloseEvent, no hay tal garantía para CHLD, que puede ocurrir antes o después de CloseEvent.
+</p>
+<p>
+Además de los parámetros habituales de POE, cada CloseEvent viene con uno propio:
+</p>
+<p>
+<span class="Li>"ARG0"</span> contiene el ID único de la rueda. Esto se puede utilizar para mantener separados varios procesos hijos cuando son gestionados por la misma sesión.
+</p>
+<p>
+Un manejador de eventos de cierre de ejemplo:
+</p>
+<pre>sub close_state {
+  my ($heap, $wheel_id) = @_[HEAP, ARG0];
+  my $child = delete $heap-&gt;{child}-&gt;{$wheel_id};
+  print &quot;Child &quot;, $child-&gt;PID, &quot; has finished.\n&quot;;
+}</pre>
+</apartado>
+<apartado>
+<nombre> ErrorEvent </nombre>
+<p>
+ErrorEvent contiene el nombre de un evento que se emitirá si algo falla. Es opcional; si se omite, la rueda no notificará a su sesión si ocurre algún error. Sin embargo, POE::Wheel::Run-&gt;<b>new()</b> seguirá lanzando una excepción si falla.
+</p>
+<p>
+<span class="Li>"ARG0"</span> contiene el nombre de la operación que falló. Puede ser 'read', 'write', 'fork', 'exec' o el nombre de alguna otra función o tarea. Los valores reales aún no están definidos. Probablemente no se corresponderán tan claramente con los nombres de las funciones integradas de Perl.
+</p>
+<p>
+<span class="Li>"ARG1"</span> y <span class="Li>"ARG2"</span> contienen valores numéricos y de cadena para <span class="Li>$!</span>, respectivamente. <span class="Li>"$!"</span> será igual a <span class="Li>""</span> para el error de lectura 0 (el proceso hijo cerró el manejador de archivos).
+</p>
+<p>
+<span class="Li>"ARG3"</span> contiene el ID único de la rueda.
+</p>
+<p>
+<span class="Li>"ARG4"</span> contiene el nombre del archivo del hijo que tiene el error. Puede ser "STDIN", "STDOUT" o "STDERR". El sentido de <span class="Li>"ARG0"</span> será lo opuesto a lo que normalmente esperaría para estos manejadores. Por ejemplo, POE::Wheel::Run informará un error de "lectura" en "STDOUT" porque intentó leer datos del STDOUT del hijo.
+</p>
+<p>
+Un manejador de eventos de error de ejemplo:
+</p>
+<pre>sub error_state {
+  my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
+  $errstr = &quot;remote end closed&quot; if $operation eq &quot;read&quot; and !$errnum;
+  warn &quot;Wheel $wheel_id generated $operation error $errnum: $errstr\n&quot;;
+}</pre>
+<p>
+Tenga en cuenta que a menos que desactive la tubería de señales, también podría ver un error "EIO" (5) durante las operaciones de lectura.
+</p>
+</apartado>
+<apartado>
+<nombre> StdinEvent </nombre>
+<p>
+StdinEvent contiene el nombre de un evento que Wheel::Run emite cada vez que todo lo que se ha puesto en cola con su método <b>put()</b> se ha enviado al manejador STDIN del hijo. Es el equivalente al FlushedEvent de POE::Wheel::ReadWrite.
+</p>
+<p>
+StdinEvent viene con solo un parámetro adicional: <span class="Li>"ARG0"</span> contiene el ID único de la rueda que envió el evento.
+</p>
+</apartado>
+<apartado>
+<nombre> StdoutEvent </nombre>
+<p>
+StdoutEvent contiene el nombre de un evento que Wheel::Run emite cada vez que el proceso hijo escribe algo en su manejador de archivos STDOUT. En otras palabras, todo lo que el hijo imprime en STDOUT, el padre recibe un StdoutEvent, siempre que el hijo imprima algo compatible con el StdoutFilter del padre.
+</p>
+<p>
+StdoutEvent viene con dos parámetros. <span class="Li>"ARG0"</span> contiene la información que el hijo escribió en STDOUT. <span class="Li>"ARG1"</span> contiene el ID único de la rueda que leyó la salida.
+</p>
+<pre>sub stdout_state {
+  my ($heap, $input, $wheel_id) = @_[HEAP, ARG0, ARG1];
+  print &quot;Child process in wheel $wheel_id wrote to STDOUT: $input\n&quot;;
+}</pre>
+</apartado>
+<apartado>
+<nombre> StderrEvent </nombre>
+<p>
+StderrEvent se comporta exactamente como StdoutEvent, excepto por los datos que el proceso hijo escribe en su manejador de archivos STDERR.
+</p>
+<p>
+StderrEvent viene con dos parámetros. <span class="Li>"ARG0"</span> contiene la información que el hijo escribió en STDERR. <span class="Li>"ARG1"</span> contiene el ID único de la rueda que leyó la salida.
+</p>
+<pre>sub stderr_state {
+  my ($heap, $input, $wheel_id) = @_[HEAP, ARG0, ARG1];
+  print &quot;Child process in wheel $wheel_id wrote to STDERR: $input\n&quot;;
+}</pre>
+</apartado>
+<apartado>
+<nombre> RedirectStdout </nombre>
+<p>
+Este es un manejador de archivos o un nombre de archivo al que se redirigirá la salida estándar. Es un error utilizar esta opción junto con StdoutEvent. Esto es útil en caso de que su programa necesite tener E/S estándar, pero en realidad no le importa que su contenido sea visible para el padre.
+</p>
+</apartado>
+<apartado>
+<nombre> RedirectStderr </nombre>
+<p>
+Al igual que RedirectStdout, pero con el error estándar. Es un error utilizar esto junto con StderrEvent.
+</p>
+</apartado>
+<apartado>
+<nombre> RedirectStdin </nombre>
+<p>
+Este es un manejador de archivos o un nombre de archivo que el proceso hijo utilizará como entrada estándar. Es un error utilizar esta opción con StdinEvent.
+</p>
+</apartado>
+<apartado>
+<nombre> RedirectOutput </nombre>
+<p>
+Esto redirigirá stderr y stdout al mismo manejador de archivos. Es equivalente a hacer algo como
+</p>
+<pre>$ something &gt; /path/to/output 2&gt;&amp;1</pre>
+<p>
+en el shell de bourne.
+</p>
+</apartado>
+<apartado>
+<nombre> NoStdin </nombre>
+<p>
+Mientras que los manejadores de archivos de salida se cerrarán si no hay eventos que recibir en ellos, stdin está abierto por defecto, ya que la falta de un manejador de eventos no significa necesariamente que no haya un flujo de entrada deseado. Esta opción deshabilita explícitamente la creación de un conducto de entrada estándar IPC.
+</p>
+</apartado>
+<apartado>
+<nombre> StdioFilter </nombre>
+<p>
+StdioFilter, si se utiliza, debe contener una instancia de una subclase de POE::Filter. Este filtro describe cómo el padre formateará los datos de <b>put()</b> para STDIN del hijo y cómo el padre analizará STDOUT del hijo.
+</p>
+<p>
+Si STDERR también se va a analizar, entonces también se necesitará un StderrFilter separado.
+</p>
+<p>
+StdioFilter tiene como valor predeterminado una instancia de POE::Filter::Line, pero solo si no se especifican ni StdinFilter ni StdoutFilter. Si se utiliza StdinFilter o StdoutFilter, entonces StdioFilter es ilegal.
+</p>
+</apartado>
+<apartado>
+<nombre> StdinFilter </nombre>
+<p>
+StdinFilter se puede utilizar para especificar un serializador STDIN particular que sea diferente del analizador STDOUT. Si se especifica, entra en conflicto con StdioFilter. El valor de StdinFilter, si se especifica, debe ser una instancia de una subclase de POE::Filter.
+</p>
+<p>
+Sin un StdinEvent, StdinFilter es ilegal.
+</p>
+</apartado>
+<apartado>
+<nombre> StdoutFilter </nombre>
+<p>
+StdoutFilter se puede utilizar para especificar un analizador STDOUT particular que sea diferente del serializador STDIN. Si se especifica, entra en conflicto con StdioFilter. El valor de StdoutFilter, si se especifica, debe ser una instancia de una subclase de POE::Filter.
+</p>
+<p>
+Sin un StdoutEvent, StdoutFilter es ilegal.
+</p>
+</apartado>
+<apartado>
+<nombre> StderrFilter </nombre>
+<p>
+StderrFilter se puede utilizar para especificar un filtro para la salida STDERR de un proceso hijo. Si se omite, POE::Wheel::Run creará y utilizará su propia instancia de POE::Filter::Line, pero solo si se especifica un StderrEvent.
+</p>
+<p>
+Sin un StderrEvent, StderrFilter es ilegal.
+</p>
+</apartado>
+<apartado>
+<nombre> Group </nombre>
+<p>
+Group contiene un ID de grupo numérico dentro del cual debe ejecutarse el proceso hijo. Por defecto, el proceso hijo se ejecutará en el mismo grupo que el padre.
+</p>
+<p>
+Group no es totalmente portátil. Puede que no funcione en sistemas que no tengan el concepto de grupos de usuarios. Además, el proceso padre puede necesitar ejecutarse con privilegios elevados para que el hijo pueda cambiar de grupo.
+</p>
+</apartado>
+<apartado>
+<nombre> User </nombre>
+<p>
+User contiene un ID de usuario numérico que debe ser el propietario del proceso hijo. Por defecto, el proceso hijo se ejecutará como el mismo usuario que el padre.
+</p>
+<p>
+User no es totalmente portátil. Puede que no funcione en sistemas que no tengan el concepto de usuarios. Además, el proceso padre puede necesitar ejecutarse con privilegios elevados para que el hijo pueda cambiar de usuario.
+</p>
+</apartado>
+<apartado>
+<nombre> NoSetSid </nombre>
+<p>
+Cuando es verdadero, NoSetSid deshabilita <b>setsid()</b> en el proceso hijo. Por defecto, se llama a <b>setsid()</b> para que el proceso hijo se ejecute en una sesión UNIX separada.
+</p>
+<p>
+Esta opción está obsoleta. Como IO::Pty utiliza <span class="Li>setsid()</span>, este módulo no tiene control sobre si se invoca o no.
+</p>
+</apartado>
+<apartado>
+<nombre> NoSetPgrp </nombre>
+<p>
+Cuando es verdadero, NoSetPgrp deshabilita <b>setprgp()</b> en el proceso hijo. Por defecto, el proceso hijo llama a <b>setpgrp()</b> para cambiar su grupo de procesos, si el sistema operativo lo admite.
+</p>
+<p>
+Se utiliza <b>setsid()</b> en lugar de <b>setpgrp()</b> si Conduit es pty o pty-pipe. Ver "NoSetSid".
+</p>
+</apartado>
+<apartado>
+<nombre> Priority </nombre>
+<p>
+Priority ajusta la "niceness" o el nivel de prioridad del proceso hijo, dependiendo de cuál (si alguno) sea compatible con el sistema operativo subyacente. Priority contiene un desplazamiento numérico que se agregará a la prioridad del padre para determinar la del hijo.
+</p>
+<p>
+El desplazamiento de prioridad puede ser negativo, lo que en UNIX representa una prioridad mayor. Sin embargo, UNIX requiere privilegios elevados para aumentar la prioridad de un proceso.
+</p>
+</apartado>
+<apartado>
+<nombre> Program </nombre>
+<p>
+Program especifica el programa a <b>exec()</b> o el bloque de código a ejecutar en el proceso hijo. El tipo de Program es significativo.
+</p>
+<p>
+Si Program contiene un escalar, su valor se ejecutará como exec($program). Los metacaracteres del shell son significativos, según las semánticas de exec(SCALAR).
+</p>
+<p>
+Si Program contiene una referencia a matriz, se ejecutará como exec(@$program). Según exec(ARRAY), los metacaracteres del shell no serán significativos.
+</p>
+<p>
+Si Program contiene una referencia de código, ese código se llamará en el proceso hijo. Este modo permite a POE::Wheel::Run ejecutar código interno de larga duración de forma asíncrona, mientras que los modos habituales ejecutan programas externos. El proceso hijo saldrá después de que ese código haya finalizado, de manera que se evite la ejecución de bloques DESTROY y END. Consulte "Efectos secundarios de la ejecución de coderef" para obtener más detalles.
+</p>
+<p>
+perlfunc tiene más información sobre <b>exec()</b> y las diferentes formas de llamarlo.
+</p>
+<p>
+Evite llamar explícitamente a <b>exit()</b> al ejecutar una subrutina. El proceso hijo hereda todos los objetos del padre, incluidos aquellos que pueden realizar efectos secundarios. POE::Wheel::Run toma medidas especiales para evitar destructores de objetos y bloques END en el proceso hijo, pero llamar a <b>exit()</b> los activará.
+</p>
+</apartado>
+<apartado>
+<nombre> ProgramArgs </nombre>
+<p>
+Si se especifica, ProgramArgs debe referirse a una lista de parámetros para el programa que se está ejecutando.
+</p>
+<pre>my @parameters = qw(foo bar baz);  # se pasará a Program
+ProgramArgs =&gt; \@parameters;</pre>
+</apartado>
+</apartado>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='event_EVENT_TYPE_=&amp;gt;_EVENT_NAME,_...'>event   EVENT_TYPE =&gt; EVENT_NAME, ...</h2>
+<p class="Pp"><b>event()</b> permite a los programas cambiar los eventos que
+    Wheel::Run emite cuando ocurren ciertas actividades. EVENT_TYPE puede ser uno
+    de los parámetros de evento descritos en el constructor de POE::Wheel::Run.</p>
+<p class="Pp">Este ejemplo cambia los eventos que
+    <span class="Li">$wheel</span> emite para el vaciado de STDIN y la actividad
+    de STDOUT:</p>
+<pre>$wheel-&gt;event(
+  StdinEvent  =&gt; 'new-stdin-event',
+  StdoutEvent =&gt; 'new-stdout-event',
+);</pre>
+<p class="Pp">Los EVENT_NAME indefinidos deshabilitan los eventos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='put_RECORDS'>put   RECORDS</h2>
+<p class="Pp"><b>put()</b> pone en cola una lista de RECORDS que se enviarán al
+    descriptor de archivo STDIN del proceso hijo. Estos registros se serializarán
+    primero según el StdinFilter de la rueda. Los RECORDS serializados se enviarán
+    de forma asíncrona una vez que el manejador de eventos actual regrese.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_stdin_filter'>get_stdin_filter</h2>
+<p class="Pp"><b>get_stind_filter()</b> devuelve el objeto POE::Filter que se
+    está utilizando actualmente para serializar los registros de <b>put()</b> para
+    el STDIN del proceso hijo. El objeto devuelto puede usarse de acuerdo con su
+    propia interfaz.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_stdout_filter'>get_stdout_filter</h2>
+<p class="Pp"><b>get_stdout_filter()</b> devuelve el objeto POE::Filter que se
+    está utilizando actualmente para analizar lo que el proceso hijo escribe en
+    STDOUT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_stderr_filter'>get_stderr_filter</h2>
+<p class="Pp"><b>get_stderr_filter()</b> devuelve el objeto POE::Filter que se
+    está utilizando actualmente para analizar lo que el proceso hijo escribe en
+    STDERR.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='set_stdio_filter_FILTER_OBJECT'>set_stdio_filter   FILTER_OBJECT</h2>
+<p class="Pp">Establece StdinFilter y StdoutFilter en el mismo nuevo FILTER_OBJECT.
+    Los datos de STDOUT no analizados se analizarán más tarde con el nuevo
+    FILTER_OBJECT. Sin embargo, los datos que ya se enviaron con <b>put()</b>
+    seguirán serializados por el filtro antiguo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='set_stdin_filter_FILTER_OBJECT'>set_stdin_filter   FILTER_OBJECT</h2>
+<p class="Pp">Establece StdinFilter en un nuevo FILTER_OBJECT. Los datos que ya se
+    enviaron con <b>put()</b> seguirán serializados por el filtro antiguo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='set_stdout_filter_FILTER_OBJECT'>set_stdout_filter   FILTER_OBJECT</h2>
+<p class="Pp">Establece StdoutFilter en un nuevo FILTER_OBJECT. Los datos de STDOUT
+    no analizados se analizarán más tarde con el nuevo FILTER_OBJECT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='set_stderr_filter_FILTER_OBJECT'>set_stderr_filter   FILTER_OBJECT</h2>
+<p class="Pp">Establece StderrFilter en un nuevo FILTER_OBJECT. Los datos de STDERR
+    no analizados se analizarán más tarde con el nuevo FILTER_OBJECT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pause_stdout'>pause_stdout</h2>
+<p class="Pp">Pausa la lectura de STDOUT del proceso hijo. El proceso hijo puede
+    bloquearse si el conducto de comunicación entre procesos (IPC) de STDOUT se
+    llena. La lectura puede reanudarse con <b>resume_stdout()</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pause_stderr'>pause_stderr</h2>
+<p class="Pp">Pausa la lectura de STDERR del proceso hijo. El proceso hijo puede
+    bloquearse si el conducto de comunicación entre procesos (IPC) de STDERR se
+    llena. La lectura puede reanudarse con <b>resume_stderr()</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='resume_stdout'>resume_stdout</h2>
+<p class="Pp">Reanuda la lectura del descriptor de archivo STDOUT del proceso hijo.
+    Esto solo tiene sentido si se ha llamado a <b>pause_stdout()</b> y sigue
+    vigente.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='resume_stderr'>resume_stderr</h2>
+<p class="Pp">Reanuda la lectura del descriptor de archivo STDERR del proceso hijo.
+    Esto solo tiene sentido si se ha llamado a <b>pause_stderr()</b> y sigue
+    vigente.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='shutdown_stdin'>shutdown_stdin</h2>
+<p class="Pp"><b>shutdown_stdin()</b> cierra el STDIN del proceso hijo y detiene la
+    rueda de informar StdinEvent. Es extremadamente útil para ejecutar utilidades
+    que esperan recibir EOF en STDIN antes de responder.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ID'>ID</h2>
+<p class="Pp"><b>ID()</b> devuelve el ID único de la rueda. Cada evento generado
+    por un objeto POE::Wheel::Run incluye un ID de rueda para que pueda ser
+    emparejado con la rueda que lo emitió. Esto permite que una sola sesión
+    gestione varias ruedas sin confundirse sobre cuál generó qué evento.</p>
+<p class="Pp"><b>ID()</b> no es lo mismo que <b>PID()</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='PID'>PID</h2>
+<p class="Pp"><b>PID()</b> devuelve el ID del proceso para el hijo representado por
+    el objeto POE::Wheel::Run. A menudo se utiliza como parámetro para
+    <b>sig_child()</b>.</p>
+<p class="Pp"><b>PID()</b> no es lo mismo que <b>ID()</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='kill_SIGNAL'>kill   SIGNAL</h2>
+<p class="Pp">El método <b>kill()</b> de POE::Wheel::Run envía una SEÑAL al proceso
+    hijo que representa el objeto. <b>kill()</b> se utiliza a menudo para forzar
+    la terminación de un programa reacio. SIGNAL es uno de los nombres de señales
+    del sistema operativo presentes en <span class="Li">%SIG</span>.</p>
+<p class="Pp"><b>kill()</b> devuelve el número de procesos señalados con éxito:
+    1 en caso de éxito o 0 en caso de fallo, ya que el objeto POE::Wheel::Run
+    solo afecta a un proceso como máximo.</p>
+<p class="Pp"><b>kill()</b> envía SIGTERM si SIGNAL es indefinido u omitido.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_driver_out_messages'>get_driver_out_messages</h2>
+<p class="Pp"><b>get_driver_out_messages()</b> devuelve el número de registros
+    de <b>put()</b> que quedan total o parcialmente en la cola de salida POE::Driver
+    de POE::Wheel::Run. A menudo se utiliza para saber si la rueda tiene más
+    entrada para el proceso hijo.</p>
+<p class="Pp">En la mayoría de los casos, StdinEvent se puede utilizar para
+    activar la actividad cuando todos los datos se han enviado al proceso hijo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='get_driver_out_octets'>get_driver_out_octets</h2>
+<p class="Pp"><b>get_driver_out_octets()</b> devuelve el número de octetos serializados
+    que quedan en la cola de salida POE::Driver de POE::Wheel::Run. A menudo se
+    utiliza para saber si la rueda tiene más entrada para el proceso hijo.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='TIPS_AND_TRICKS'>CONSEJOS   Y TRUCOS</h1>
+<section class="Ss">
+<h2 class="Ss" id='MSWin32_Support'>Soporte   MSWin32</h2>
+<p class="Pp">En el pasado, POE::Wheel::Run no admitía MSWin32 y los usuarios tenían
+    que usar soluciones personalizadas. Luego llegó Chris Williams ( BINGOS ) y
+    salvó el día con su módulo POE::Wheel::Run::Win32. Después de algunas pruebas,
+    se decidió fusionar el código de win32 en POE::Wheel::Run. ¡Todos estaban
+    contentos!</p>
+<p class="Pp">Sin embargo, después de algunas investigaciones, Apocalypse ( APOCAL )
+    descubrió que en algunas situaciones todavía no se comportaba correctamente. La
+    causa raíz fue que la ruta de código win32 en POE::Wheel::Run no se cerraba
+    limpiamente. ¡Esto significa que los bloques DESTROY y END se ejecutaron!
+    Después de hablar con más gente, la solución no fue bonita.</p>
+<p class="Pp">El problema es que no existe un equivalente de
+    <b>POSIX::_exit()</b> para MSWin32. ¡Esperemos que en una futura versión de
+    Perl esto se pueda solucionar! Mientras tanto, POE::Wheel::Run utilizará
+    <b>CORE::kill()</b> para terminar el proceso hijo. Sin embargo, esto tiene una
+    advertencia: filtrará alrededor de 1KB por exec. El código ha sido mejorado
+    para reducir la probabilidad de que esto ocurra.</p>
+<p class="Pp">A partir de ahora, la forma más fiable de desencadenar esto es ejecutar
+    un binario inválido. La definición de "binario inválido" depende de diferentes
+    cosas, pero lo que significa es que Win32::Job-&gt;<b>spawn()</b> no pudo ejecutarse.
+    Esto obligará a POE::Wheel::Run a usar la solución alternativa para salir del
+    proceso hijo. Si esto sucede, se imprimirá una gran advertencia en STDERR del
+    proceso hijo y el proceso padre la recibirá.</p>
+<p class="Pp">Si eres un hacker de Perl para MSWin32, ¡POR FAVOR, ayúdanos en esta
+    situación! Lee el bug #56417 de rt.cpan.org y habla con nosotros/p5p para ver
+    dónde puedes contribuir.</p>
+<p class="Pp">¡Gracias de nuevo por tu paciencia mientras continuamos mejorando
+    POE::Wheel::Run en MSWin32!</p>
+<p class="Pp"><b><i>kill()</i></b><i> y ClosedEvent en Windows</i></p>
+<p class="Pp">Windows a menudo no informa EOF en las tuberías cuando se matan los
+    subprocesos. La solución es capturar la señal en el subproceso y salir
+    normalmente:</p>
+<pre>my $child = POE::Wheel::Run-&gt;new(
+  Program =&gt; sub {
+    $SIG{INT} = sub { exit };
+    ...;
+  },
+  ...,
+);</pre>
+<p class="Pp">Asegúrate de <b>kill()</b> el subproceso utilizando la misma señal
+    que captura y con la que sale. Recuerda que no todas las señales pueden ser
+    capturadas por código de usuario.</p>
+<pre>$child-&gt;kill(&quot;INT&quot;);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Execution_Environment'>Entorno   de Ejecución</h2>
+<p class="Pp">Es común limpiar el entorno de un proceso hijo, de modo que solo
+    existan los valores necesarios y seguros. Esto equivale a borrar el contenido
+    de <span class="Li">%ENV</span> y repoblarlo.</p>
+<p class="Pp">La limpieza del entorno es fácil cuando el proceso hijo está ejecutando
+    una subrutina, pero no es tan fácil —o al menos no tan intuitiva— cuando se
+    ejecutan programas externos.</p>
+<p class="Pp">La forma en que lo hacemos es ejecutar una pequeña subrutina en el
+    proceso hijo que realiza la llamada <b>exec()</b> por nosotros.</p>
+<pre>Program =&gt; \&amp;exec_with_scrubbed_env,
+sub exec_with_scrubbed_env {
+  delete @ENV{keys @ENV};
+  $ENV{PATH} = &quot;/bin&quot;;
+  exec(@program_and_args);
+}</pre>
+<p class="Pp">Eso elimina todo del entorno y establece una ruta PATH simple y
+    segura antes de ejecutar un programa.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Coderef_Execution_Side_Effects'>Efectos   Colaterales de la Ejecución de Coderef</h2>
+<p class="Pp">El proceso hijo se crea mediante <b>fork()</b>, que duplica el proceso
+    padre, incluyendo una copia de POE::Kernel, todas las instancias de Sesión
+    en ejecución, eventos en la cola, observadores, descriptores de archivo
+    abiertos, etc.</p>
+<p class="Pp">Al ejecutar un programa externo, la llamada <b>exec()</b> de UNIX
+    reemplaza inmediatamente la copia del padre con un programa completamente
+    nuevo.</p>
+<p class="Pp">Sin embargo, al ejecutar coderefs internos, debemos preservar el
+    código y cualquier memoria a la que pueda hacer referencia. Esto conduce a
+    algunos efectos colaterales potenciales.</p>
+<p class="Pp"><i>Los bloques DESTROY y END se ejecutan dos veces</i></p>
+<p class="Pp">Los objetos que se crearon</p><!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <title>POE::Wheel::Run(3pm)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/manual.css">
+</head>
+<body>
+    
+    <main class="container">
+        <article class="row">
+            <div class="col-md-10">
+                <section class="Sh">
+    <h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+    <p class="Pp">POE::Wheel::Run - run other programs as POE components</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+    <pre>
+    use POE::Wheel::Run;
+
+    # Launch a program in a sub-process.
+    my $wheel = POE::Wheel::Run-&gt;new(
+        program       =&gt; 'some_program',
+        args          =&gt; [ 'arg1', 'arg2' ],
+        # Called when the program exits.
+        close_handler =&gt; \&on_program_exit,
+        # Called when the program writes to STDOUT.
+        output_handler =&gt; \&on_program_output,
+        # Called when the program writes to STDERR.
+        error_handler =&gt; \&on_program_error,
+        # Called when the program exits with an error.
+        # Note: This is not called if close_handler is defined.
+        #       If an error handler is defined, then it is called.
+        #       Then, close_handler is called.
+        #       If no error handler is defined, then POE::Kernel will
+        #       call _default_error_handler.
+        #       This handler IS NOT CALLED if the child process exits
+        #       normally.
+        # error_handler =&gt; \&on_program_error_exit,
+    );
+
+    # To access the child's STDIN, STDOUT, and STDERR.
+    # STDOUT is already being handled by output_handler, and STDERR by
+    # error_handler. So these are useful for feeding STDIN.
+    my $stdin = $wheel-&gt;get_child_stdin();
+    my $stdout = $wheel-&gt;get_child_stdout();
+    my $stderr = $wheel-&gt;get_child_stderr();
+
+    # To send output to the child's STDIN.
+    $stdin-&gt;print("hello world\n");
+
+    # Wait for the program to finish.
+    # This call will block until the program has exited.
+    # POE::Kernel may be run in the interim.
+    POE::Kernel-&gt;run();
+    </pre>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+    <p class="Pp">POE::Wheel::Run is a POE wheel that runs an external program
+        in a sub-process. It provides handlers for the program's STDOUT and
+        STDERR, and allows you to send input to the program's STDIN.</p>
+    <p class="Pp">The program is run using POE::Pipe, which is a POE wrapper
+        around pipes.</p>
+    <p class="Pp">POE::Wheel::Run is useful for managing external processes,
+        like shell commands, daemons, or any other program that can be run from
+        the command line.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='PUBLIC_METHODS'><a class='permalink' href='#PUBLIC_METHODS'>PUBLIC METHODS</a></h1>
+    <p class="Pp">POE::Wheel::Run inherits all public methods from POE::Wheel.</p>
+    <dl class="Bl-tag">
+        <dt>new</dt>
+        <dd>
+            <p class="Pp">Constructor for POE::Wheel::Run.</p>
+            <p class="Pp">Recognized parameters:</p>
+            <dl class="Bl-tag">
+                <dt>program</dt>
+                <dd>The program to run. Required.</dd>
+                <dt>args</dt>
+                <dd>An arrayref of arguments to pass to the program. Optional.</dd>
+                <dt>close_handler</dt>
+                <dd>A callback invoked when the program exits normally. Optional.</dd>
+                <dt>output_handler</dt>
+                <dd>A callback invoked when the program writes to STDOUT. Optional.</dd>
+                <dt>error_handler</dt>
+                <dd>A callback invoked when the program writes to STDERR. Optional.</dd>
+                <dt>error_exit_handler</dt>
+                <dd>A callback invoked when the program exits with a non-zero
+                    exit code. Optional. Note that this is called <i>after</i>
+                    any normal handlers, and <i>before</i> the wheel is destroyed.</dd>
+                <dt>stdin_filter</dt>
+                <dd>A filter for the program's STDIN. Optional.</dd>
+                <dt>stdout_filter</dt>
+                <dd>A filter for the program's STDOUT. Optional.</dd>
+                <dt>stderr_filter</dt>
+                <dd>A filter for the program's STDERR. Optional.</dd>
+                <dt>setuid</dt>
+                <dd>Set the user ID of the child process. Optional.</dd>
+                <dt>setgid</dt>
+                <dd>Set the group ID of the child process. Optional.</dd>
+                <dt>cwd</dt>
+                <dd>Set the current working directory of the child process.
+                    Optional.</dd>
+                <dt>env</dt>
+                <dd>Set the environment variables for the child process. Optional.
+                    This is a hashref.</dd>
+            </dl>
+        </dd>
+        <dt>get_child_stdin</dt>
+        <dd>
+            <p class="Pp">Returns the POE::Pipe object for the child's STDIN.</p>
+        </dd>
+        <dt>get_child_stdout</dt>
+        <dd>
+            <p class="Pp">Returns the POE::Pipe object for the child's STDOUT.</p>
+        </dd>
+        <dt>get_child_stderr</dt>
+        <dd>
+            <p class="Pp">Returns the POE::Pipe object for the child's STDERR.</p>
+        </dd>
+        <dt>kill</dt>
+        <dd>
+            <p class="Pp">Sends a signal to the child process. Takes the signal
+                number as an argument.</p>
+        </dd>
+        <dt>suspend</dt>
+        <dd>
+            <p class="Pp">Suspends the child process.</p>
+        </dd>
+        <dt>resume</dt>
+        <dd>
+            <p class="Pp">Resumes the child process.</p>
+        </dd>
+        <dt>restart</dt>
+        <dd>
+            <p class="Pp">Restarts the child process.</p>
+        </dd>
+    </dl>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='TIPS_AND_TRICKS'><a class='permalink' href='#TIPS_AND_TRICKS'>TIPS AND TRICKS</a></h1>
+    <p class="Pp"><i>Exiting the child process</i></p>
+    <p class="Pp">When a child process exits, its `DESTROY` and `END` blocks
+        are executed. This can lead to problems if the child process is
+        intended to be short-lived and doesn't need to run these blocks.</p>
+    <p class="Pp">POE::Wheel::Run attempts to mitigate this by using
+        `POSIX::_exit()` to bypass the execution of `DESTROY` and `END`
+        blocks in the child. If this fails, it may even `kill()` itself.</p>
+    <p class="Pp">If your application needs to exit explicitly, for example, to
+        return an error code to the parent process, please use
+        `POSIX::_exit()` rather than Perl's core `exit()`.</p>
+    <p class="Pp"><i>POE::Kernel's `run()` method was never called</i></p>
+    <p class="Pp">This warning is displayed from POE::Kernel's `DESTROY`
+        method. It's a side effect of calling `exit()` in a child process that
+        was started before <code>&quot;POE::Kernel-&gt;run()&quot;</code> could
+        be called. The child process receives a copy of POE::Kernel where
+        `run()` wasn't called, even if it was called later in the parent
+        process.</p>
+    <p class="Pp">The most direct solution is to call `POSIX::_exit()` rather
+        than `exit()`. This will bypass POE::Kernel's `DESTROY`, and the
+        message it emits.</p>
+    <p class="Pp"><i>Running POE::Kernel in the Child</i></p>
+    <p class="Pp">Calling <code>&quot;POE::Kernel-&gt;run()&quot;</code> in the
+        child process effectively resumes the copy of the parent process. This
+        is rarely (if ever) desired.</p>
+    <p class="Pp">More commonly, an application wants to run an entirely new
+        POE::Kernel instance in the child process. This is supported by first
+        `stop()`ping the copied instance, starting one or more new sessions,
+        and calling `run()` again. For example:</p>
+    <pre>
+    Program =&gt; sub {
+      # Wipe the existing POE::Kernel clean.
+      $poe_kernel-&gt;stop();
+      # Start a new session, or more.
+      POE::Session-&gt;create(
+        ...
+      );
+      # Run the new sessions.
+      POE::Kernel-&gt;run();
+    }</pre>
+    <p class="Pp">Strange things are bound to happen if the program does not
+        call &quot;stop&quot; in POE::Kernel before &quot;run&quot; in
+        POE::Kernel. However this is vaguely supported in case it's the right
+        thing to do at the time.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+    <p class="Pp">POE::Wheel describes wheels in general.</p>
+    <p class="Pp">The SEE ALSO section in POE contains a table of contents covering
+        the entire POE distribution.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='CAVEATS_&amp;amp;_TODOS'><a class='permalink' href='#CAVEATS_&amp;amp;_TODOS'>CAVEATS   &amp; TODOS</a></h1>
+    <p class="Pp">POE::Wheel::Run's constructor should emit proper events when it
+        fails. Instead, it just dies, carps or croaks. This isn't necessarily
+        bad; a program can trap the death in <b>new()</b> and move on.</p>
+    <p class="Pp">Priority is a delta, not an absolute niceness value.</p>
+    <p class="Pp">It might be nice to specify User by name rather than just
+        UID.</p>
+    <p class="Pp">It might be nice to specify Group by name rather than just
+        GID.</p>
+    <p class="Pp">POE::Pipe::OneWay and Two::Way don't require the rest of POE.
+        They should be spun off into a separate distribution for everyone to
+        enjoy.</p>
+    <p class="Pp">If StdinFilter and StdoutFilter seem backwards, remember that
+        it's the filters for the child process. StdinFilter is the one that
+        dictates what the child receives on STDIN. StdoutFilter tells the parent
+        how to parse the child's STDOUT.</p>
+</section>
+<section class="Sh">
+    <h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTHORS   &amp; COPYRIGHTS</a></h1>
+    <p class="Pp">Please see POE for more information about authors and
+        contributors.</p>
+</section>
+</article>
+<aside id="sidebar">
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Version:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licenses:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+            <li><a href="#NAME">NAME</a></li>
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+            <li><a href="#PUBLIC_METHODS">PUBLIC METHODS</a></li>
+            <li><a href="#TIPS_AND_TRICKS">TIPS AND TRICKS</a></li>
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+            <li><a href="#CAVEATS_&amp;amp;_TODOS">CAVEATS &amp; TODOS</a></li>
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTHORS &amp; COPYRIGHTS</a></li>
+        </ul>
+    </nav>
+</details>
+<nav class="other-formats">
+    <p>Other formats:
+        <a href="/man/POE::Wheel::Run.3pm.en.txt">txt</a>,
+        <a href="/man/POE::Wheel::Run.3pm.en.raw">raw</a>
+    </p>
+</nav>
+</aside>
+</div>
+</main>
+<footer class="container">
+    <div class="row">
+        <div class="col-md-12">
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </div>
+    </div>
+</footer>
+</body>
+</html>

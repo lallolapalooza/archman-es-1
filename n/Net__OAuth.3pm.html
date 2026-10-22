@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::OAuth(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__OAuth(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-net-oauth/">perl-net-oauth</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Net::OAuth(3)</td>
+    <td class="head-vol">Documentación de Contribución de Usuario de Perl</td>
+    <td class="head-rtitle">Net::OAuth(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Net::OAuth - OAuth 1.0 para Perl</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre># Ejemplo de Servidor Web (Dancer)
+# Este ejemplo está simplificado para fines ilustrativos, consulta el código completo en /demo
+# Ten en cuenta que client_id es la Clave del Consumidor y client_secret es el Secreto del Consumidor
+use Dancer;
+use Net::OAuth::Client;
+sub client {
+      Net::OAuth::Client-&gt;new(
+              config-&gt;{client_id},
+              config-&gt;{client_secret},
+              site =&gt; 'https://www.google.com/',
+              request_token_path =&gt; '/accounts/OAuthGetRequestToken?scope=https%3A%2F%2Fwww.google.com%2Fm8%2Ffeeds%2F',
+              authorize_path =&gt; '/accounts/OAuthAuthorizeToken',
+              access_token_path =&gt; '/accounts/OAuthGetAccessToken',
+              callback =&gt; uri_for(&quot;/auth/google/callback&quot;),
+              session =&gt; \&amp;session,
+      );
+}
+# Envía al usuario a autorizar con el proveedor del servicio
+get '/auth/google' =&gt; sub {
+      redirect client-&gt;authorize_url;
+};
+# El usuario ha regresado con el token y el verificador añadidos a la URL.
+get '/auth/google/callback' =&gt; sub {
+      # Usa el código de autorización para obtener el token de acceso
+      my $access_token =  client-&gt;get_access_token(params-&gt;{oauth_token}, params-&gt;{oauth_verifier});
+      # Usa el token de acceso para obtener un recurso protegido
+      my $response = $access_token-&gt;get('/m8/feeds/contacts/default/full');
+      # Haz algo con dicho recurso...
+      if ($response-&gt;is_success) {
+        return &quot;¡Yay, funcionó: &quot; . $response-&gt;decoded_content;
+      }
+      else {
+        return &quot;Error: &quot; . $response-&gt;status_line;
+      }
+};
+dance;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='IMPORTANT'><a class='permalink' href='#IMPORTANT'>IMPORTANTE</a></h1>
+<p class="Pp">Net::OAuth proporciona una API de bajo nivel para leer y escribir
+    mensajes OAuth.</p>
+<p class="Pp">Probablemente deberías empezar con Net::OAuth::Client.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ABSTRACT'><a class='permalink' href='#ABSTRACT'>RESUMEN</a></h1>
+<p class="Pp">OAuth es</p>
+<p class="Pp">&quot;Un protocolo abierto para permitir la autenticación segura de
+    APIs de una manera simple y estándar desde aplicaciones de escritorio y web.&quot;</p>
+<p class="Pp">En términos prácticos, OAuth es un mecanismo para que un Consumidor
+    solicite recursos protegidos de un Proveedor de Servicio en nombre de un
+    usuario.</p>
+<p class="Pp">Por favor, consulta la especificación de OAuth:
+    <a href='http://oauth.net/documentation/spec'>http://oauth.net/documentation/spec</a></p>
+<p class="Pp">Net::OAuth proporciona:</p>
+<ul class="Bl-bullet">
+  <li>clases que encapsulan mensajes OAuth (solicitudes y respuestas).</li>
+  <li>firma de mensajes</li>
+  <li>serialización y análisis de mensajes.</li>
+  <li>solicitudes de 2 patas (también conocidas como solicitudes sin token, también
+      conocidas como solicitudes de consumidor), ver &quot;SOLICITUDES DE CONSUMIDOR&quot;</li>
+</ul>
+<p class="Pp">Net::OAuth no proporciona:</p>
+<ul class="Bl-bullet">
+  <li>encapsulación de Consumidor o Proveedor de Servicio</li>
+  <li>almacenamiento/gestión de tokens/nonces/claves</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='OAUTH_MESSAGES'><a class='permalink' href='#OAUTH_MESSAGES'>MENSAJES OAUTH</a></h2>
+<p class="Pp">Un mensaje OAuth es un conjunto de pares clave-valor. Se soportan los
+    siguientes tipos de mensajes:</p>
+<p class="Pp">Solicitudes</p>
+<ul class="Bl-bullet">
+  <li>Token de Solicitud (Net::OAuth::RequestTokenRequest)</li>
+  <li>Token de Acceso (Net::OAuth::AccessTokenRequest)</li>
+  <li>Autenticación de Usuario (Net::OAuth::UserAuthRequest)</li>
+  <li>Recurso Protegido (Net::OAuth::ProtectedResourceRequest)</li>
+  <li>Solicitud de Consumidor (Net::OAuth::ConsumerRequest) (solicitud de 2 patas
+      / sin token)</li>
+</ul>
+<p class="Pp">Respuestas</p>
+<ul class="Bl-bullet">
+  <li>Token de Solicitud (Net::OAuth::RequestTokenResponse)</li>
+  <li>Token de Acceso (Net::OAuth:AccessTokenResponse)</li>
+  <li>Autenticación de Usuario (Net::OAuth::UserAuthResponse)</li>
+</ul>
+<p class="Pp">Cada tipo de mensaje OAuth tiene uno o más parámetros requeridos,
+    cero o más parámetros opcionales, y la mayoría permiten parámetros
+    arbitrarios.</p>
+<p class="Pp">Todas las solicitudes OAuth deben ser firmadas por el Consumidor.
+    Las respuestas del Proveedor de Servicio, sin embargo, no se firman.</p>
+<p class="Pp">Para crear un mensaje, la forma más fácil es usar los métodos de
+    fábrica (Net::OAuth-&gt;request, Net::OAuth-&gt;response, Net::OAuth-&gt;message).
+    Las siguientes invocaciones de métodos son todas equivalentes:</p>
+<pre>$request = Net::OAuth-&gt;request('user authentication')-&gt;new(%params);
+$request = Net::OAuth-&gt;request('user_auth')-&gt;new(%params);
+$request = Net::OAuth-&gt;request('UserAuth')-&gt;new(%params);
+$request = Net::OAuth-&gt;message('UserAuthRequest')-&gt;new(%params);</pre>
+<p class="Pp">La forma más verbosa es usar la clase directamente:</p>
+<pre>use Net::OAuth::UserAuthRequest;
+$request = Net::OAuth::UserAuthRequest-&gt;new(%params);</pre>
+<p class="Pp">También puedes crear un mensaje deserializándolo desde una cabecera
+    de Autorización, URL, hash de consulta, o cuerpo POST</p>
+<pre>$request = Net::OAuth-&gt;request('protected resource')-&gt;from_authorization_header($ENV{HTTP_AUTHORIZATION}, %api_params);
+$request = Net::OAuth-&gt;request('protected resource')-&gt;from_url($url, %api_params);
+$request = Net::OAuth-&gt;request('protected resource')-&gt;from_hash({$q-&gt;Vars}, %api_params); # CGI
+$request = Net::OAuth-&gt;request('protected resource')-&gt;from_hash($c-&gt;request-&gt;params, %api_params); # Catalyst
+$response = Net::OAuth-&gt;response('request token')-&gt;from_post_body($response_content, %api_params);</pre>
+<p class="Pp">Ten en cuenta que los métodos de deserialización (a diferencia de
+    <b>new()</b>) esperan que los parámetros del protocolo OAuth estén prefijados
+    con 'oauth_', como esperarías en un mensaje OAuth válido.</p>
+<p class="Pp">Antes de enviar una solicitud, el Consumidor debe primero firmarla:</p>
+<pre>$request-&gt;sign;</pre>
+<p class="Pp">Al recibir una solicitud, el Proveedor de Servicio debe primero
+    verificar la firma:</p>
+<pre>die &quot;La verificación de la firma falló&quot; unless $request-&gt;verify;</pre>
+<p class="Pp">Al enviar un mensaje, el último paso es serializarlo y enviarlo a
+    donde sea necesario. Los siguientes métodos de serialización están
+    disponibles:</p>
+<pre>$response-&gt;to_post_body # un cuerpo POST application/x-www-form-urlencoded
+$request-&gt;to_url # la cadena de consulta de una URL
+$request-&gt;to_authorization_header # el valor de una cabecera HTTP Authorization
+$request-&gt;to_hash # un hash que podría ser usado para alguna otra serialización</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='API_PARAMETERS_vs_MESSAGE_PARAMETERS'><a class='permalink' href='#API_PARAMETERS_vs_MESSAGE_PARAMETERS'>PARÁMETROS API vs PARÁMETROS DEL MENSAJE</a></h2>
+<p class="Pp">Net::OAuth define 'parámetros del mensaje' como parámetros que son
+    parte del mensaje OAuth transmitido. Estos incluyen cualquier parámetro de
+    protocolo (prefijado con 'oauth_' en el mensaje), y cualquier parámetro
+    adicional del mensaje (el hash extra_params).</p>
+<p class="Pp">'Parámetros de API' son parámetros requeridos para construir un objeto
+    de mensaje que no se transmiten con el mensaje, por ejemplo, consumer_secret,
+    token_secret, request_url, request_method.</p>
+<p class="Pp">Hay varios métodos para inspeccionar una clase de mensaje para ver
+    qué parámetros están definidos:</p>
+<pre>$request-&gt;required_message_params;
+$request-&gt;optional_message_params;
+$request-&gt;all_message_params;
+$request-&gt;required_api_params;
+$request-&gt;optional_api_params;
+$request-&gt;all_api_params;
+$request-&gt;all_params;</pre>
+<p class="Pp">Por ejemplo:</p>
+<pre>use Net::OAuth;
+use Data::Dumper;
+print Dumper(Net::OAuth-&gt;request(&quot;protected resource&quot;)-&gt;required_message_params);
+$VAR1 = [
+         'consumer_key',
+         'signature_method',
+         'timestamp',
+         'nonce',
+         'token'
+       ];</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ACCESSING_PARAMETERS'><a class='permalink' href='#ACCESSING_PARAMETERS'>ACCESO A LOS PARÁMETROS</a></h2>
+<p class="Pp">Todos los parámetros se pueden obtener/establecer usando métodos
+    accesores. Por ejemplo:</p>
+<pre>my $consumer_key = $request-&gt;consumer_key;
+$request-&gt;request_method('POST');</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='THE_REQUEST_URL_PARAMETER'><a class='permalink' href='#THE_REQUEST_URL_PARAMETER'>EL PARÁMETRO REQUEST_URL</a></h2>
+<p class="Pp">Cualquier parámetro de consulta en la request_url se elimina y se
+    añade al hash extra_params al generar la firma.</p>
+<p class="Pp">Por ejemplo, las siguientes solicitudes son prácticamente
+    equivalentes:</p>
+<pre> my $request = Net::OAuth-&gt;request('Request Token')-&gt;new(
+  %params,
+  request_url =&gt; 'https://photos.example.net/request_token',
+  extra_params =&gt; {
+   foo =&gt; 'bar'
+  },
+);
+ my $request = Net::OAuth-&gt;request('Request Token')-&gt;new(
+  %params,
+  request_url =&gt; 'https://photos.example.net/request_token?foo=bar',
+ );</pre>
+<p class="Pp">Llamar a <span class="Li">$request</span>-&gt;request_url todavía
+    devolverá lo que sea que hayas establecido originalmente. Si quieres obtener la
+    request_url con los parámetros de consulta eliminados, puedes hacer:</p>
+<pre>my $url = $request-&gt;normalized_request_url;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='SIGNATURE_METHODS'><a class='permalink' href='#SIGNATURE_METHODS'>MÉTODOS DE FIRMA</a></h2>
+<p class="Pp">Se soportan los siguientes métodos de firma:</p>
+<ul class="Bl-bullet">
+  <li>PLAINTEXT</li>
+  <li>HMAC-SHA1</li>
+  <li>HMAC-SHA256</li>
+  <li>RSA</li>
+</ul>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Net::OAuth 0.31 manual page</title>
+        <meta name="description" content="Net::OAuth - Object oriented interface to OAuth"/>
+        <link rel="stylesheet" type="text/css" href="/style.css"/>
+        <link rel="stylesheet" type="text/css" href="/man.css"/>
+        <link rel="alternate" type="application/rss+xml" title="Recent Updates" href="/feed.xml"/>
+        <meta name="robots" content="noindex"/>
+    </head>
+    <body>
+        
+        <main>
+            <article>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+<p class="Nm">Net::OAuth - Object oriented interface to OAuth</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+<pre>
+use Net::OAuth;
+my $request = Net::OAuth-&gt;request('request token')-&gt;new(
+        consumer_key =&gt; 'dpf43f3p2l4k3l03',
+        consumer_secret =&gt; 'kd94hf93k423kf44',
+        signature_method =&gt; 'HMAC-SHA1',
+);
+$request-&gt;sign;
+</pre>
+<pre>
+my $response = Net::OAuth-&gt;response('request token')-&gt;from_post_body($body);
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="IMPORTANT"><a class="permalink" href="#IMPORTANT">IMPORTANT</a></h1>
+<p class="Pp">This module has a dependency on Digest::SHA, which is not a core
+    Perl module. You may need to install this module explicitly.</p>
+<pre>cpanm Digest::SHA</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="ABSTRACT"><a class="permalink" href="#ABSTRACT">ABSTRACT</a></h1>
+<p class="Pp">Object oriented interface to OAuth.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+<p class="Pp">This module provides an object-oriented interface to the OAuth
+    protocol. It allows you to construct OAuth messages, sign them, and verify
+    signatures.</p>
+<p class="Pp">The module is broken down into several classes:</p>
+<ul class="Bl-bullet">
+  <li>Net::OAuth::Message: Base class for all OAuth messages.</li>
+  <li>Net::OAuth::Request: Base class for requests.</li>
+  <li>Net::OAuth::Response: Base class for responses.</li>
+  <li>Net::OAuth::ConsumerRequest: Represents a request made by a consumer.</li>
+  <li>Net::OAuth::ServiceProviderRequest: Represents a request made by a service
+      provider.</li>
+  <li>Net::OAuth::RequestTokenRequest: Request for a request token.</li>
+  <li>Net::OAuth::AccessTokenRequest: Request for an access token.</li>
+  <li>Net::OAuth::Authorize: Authorize a request token.</li>
+  <li>Net::OAuth::Signature: Handles signature generation and verification.</li>
+</ul>
+<p class="Pp"><b>Signature Methods</b></p>
+<p class="Pp">The signature method is determined by the value of the
+    signature_method parameter that is passed to the message constructor.</p>
+<p class="Pp">If an unknown signature method is specified, the
+    signing/verification will throw an exception.</p>
+<p class="Pp"><i>PLAINTEXT SIGNATURES</i></p>
+<p class="Pp">This method is a trivial signature which adds no security. Not
+    recommended.</p>
+<p class="Pp"><i>HMAC-SHA1 SIGNATURES</i></p>
+<p class="Pp">This method is available if you have Digest::SHA installed. This
+    is by far the most commonly used method.</p>
+<p class="Pp"><i>HMAC-SHA256 SIGNATURES</i></p>
+<p class="Pp">This method is available if you have Digest::SHA installed.</p>
+<p class="Pp"><i>RSA-SHA1 SIGNATURES</i></p>
+<p class="Pp">To use RSA-SHA1 signatures, pass in a Crypt::OpenSSL::RSA object
+    (or any object that can do <span class="Li">$o</span>-&gt;sign($str) and/or
+    <span class="Li">$o</span>-&gt;verify($str,
+  <span class="Li">$sig</span>))</p>
+<p class="Pp">E.g.</p>
+<p class="Pp">Consumer:</p>
+<pre>use Crypt::OpenSSL::RSA;
+use File::Slurp;
+$keystring = read_file('private_key.pem');
+$private_key = Crypt::OpenSSL::RSA-&gt;new_private_key($keystring);
+$request = Net::OAuth-&gt;request('request token')-&gt;new(%params);
+$request-&gt;sign($private_key);</pre>
+<p class="Pp">Service Provider:</p>
+<pre>use Crypt::OpenSSL::RSA;
+use File::Slurp;
+$keystring = read_file('public_key.pem');
+$public_key = Crypt::OpenSSL::RSA-&gt;new_public_key($keystring);
+$request = Net::OAuth-&gt;request('request token')-&gt;new(%params);
+if (!$request-&gt;verify($public_key)) {
+       die &quot;Signature verification failed&quot;;
+}</pre>
+<p class="Pp">Note that you can pass the key in as a parameter called
+    'signature_key' to the message constructor, rather than passing it to the
+    sign/verify method, if you like.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="CONSUMER_REQUESTS"><a class="permalink" href="#CONSUMER_REQUESTS">CONSUMER REQUESTS</a></h2>
+<p class="Pp">To send a request without including a token, use a Consumer
+    Request:</p>
+<pre>my $request = Net::OAuth-&gt;request('consumer')-&gt;new(
+        consumer_key =&gt; 'dpf43f3p2l4k3l03',
+        consumer_secret =&gt; 'kd94hf93k423kf44',
+        request_url =&gt; 'http://provider.example.net/profile',
+        request_method =&gt; 'GET',
+        signature_method =&gt; 'HMAC-SHA1',
+        timestamp =&gt; '1191242096',
+        nonce =&gt; 'kllo9940pd9333jh',
+);
+$request-&gt;sign;</pre>
+<p class="Pp">See Net::OAuth::ConsumerRequest</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="I18N"><a class="permalink" href="#I18N">I18N</a></h2>
+<p class="Pp">Per the OAuth spec, when making the signature Net::OAuth first
+    encodes parameters to UTF-8. This means that any parameters you pass to
+    Net::OAuth, if they might be outside of ASCII character set, should be run
+    through <b>Encode::decode()</b> (or an equivalent PerlIO layer) first to
+    decode them to Perl's internal character structure.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="OAUTH_1.0A"><a class="permalink" href="#OAUTH_1.0A">OAUTH 1.0A</a></h2>
+<p class="Pp">Background:</p>
+<p class="Pp"><a href="http://mojodna.net/2009/05/20/an-idiots-guide-to-oauth-10a.html">http://mojodna.net/2009/05/20/an-idiots-guide-to-oauth-10a.html</a></p>
+<p class="Pp"><a href="http://oauth.googlecode.com/svn/spec/core/1.0a/drafts/3/oauth-core-1_0a.html">http://oauth.googlecode.com/svn/spec/core/1.0a/drafts/3/oauth-core-1_0a.html</a></p>
+<p class="Pp">Net::OAuth defaults to OAuth 1.0 spec compliance, and supports
+    OAuth 1.0 Rev A with an optional switch:</p>
+<pre>use Net::OAuth
+$Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;</pre>
+<p class="Pp">It is recommended that any new projects use this switch if
+    possible, and existing projects move to supporting this switch as soon as
+    possible. Probably the easiest way for existing projects to do this is to
+    turn on the switch and run your test suite. The Net::OAuth constructor will
+    throw an exception where the new protocol parameters (callback,
+    callback_confirmed, verifier) are missing.</p>
+<p class="Pp">Internally, the Net::OAuth::Message constructor checks
+    <span class="Li">$Net::OAuth::PROTOCOL_VERSION</span> and attempts to load
+    the equivalent subclass in the Net::OAuth::V1_0A:: namespace. So if you
+    instantiate a Net::OAuth::RequestTokenRequest object, you will end up with a
+    Net::OAuth::V1_0A::RequestTokenRequest (a subclass of
+    Net::OAuth::RequestTokenRequest) if the protocol version is set to
+    PROTOCOL_VERSION_1_0A. You can also select a 1.0a subclass on a per-message
+    basis by passing</p>
+<pre>protocol_version =&gt; Net::OAuth::PROTOCOL_VERSION_1_0A</pre>
+<p class="Pp">in the API parameters hash.</p>
+<p class="Pp">If you are not sure whether the entity you are communicating with
+    is 1.0A compliant, you can try instantiating a 1.0A message first and then
+    fall back to 1.0 if that fails:</p>
+<pre>use Net::OAuth
+$Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;
+my $is_oauth_1_0 = 0;
+my $response = eval{Net::OAuth-&gt;response('request token')-&gt;from_post_body($res-&gt;content)};
+if ($@) {
+    if ($@ =~ /Missing required parameter 'callback_confirmed'/) {
+        # fall back to OAuth 1.0
+        $response = Net::OAuth-&gt;response('request token')-&gt;from_post_body(
+            $res-&gt;content,
+            protocol_version =&gt; Net::OAuth::PROTOCOL_VERSION_1_0
+        );
+        $is_oauth_1_0 = 1; # from now on treat the server as OAuth 1.0 compliant
+    }
+    else {
+        die $@;
+    }
+}</pre>
+<p class="Pp">At some point in the future, Net::OAuth will default to
+    Net::OAuth::PROTOCOL_VERSION_1_0A.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DEMO"><a class="permalink" href="#DEMO">DEMO</a></h1>
+<p class="Pp">There is a demo Consumer CGI in this package, also available
+    online at <a href="http://oauth.kg23.com/">http://oauth.kg23.com/</a></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE ALSO</a></h1>
+<p class="Pp"><a href="http://oauth.net">http://oauth.net</a></p>
+<p class="Pp">Check out Net::OAuth::Simple - it has a simpler API that may be
+    more to your liking</p>
+<p class="Pp">Check out Net::Twitter::OAuth for a Twitter-specific OAuth API</p>
+<p class="Pp">Check out WWW::Netflix::API for a Netflix-specific OAuth API</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="TODO"><a class="permalink" href="#TODO">TODO</a></h1>
+<ul class="Bl-bullet">
+  <li>Support for repeating/multivalued parameters</li>
+  <li>Add convenience methods for SPs
+    <p class="Pp">Something like:</p>
+        <pre># direct from CGI.pm object
+$request = Net::OAuth-&gt;request('Request Token')-&gt;from_cgi_query($cgi, %api_params);
+# direct from Catalyst::Request object
+$request = Net::OAuth-&gt;request('Request Token')-&gt;from_catalyst_request($c-&gt;req, %api_params);
+# from Auth header and GET and POST params in one
+local $/;
+my $post_body = &lt;STDIN&gt;;
+$request = Net::OAuth-&gt;request('Request Token')-&gt;from_auth_get_and_post(
+    $ENV{HTTP_AUTHORIZATION},
+    $ENV{QUERY_STRING},
+    $post_body,
+    %api_params
+);
+</pre>
+  </li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHOR"><a class="permalink" href="#AUTHOR">AUTHOR</a></h1>
+<p class="Pp">Originally by Keith Grennan &lt;kgrennan@cpan.org&gt;</p>
+<p class="Pp">Currently maintained by Robert Rothenberg
+  &lt;rrwo@cpan.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="COPYRIGHT_&amp;amp;_LICENSE"><a class="permalink" href="#COPYRIGHT_&amp;amp;_LICENSE">COPYRIGHT &amp; LICENSE</a></h1>
+<p class="Pp">Copyright 2007-2012, 2024-2025 Keith Grennan</p>
+<p class="Pp">This program is free software; you can redistribute it and/or
+    modify it under the same terms as Perl itself.</p>
+</section>
+</article>
+<aside id="sidebar">
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-net-oauth/">extra/perl-net-oauth</a></dd>
+        <dt>Version:</dt>
+        <dd>0.31-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Net-OAuth">https://search.cpan.org/dist/Net-OAuth</a></dd>
+        <dt>Licenses:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/perl-net-oauth/">/listing/extra/perl-net-oauth/</a></dd>
+    </dl>
+</section>
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+            <li><a href="#NAME">NAME</a></li>
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+            <li><a href="#IMPORTANT">IMPORTANT</a></li>
+            <li><a href="#ABSTRACT">ABSTRACT</a></li>
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+            <li><a href="#DEMO">DEMO</a></li>
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+            <li><a href="#TODO">TODO</a></li>
+            <li><a href="#AUTHOR">AUTHOR</a></li>
+            <li><a href="#COPYRIGHT_&amp;amp;_LICENSE">COPYRIGHT &amp; LICENSE</a></li>
+        </ul>
+    </nav>
+</details>
+<nav class="other-formats">
+    <p>Other formats:
+        <a href="/man/Net::OAuth.3pm.en.txt">txt</a>,
+        <a href="/man/Net::OAuth.3pm.en.raw">raw</a>
+    </p>
+</nav>
+</aside>
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

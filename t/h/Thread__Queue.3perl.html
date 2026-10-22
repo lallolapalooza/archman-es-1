@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Thread::Queue(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Thread__Queue.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Thread::Queue(3perl)</td>
+    <td class="head-vol">Guía de Referencia para Programadores de Perl</td>
+    <td class="head-rtitle">Thread::Queue(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Thread::Queue - Colas seguras para hilos</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">Este documento describe Thread::Queue versión 3.14</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use strict;
+use warnings;
+use threads;
+use Thread::Queue;
+my $q = Thread::Queue-&gt;new();    # Una cola vacía nueva
+# Hilo trabajador
+my $thr = threads-&gt;create(
+    sub {
+        # El hilo se ejecutará en bucle hasta que no haya más trabajo
+        while (defined(my $item = $q-&gt;dequeue())) {
+            # Hacer trabajo con $item
+            ...
+        }
+    }
+);
+# Enviar trabajo al hilo
+$q-&gt;enqueue($item1, ...);
+# Señalar que no hay más trabajo que enviar
+$q-&gt;end();
+# Unirse al hilo cuando termine
+$thr-&gt;join();
+...
+# Contador de elementos en la cola
+my $left = $q-&gt;pending();
+# Dequeue no bloqueante
+if (defined(my $item = $q-&gt;dequeue_nb())) {
+    # Trabajar con $item
+}
+# Dequeue bloqueante con tiempo de espera de 5 segundos
+if (defined(my $item = $q-&gt;dequeue_timed(5))) {
+    # Trabajar con $item
+}
+# Establecer un tamaño para una cola
+$q-&gt;limit = 5;
+# Obtener el segundo elemento de la cola sin sacarlo
+my $item = $q-&gt;peek(1);
+# Insertar dos elementos en la cola justo detrás de la cabecera
+$q-&gt;insert(1, $item1, $item2);
+# Extraer los dos últimos elementos de la cola
+my ($item1, $item2) = $q-&gt;extract(-2, 2);</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo proporciona colas FIFO seguras para hilos que pueden ser
+    accedidas de forma segura por cualquier número de hilos.</p>
+<p class="Pp">Cualquier tipo de dato soportado por threads::shared puede ser
+    pasado a través de colas:</p>
+<dl class="Bl-tag">
+  <dt id="Ordinary"><a class="permalink" href="#Ordinary">Escalares ordinarios</a></dt>
+  <dd></dd>
+  <dt id="Array"><a class="permalink" href="#Array">Referencias a arrays</a></dt>
+  <dd></dd>
+  <dt id="Hash"><a class="permalink" href="#Hash">Referencias a hashes</a></dt>
+  <dd></dd>
+  <dt id="Scalar"><a class="permalink" href="#Scalar">Referencias a escalares</a></dt>
+  <dd></dd>
+  <dt id="Objects"><a class="permalink" href="#Objects">Objetos basados en lo
+    anterior</a></dt>
+  <dd></dd>
+</dl>
+<p class="Pp">Los escalares ordinarios se añaden a las colas tal como están.</p>
+<p class="Pp">Si los demás tipos de datos complejos no están ya compartidos por
+    hilos, serán clonados (recursivamente, si es necesario, e incluyendo
+    cualquier <span class="Li">&quot;bless&quot;</span> y configuraciones de solo
+    lectura) en estructuras compartidas por hilos antes de ser colocados en una
+    cola.</p>
+<p class="Pp">Por ejemplo, lo siguiente haría que Thread::Queue creara una
+    referencia de array vacía y compartida a través de
+    <span class="Li">&amp;shared([])</span>, copiara los elementos 'foo',
+    'bar' y 'baz' de <span class="Li">@ary</span> en ella, y luego colocara
+    esa referencia compartida en la cola:</p>
+<pre>my @ary = qw/foo bar baz/;
+$q-&gt;enqueue(\@ary);</pre>
+<p class="Pp">Sin embargo, para lo siguiente, los elementos ya están compartidos,
+    por lo que sus referencias se añaden directamente a la cola, y no se realiza
+    ninguna clonación:</p>
+<pre>my @ary :shared = qw/foo bar baz/;
+$q-&gt;enqueue(\@ary);
+my $obj = &amp;shared({});
+$$obj{'foo'} = 'bar';
+$$obj{'qux'} = 99;
+bless($obj, 'My::Class');
+$q-&gt;enqueue($obj);</pre>
+<p class="Pp">Ver "LIMITACIONES" para advertencias relacionadas con el paso de
+    objetos a través de colas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='QUEUE_CREATION'><a class='permalink' href='#QUEUE_CREATION'>CREACIÓN DE COLAS</a></h1>
+<dl class="Bl-tag">
+  <dt>-&gt;<b>new()</b></dt>
+  <dd>Crea una cola vacía nueva.</dd>
+  <dt>-&gt;new(LIST)</dt>
+  <dd>Crea una cola nueva precargada con la lista de elementos proporcionada.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BASIC_METHODS'><a class='permalink' href='#BASIC_METHODS'>MÉTODOS BÁSICOS</a></h1>
+<p class="Pp">Los siguientes métodos manejan las colas de forma FIFO (primero en
+    entrar, primero en salir).</p>
+<dl class="Bl-tag">
+  <dt>-&gt;enqueue(LIST)</dt>
+  <dd>Añade una lista de elementos al final de la cola.</dd>
+  <dt>-&gt;<b>dequeue()</b></dt>
+  <dd></dd>
+  <dt>-&gt;dequeue(COUNT)</dt>
+  <dd>Elimina el número solicitado de elementos (por defecto es 1) de la cabecera
+      de la cola y los devuelve. Si la cola contiene menos elementos que los
+      solicitados, el hilo se bloqueará hasta que estén disponibles los elementos
+      necesarios (es decir, hasta que otros hilos
+      <span class="Li">&quot;enqueue&quot;</span> más elementos).</dd>
+  <dt>-&gt;<b>dequeue_nb()</b></dt>
+  <dd></dd>
+  <dt>-&gt;dequeue_nb(COUNT)</dt>
+  <dd>Elimina el número solicitado de elementos (por defecto es 1) de la cabecera
+      de la cola y los devuelve. Si la cola contiene menos elementos que los
+      solicitados, devuelve inmediatamente (es decir, sin bloquear) los
+      elementos que haya en la cola. Si la cola está vacía, se devuelve
+      <span class="Li">&quot;undef&quot;</span>.</dd>
+  <dt>-&gt;dequeue_timed(TIMEOUT)</dt>
+  <dd></dd>
+  <dt>-&gt;dequeue_timed(TIMEOUT, COUNT)</dt>
+  <dd>Elimina el número solicitado de elementos (por defecto es 1) de la cabecera
+      de la cola y los devuelve. Si la cola contiene menos elementos que los
+      solicitados, el hilo se bloqueará hasta que estén disponibles los elementos
+      necesarios, o hasta que se alcance el tiempo de espera. Si se alcanza el
+      tiempo de espera, devuelve los elementos que haya en la cola, o
+      <span class="Li">&quot;undef&quot;</span> si la cola está vacía.
+    <p class="Pp">El tiempo de espera puede ser un número de segundos relativo a
+        la hora actual (por ejemplo, 5 segundos desde que se realiza la llamada),
+        o puede ser un tiempo de espera absoluto en segundos de *época*, igual
+        que se usaría con
+        <b>cond_timedwait()</b>. También se admiten fracciones de segundo (por
+        ejemplo, 2.5 segundos) (hasta el límite de la implementación
+        subyacente).</p>
+    <p class="Pp">Si <span class="Li">&quot;TIMEOUT&quot;</span> falta, es
+        <span class="Li">&quot;undef&quot;</span> o es menor o igual a 0, esta
+        llamada se comporta igual que
+        <span class="Li">&quot;dequeue_nb&quot;</span>.</p>
+  </dd>
+  <dt>-&gt;<b>pending()</b></dt>
+  <dd>Devuelve el número de elementos que quedan en la cola. Devuelve
+      <span class="Li">&quot;undef&quot;</span> si la cola ha finalizado (ver
+      abajo) y no quedan más elementos en la cola.</dd>
+  <dt>-&gt;limit</dt>
+  <dd>Establece el tamaño de la cola. Si se establece, las llamadas a
+      <span class="Li">enqueue()</span> se bloquearán hasta que el número de
+      elementos pendientes en la cola caiga por debajo del
+      <span class="Li">&quot;limit&quot;</span>. El
+      <span class="Li">&quot;limit&quot;</span> no impide encolar elementos más allá
+      de ese recuento:
+        <pre>my $q = Thread::Queue-&gt;new(1, 2);
+$q-&gt;limit = 4;
+$q-&gt;enqueue(3, 4, 5);   # No se bloquea
+$q-&gt;enqueue(6);         # Se bloquea hasta que se
+                        # dequeue al menos 2 elementos
+my $size = $q-&gt;limit;   # Devuelve el límite actual (puede devolver
+                        # 'undef')
+$q-&gt;limit = 0;          # El tamaño de la cola es ahora ilimitado
+</pre>
+    <p class="Pp">Llamar a cualquiera de los métodos de dequeue con
+        <span class="Li">&quot;COUNT&quot;</span> mayor que el
+        <span class="Li">&quot;limit&quot;</span> de una cola generará un
+        error.</p>
+  </dd>
+  <dt>-&gt;<b>end()</b></dt>
+  <dd>Declara que no se añadirán más elementos a la cola.
+    <p class="Pp">Todos los hilos bloqueados en llamadas a
+        <span class="Li">dequeue()</span> se desbloquearán con los elementos
+        restantes en la cola y/o se devolverá
+        <span class="Li">&quot;undef&quot;</span>. Cualquier llamada posterior a
+        <span class="Li">dequeue()</span> se comportará como
+        <span class="Li">dequeue_nb()</span>.</p>
+    <p class="Pp">Una vez finalizada, no se pueden añadir más elementos a la
+        cola.</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ADVANCED_METHODS'><a class='permalink' href='#ADVANCED_METHODS'>MÉTODOS AVANZADOS</a></h1>
+<p class="Pp">Los siguientes métodos pueden utilizarse para manipular elementos
+    en cualquier lugar de una cola.</p>
+<p class="Pp">Para evitar que el contenido de una cola sea modificado por otro
+    hilo mientras se examina y/o se cambia, bloquee la cola dentro de un bloque
+    local:</p>
+<pre>{
+    lock($q);   # Evita que otros hilos cambien el contenido de la cola
+    my $item = $q-&gt;peek();
+    if ($item ...) {
+        ...
+    }
+}
+# La cola ahora está desbloqueada</pre>
+<dl class="Bl-tag">
+  <dt>-&gt;<b>peek()</b></dt>
+  <dd></dd>
+  <dt>-&gt;peek(INDEX)</dt>
+  <dd>Devuelve un elemento de la cola sin sacarlo. Por defecto, la cabecera de la
+      cola (en la posición de índice 0) si no se especifica ningún índice. Se
+      admiten índices negativos como en los arrays (es decir, -1 es el final de
+      la cola, -2 es el penúltimo, y así sucesivamente).
+    <p class="Pp">Si no existen elementos en el índice especificado (es decir,
+        la cola está vacía o el índice está más allá del número de elementos
+        en la cola), se devuelve
+        <span class="Li">&quot;undef&quot;</span>.</p>
+    <p class="Pp">Recuerde que el elemento devuelto no se elimina de la cola, por
+        lo que manipular una referencia a la que se ha hecho
+        <span class="Li">&quot;peek&quot;</span> afecta al elemento en la cola.</p>
+  </dd>
+  <dt>-&gt;insert(INDEX, LIST)</dt>
+  <dd>Añade la lista de elementos a la cola en la posición de índice especificada
+      (0 es la cabecera de la lista). Cualquier elemento existente en esa
+      posición y más allá se empuja hacia atrás, más allá de los elementos
+      recién añadidos:
+        <pre>$q-&gt;enqueue(1, 2, 3, 4);
+$q-&gt;insert(1, qw/foo bar/);
+# La cola ahora contiene:  1, foo, bar, 2, 3, 4
+</pre>
+    <p class="Pp">Especificar un valor en</p>
+</div>
+</section>
+</section>
+                
+            </article>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Thread::Queue(3perl) — Thread-Safe FIFO Queue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/man-page.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&display=swap">
+</head>
+<body>
+    <div class="container">
+        <article class="man-page">
+    
+    <section class="Sh">
+        <h1 class="Sh" id="VERSION">VERSION</h1>
+        <p class="Pp">This documentation refers to Thread-Queue version 3.15.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id="SYNOPSIS">SYNOPSIS</h1>
+        <pre>  use threads;
+  use Thread::Queue;
+
+  # Create a new queue
+  my $q = Thread::Queue-&gt;new;
+
+  # Create a queue with initial items
+  my $q = Thread::Queue-&gt;new(1, 2, 3);
+
+  # Add items to the queue
+  $q-&gt;enqueue(4, 5);
+
+  # Get items from the queue
+  my $item = $q-&gt;dequeue; # Blocks until an item is available
+  my @items = $q-&gt;dequeue_nb(2); # Non-blocking, returns up to 2 items
+
+  # Check queue size
+  my $size = $q-&gt;pending;
+
+  # Insert items at a specific position
+  $q-&gt;insert(1, 'a', 'b');
+
+  # Extract items from a specific position
+  my @extracted = $q-&gt;extract(2, 3);
+</pre>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id="DESCRIPTION">DESCRIPTION</h1>
+        <p class="Pp">Thread::Queue provides a thread-safe, first-in, first-out
+            (FIFO) queue data structure. It is designed to be used in
+            multi-threaded Perl programs created with the <code class="Li">threads</code>
+            module.</p>
+        <p class="Pp">All methods that modify the queue are blocking by default,
+            ensuring that operations are synchronized between threads. Non-blocking
+            versions of some methods are also available.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id="QUEUE_CREATION">QUEUE CREATION</h1>
+        <dl class="Bl-tag">
+            <dt>new()</dt>
+            <dd>
+                <p class="Pp">Creates and returns a new, empty queue object.</p>
+                <pre>my $q = Thread::Queue-&gt;new;</pre>
+            </dd>
+            <dt>new(LIST)</dt>
+            <dd>
+                <p class="Pp">Creates and returns a new queue object initialized
+                    with the items in <code class="Li">LIST</code>.</p>
+                <pre>my $q = Thread::Queue-&gt;new(1, 2, 3);</pre>
+            </dd>
+        </dl>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id="BASIC_METHODS">BASIC METHODS</h1>
+        <dl class="Bl-tag">
+            <dt>-&gt;<b>enqueue(LIST)</b></dt>
+            <dd>Adds the items in <code class="Li">LIST</code> to the end of the
+                queue. This method will block if the queue has a maximum size
+                and is currently full (which is not the default behavior).</dd>
+            <dt>-&gt;<b>dequeue()</b></dt>
+            <dd>Removes and returns the item at the head of the queue. If the
+                queue is empty, this method blocks until an item becomes
+                available.</dd>
+            <dt>-&gt;<b>dequeue_nb()</b></dt>
+            <dd>Removes and returns the item at the head of the queue. If the
+                queue is empty, this method returns immediately with an undefined
+                value.</dd>
+            <dt>-&gt;<b>dequeue_nb(COUNT)</b></dt>
+            <dd>Removes and returns up to <code class="Li">COUNT</code> items from
+                the head of the queue. If the queue contains fewer than
+                <code class="Li">COUNT</code> items, it returns all available
+                items. If the queue is empty, it returns an empty list. This
+                method is non-blocking.</dd>
+            <dt>-&gt;<b>pending()</b></dt>
+            <dd>Returns the number of items currently in the queue. This is a
+                snapshot and may be outdated by the time it is returned if other
+                threads are actively using the queue.</dd>
+            <dt>-&gt;<b>empty()</b></dt>
+            <dd>Returns true if the queue is empty, false otherwise. Similar to
+                <code class="Li">pending</code>, this is a snapshot.</dd>
+            <dt>-&gt;<b>clear()</b></dt>
+            <dd>Removes all items from the queue.</dd>
+        </dl>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id="ADVANCED_METHODS">ADVANCED METHODS</h1>
+        <dl class="Bl-tag">
+            <dt>-&gt;<b>insert(INDEX, LIST)</b></dt>
+            <dd>Inserts the items in <code class="Li">LIST</code> into the queue at
+                the specified <code class="Li">INDEX</code>. An index of 0 inserts
+                at the head, and an index equal to the current size inserts at
+                the tail.</dd>
+            <dt>Negative index positions are supported.</dt>
+            <dd>
+                <p class="Pp">If a negative index position is specified that is
+                    less than or equal to the negative of the queue size, the
+                    items are inserted at the head of the queue.</p>
+                <p class="Pp">If the index position is greater than the number
+                    of items in the queue, the list is added to the end.</p>
+                <pre>$q-&gt;enqueue(1, 2, 3, 4);
+$q-&gt;insert(-2, qw/foo bar/);
+# Queue now contains:  1, 2, foo, bar, 3, 4
+</pre>
+                <p class="Pp">Specifying a negative index position greater than
+                    the number of items in the queue adds the list to the head
+                    of the queue.</p>
+            </dd>
+            <dt>-&gt;<b>extract()</b></dt>
+            <dd></dd>
+            <dt>-&gt;extract(INDEX)</dt>
+            <dd></dd>
+            <dt>-&gt;extract(INDEX, COUNT)</dt>
+            <dd>Removes and returns the specified number of items (defaults to 1)
+                from the specified index position in the queue (0 is the head of
+                the queue). When called with no arguments, <span class="Li">&quot;extract&quot;</span>
+                operates the same as <span class="Li">&quot;dequeue_nb&quot;</span>.
+                <p class="Pp">This method is non-blocking, and will return only
+                    as many items as are available to fulfill the request:</p>
+                <pre>$q-&gt;enqueue(1, 2, 3, 4);
+my $item  = $q-&gt;extract(2)     # Returns 3
+                               # Queue now contains:  1, 2, 4
+my @items = $q-&gt;extract(1, 3)  # Returns (2, 4)
+                               # Queue now contains:  1
+</pre>
+                <p class="Pp">Specifying an index position greater than the
+                    number of items in the queue results in <span class="Li">&quot;undef&quot;</span>
+                    or an empty list being returned.</p>
+                <pre>$q-&gt;enqueue('foo');
+my $nada = $q-&gt;extract(3)      # Returns undef
+my @nada = $q-&gt;extract(1, 3)   # Returns ()
+</pre>
+                <p class="Pp">Negative index positions are supported. Specifying
+                    a negative index position greater than the number of items
+                    in the queue may return items from the head of the queue
+                    (similar to <span class="Li">&quot;dequeue_nb&quot;</span>)
+                    if the count overlaps the head of the queue from the
+                    specified position (i.e. if queue size + index + count is
+                    greater than zero):</p>
+                <pre>$q-&gt;enqueue(qw/foo bar baz/);
+my @nada = $q-&gt;extract(-6, 2);  # Returns ()      - (3+(-6)+2) &lt;= 0
+my @some = $q-&gt;extract(-6, 4);  # Returns (foo)   - (3+(-6)+4) &gt; 0
+                                # Queue now contains:  bar, baz
+my @rest = $q-&gt;extract(-3, 4);  # Returns (bar, baz) -
+                                #                   (2+(-3)+4) &gt; 0
+</pre>
+            </dd>
+        </dl>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='NOTES'><a class='permalink' href='#NOTES'>NOTES</a></h1>
+        <p class="Pp">Queues created by Thread::Queue can be used in both
+            threaded and non-threaded applications.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='LIMITATIONS'><a class='permalink' href='#LIMITATIONS'>LIMITATIONS</a></h1>
+        <p class="Pp">Passing objects on queues may not work if the objects'
+            classes do not support sharing. See &quot;BUGS AND
+            LIMITATIONS&quot; in threads::shared for more.</p>
+        <p class="Pp">Passing array/hash refs that contain objects may not work
+            for Perl prior to 5.10.0.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+        <p class="Pp">Thread::Queue on MetaCPAN:
+            <a href='https://metacpan.org/release/Thread-Queue'>https://metacpan.org/release/Thread-Queue</a></p>
+        <p class="Pp">Code repository for CPAN distribution:
+            <a href='https://github.com/Dual-Life/Thread-Queue'>https://github.com/Dual-Life/Thread-Queue</a></p>
+        <p class="Pp">threads, threads::shared</p>
+        <p class="Pp">Sample code in the <i>examples</i> directory of this
+            distribution on CPAN.</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='MAINTAINER'><a class='permalink' href='#MAINTAINER'>MAINTAINER</a></h1>
+        <p class="Pp">Jerry D. Hedden,
+            &lt;jdhedden&#x00A0;AT&#x00A0;cpan&#x00A0;DOT&#x00A0;org&gt;</p>
+    </section>
+    <section class="Sh">
+        <h1 class="Sh" id='LICENSE'><a class='permalink' href='#LICENSE'>LICENSE</a></h1>
+        <p class="Pp">This program is free software; you can redistribute it
+            and/or modify it under the same terms as Perl itself.</p>
+    </section>
+</article>
+<aside id="sidebar">
+    <section class="search">
+        <form action="/search" class="search direct-search" role="search">
+            <input type="search" placeholder="Search manual page" name="q" value="">
+            <input type="submit" name="go" value="Go">
+        </form>
+    </section>
+    <section class="package-info">
+        <p>Package information:</p>
+        <dl>
+            <dt>Package name:</dt>
+            <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+            <dt>Version:</dt>
+            <dd>5.42.0-1</dd>
+            <dt>Upstream:</dt>
+            <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+            <dt>Licenses:</dt>
+            <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+            <dt>Manuals:</dt>
+            <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+        </dl>
+    </section>
+    <details>
+        <summary>Table of contents</summary>
+        <nav class="toc">
+            <ul>
+                <li><a href="#NAME">NAME</a></li>
+                <li><a href="#VERSION">VERSION</a></li>
+                <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+                <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+                <li><a href="#QUEUE_CREATION">QUEUE CREATION</a></li>
+                <li><a href="#BASIC_METHODS">BASIC METHODS</a></li>
+                <li><a href="#ADVANCED_METHODS">ADVANCED METHODS</a></li>
+                <li><a href="#NOTES">NOTES</a></li>
+                <li><a href="#LIMITATIONS">LIMITATIONS</a></li>
+                <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+                <li><a href="#MAINTAINER">MAINTAINER</a></li>
+                <li><a href="#LICENSE">LICENSE</a></li>
+            </ul>
+        </nav>
+    </details>
+    <nav class="other-formats">
+        <p>Other formats:</p>
+        <ul>
+            <li><a href="/man/Thread::Queue.3perl.en.txt">txt</a></li>
+            <li><a href="/man/Thread::Queue.3perl.en.raw">raw</a></li>
+        </ul>
+    </nav>
+</aside>
+</div>
+<table class="foot">
+    <tr>
+        <td class="foot-date">2025-07-13</td>
+        <td class="foot-os">perl v5.42.0</td>
+    </tr>
+</table>
+</body>
+</html>

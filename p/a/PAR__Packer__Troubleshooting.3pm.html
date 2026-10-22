@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PAR::Packer::SoluciónDeProblemas(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">PAR__Packer__Troubleshooting(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-par-packer/">perl-par-packer</a></p>
+<p class="lic">Licencias: GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">NOMBRE</td>
+    <td class="head-vol">Documentación de Perl contribuida por usuarios</td>
+    <td class="head-rtitle">PAR::Packer::SoluciónDeProblemas(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">PAR::Packer::SoluciónDeProblemas - Problemas comunes en la compresión de scripts con pp</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINTAXIS</a></h1>
+<p class="Pp">Explicar algunos problemas comunes y soluciones cuando se comparten scripts con pp.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Módulos_faltantes'><a class='permalink' href='#Módulos_faltantes'>Módulos_faltantes</a></h2>
+<p class="Pp">Cuando se ejecuta el ejecutable generado, se aborta con un mensaje similar a:</p>
+<pre>Can't locate Foo/Bar.pm in @INC (puede que necesite instalar el módulo Foo::Bar) 
+  (@INC contiene: ...) en script/pp5yBDq.pl línea 1.
+BEGIN fallido - compilación abortada en script/pp5yBDq.pl línea 1.</pre>
+<p class="Pp">Tu script <span class="Li">&quot;require&quot;</span> el módulo <span class="Li">&quot;Foo::Bar&quot;</span> (probablemente indirectamente desde otro módulo), pero pp no lo ha incluido en el ejecutable. pp usa Module::ScanDeps para recurrir a tu script para encontrar los módulos <span class="Li">&quot;require&quot;</span> que se necesitan. A veces, esta búsqueda puede ser incompleta debido a las muchas formas en que Perl permite expresar su deseo de cargar un módulo.</p>
+<p class="Pp">Intenta compilar con opciones <b>--compile</b> o <b>--execute</b> para resolver el problema. Si falla, añade explícitamente el módulo con la opción <b>-M</b>, es decir:</p>
+<pre>% pp -M Foo::Bar ...</pre>
+<p class="Pp">Puede haber que repetir la añadida de módulos, las variantes de <b>-M</b> con * pueden ser útiles aquí.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DLLs_nativas_faltantes'><a class='permalink' href='#DLLs_nativas_faltantes'>DLLs_nativas_faltantes</a></h2>
+<p class="Pp">El ejecutable generado funciona bien en la máquina donde fue generado, pero se aborta con un mensaje similar al siguiente cuando se lo ejecuta en otra máquina (que puede no tener Perl instalado).</p>
+<pre>Can't load 'C:\Users\myuser\AppData\Local\Temp\3\par-74686f6b65\temp-1772\inc\lib/auto/Net/SSLeay/SSLeay.dll' para el módulo Net::SSLeay:
+  load_file: El módulo especificado no pudo encontrarse en &lt;embedded&gt;/DynaLoader.pm línea 206. en &lt;embedded&gt;/PAR/Heavy.pm línea 95.</pre>
+<p class="Pp">Aquí, la parte del módulo XS (Net::SSLeay) (<i>.../auto/Net/SSLeay/SSLeay.dll</i>) que tiene la parte DLL (lib/ssl*.dll) ha sido compresada, pero está vinculada a una DLL nativa que no ha sido compresada. La DLL nativa está claramente presente en la máquina donde se compresó, pero no en la otra máquina. Nota que pp (o bien Module::ScanDeps) no detecta tal dependencia no-Perl y por lo tanto no comprimirá la DLL nativa, tendrías que agregarla manualmente (usando opción <b>--link</b>).</p>
+<p class="Pp"><b>TL;DR</b> Usa <i>pp_autolink</i> de <span class="Li">&quot;App::PP::Autolink&quot;</span> para automatizar la compresión de DLLs nativas y terminar con ello, o lee más sobre los detalles gorriones.</p>
+<p class="Pp">Inspecciona <i>.../auto/Net/SSLeay/SSLeay.dll</i> (usando herramientas como <i>objdump</i>) muestra que está vinculada a DLLs nativas <i>libssl*.dll</i> y <i>libcrypto*.dll</i>. Estas DLLs vienen de <i>OpenSSL</i>. Nota los * en los nombres anteriores, son versiones. Una vez que tengas los nombres exactos, puedes añadir estos DLLs a la línea de comandos de pp con <span class="Li">&quot;--link ...&quot;</span>. Pero no está hecho: <i>libcrypto*.dll</i> está generalmente vinculada a <i>libz*.dll</i>, así que tienes que añadir <span class="Li">&quot;--link ...&quot;</span> de ese. Nota que este ejemplo usa el sufijo Windows &quot;.dll&quot;, pero el problema también existe en Linux o macOS.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='&quot;Intentar_reemplazar..._abortado._Compilación_fallida_en_require...&quot;'><a class='permalink' href='#&quot;Intentar_reemplazar..._abortado._Compilación_fallida_en_require...&quot;'>&quot;Intentar_reemplazar..._abortado._Compilación_fallida_en_require...&quot;</a></h2>
+<p class="Pp">Hay varios escenarios donde &quot;Intentar_reemplazar..._abortado._Compilación_fallida_en_require...&quot; puede ser emitido: es solo un indicador de que una anterior <span class="Li">&quot;require&quot;</span> de <i>algo</i> falló, pero el error fue suprimido y luego <i>algo</i> fue <span class="Li">&quot;require&quot;</span> de nuevo. La razón original del error estaría indicada, pero no lo es.</p>
+<p class="Pp">Aquí es un ejemplo, <i>foo.pl</i>.</p>
+<pre>use strict;
+use warnings;
+use feature qw( say state );
+eval {
+    say &quot;primero Foo&quot;;
+    require Foo;
+};
+#say &quot;requerir fallido: $@&quot; si $@;   # &lt;---
+say &quot;Text::ParseWords ...&quot;;
+require Text::ParseWords;
+say &quot;segundo Foo&quot;;
+require Foo;</pre>
+<p class="Pp">Ahora ejecuta:</p>
+<pre>% echo &quot;use Bar; 1;&quot; &gt; Foo.pm
+% echo &quot;use Quux; 1;&quot; &gt; Bar.pm
+% perl -I. foo.pl
+primero Foo
+Text::ParseWords ...
+segundo Foo
+Intentar_reemplazar Foo.pm abortado.
+Compilación fallida en require en foo.pl línea 28.</pre>
+<p class="Pp">Descomenta la línea con el puntero para ver la razón real: &quot;No se puede encontrar Quux.pm en @INC ... en Bar.pm línea 1.&quot;, es decir, <i>Quux.pm</i> no está presente. Nota que el mensaje original no menciona &quot;Quux.pm&quot;.</p>
+<p class="Pp">Ahora intenta esto:</p>
+<pre>% echo &quot;{&quot; &gt; Quux.pm        # sí, es un error sintáctico
+% perl -I. foo.pl 
+primero Foo
+Text::ParseWords ...
+segundo Foo
+Intentar_reemplazar Foo.pm abortado.
+Compilación fallida en require en foo.pl línea 28.</pre>
+<p class="Pp">Resultado similar al anterior. De nuevo, descomenta la línea con el puntero para ver la razón real: &quot;Falta corchete o llave rectangular en Quux.pm línea 1 ... error sintáctico en Quux.pm línea 1, al final.&quot;. Por lo tanto, <i>Quux.pm</i> existe, pero no se puede cargar debido a un error de sintaxis. Hay otras razones por las que un módulo podría no cargarse, por ejemplo &quot;DLLs_nativas_faltantes&quot;.</p>
+<p class="Pp">Aquí está una receta para reducir el problema. Agrega lo siguiente <b>antes de la primera instrucción Perl</b> de <i>foo.pl</i>:</p>
+<pre>BEGIN {
+    my $required;
+    unshift @INC, sub {
+        (undef, $required) = @_;
+        my (undef, $filename, $line) = caller();
+        print STDERR &quot;requerir $required desde ${filename}:${line}\n&quot;;
+        return;
+    };
+    push @INC, sub { print STDERR &quot;FALTANTE $required\n&quot;; return; };
+}</pre>
+<p class="Pp">Este registra cualquier intento de <span class="Li">&quot;require&quot;</span> de <i>algo</i> incluyendo el sitio de llamada. No puede registrar si la <span class="Li">&quot;require&quot;</span> fue exitosa o el error en caso de falla. Pero si la falla es solo un módulo faltante, imprimirá &quot;FALTANTE <i>algo</i>&quot;.</p>
+<p class="Pp">Ahora intenta los dos variantes de nuevo. Aquí está el caso de &quot;FALTANTE <i>algo</i>&quot; (muestra solo &quot;stderr&quot;):</p>
+<pre>requerir strict.pm de foo.pl:14
+requerir warnings.pm de foo.pl:15
+requerir feature.pm de foo.pl:16
+requerir Foo.pm de foo.pl:22
+requerir Bar.pm de Foo.pm:1
+requerir Quux.pm de Bar.pm:1
+FALTANTE Quux.pm
+requerir Text/ParseWords.pm de foo.pl:27
+requerir Exporter.pm de /usr/lib/x86_64-linux-gnu/perl-base/Text/ParseWords.pm:8
+Intentar_reemplazar Foo.pm abortado.
+Compilación fallida en require en foo.pl línea 28.</pre>
+<p class="Pp">y el caso de &quot;no cargar&quot;:</p>
+<pre>requerir strict.pm de foo.pl:14
+requerir warnings.pm de foo.pl:15
+requerir feature.pm de foo.pl:16
+requerir Foo.pm de foo.pl:22
+requerir Bar.pm de Foo.pm:1
+requerir Quux.pm de Bar.pm:1
+requerir Text/ParseWords.pm de foo.pl:27
+requerir Exporter.pm de /usr/lib/x86_64-linux-gnu/perl-base/Text/ParseWords.pm:8
+Intentar_reemplazar Foo.pm abortado.
+Compilación fallida en require en foo.pl línea 28.</pre>
+<p class="Pp">La estrategia para encontrar la causa de &quot;Intentar_reemplazar <i>algo</i>&quot; es:</p>
+<ul class="Bl-bullet">
+  <li>Encuentra la primera ocurrencia de &quot;requerir <i>algo</i>&quot; en la salida.</li>
+  <li>Avanza por la cadena de llamadas de <span class="Li">&quot;require&quot;</span> anidadas, manteniéndote &quot;debajo&quot; de <i>algo</i>. El culpable es generalmente el último módulo mencionado en una línea de &quot;requerir ... desde ...&quot;.</li>
+  <li>Si la línea siguiente es &quot;FALTANTE <i>algo</i>&quot; entonces es un caso de &quot;Módulos_faltantes&quot; con <i>algo</i> como culpable. De lo contrario, es un error de carga, probablemente &quot;DLLs_nativas_faltantes&quot;.</li>
+</ul>
+<p class="Pp">En el ejemplo anterior, la cadena de llamadas es:</p>
+<pre>foo.pl -> Foo.pm -> Bar.pm -> Quux.pm</pre>
+<p class="Pp">(<i>Text/ParseWords.pm</i> es <span class="Li">&quot;require&quot;</span> de <i>foo.pl</i>, por lo que &quot;arriba&quot; es <i>Foo.pm</i>). Esto implicaría <i>Quux.pm</i>. Nota que la cadena de llamadas no tiene que ser regular, eso es solo el caso si todas las <span class="Li">&quot;require&quot;</span> vienen de <span class="Li">&quot;use&quot;</span> que se ejecutan en tiempo de compilación. La imagen podría estar desviada si se usan <span class="Li">&quot;require&quot;</span> en tiempo de ejecución.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIEN'><a class='permalink' href='#VER_TAMBIEN'>VER TAMBIÉN</a></h1>
+<p class="Pp">pp, App::PP::Autolink, PAR, PAR::Packer</p>
+</section>
+<section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+<p class="Pp">Copyright 2025 por Roderich Schupp
+    &lt;roderich.schupp@gmail.com&gt;.</p>
+<p class="Pp">Este documento es libre de uso; puedes redistribuirlo y/o modificarlo bajo los mismos términos que Perl mismo.</p>
+<p class="Pp">Ver <i>LICENSE</i>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manuales" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-par-packer/">extra/perl-par-packer</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.064-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/PAR-Packer">https://metacpan.org/release/PAR-Packer</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-par-packer/">/listing/extra/perl-par-packer/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Contenido de índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+            <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otras formas de formato:
+        
+            <a href="/man/PAR::Packer::Troubleshooting.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/PAR::Packer::Troubleshooting.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>La web está disponible bajo la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               excepto para los contenidos de las páginas del manuales, que tienen su propia licencia especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

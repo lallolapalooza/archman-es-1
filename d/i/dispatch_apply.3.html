@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>dispatch_apply(3) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">dispatch_apply(3)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/libdispatch/">libdispatch</a></p>
+<p class="lic">Licencias: Apache-2.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">dispatch_apply(3)</td>
+    <td class="head-vol">Manual de funciones de la biblioteca</td>
+    <td class="head-rtitle">dispatch_apply(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp"><code class="Nm">dispatch_apply</code> — <span class="Nd">programar bloques para ejecución iterativa</span></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<p class="Pp"><code class="In">#include
+    <a class="In">&lt;dispatch/dispatch.h&gt;</a></code></p>
+<p class="Pp"><var class="Ft">void</var>
+  <br/>
+  <code class="Fn">dispatch_apply</code>(<var class="Fa">size_t
+    iterations</var>, <var class="Fa">dispatch_queue_t queue</var>,
+    <var class="Fa">void (^block)(size_t)</var>);</p>
+<p class="Pp"><var class="Ft">void</var>
+  <br/>
+  <code class="Fn">dispatch_apply_f</code>(<var class="Fa">size_t
+    iterations</var>, <var class="Fa">dispatch_queue_t queue</var>,
+    <var class="Fa">void *context</var>, <var class="Fa">void (*function)(void
+    *, size_t)</var>);</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">La función
+    <a class="permalink" href="#dispatch_apply"><code class="Fn">dispatch_apply</code></a>()
+    proporciona concurrencia a nivel de datos a través de un primitivo similar a
+    un bucle &quot;for (;;)&quot;:</p>
+<div class="Bd Pp Li">
+<pre>size_t iterations = 10;
+
+// 'idx' está indexado desde cero, al igual que:
+// for (idx = 0; idx &lt; iterations; idx++)
+
+dispatch_apply(iterations, DISPATCH_APPLY_AUTO, ^(size_t idx) {
+	printf(&quot;%zu\n&quot;, idx);
+});</pre>
+</div>
+<p class="Pp" id="dispatch_apply~2">Aunque se puede usar cualquier cola, se
+    recomienda encarecidamente utilizar <var class="Vt">DISPATCH_APPLY_AUTO</var>
+    como argumento de <var class="Vt">queue</var> tanto para
+    <a class="permalink" href="#dispatch_apply~2"><code class="Fn">dispatch_apply</code></a>()
+    como para
+    <a class="permalink" href="#dispatch_apply_f"><code class="Fn" id="dispatch_apply_f">dispatch_apply_f</code></a>(),
+    como se muestra en el ejemplo anterior, ya que esto permite al sistema utilizar
+    automáticamente hilos de trabajo que coinciden lo más posible con la
+    configuración del hilo actual. No se deben hacer suposiciones sobre qué cola
+    concurrente global se utilizará.</p>
+<p class="Pp" id="dispatch_apply~3">Al igual que un bucle &quot;for (;;)&quot;,
+    la función <a class="permalink" href="#dispatch_apply~3"><code class="Fn">dispatch_apply</code></a>()
+    es síncrona. Si se desea un comportamiento asíncrono, envuelva la llamada a
+    <code class="Fn">dispatch_apply</code>() con una llamada a
+    <a class="permalink" href="#dispatch_async"><code class="Fn" id="dispatch_async">dispatch_async</code></a>()
+    en otra cola.</p>
+<p class="Pp" id="dispatch_apply~4">A veces, cuando el bloque pasado a
+    <a class="permalink" href="#dispatch_apply~4"><code class="Fn">dispatch_apply</code></a>()
+    es simple, el uso de pasos (striding) puede ajustar el rendimiento. Calcular
+    el paso óptimo es mejor dejarlo a la experimentación. Empiece con un paso de
+    uno y aumente hasta lograr el rendimiento deseado (quizás usando una búsqueda
+    de potencia de dos):</p>
+<div class="Bd Pp Li">
+<pre>#define STRIDE 3
+
+dispatch_apply(count / STRIDE, DISPATCH_APPLY_AUTO, ^(size_t idx) {
+	size_t j = idx * STRIDE;
+	size_t j_stop = j + STRIDE;
+	do {
+		printf(&quot;%zu\n&quot;, j++);
+	} while (j &lt; j_stop);
+});
+
+size_t i;
+for (i = count - (count % STRIDE); i &lt; count; i++) {
+	printf(&quot;%zu\n&quot;, i);
+}</pre>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='REFERENCIAS_IMPLÍCITAS'><a class='permalink' href='#REFERENCIAS_IMPLÍCITAS'>REFERENCIAS
+    IMPLÍCITAS</a></h1>
+<p class="Pp">Las funciones síncronas dentro del framework de dispatch retienen
+    una referencia implícita en la cola de destino. En otras palabras, la función
+    síncrona toma prestada la referencia de la función que llama (esto es válido
+    porque la función que llama está bloqueada esperando el resultado de la
+    función síncrona, y por lo tanto no puede modificar el contador de
+    referencias de la cola de destino hasta después de que la función síncrona
+    haya retornado).</p>
+<p class="Pp">Esto contrasta con las funciones asíncronas que deben retener
+    tanto el bloque como la cola de destino durante la duración de la operación
+    asíncrona (ya que la función que llama puede liberar inmediatamente su
+    interés en estos objetos).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUNDAMENTOS'><a class='permalink' href='#FUNDAMENTOS'>FUNDAMENTOS</a></h1>
+<p class="Pp"><a class="permalink" href="#dispatch_apply~5"><code class="Fn" id="dispatch_apply~5">dispatch_apply</code></a>()
+    y
+    <a class="permalink" href="#dispatch_apply_f~2"><code class="Fn" id="dispatch_apply_f~2">dispatch_apply_f</code></a>()
+    intentan crear rápidamente suficientes hilos de trabajo para ejecutar el trabajo
+    en paralelo de manera eficiente. Por el contrario, un bucle que pasa elementos
+    de trabajo individualmente a
+    <a class="permalink" href="#dispatch_async~2"><code class="Fn" id="dispatch_async~2">dispatch_async</code></a>()
+    o
+    <a class="permalink" href="#dispatch_async_f"><code class="Fn" id="dispatch_async_f">dispatch_async_f</code></a>()
+    incurrirá en más sobrecarga y no expresa las semánticas de ejecución
+    paralela deseadas al sistema, por lo que puede que no cree un número óptimo de
+    hilos de trabajo para una carga de trabajo paralela. Por esta razón, prefiera
+    usar <code class="Fn">dispatch_apply</code>() o
+    <code class="Fn">dispatch_apply_f</code>() cuando la ejecución paralela sea
+    importante.</p>
+<p class="Pp" id="dispatch_apply~6">La función
+    <a class="permalink" href="#dispatch_apply~6"><code class="Fn">dispatch_apply</code></a>()
+    es un envoltorio alrededor de
+    <a class="permalink" href="#dispatch_apply_f~3"><code class="Fn" id="dispatch_apply_f~3">dispatch_apply_f</code></a>().</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ADVERTENCIAS'><a class='permalink' href='#ADVERTENCIAS'>ADVERTENCIAS</a></h1>
+<p class="Pp">A diferencia de <code class="Fn">dispatch_async</code>(), se espera
+    que un bloque enviado a <code class="Fn">dispatch_apply</code>() sea
+    independiente o dependa
+    <a class="permalink" href="#solo"><i class="Em" id="solo">únicamente</i></a> del
+    trabajo ya realizado en invocaciones de índice inferior del bloque. Si la
+    dependencia del índice del bloque no es lineal, se recomienda usar un bucle
+    for alrededor de las invocaciones de
+    <code class="Fn">dispatch_async</code>().</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a class="Xr" href="/man/dispatch.3.en">dispatch(3)</a>,
+    <a class="Xr" href="/man/dispatch_async.3.en">dispatch_async(3)</a>,
+    <a class="Xr" href="/man/dispatch_queue_create.3.en">dispatch_queue_create(3)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">1 de mayo de 2009</td>
+    <td class="foot-os">Darwin</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/libdispatch/">extra/libdispatch</a></dd>
+        <dt>Versión:</dt>
+        <dd>6.1-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://apple.github.io/swift-corelibs-libdispatch">https://apple.github.io/swift-corelibs-libdispatch</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Apache-2.0</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/libdispatch/">/listing/extra/libdispatch/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#REFERENCIAS_IMPLÍCITAS">REFERENCIAS IMPLÍCITAS</a></li>
+        
+            <li><a href="#FUNDAMENTOS">FUNDAMENTOS</a></li>
+        
+            <li><a href="#ADVERTENCIAS">ADVERTENCIAS</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/dispatch_apply.3.en.txt">txt</a>, 
+        
+            <a href="/man/dispatch_apply.3.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

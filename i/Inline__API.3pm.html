@@ -1,0 +1,514 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Inline::API(3pm) — Páginas man del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Inline__API(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-inline/">perl-inline</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Inline::API(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Inline::API(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Inline-API - Cómo vincular un lenguaje de programación a Perl usando
+    Inline.pm</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#!/usr/bin/perl
+use Inline Foo;
+say_it('foo');  # Usa Foo para imprimir "Hello, Foo"
+__Foo__
+foo-sub say_it {
+    foo-my $foo = foo-shift;
+    foo-print "Hello, $foo\n";
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Así que crees que Inline C es bastante genial, pero lo que realmente
+    necesitas es que Perl funcione con el nuevo lenguaje de programación "Foo".
+    Pues tienes suerte. <span class="Li">"Inline.pm"</span> tiene
+    soporte para añadir tu propio Módulo de Soporte de Lenguaje Inline (<b>ILSM</b>),
+    como <span class="Li">"Inline::Foo"</span>.</p>
+<p class="Pp">Inline siempre ha estado destinado a funcionar con muchos lenguajes de
+    programación diferentes. Muchos de los detalles pueden compartirse entre
+    implementaciones, de modo que <span class="Li">"Inline::Java"</span>
+    tiene una interfaz similar a <span class="Li">"Inline::ASM"</span>.
+    Todo el código común está en
+  <span class="Li">"Inline.pm"</span>.</p>
+<p class="Pp">Los módulos específicos de un lenguaje como
+    <span class="Li">"Inline::Python"</span> son subclases de
+    <span class="Li">"Inline.pm"</span>. Pueden heredar tanto del
+    comportamiento común como deseen, y proporcionar comportamiento específico
+    propio. Esto generalmente se presenta en forma de Opciones de Configuración
+    y compilación específica del lenguaje.</p>
+<p class="Pp">El soporte de Inline C es probablemente la mejor plantilla para
+    copiar. Desde la versión 0.30, todo el soporte de C fue aislado en el módulo
+    <span class="Li">"Inline::C"</span> y la gramática de análisis
+    se desglosa aún más en
+    <span class="Li">"Inline::C::grammar"</span>. Todos estos
+    componentes vienen con la distribución de Inline.</p>
+<p class="Pp">Este POD te da todos los detalles que necesitas para implementar un
+    ILSM. Para asistencia adicional, contacta a inline@perl.org. Ver ["VER
+    TAMBIÉN"] más abajo.</p>
+<p class="Pp">Examinaremos el lenguaje de broma Inline::Foo que se distribuye
+    con Inline. En realidad es un ILSM totalmente funcional. Lo uso en el arnés
+    de pruebas de Inline para probar la funcionalidad base de Inline. Es muy
+    corto, y puede ayudarte a comprender la API de Inline.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='A_SKELETON'><a class='permalink' href='#A_SKELETON'>A   UN ESQUELETO</a></h1>
+<p class="Pp">Para el resto de este tutorial, supongamos que estamos escribiendo un
+    ILSM para el lenguaje ficticio <span class="Li">"Foo"</span>.
+    Lo llamaremos <span class="Li">"Inline::Foo"</span>. Aquí está la
+    implementación completa (y funcional).</p>
+<pre>package Inline::Foo;
+use strict;
+$Inline::Foo::VERSION = '0.01';
+@Inline::Foo::ISA = qw(Inline);
+require Inline;
+use Carp;
+#===========================================================
+# Registra Foo como un Módulo de Soporte de Lenguaje Inline (ILSM)
+#===========================================================
+sub register {
+    return {
+        language =&gt; 'Foo',
+        aliases =&gt; ['foo'],
+        type =&gt; 'interpreted',
+        suffix =&gt; 'foo',
+       };
+}
+#===========================================================
+# Mensajes de error
+#===========================================================
+sub usage_config {
+    my ($key) = @_;
+    "'$key' is not a valid config option for Inline::Foo\n";
+}
+sub usage_config_bar {
+    "Invalid value for Inline::Foo config option BAR";
+}
+#===========================================================
+# Valida las Opciones de Configuración de Foo
+#===========================================================
+sub validate {
+    my $o = shift;
+    $o-&gt;{ILSM}{PATTERN} ||= 'foo-';
+    $o-&gt;{ILSM}{BAR} ||= 0;
+    while (@_) {
+    my ($key, $value) = splice @_, 0, 2;
+    if ($key eq 'PATTERN') {
+        $o-&gt;{ILSM}{PATTERN} = $value;
+        next;
+    }
+    if ($key eq 'BAR') {
+        croak usage_config_bar
+          unless $value =~ /^[01]$/;
+        $o-&gt;{ILSM}{BAR} = $value;
+        next;
+    }
+    croak usage_config($key);
+    }
+}
+#===========================================================
+# Analiza y compila el código Foo
+#===========================================================
+sub build {
+    my $o = shift;
+    my $code = $o-&gt;{API}{code};
+    my $pattern = $o-&gt;{ILSM}{PATTERN};
+    $code =~ s/$pattern//g;
+    $code =~ s/bar-//g if $o-&gt;{ILSM}{BAR};
+    sleep 1;             # imita el retraso de compilación
+    {
+        package Foo::Tester;
+        eval $code;
+    }
+    croak "Foo build failed:\n$@" if $@;
+    my $path = "$o-&gt;{API}{install_lib}/auto/$o-&gt;{API}{modpname}";
+    my $obj = $o-&gt;{API}{location};
+    $o-&gt;mkpath($path) unless -d $path;
+    open FOO_OBJ, "&gt; $obj"
+      or croak "Can't open $obj for output\n$!";
+    print FOO_OBJ $code;
+    close \*FOO_OBJ;
+}
+#===========================================================
+# Solo necesario para lenguajes interpretados
+#===========================================================
+sub load {
+    my $o = shift;
+    my $obj = $o-&gt;{API}{location};
+    open FOO_OBJ, "&lt; $obj"
+      or croak "Can't open $obj for output\n$!";
+    my $code = join '', &lt;FOO_OBJ&gt;;
+    close \*FOO_OBJ;
+    eval "package $o-&gt;{API}{pkg};\n$code";
+    croak "Unable to load Foo module $obj:\n$@" if $@;
+}
+#===========================================================
+# Devuelve un pequeño informe sobre el código Foo.
+#===========================================================
+sub info {
+    my $o = shift;
+    my $text = &lt;&lt;'END';
+This is a small report about the Foo code. Perhaps it contains
+information about the functions the parser found which will be
+bound to Perl. It will get included in the text produced by the
+Inline 'INFO' command.
+END
+    return $text;
+}
+1;</pre>
+<p class="Pp">Excepto por <span class="Li">load()</span>, las subrutinas en este
+    código son obligatorias para un ILSM. Lo que hacen se describe más abajo.
+    Algunas cosas a tener en cuenta:</p>
+<ul class="Bl-bullet">
+  <li><span class="Li">"Inline::Foo"</span> debe ser una subclase de
+      Inline. Esto se logra con:
+        <pre>@Inline::Foo::ISA = qw(Inline);
+</pre>
+  </li>
+  <li>La línea '<span class="Li">"require Inline;"</span>' no es
+      necesaria. Pero está ahí para recordarte no decir
+      '<span class="Li">"use Inline;"</span>'. Esto no
+    funcionará.</li>
+  <li>Recuerda, no es válido que un usuario diga:
+        <pre>use Inline::Foo;
+</pre>
+    <p class="Pp"><span class="Li">"Inline.pm"</span> detectará ese
+        uso por ti en su método <span class="Li">"import"</span> ,
+        que se hereda automáticamente ya que
+        <span class="Li">"Inline::Foo"</span> es una subclase.</p>
+  </li>
+  <li>En la función build, normalmente necesitas analizar tu código fuente.
+      Inline::C usa Parse::RecDescent para hacer esto. Inline::Foo simplemente
+      usa eval. (Después de eliminar todas las apariciones de 'foo-').
+    <p class="Pp">Un método de análisis alternativo que funciona bien para muchos ILSMs
+        (como Java y Python) es usar el propio compilador del lenguaje para
+        analizar por ti. Esto funciona siempre que se pueda hacer que el
+        compilador devuelva información de análisis.</p>
+  </li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THE_INLINE_API'><a class='permalink' href='#THE_INLINE_API'>LA   API DE INLINE</a></h1>
+<p class="Pp">Esta sección es una especificación más formal de qué funcionalidad
+    necesitarás proporcionar para implementar un ILSM.</p>
+<p class="Pp">Cuando Inline determina que algo
+    <span class="Li">"Foo"</span> código necesita ser compilado, cargará
+    automáticamente tu módulo ILSM. Luego llamará a varias subrutinas
+    que necesitas proporcionar. Llamaremos a estas subrutinas
+    "callbacks" (retrollamadas).</p>
+<p class="Pp">Necesitarás proporcionar las siguientes 5 subrutinas de callback.</p>
+<section class="Ss">
+<h2 class="Ss">El <b>register()</b> Callback</h2>
+<p class="Pp">Esta subrutina no recibe argumentos. Devuelve una referencia a un
+    hash de metadatos del ILSM. Inline llama a esta rutina solo cuando intenta
+    detectar nuevos ILSMs que se han instalado en un sistema dado. Aquí hay un
+    ejemplo de la referencia al hash que devolverías para Foo:</p>
+<pre>{
+    language =&gt; 'Foo',
+    aliases =&gt; ['foo'],
+    type =&gt; 'interpreted',
+    suffix =&gt; 'foo',
+};</pre>
+<p class="Pp">Los elementos de metadatos tienen los siguientes significados:</p>
+<dl class="Bl-tag">
+  <dt id="language"><a class="permalink" href="#language">language</a></dt>
+  <dd>Este es el nombre propio del lenguaje. Generalmente se implementa como
+      <span class="Li">"Inline::X"</span> para un lenguaje dado
+    'X'.</dd>
+  <dt id="aliases"><a class="permalink" href="#aliases">aliases</a></dt>
+  <dd>Esta es una referencia a un array de alias de nombres de lenguaje. El nombre propio
+      de un lenguaje solo puede contener caracteres de palabra. A-Za-z0-9_ Un alias puede
+      contener cualquier carácter excepto espacios en blanco y comillas. Esto es útil para
+      nombres como 'C++' y 'C#'.</dd>
+  <dt id="type"><a class="permalink" href="#type">type</a></dt>
+  <dd>Debe establecerse en 'compiled' (compilado) o 'interpreted' (interpretado). Indica la categoría del
+      lenguaje.</dd>
+  <dt id="suffix"><a class="permalink" href="#suffix">suffix</a></dt>
+  <dd>Esta es la extensión de archivo para el objeto en caché que serácreado. Para
+      los lenguajes 'compilados', probablemente será 'so' o 'dll'. El valor
+      apropiado está en <span class="Li">"Config.pm"</span>.
+    <p class="Pp">Para los lenguajes interpretados, este valor puede ser lo que
+        quieras. Python usa <span class="Li">"pydat"</span>. Foo usa
+        <span class="Li">"foo"</span>.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss">El <b>validate()</b> Callback</h2>
+<p class="Pp">A esta rutina se le pasan todas las opciones de configuración que no
+    fueron manejadas previamente por el módulo base Inline. Las opciones se pasan como
+    pares clave/valor. Depende de ti validar cada opción y almacenar su valor
+    en el objeto Inline (que también se pasa). Si una opción en particular
+    es inválida, debes hacer croak con un mensaje de error apropiado.</p>
+<p class="Pp">Ten en cuenta que todas las palabras clave que recibe esta rutina serán convertidas
+    a mayúsculas por <span class="Li">"Inline"</span>, sin importar en qué
+    mayúsculas o minúsculas las haya dado el programa.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">El <b>build()</b> Callback</h2>
+<p class="Pp">Esta subrutina es responsable de hacer el análisis y la
+    compilación del código fuente de Foo. El objeto Inline se pasa como único
+    argumento. Toda la información pertinente se almacenará en este objeto.
+    <span class="Li">build()</span> es necesario para crear un objeto de caché con un
+    nombre específico, o para hacer croak con un mensaje de error apropiado.</p>
+<p class="Pp">Esta es la parte principal de tu ILSM. Dado que probablemente será bastante
+    complicado, probablemente sea mejor que estudies un ILSM existente como
+    <span class="Li">"Inline::C"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">El <b>load()</b> Callback</h2>
+<p class="Pp">Este método solo necesita ser proporcionado para lenguajes interpretados.
+    Su responsabilidad es iniciar el intérprete.</p>
+<p class="Pp">Para los lenguajes compilados, se llama a la rutina load de
+    <span class="Li">"Inline.pm"</span> que usa
+    <span class="Li">"DynaLoader"</span> para cargar el objeto compartido o
+    DLL.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss">El <b>info()</b> Callback</h2>
+<p class="Pp">Este método se llama cuando el usuario hace uso del
+    <span class="Li">"INFO"</span> atajo. Deberías devolver una
+    cadena que contenga un pequeño informe sobre el código Inlined.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THE_INLINE_OBJECT'><a class='permalink' href='#THE_INLINE_OBJECT'>EL   OBJETO INLINE</a></h1>
+<p class="Pp"><span class="Li">"Inline.pm"</span> crea un objeto Perl basado en hash
+    para cada sección de código fuente Inlined que recibe. Este objeto
+    contiene mucha información sobre el código, el entorno y las
+    opciones de configuración utilizadas.</p>
+<p class="Pp">Este objeto es un hash que está dividido en varios subhashes. Los
+    únicos dos subhashes que un ILSM debería usar en absoluto son
+    <span class="Li">$o</span>-&gt;{API} y
+    <span class="Li">$o</span>-&gt;{ILSM}. El primero contiene toda la
+    información que Inline ha recopilado para ti para que puedas crear/cargar un
+    objeto de caché de tu diseño. El segundo es un repositorio donde tu ILSM
+    puede almacenar libremente datos que podría necesitar más adelante.</p>
+<p class="Pp">Esta sección describirá todos los atributos del objeto
+    "API" de Inline.</p>
+<dl class="Bl-tag">
+  <dt id="The"><a class="permalink" href="#The">El atributo code</a></dt>
+  <dd>Este es el código fuente real pasado por el usuario. Se almacena como una
+      sola cadena larga.</dd>
+  <dt id="The~2"><a class="permalink" href="#The~2">El atributo
+    language</a></dt>
+  <dd>El nombre propio del lenguaje que se está utilizando.</dd>
+  <dt id="The~3"><a class="permalink" href="#The~3">El atributo
+    language_id</a></dt>
+  <dd>El nombre del lenguaje especificado por el usuario. Podría ser 'C++' en lugar de
+    'CPP'.</dd>
+  <dt id="The~4"><a class="permalink" href="#The~4">El atributo
+    module</a></dt>
+  <dd>Este es el nombre de archivo del objeto compartido.</dd>
+  <dt id="The~5"><a class="permalink" href="#The~5">El atributo
+    modfname</a></dt>
+  <dd>Este es el nombre de archivo del objeto compartido.</dd>
+  <dt id="The~6"><a class="permalink" href="#The~6">El atributo
+    modpname</a></dt>
+  <dd>Esta es la extensión de la ruta de instalación del objeto compartido.</dd>
+  <dt id="The~7"><a class="permalink" href="#The~7">El atributo
+    version</a></dt>
+  <dd>La versión de <span class="Li">"Inline.pm"</span> que se
+    está usando.</dd>
+  <dt id="The~8"><a class="permalink" href="#The~8">El atributo pkg</a></dt>
+  <dd>El paquete Perl desde el cual se invocó esta llamada de Inline.</dd>
+  <dt id="The~9"><a class="permalink" href="#The~9">El atributo
+    install_lib</a></dt>
+  <dd>Este es el directorio en el que escribir el objeto compartido.</dd>
+  <dt id="The~10"><a class="permalink" href="#The~10">El atributo
+    build_dir</a></dt>
+  <dd>Este es el directorio bajo el cual deberías escribir todos tus archivos
+      relacionados con la construcción.</dd>
+  <dt id="The~11"><a class="permalink" href="#The~11">El atributo
+    script</a></dt>
+  <dd>Este es el nombre del script que invocó a Inline.</dd>
+  <dt id="The~12"><a class="permalink" href="#The~12">El atributo
+    location</a></dt>
+  <dd>Esta es la ruta completa del objeto ejecutable en cuestión.</dd>
+  <dt id="The~13"><a class="permalink" href="#The~13">El atributo
+    suffix</a></dt>
+  <dd>Este es el nombre de la extensión de la biblioteca compartida. (Normalmente 'so' o 'dll').</dd>
+</dl>
+<section class="Ss">
+<h2 class="Ss" id='derive_minus_I_Method'><a class='permalink' href='#derive_minus_I_Method'>Método   derive_minus_I</a></h2>
+<p class="Pp">Los ILSMs pueden necesitar ejecutar subprocesos de Perl con un entorno similar
+    al actual - particularmente <span class="Li">@INC</span>. Se puede llamar a este método
+    para devolver una lista de rutas absolutas que pasar a un intérprete de Perl
+    para recrear ese entorno. Necesitarás anteponer
+    <span class="Li">"-I"</span> a cada una. Este método omite de
+    esa lista cualquier ruta que aparezca en <span class="Li">$ENV{PERL5LIB}</span> o
+    las bibliotecas predeterminadas de Perl, ya que esas estarán disponibles de todos modos.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='THE_INLINE_NAMESPACE'><a class='permalink' href='#THE_INLINE_NAMESPACE'>EL   ESPACIO DE NOMBRES INLINE</a></h1>
+<p class="Pp"><span class="Li">"Inline.pm"</span> ha sido configurado de modo que
+    cualquiera puede escribir sus propios módulos de soporte de lenguaje. Además permite
+    que cualquiera escriba una implementación diferente de un lenguaje Inline existente,
+    como C por ejemplo. Puedes distribuir ese módulo en el CPAN.</p>
+<p class="Pp">Si tienes planes de implementar y distribuir un módulo Inline, te
+    pediría que por favor trabajes con la comunidad Inline. Podemos ser contactados
+    en la lista de correo de Inline: inline@perl.org (Envía un correo a
+    inline-subscribe@perl.org para suscribirte). Aquí deberías encontrar los consejos y
+    la asistencia necesarios para hacer que tu módulo sea un éxito.</p>
+<p class="Pp">La comunidad Inline decidirá si tu implementación de COBOL
+    se distribuirá como el oficial
+    <span class="Li">"Inline::COBOL"</span> o si debería usar un espacio de nombres
+    alternativo. En casos de disputa, yo (Ingy döt Net) retengo la autoridad
+    final. (y espero no tener que usarla :-) En realidad modules@perl.org
+    retiene la <b>autoridad</b> final.</p>
+<p class="Pp">Pero incluso si quieres trabajar solo, eres libre y bienvenido a
+    escribir y distribuir módulos de soporte de lenguaje Inline en CPAN. Solo
+    necesitarás distribuirlos bajo un nombre de paquete diferente.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<p class="Pp">Para información genérica sobre Inline, consulta Inline.</p>
+<p class="Pp">Para información sobre el uso de Inline con C, consulta Inline::C.</p>
+<p class="Pp">Para información sobre los lenguajes y plataformas soportados, consulta
+    Inline-Support.</p>
+<p class="Pp">La lista de correo de Inline es inline@perl.org</p>
+<p class="Pp">Para suscribirte, envía un correo a inline-subscribe@perl.org</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Ingy döt Net &lt;ingy@cpan.org&gt;</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Copyright 2000-2019. Ingy döt Net.</p>
+<p class="Pp">Copyright 2008, 2010, 2011. Sisyphus.</p>
+<p class="Pp">Este programa es software libre; puedes redistribuirlo y/o
+    modificarlo bajo los mismos términos que el propio Perl.</p>
+<p class="Pp">Consulta <a href='http://www.perl.com/perl/misc/Artistic.html'>http://www.perl.com/perl/misc/Artistic.html</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-11</td>
+    <td class="foot-os">perl v5.40.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-inline/">extra/perl-inline</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.87-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/Inline">https://search.cpan.org/dist/Inline</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-inline/">/listing/extra/perl-inline/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#A_SKELETON">UN ESQUELETO</a></li>
+        
+            <li><a href="#THE_INLINE_API">LA API DE INLINE</a></li>
+        
+            <li><a href="#THE_INLINE_OBJECT">EL OBJETO INLINE</a></li>
+        
+            <li><a href="#THE_INLINE_NAMESPACE">EL ESPACIO DE NOMBRES INLINE</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT">DERECHOS DE AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Inline::API.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Inline::API.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

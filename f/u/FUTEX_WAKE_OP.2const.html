@@ -1,0 +1,231 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FUTEX_WAKE_OP(2const) — Páginas de manual </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">FUTEX_WAKE_OP.2const</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/any/man-pages/">man-pages</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">FUTEX_WAKE_OP(2co</td>nst)
+    <td class="head-vol"></td>
+    <td class="head-rtitle">FUTEX_WAKE_OP(2co</td>ns</tr>t</table>)
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">FUTEX_WAKE_OP - b</p>loqueo rápido en e</section>spacio de usuario
+<section class="Sh">
+<h1 class="Sh" id='LIBRARY'><a class='permalink' href='#LIBRARY'>BIBLIOTEC</a></h1>A
+<p class="Pp">Biblioteca C estándar (<i>lib</i>c,<i>-</i>l</p>c</section>)
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSI</a></h1>S
+<pre><b>#include &lt;linux/futex.</b>h&gt;  /* Definición de <b>constantes </b>FUTEX_* */
+<b>#include &lt;sys/syscall.</b>h&gt;  /* Definición de <b>constantes </b>SYS_* */
+<b>#include &lt;unistd.</b></pre>h&gt;
+<pre><b>long syscall(SYS_futex, uint32_t *</b><i>uaddr</i><b>, FUTEX_WAKE_OP, uint32_t</b> <i>val</i><b></b>,
+<b>             uint32_t</b> <i>val2</i><b>, uint32_t *</b><i>uaddr2</i><b></b>,
+<b>             uint32_t</b> <i>val3</i><b>)</b></pre></section>;
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp">Esta operación se añadió para soportar algunos casos de uso en el espacio de usuario donde se debe manejar más de un futex al mismo tiempo. El ejemplo más notable es la implementación de <a href='/man/pthread_cond_signal.3.en'>pthread_cond_signal(3)</a>, que requiere operaciones en dos futexes, el que se usa para implementar el mutex y el que se usa en la implementación de la cola de espera asociada a la variable de condición. <b>FUTEX_WAKE_OP </b>permite implementar tales casos sin llevar a altas tasas de contención y cambio de </p>contexto.
+<p class="Pp">La <b>operación </b>FUTEX_WAKE_OP es equivalente a ejecutar el siguiente código de forma atómica y totalmente ordenada con respecto a otras operaciones futex en cualquiera de las dos palabras futex </p>proporcionadas:
+<p class="Pp">
+  <br/>
+</p>
+<pre>uint32_t oldval = *(uint32_t *) uaddr2;
+*(uint32_t *) uaddr2 = oldval <i>o</i>p <i>oparg;</i>
+futex(uaddr, FUTEX_WAKE, val, 0, 0, 0);
+if (oldval <i>cm</i>p <i>cmparg)</i>
+    futex(uaddr2, FUTEX_WAKE, val2, 0, 0, 0)</pre>;
+<p class="Pp">En otras palabras, <b>FUTEX_WAKE_OP </b>hace lo </p>siguiente:
+<dl class="Bl-tag">
+  <dt></dt>•
+  <dd>guarda el valor original de la palabra futex en <i>uaddr2 </i>y realiza una operación para modificar el valor del futex en <i>uaddr2;</i> este es un acceso de memoria atómico de lectura-modificación-escritura (es decir, usando instrucciones atómicas de la arquitectura </dd>respectiva)
+  <dt></dt>•
+  <dd>despierta un máximo de <i>val </i>esperadores en el futex para la palabra futex en <i>uad</i>dr</dd>; y
+  <dt></dt>•
+  <dd>dependiendo de los resultados de una prueba del valor original de la palabra futex en <i>uaddr2,</i> despierta un máximo de <i>val2 </i>esperadores en el futex <i>para la </i>palabra </dd>futex en</dl> uaddr2.
+<p class="Pp">La operación y la comparación que se deben realizar están codificadas en los bits del argumento <i>val3.</i> Pictóricamente, la codificación </p>es:
+<p class="Pp">
+  <br/>
+</p>
+<pre>+---+---+-----------+-----------+
+|op |cmp|   oparg   |  cmparg   |
++---+---+-----------+-----------+
+  4   4       12          12    &lt;== # de </pre>bits
+<p class="Pp">Expresado en código, la codificación </p>es:
+<p class="Pp">
+  <br/>
+</p>
+<pre>#define FUTEX_OP(op, oparg, cmp, cmparg) \
+                (((op &amp; 0xf) &lt;&lt; 28) | \
+                ((cmp &amp; 0xf) &lt;&lt; 24) | \
+                ((oparg &amp; 0xfff) &lt;&lt; 12) | \
+                (cmparg &amp; 0xfff)</pre>)
+<p class="Pp">En lo anterior, <i>op </i>y <i>cmp </i>son cada uno de los códigos
+    listados a continuación. Los componentes <i>oparg </i>y <i>cmparg </i>son valores numéricos literales, excepto como se indica a </p>continuación.
+<p class="Pp">El componente <i>op </i>tiene uno de los siguientes </p>valores:
+<p class="Pp">
+  <br/>
+</p>
+<table class="tbl">
+  <tr>
+    <td>FUTEX_OP</td>_SET
+    <td></td>0
+    <td>/* uaddr2 = oparg;</td> </tr>*/
+  <tr>
+    <td>FUTEX_OP</td>_ADD
+    <td></td>1
+    <td>/* uaddr2 += oparg;</td> </tr>*/
+  <tr>
+    <td>FUTEX_OP</td>_OR
+    <td></td>2
+    <td>/* uaddr2 |= oparg;</td> </tr>*/
+  <tr>
+    <td>FUTEX_OP_</td>ANDN
+    <td></td>3
+    <td>/* uaddr2 &amp;= ~oparg;</td> </tr>*/
+  <tr>
+    <td>FUTEX_OP</td>_XOR
+    <td></td>4
+    <td>/* uad</td>dr2 ^</tr>= opa</table>rg; */
+<br/>
+<p class="Pp">Además, hacer OR bit a bit del siguiente valor en <i>op
+</i>    hace que <i>(1 &lt;&lt; oparg)</i> se use como el
+  </p>operando:
+<p class="Pp">
+  <br/>
+</p>
+<pre>FUTEX_OP_ARG_SHIFT  8  /* Usar (1 &lt;&lt; oparg) como operando </pre>*/
+<p class="Pp">El campo <i>cmp </i>es uno de los </p>siguientes:
+<p class="Pp">
+  <br/>
+</p>
+<pre>FUTEX_OP_CMP_EQ     0  /* si (oldval == cmparg) despertar */
+FUTEX_OP_CMP_NE     1  /* si (oldval != cmparg) despertar */
+FUTEX_OP_CMP_LT     2  /* si (oldval &lt; cmparg) despertar */
+FUTEX_OP_CMP_LE     3  /* si (oldval &lt;= cmparg) despertar */
+FUTEX_OP_CMP_GT     4  /* si (oldval &gt; cmparg) despertar */
+FUTEX_OP_CMP_GE     5  /* si (oldval &gt;= cmparg) despertar </pre>*/
+<p class="Pp">El valor de retorno de <b>FUTEX_WAKE_OP </b>es la suma del número de esperadores despertados en el futex <i>uaddr </i>más el número de esperadores despertados
+    en el futex <i>ua</i>dd</p>r</section>2.
+<section class="Sh">
+<h1 class="Sh" id='RETURN_VALUE'><a class='permalink' href='#RETURN_VALUE'>VALOR DE </a></h1>RETORNO
+<p class="Pp">En caso de error, se devuelve -1, y <i>errno </i>se establece para indicar el </p>error.
+<p class="Pp">En caso de éxito, <b>FUTEX_WAKE_OP </b>devuelve el número total de esperadores que fueron despertados. Esta es la suma de los esperadores despertados en los dos futexes para las palabras futex en <i>uaddr </i>y <i>ua</i>dd</p>r</section>2.
+<section class="Sh">
+<h1 class="Sh" id='ERRORS'><a class='permalink' href='#ERRORS'>ERRORE</a></h1>S
+<p class="Pp">Ver <a href='/man/futex.2.en'>fut</a>ex(</p>2).
+<dl class="Bl-tag">
+  <dt id="EFAULT"><a class="permalink" href="#EFAULT"><b>EFAU</b></a></dt>LT
+  <dd><i>uaddr2 </i>no apuntaba a una dirección de espacio de usuario </dd>válida.
+  <dt id="EINVAL"><a class="permalink" href="#EINVAL"><b>EINV</b></a></dt>AL
+  <dd><i>uaddr2 </i>no apunta a un objeto válido—es decir, la dirección no está alineada a cuatro </dd>bytes.
+  <dt id="EINVAL~2"><a class="permalink" href="#EINVAL~2"><b>EINV</b></a></dt>AL
+  <dd>El kernel detectó una inconsistencia entre el estado del espacio de usuario en
+      <i>uaddr </i>y el estado del kernel—es decir, detectó un esperador que espera en <b>FUTEX_LOCK_PI(2const)</b> o
+      <b>FUTEX_LOCK_PI2(2const)</b> en <i>u</i>a</dd>dd</dl>r</section>.
+<section class="Sh">
+<h1 class="Sh" id='STANDARDS'><a class='permalink' href='#STANDARDS'>ESTÁNDARE</a></h1>S
+<p class="Pp">Linu</p>x</section>.
+<section class="Sh">
+<h1 class="Sh" id='HISTORY'><a class='permalink' href='#HISTORY'>HISTORI</a></h1>A
+<p class="Pp">Linu</p>x 2.6</section>.14.
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER </a></h1>TAMBIÉN
+<p class="Pp"><a href='/man/futex.2.en'>fu</a></p>te</section>x(</div>2)
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-09</td>-21
+    <td class="foot-os">Lin</td>ux m</tr>an-</table>pag</section>es 6</article>.16
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/core/any/man-pages/">core/man-</a></dd>pages
+        <dt>Vers</dt>ión:
+        <dd>6.</dd>16-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://www.kernel.org/doc/man-pages/">https://www.kernel.</a></dd>org/doc/man-pages/
+        <dt>Licen</dt>cias:
+        <dd>BSD-2-Clause, BSD-3-Clause, BSD-4.3TAHOE, BSD-4-Clause-UC, GPL-1.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-3.0-or-later, LGPL-3.0-linking-exception, LicenseRef-Public-Domain, LicenseRef-UltraPermissive, Linux-man-pages-1-para, Linux-man-pages-copyleft, Linux-man-pages-copyleft-2-para, Linux-man-pages-copyleft-var, MIT, </dd>Spencer-94
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/core/man-pages/">/listi</a></dd>ng/cor</dl>e/man-</section>pages/
+
+<details>
+    <summary>Índic</summary>e
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#LIBRARY">BI</a></li>BLIOTECA
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#RETURN_VALUE">VALOR </a></li>DE RETORNO
+        
+            <li><a href="#ERRORS">ER</a></li>RORES
+        
+            <li><a href="#STANDARDS">EST</a></li>ÁNDARES
+        
+            <li><a href="#HISTORY">HI</a></li>STORIA
+        
+            <li><a href="#SEE_ALSO">VE</a></li>R </ul>TAM</nav>BI</details>ÉN
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/FUTEX_WAKE_OP.2const.en.txt">t</a>xt, 
+        
+            <a href="/man/FUTEX_WAKE_OP.2const.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.</a>0
+               licencia, excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

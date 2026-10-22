@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SELECT(7) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">SELECT(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/postgresql/">postgresql</a></p>
+<p class="lic">Licencias: PostgreSQL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">SELECT(7)</td>
+    <td class="head-vol">Documentación de PostgreSQL 18.1</td>
+    <td class="head-rtitle">SELECT(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">SELECT, TABLE, WITH - recuperar filas de una tabla o vista</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'> SINOPSIS</a></h1>
+<pre>[ WITH [ RECURSIVE ] <i>with_query</i> [, ...] ]
+SELECT [ ALL | DISTINCT [ ON ( <i>expression</i> [, ...] ) ] ]
+    [ { * | <i>expression</i> [ [ AS ] <i>output_name</i> ] } [, ...] ]
+    [ FROM <i>from_item</i> [, ...] ]
+    [ WHERE <i>condition</i> ]
+    [ GROUP BY [ ALL | DISTINCT ] <i>grouping_element</i> [, ...] ]
+    [ HAVING <i>condition</i> ]
+    [ WINDOW <i>window_name</i> AS ( <i>window_definition</i> ) [, ...] ]
+    [ { UNION | INTERSECT | EXCEPT } [ ALL | DISTINCT ] <i>select</i> ]
+    [ ORDER BY <i>expression</i> [ ASC | DESC | USING <i>operator</i> ] [ NULLS { FIRST | LAST } ] [, ...] ]
+    [ LIMIT { <i>count</i> | ALL } ]
+    [ OFFSET <i>start</i> [ ROW | ROWS ] ]
+    [ FETCH { FIRST | NEXT } [ <i>count</i> ] { ROW | ROWS } { ONLY | WITH TIES } ]
+    [ FOR { UPDATE | NO KEY UPDATE | SHARE | KEY SHARE } [ OF <i>from_reference</i> [, ...] ] [ NOWAIT | SKIP LOCKED ] [...] ]
+donde <i>from_item</i> puede ser uno de:
+    [ ONLY ] <i>table_name</i> [ * ] [ [ AS ] <i>alias</i> [ ( <i>column_alias</i> [, ...] ) ] ]
+                [ TABLESAMPLE <i>sampling_method</i> ( <i>argument</i> [, ...] ) [ REPEATABLE ( <i>seed</i> ) ] ]
+    [ LATERAL ] ( <i>select</i> ) [ [ AS ] <i>alias</i> [ ( <i>column_alias</i> [, ...] ) ] ]
+    <i>with_query_name</i> [ [ AS ] <i>alias</i> [ ( <i>column_alias</i> [, ...] ) ] ]
+    [ LATERAL ] <i>function_name</i> ( [ <i>argument</i> [, ...] ] )
+                [ WITH ORDINALITY ] [ [ AS ] <i>alias</i> [ ( <i>column_alias</i> [, ...] ) ] ]
+    [ LATERAL ] <i>function_name</i> ( [ <i>argument</i> [, ...] ] ) [ AS ] <i>alias</i> ( <i>column_definition</i> [, ...] )
+    [ LATERAL ] <i>function_name</i> ( [ <i>argument</i> [, ...] ] ) AS ( <i>column_definition</i> [, ...] )
+    [ LATERAL ] ROWS FROM( <i>function_name</i> ( [ <i>argument</i> [, ...] ] ) [ AS ( <i>column_definition</i> [, ...] ) ] [, ...] )
+                [ WITH ORDINALITY ] [ [ AS ] <i>alias</i> [ ( <i>column_alias</i> [, ...] ) ] ]
+    <i>from_item</i> <i>join_type</i> <i>from_item</i> { ON <i>join_condition</i> | USING ( <i>join_column</i> [, ...] ) [ AS <i>join_using_alias</i> ] }
+    <i>from_item</i> NATURAL <i>join_type</i> <i>from_item</i>
+    <i>from_item</i> CROSS JOIN <i>from_item</i>
+y <i>grouping_element</i> puede ser uno de:
+    ( )
+    <i>expression</i>
+    ( <i>expression</i> [, ...] )
+    ROLLUP ( { <i>expression</i> | ( <i>expression</i> [, ...] ) } [, ...] )
+    CUBE ( { <i>expression</i> | ( <i>expression</i> [, ...] ) } [, ...] )
+    GROUPING SETS ( <i>grouping_element</i> [, ...] )
+y <i>with_query</i> es:
+    <i>with_query_name</i> [ ( <i>column_name</i> [, ...] ) ] AS [ [ NOT ] MATERIALIZED ] ( <i>select</i> | <i>values</i> | <i>insert</i> | <i>update</i> | <i>delete</i> | <i>merge</i> )
+        [ SEARCH { BREADTH | DEPTH } FIRST BY <i>column_name</i> [, ...] SET <i>search_seq_col_name</i> ]
+        [ CYCLE <i>column_name</i> [, ...] SET <i>cycle_mark_col_name</i> [ TO <i>cycle_mark_value</i> DEFAULT <i>cycle_mark_default</i> ] USING <i>cycle_path_col_name</i> ]
+TABLE [ ONLY ] <i>table_name</i> [ * ]</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'> DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>SELECT</b> recupera filas de cero o más tablas. El procesamiento
+    general de <b>SELECT</b> es el siguiente:</p>
+<div class="Bd-indent"> 1.Se calculan todas las consultas de la lista WITH.
+    Efectivamente, actúan como tablas temporales que se pueden referenciar en la
+    lista FROM. Una consulta WITH que se referencia más de una vez en FROM se
+    calcula solo una vez, a menos que se especifique lo contrario con NOT
+    MATERIALIZED. (Ver Cláusula WITH abajo).</div>
+<div class="Bd-indent"> 2.Se calculan todos los elementos de la lista FROM.
+    (Cada elemento en la lista FROM es una tabla real o virtual). Si se
+    especifican más de un elemento en la lista FROM, se unen en producto
+    cartesiano. (Ver Cláusula FROM abajo).</div>
+<div class="Bd-indent"> 3.Si se especifica la cláusula WHERE, todas las filas que
+    no satisfacen la condición se eliminan de la salida. (Ver Cláusula WHERE
+    abajo).</div>
+<div class="Bd-indent"> 4.Si se especifica la cláusula GROUP BY, o si hay
+    llamadas a funciones de agregación, la salida se combina en grupos de filas
+    que coinciden en uno o más valores, y se calculan los resultados de las
+    funciones de agregación. Si está presente la cláusula HAVING, elimina los
+    grupos que no satisfacen la condición dada. (Ver Cláusula GROUP BY y Cláusula
+    HAVING abajo). Aunque las columnas de salida de la consulta se calculan
+    nominalmente en el siguiente paso, también se pueden referenciar (por nombre
+    o número ordinal) en la cláusula GROUP BY.</div>
+<div class="Bd-indent"> 5.Las filas de salida reales se calculan utilizando las
+    expresiones de salida de <b>SELECT</b> para cada fila o grupo de filas
+    seleccionado. (Ver Lista SELECT abajo).</div>
+<div class="Bd-indent"> 6.SELECT DISTINCT elimina filas duplicadas del
+    resultado. SELECT DISTINCT ON elimina filas que coinciden en todas las
+    expresiones especificadas. SELECT ALL (el valor predeterminado) devolverá
+    todas las filas candidatas, incluidos los duplicados. (Ver Cláusula
+    DISTINCT abajo).</div>
+<div class="Bd-indent"> 7.Utilizando los operadores UNION, INTERSECT y EXCEPT,
+    la salida de una o más sentencias <b>SELECT</b> puede combinarse para formar
+    un único conjunto de resultados. El operador UNION devuelve todas las filas
+    que están en uno o ambos conjuntos de resultados. El operador INTERSECT
+    devuelve todas las filas que están estrictamente en ambos conjuntos de
+    resultados. El operador EXCEPT devuelve las filas que están en el primer
+    conjunto de resultados pero no en el segundo. En los tres casos, se eliminan
+    las filas duplicadas a menos que se especifique ALL. La palabra clave DISTINCT
+    puede añadirse para especificar explícitamente la eliminación de filas
+    duplicadas. Tenga en cuenta que DISTINCT es el comportamiento predeterminado
+    aquí, aunque ALL es el predeterminado para <b>SELECT</b> en sí. (Ver Cláusula
+    UNION, Cláusula INTERSECT y Cláusula EXCEPT abajo).</div>
+<div class="Bd-indent"> 8.Si se especifica la cláusula ORDER BY, las filas
+    devueltas se ordenan en el orden especificado. Si no se proporciona ORDER BY,
+    las filas se devuelven en el orden que el sistema encuentre más rápido de
+    producir. (Ver Cláusula ORDER BY abajo).</div>
+<div class="Bd-indent"> 9.Si se especifica la cláusula LIMIT (o FETCH FIRST) o
+    OFFSET, la sentencia <b>SELECT</b> solo devuelve un subconjunto de las filas
+    del resultado. (Ver Cláusula LIMIT abajo).</div>
+<div class="Bd-indent">10.Si se especifica FOR UPDATE, FOR NO KEY UPDATE, FOR
+    SHARE o FOR KEY SHARE, la sentencia <b>SELECT</b> bloquea las filas
+    seleccionadas contra actualizaciones concurrentes. (Ver La Cláusula de
+    Bloqueo abajo).</div>
+<p class="Pp">Debe tener el privilegio SELECT en cada columna utilizada en un
+    comando <b>SELECT</b>. El uso de FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE o
+    FOR KEY SHARE requiere también el privilegio UPDATE (para al menos una columna
+    de cada tabla seleccionada).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PARÁMETROS'><a class='permalink' href='#PARÁMETROS'> PARÁMETROS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Cláusula_WITH'><a class='permalink' href='#Cláusula_WITH'> Cláusula WITH</a></h2>
+<p class="Pp">La cláusula WITH permite especificar una o más subconsultas que
+    pueden ser referenciadas por nombre en la consulta principal. Las subconsultas
+    actúan efectivamente como tablas o vistas temporales durante la consulta
+    principal. Cada subconsulta puede ser una sentencia <b>SELECT</b>,
+    <b>TABLE</b>, <b>VALUES</b>, <b>INSERT</b>, <b>UPDATE</b>, <b>DELETE</b> o
+    <b>MERGE</b>. Al escribir una sentencia de modificación de datos (<b>INSERT</b>,
+    <b>UPDATE</b>, <b>DELETE</b> o <b>MERGE</b>) en WITH, es habitual incluir una
+    cláusula RETURNING. Es la salida de RETURNING, <i>no</i> la tabla subyacente
+    que modifica la sentencia, lo que forma la tabla temporal que es leída por la
+    consulta principal. Si se omite RETURNING, la sentencia aún se ejecuta, pero
+    no produce salida, por lo que no puede ser referenciada como tabla por la
+    consulta principal.</p>
+<p class="Pp">Se debe especificar un nombre (sin cualificación de esquema) para
+    cada consulta WITH. Opcionalmente, se puede especificar una lista de nombres de
+    columna; si esto se omite, los nombres de columna se infieren de la
+    subconsulta.</p>
+<p class="Pp">Si se especifica RECURSIVE, permite que una subconsulta
+    <b>SELECT</b> se refiera a sí misma por nombre. Dicha subconsulta debe tener
+    la forma</p>
+<div class="Bd-indent">
+<pre><i>non_recursive_term</i> UNION [ ALL | DISTINCT ] <i>recursive_term</i></pre>
+</div>
+<p class="Pp">donde la autorreferencia recursiva debe aparecer en el lado derecho
+    de UNION. Solo se permite una autorreferencia recursiva por consulta. Las
+    sentencias de modificación de datos recursivas no están soportadas, pero
+    puede usar los resultados de una consulta <b>SELECT</b> recursiva en una
+    sentencia de modificación de datos. Ver Sección 7.8 para un ejemplo.</p>
+<p class="Pp">Otro efecto de RECURSIVE es que las consultas WITH no necesitan
+    estar ordenadas: una consulta puede referenciar a otra que aparece más
+    adelante en la lista. (Sin embargo, las referencias circulares, o recursión
+    mutua, no están implementadas). Sin RECURSIVE, las consultas WITH solo pueden
+    referenciar consultas WITH hermanas que aparecen antes en la lista WITH.</p>
+<p class="Pp">Cuando hay varias consultas en la cláusula WITH, RECURSIVE debe
+    escribirse solo una vez, inmediatamente después de WITH. Se aplica a todas
+    las consultas en la cláusula WITH, aunque no tiene efecto en las consultas que
+    no utilizan recursión o referencias futuras.</p>
+<p class="Pp">La cláusula opcional SEARCH calcula una columna de secuencia de
+    búsqueda que puede usarse para ordenar los resultados de una consulta
+    recursiva en orden de amplitud primero (breadth-first) o de profundidad
+    primero (depth-first). La lista de nombres de columna proporcionada especifica
+    la</p>
+<section class="Sh">
+<h1 class="Sh" id='WITH_Clause'><a class='permalink' href='#WITH_Clause'>WITH Clause</a></h1>
+<p class="Pp">La cláusula WITH proporciona una forma de escribir consultas
+    auxiliares que se pueden referenciar en una consulta principal. Las consultas
+    WITH, también conocidas como expresiones de tabla comunes o CTEs, se pueden
+    definir en la parte superior de una sentencia SELECT, INSERT, DELETE o UPDATE.
+    Las consultas WITH anidadas se pueden utilizar para construir construcciones
+    más complejas. Las consultas WITH se aplican para eliminar la necesidad de
+    escribir subconsultas repetidas, y para hacer que el código sea más legible.</p>
+<p class="Pp">Una consulta WITH tiene la forma:</p>
+<p class="Pp"><code>[ WITH [ RECURSIVE ] <i>with_clause</i> [, ...] ]</code></p>
+<p class="Pp">donde <i>with_clause</i> es</p>
+<p class="Pp"><code><i>with_query_name</i> [ ( <i>column_name</i> [, ...] ) ] AS (
+    <i>select_statement</i> )</code></p>
+<p class="Pp">y <i>select_statement</i> es una consulta SELECT (o comando
+    equivalente) que se ejecutará para proporcionar los datos para
+    <i>with_query_name</i>. El nombre <i>with_query_name</i> se puede utilizar
+    en la consulta FROM de la sentencia SELECT principal. Si se omite la lista de
+    nombres de columna, se deduce de la cláusula SELECT de
+    <i>select_statement</i>.</p>
+<p class="Pp">Por ejemplo, la siguiente consulta utiliza una consulta WITH para
+    definir una tabla de consulta con nombres alias para una tabla de empleados
+    y una tabla de departamentos, y luego selecciona los nombres de los
+    departamentos que tienen más de diez empleados:</p>
+<p class="Pp"><code>WITH regional_sales AS (
+    SELECT region, SUM(amount) AS total_sales
+    FROM orders
+    GROUP BY region
+), largest_regions (region, total_sales) AS (
+    SELECT region, total_sales
+    FROM regional_sales
+    WHERE total_sales &gt; 2000000
+)
+SELECT region, total_sales
+FROM largest_regions;</code></p>
+<p class="Pp">La palabra clave RECURSIVE se puede anteponer a la cláusula
+    WITH para permitir que una consulta WITH se refiera a sí misma. Por ejemplo,
+    la siguiente consulta calcula el factorial de un número:</p>
+<p class="Pp"><code>WITH RECURSIVE factorial AS (
+    SELECT 1 AS n, 1 AS f
+    UNION ALL
+    SELECT n + 1, f * (n + 1) FROM factorial WHERE n &lt; 5
+)
+SELECT n, f FROM factorial;</code></p>
+<p class="Pp">La cláusula SEARCH opcional se utiliza para controlar el orden en
+    que se visitan las filas en una consulta recursiva. La lista de nombres de
+    columna especifica la clave de fila que se utilizará para realizar un
+    seguimiento de las filas visitadas. Se agregará una columna llamada
+    <i>search_seq_col_name</i> a la lista de columnas de resultado de la consulta
+    WITH. Esta columna se puede ordenar en la consulta externa para lograr el
+    ordenamiento respectivo. Ver la Sección 7.8.2.1 para ver ejemplos.</p>
+<p class="Pp">La cláusula CYCLE opcional se utiliza para detectar ciclos en
+    consultas recursivas. La lista de nombres de columna proporcionada especifica
+    la clave de fila que se utilizará para realizar un seguimiento de las filas
+    visitadas. Se agregará una columna llamada <i>cycle_mark_col_name</i> a la
+    lista de columnas de resultado de la consulta WITH. Esta columna se establecerá
+    en <i>cycle_mark_value</i> cuando se detecte un ciclo, de lo contrario, se
+    establecerá en <i>cycle_mark_default</i>. Además, el procesamiento de la
+    unión recursiva se detendrá cuando se detecte un ciclo.
+    <i>cycle_mark_value</i> y <i>cycle_mark_default</i> deben ser constantes y
+    deben poder ser coaccionados a un tipo de dato común, y el tipo de dato debe
+    tener un operador de desigualdad. (El estándar SQL requiere que sean constantes
+    booleanas o cadenas de caracteres, pero PostgreSQL no lo requiere). Por defecto,
+    se utilizan TRUE y FALSE (de tipo booleano). Además, se agregará una columna
+    llamada <i>cycle_path_col_name</i> a la lista de columnas de resultado de la
+    consulta WITH. Esta columna se utiliza internamente para rastrear las filas
+    visitadas. Ver la Sección 7.8.2.2 para ver ejemplos.</p>
+<p class="Pp">Tanto la cláusula SEARCH como la cláusula CYCLE solo son válidas
+    para consultas WITH recursivas. El <i>with_query</i> debe ser una UNION
+    (o UNION ALL) de dos comandos SELECT (o equivalentes) (sin UNION anidados).
+    Si se utilizan ambas cláusulas, la columna agregada por la cláusula SEARCH
+    aparece antes que las columnas agregadas por la cláusula CYCLE.</p>
+<p class="Pp">La consulta principal y las consultas WITH se ejecutan (notacionalmente)
+    al mismo tiempo. Esto implica que los efectos de una sentencia de modificación
+    de datos en WITH no pueden ser vistos por otras partes de la consulta, aparte
+    de leer su salida RETURNING. Si dos sentencias de modificación de datos
+    intentan modificar la misma fila, los resultados no están definidos.</p>
+<p class="Pp">Una propiedad clave de las consultas WITH es que normalmente solo
+    se evalúan una vez por ejecución de la consulta principal, incluso si la
+    consulta principal las hace referencia más de una vez. En particular, se
+    garantiza que las sentencias de modificación de datos se ejecuten una y solo
+    una vez, independientemente de si la consulta principal lee toda o parte de
+    su salida.</p>
+<p class="Pp">Sin embargo, una consulta WITH puede ser marcada como NOT MATERIALIZED
+    para eliminar esta garantía. En ese caso, la consulta WITH puede ser
+    integrada en la consulta principal como si fuera una simple sub-SELECT en la
+    cláusula FROM de la consulta principal. Esto da como resultado cálculos
+    duplicados si la consulta principal se refiere a esa consulta WITH más de
+    una vez; pero si cada uno de esos usos requiere solo unas pocas filas de la
+    salida total de la consulta WITH, NOT MATERIALIZED puede proporcionar un
+    ahorro neto al permitir que las consultas se optimicen conjuntamente. NOT
+    MATERIALIZED se ignora si se adjunta a una consulta WITH que es recursiva o
+    no es libre de efectos secundarios (es decir, no es una simple SELECT que
+    no contenga funciones volátiles).</p>
+<p class="Pp">Por defecto, una consulta WITH libre de efectos secundarios se
+    integra en la consulta principal si se utiliza exactamente una vez en la
+    cláusula FROM de la consulta principal. Esto permite la optimización conjunta
+    de los dos niveles de consulta en situaciones donde eso debería ser
+    semánticamente invisible. Sin embargo, tal integración puede ser evitada
+    marcando la consulta WITH como MATERIALIZED. Esto podría ser útil, por
+    ejemplo, si la consulta WITH se está utilizando como una barrera de
+    optimización para evitar que el planificador elija un mal plan. Las versiones
+    de PostgreSQL anteriores a la v12 nunca hicieron tal integración, por lo que
+    las consultas escritas para versiones anteriores podrían depender de WITH para
+    actuar como una barrera de optimización.</p>
+<p class="Pp">Ver la Sección 7.8 para información adicional.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='FROM_Clause'><a class='permalink' href='#FROM_Clause'>Cláusula FROM</a></h2>
+<p class="Pp">La cláusula FROM especifica una o más tablas de origen para la
+    sentencia <b>SELECT</b>. Si se especifican múltiples fuentes, el resultado es
+    el producto cartesiano (cross join) de todas las fuentes. Pero generalmente se
+    agregan condiciones de calificación (a través de WHERE) para restringir las
+    filas devueltas a un pequeño subconjunto del producto cartesiano.</p>
+<p class="Pp">La cláusula FROM puede contener los siguientes elementos:</p>
+<p class="Pp"><i>nombre_tabla</i></p>
+<div class="Bd-indent">El nombre (opcionalmente calificado por esquema) de una tabla
+  o vista existente. Si se especifica ONLY antes del nombre de la tabla, solo se
+  escanea esa tabla. Si NO se especifica ONLY, se escanea la tabla y todas sus
+  tablas descendientes (si las hay). Opcionalmente, se puede especificar *
+  después del nombre de la tabla para indicar explícitamente que se incluyen
+  tablas descendientes.</div>
+<p class="Pp"><i>alias</i></p>
+<div class="Bd-indent">Un nombre sustituto para el elemento FROM que contiene el
+  alias. Un alias se utiliza para brevedad o para eliminar la ambigüedad en
+  auto-joins (donde la misma tabla se escanea varias veces). Cuando se proporciona
+  un alias, oculta completamente el nombre real de la tabla o función; por ejemplo,
+  dado FROM foo AS f, el resto de la sentencia <b>SELECT</b> debe referirse a
+  este elemento FROM como f y no como foo. Si se escribe un alias, también se
+  puede escribir una lista de alias de columna para proporcionar nombres sustitutos
+  para uno o más columnas de la tabla.</div>
+<p class="Pp">TABLESAMPLE <i>método_muestreo</i> ( <i>argumento</i> [, ...] ) [
+    REPEATABLE ( <i>semilla</i> ) ]</p>
+<div class="Bd-indent">Una cláusula TABLESAMPLE después de un <i>nombre_tabla</i>
+    indica que el <i>método_muestreo</i> especificado debe usarse para recuperar
+    un subconjunto de las filas en esa tabla. Este muestreo precede a la aplicación
+    de cualquier otro filtro, como las cláusulas WHERE. La distribución estándar de
+    PostgreSQL incluye dos métodos de muestreo, BERNOULLI y SYSTEM, y otros métodos
+    de muestreo se pueden instalar en la base de datos a través de extensiones.
+<p class="Pp">Los métodos de muestreo BERNOULLI y SYSTEM aceptan cada uno un
+    único <i>argumento</i> que es la fracción de la tabla a muestrear, expresada
+    como un porcentaje entre 0 y 100. Este argumento puede ser cualquier expresión
+    de valor real. (Otros métodos de muestreo pueden aceptar más o diferentes
+    argumentos.) Estos dos métodos devuelven una muestra elegida aleatoriamente de
+    la tabla que contendrá aproximadamente el porcentaje especificado de las filas
+    de la tabla. El método BERNOULLI escanea toda la tabla y selecciona o ignora
+    filas individuales de forma independiente con la probabilidad especificada. El
+    método SYSTEM realiza un muestreo a nivel de bloque, con cada bloque teniendo
+    la posibilidad especificada de ser seleccionado; se devuelven todas las filas
+    en cada bloque seleccionado. El método SYSTEM es significativamente más rápido
+    que el método BERNOULLI cuando se especifican porcentajes de muestreo pequeños,
+    pero puede devolver una muestra menos aleatoria de la tabla como resultado de
+    efectos de agrupamiento.</p>
+<p class="Pp">La cláusula opcional REPEATABLE especifica un número o expresión
+    <i>semilla</i> para generar números aleatorios dentro del método de
+    muestreo. El valor de la semilla puede ser cualquier valor de punto flotante
+    no nulo. Dos consultas que especifican los mismos valores de semilla y
+    <i>argumento</i> seleccionarán la misma muestra de la tabla, si la tabla no
+    ha sido modificada mientras tanto. Pero diferentes valores de semilla
+    producirán generalmente muestras diferentes. Si REPEATABLE no se proporciona,
+    se selecciona una nueva muestra aleatoria para cada consulta, basada en una
+    semilla generada por el sistema. Tenga en cuenta que algunos métodos de
+    muestreo adicionales no aceptan REPEATABLE y siempre producirán muestras
+    nuevas en cada uso.</p>
+</div>
+<p class="Pp"><i>select</i></p>
+<div class="Bd-indent">Una sub-<b>SELECT</b> puede aparecer en la cláusula FROM.
+  Esto actúa como si su salida fuera creada como una tabla temporal durante la
+  duración de este único comando <b>SELECT</b>. Tenga en cuenta que la sub-<b>SELECT</b>
+  debe estar rodeada por paréntesis, y se puede proporcionar un alias de la misma
+  manera que para una tabla. Un comando <b>VALUES</b> también se puede usar
+  aquí.</div>
+<p class="Pp"><i>nombre_consulta_with</i></p>
+<div class="Bd-indent">Una consulta WITH se referencia escribiendo su nombre,
+  como si el nombre de la consulta fuera un nombre de tabla. (De hecho, la consulta
+  WITH oculta cualquier tabla real del mismo nombre a efectos de la consulta
+  principal. Si es necesario, puede referirse a una tabla real del mismo nombre
+  calificando el nombre de la tabla por esquema). Se puede proporcionar un alias
+  de la misma manera que para una tabla.</div>
+<p class="Pp"><i>nombre_funcion</i></p>
+<div class="Bd-indent">Las llamadas a funciones pueden aparecer en la cláusula
+    FROM. (Esto es especialmente útil para funciones que devuelven conjuntos de
+    resultados, pero se puede usar cualquier función). Esto actúa como si la
+    salida de la función fuera creada como una tabla temporal durante la duración
+    de este único comando <b>SELECT</b>. Si el tipo de resultado de la función
+    es compuesto (incluido el caso de una función con múltiples parámetros OUT),
+    cada atributo se convierte en una columna separada en la tabla implícita.
+<p class="Pp">Cuando la cláusula opcional <b>WITH ORDINALITY</b> se agrega a
+    la llamada de la función, se agregará una columna adicional de tipo bigint a
+    la(s) columna(s) de resultado de la función. Esta columna numera las filas del
+    conjunto de resultados de la función, comenzando desde 1. Por defecto, esta
+    columna se llama
+    ordinality.</p>
+<p class="Pp">Se puede proporcionar un alias de la misma manera que para una
+    tabla. Si se escribe un alias, también se puede escribir una lista de alias de
+    columna para proporcionar nombres sustitutos para uno o más atributos del
+    tipo de retorno compuesto de la función, incluida la columna de ordinalidad si
+    está presente.</p>
+<p class="Pp">Se pueden combinar múltiples llamadas a funciones en un único
+    elemento de la cláusula FROM rodeándolas con ROWS FROM( ... ). La salida de
+    dicho elemento es la concatenación de la primera fila de cada función, luego la
+    segunda fila de cada función, etc. Si algunas de las funciones producen menos
+    filas que otras, se sustituyen valores nulos por los datos faltantes, de modo
+    que el número total de filas devueltas es siempre el mismo que para la función
+    que produjo la mayor cantidad de filas.</p>
+<p class="Pp">Si la función se ha definido como que devuelve el tipo de dato
+    record, entonces debe estar presente un alias o la palabra clave AS, seguido
+    de una lista de definición de columnas en la forma ( <i>nombre_columna</i>
+    <i>tipo_dato</i> [, ... ]). La lista de definición de columnas debe coincidir
+    con el número y los tipos reales de columnas devueltos por la función.</p>
+<p class="Pp">Al usar la sintaxis ROWS FROM( ... ), si una de las funciones
+    requiere una lista de definición de columnas, es preferible colocar la lista
+    de definición de columnas después de la llamada a la función dentro de ROWS
+    FROM( ... ). Una lista de definición de columnas se puede colocar después
+    del constructo ROWS FROM( ... ) solo si hay una única función y ninguna cláusula
+    WITH ORDINALITY.</p>
+<p class="Pp">Para usar ORDINALITY junto con una lista de definición de
+    columnas, debe usar la sintaxis ROWS FROM( ... ) y colocar la lista de
+    definición de columnas dentro de ROWS FROM( ... ).</p>
+</div>
+<p class="Pp"><i>tipo_join</i></p>
+<div class="Bd-indent">Uno de
+<div class="Bd-indent">&#x2022;[ INNER ] JOIN</div>
+<div class="Bd-indent">&#x2022;LEFT [ OUTER ] JOIN</div>
+<div class="Bd-indent">&#x2022;RIGHT [ OUTER ] JOIN</div>
+<div class="Bd-indent">&#x2022;FULL [ OUTER ] JOIN</div>
+<p class="Pp">Para los tipos de join INNER y OUTER, se debe especificar una
+    condición de join, es decir, exactamente una de ON <i>condicion_join</i>,
+    USING (<i>columna_join</i> [, ...]), o NATURAL. Ver abajo para el
+    significado.</p>
+<p class="Pp">Una cláusula JOIN combina dos elementos FROM, que por conveniencia
+    nos referiremos como "tablas", aunque en realidad pueden ser de cualquier
+    tipo de elemento FROM. Use paréntesis si es necesario para determinar el orden
+    de anidamiento. En ausencia de paréntesis, los JOINs se anidan de izquierda a
+    derecha. En cualquier caso, JOIN enlaza más fuertemente que las comas que
+    separan los elementos de la lista FROM. Todas las opciones de JOIN son solo
+    una notat</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="FROM_Clause"><a class="permalink" href="#FROM_Clause">FROM Clause</a></h1>
+<p class="Pp">The <code class="Nm">FROM</code> clause specifies the source tables
+  for the query. The clause consists of one or more table expressions, separated
+  by commas. If a table expression is listed multiple times, it is treated as if
+  it were joined with itself.</p>
+<p class="Pp">A table expression can be a table name, a joined table, or a
+  sub-query.</p>
+<dl class="Bl-tag">
+  <dt><b>Table Name</b></dt>
+  <dd>A simple table name, possibly schema-qualified.</dd>
+  <dt><b>Joined Table</b></dt>
+  <dd>A table expression that combines two or more tables using a join
+    operator. The following join types are supported:</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>INNER JOIN</b></dt>
+  <dd>Produces rows where the join condition is met in both tables. If no
+      condition is specified, it defaults to <code class="Nm">ON TRUE</code>,
+      producing a Cartesian product.</dd>
+  <dt><b>LEFT [ OUTER ] JOIN</b></dt>
+  <dd>Returns all rows from the left table and the matched rows from the right
+      table. If there is no match, NULL values are returned for columns from the
+      right table. <code class="Nm">OUTER</code> is optional.</dd>
+  <dt><b>RIGHT [ OUTER ] JOIN</b></dt>
+  <dd>Returns all rows from the right table and the matched rows from the left
+      table. If there is no match, NULL values are returned for columns from the
+      left table. <code class="Nm">OUTER</code> is optional. This is a notational
+      convenience, as it can be converted to a <code class="Nm">LEFT OUTER
+      JOIN</code> by switching the order of the tables.</dd>
+  <dt><b>FULL [ OUTER ] JOIN</b></dt>
+  <dd>Returns all rows from both tables. If there is no match for a row in one
+      table, NULL values are returned for columns from the other table.
+      <code class="Nm">OUTER</code> is optional.</dd>
+</dl>
+<p class="Pp">The join condition can be specified using either an <code class="Nm">ON</code>
+  clause or a <code class="Nm">USING</code> clause.</p>
+<p class="Pp"><code class="Nm">ON</code> <i>join_condition</i></p>
+<div class="Bd-indent">
+  <p class="Pp"><i>join_condition</i> is an expression that evaluates to a
+    boolean value, specifying which rows are considered matching.</p>
+</div>
+<p class="Pp"><code class="Nm">USING</code> ( <i>join_column</i> [, ...] ) [
+  <code class="Nm">AS</code> <i>join_using_alias</i> ]</p>
+<div class="Bd-indent">
+  <p class="Pp">A <code class="Nm">USING</code> clause with columns <code class="Nm">a</code>,
+    <code class="Nm">b</code>, ... is shorthand for <code class="Nm">ON
+    left_table.a = right_table.a AND left_table.b = right_table.b ...</code>.
+    Furthermore, <code class="Nm">USING</code> implies that only one of each pair
+    of equivalent columns will be included in the join output.</p>
+  <p class="Pp">If a <code class="Nm">join_using_alias</code> is specified, it
+    provides a table alias for the join columns. Only the join columns listed in
+    the <code class="Nm">USING</code> clause are addressable by this name. Unlike
+    a regular alias, this does not hide the names of the joined tables from the
+    rest of the query. Also unlike a regular alias, you cannot write a column
+    alias list; the output names of the join columns are the same as they appear
+    in the <code class="Nm">USING</code> list.</p>
+</div>
+<p class="Pp"><code class="Nm">NATURAL</code></p>
+<div class="Bd-indent">
+  <p class="Pp"><code class="Nm">NATURAL</code> is shorthand for a <code class="Nm">USING</code>
+    list that mentions all columns in the two tables that have matching names. If
+    there are no common column names, <code class="Nm">NATURAL</code> is
+    equivalent to <code class="Nm">ON TRUE</code>.</p>
+</div>
+<p class="Pp"><code class="Nm">CROSS JOIN</code></p>
+<div class="Bd-indent">
+  <p class="Pp"><code class="Nm">CROSS JOIN</code> is equivalent to <code class="Nm">INNER
+    JOIN ON (TRUE)</code>, meaning no rows are removed by qualification. They
+    produce a simple Cartesian product, the same result as listing the two tables
+    at the top level of <code class="Nm">FROM</code>, but restricted by the join
+    condition (if any).</p>
+</div>
+<p class="Pp"><code class="Nm">LATERAL</code></p>
+<div class="Bd-indent">
+  <p class="Pp">The <code class="Nm">LATERAL</code> keyword can precede a
+    sub-<code class="Nm">SELECT</code> <code class="Nm">FROM</code> item. This allows
+    the sub-<code class="Nm">SELECT</code> to refer to columns of <code class="Nm">FROM</code>
+    items that appear before it in the <code class="Nm">FROM</code> list.
+    (Without <code class="Nm">LATERAL</code>, each sub-<code class="Nm">SELECT</code>
+    is evaluated independently and so cannot cross-reference any other <code class="Nm">FROM</code>
+    item.)</p>
+  <p class="Pp"><code class="Nm">LATERAL</code> can also precede a function-call
+    <code class="Nm">FROM</code> item, but in this case it is a noise word, because
+    the function expression can refer to earlier <code class="Nm">FROM</code> items
+    in any case.</p>
+  <p class="Pp">A <code class="Nm">LATERAL</code> item can appear at top level in
+    the <code class="Nm">FROM</code> list, or within a <code class="Nm">JOIN</code>
+    tree. In the latter case it can also refer to any items that are on the
+    left-hand side of a <code class="Nm">JOIN</code> that it is on the right-hand
+    side of.</p>
+  <p class="Pp">When a <code class="Nm">FROM</code> item contains <code class="Nm">LATERAL</code>
+    cross-references, evaluation proceeds as follows: for each row of the <code class="Nm">FROM</code>
+    item providing the cross-referenced column(s), or set of rows of multiple
+    <code class="Nm">FROM</code> items providing the columns, the <code class="Nm">LATERAL</code>
+    item is evaluated using that row or row set's values of the columns. The
+    resulting row(s) are joined as usual with the rows they were computed from.
+    This is repeated for each row or set of rows from the column source
+    table(s).</p>
+  <p class="Pp">The column source table(s) must be <code class="Nm">INNER</code> or
+    <code class="Nm">LEFT</code> joined to the <code class="Nm">LATERAL</code> item,
+    else there would not be a well-defined set of rows from which to compute each
+    set of rows for the <code class="Nm">LATERAL</code> item. Thus, although a
+    construct such as <i>X</i> <code class="Nm">RIGHT JOIN LATERAL</code> <i>Y</i>
+    is syntactically valid, it is not actually allowed for <i>Y</i> to reference
+    <i>X</i>.</p>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="WHERE_Clause"><a class="permalink" href="#WHERE_Clause">WHERE
+  Clause</a></h1>
+<p class="Pp">The optional <code class="Nm">WHERE</code> clause has the general
+  form</p>
+<div class="Bd-indent">
+<pre>WHERE <i>condition</i></pre>
+</div>
+<p class="Pp">where <i>condition</i> is any expression that evaluates to a
+  result of type boolean. Any row that does not satisfy this condition will be
+  eliminated from the output. A row satisfies the condition if it returns true
+  when the actual row values are substituted for any variable references.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="GROUP_BY_Clause"><a class="permalink" href="#GROUP_BY_Clause">GROUP
+  BY Clause</a></h1>
+<p class="Pp">The optional <code class="Nm">GROUP BY</code> clause has the general
+  form</p>
+<div class="Bd-indent">
+<pre>GROUP BY [ ALL | DISTINCT ] <i>grouping_element</i> [, ...]</pre>
+</div>
+<p class="Pp"><code class="Nm">GROUP BY</code> will condense into a single row all
+  selected rows that share the same values for the grouped expressions. An
+  <i>expression</i> used inside a <i>grouping_element</i> can be an input column
+  name, or the name or ordinal number of an output column (<code class="Nm">SELECT</code>
+  list item), or an arbitrary expression formed from input-column values. In case
+  of ambiguity, a <code class="Nm">GROUP BY</code> name will be interpreted as an
+  input-column name rather than an output column name.</p>
+<p class="Pp">If any of <code class="Nm">GROUPING SETS</code>, <code class="Nm">ROLLUP</code>
+  or <code class="Nm">CUBE</code> are present as grouping elements, then the
+  <code class="Nm">GROUP BY</code> clause as a whole defines some number of
+  independent <i>grouping sets</i>. The effect of this is equivalent to
+  constructing a <code class="Nm">UNION ALL</code> between subqueries with the
+  individual grouping sets as their <code class="Nm">GROUP BY</code> clauses. The
+  optional <code class="Nm">DISTINCT</code> clause removes duplicate sets before
+  processing; it does <i>not</i> transform the <code class="Nm">UNION ALL</code>
+  into a <code class="Nm">UNION DISTINCT</code>. For further details on the handling
+  of grouping sets see Section&#x00A0;7.2.4.</p>
+<p class="Pp">Aggregate functions, if any are used, are computed across all rows
+  making up each group, producing a separate value for each group. (If there are
+  aggregate functions but no <code class="Nm">GROUP BY</code> clause, the query is
+  treated as having a single group comprising all the selected rows.) The set of
+  rows fed to each aggregate function can be further filtered by attaching a <code class="Nm">FILTER</code>
+  clause to the aggregate function call; see Section&#x00A0;4.2.7 for more
+  information. When a <code class="Nm">FILTER</code> clause is present, only those
+  rows matching it are included in the input to that aggregate function.</p>
+<p class="Pp">When <code class="Nm">GROUP BY</code> is present, or any aggregate
+  functions are present, it is not valid for the <code class="Nm">SELECT</code>
+  list expressions to refer to ungrouped columns except within aggregate functions
+  or when the ungrouped column is functionally dependent on the grouped columns,
+  since there would otherwise be more than one possible value to return for an
+  ungrouped column. A functional dependency exists if the grouped columns (or a
+  subset thereof) are the primary key of the table containing the ungrouped
+  column.</p>
+<p class="Pp">Keep in mind that all aggregate functions are evaluated before
+  evaluating any &#x201C;scalar&#x201D; expressions in the <code class="Nm">HAVING</code>
+  clause or <code class="Nm">SELECT</code> list. This means that, for example, a
+  <code class="Nm">CASE</code> expression cannot be used to skip evaluation of an
+  aggregate function; see Section&#x00A0;4.2.14.</p>
+<p class="Pp">Currently, <code class="Nm">FOR NO KEY UPDATE</code>, <code class="Nm">FOR
+  UPDATE</code>, <code class="Nm">FOR SHARE</code> and <code class="Nm">FOR KEY
+  SHARE</code> cannot be specified with <code class="Nm">GROUP BY</code>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="HAVING_Clause"><a class="permalink" href="#HAVING_Clause">HAVING
+  Clause</a></h1>
+<p class="Pp">The optional <code class="Nm">HAVING</code> clause has the general
+  form</p>
+<div class="Bd-indent">
+<pre>HAVING <i>condition</i></pre>
+</div>
+<p class="Pp">where <i>condition</i> is the same as specified for the <code class="Nm">WHERE</code>
+  clause.</p>
+<p class="Pp"><code class="Nm">HAVING</code> eliminates group rows that do not
+  satisfy the condition. <code class="Nm">HAVING</code> is different from <code class="Nm">WHERE</code>:
+  <code class="Nm">WHERE</code> filters individual rows before the application of
+  <code class="Nm">GROUP BY</code>, while <code class="Nm">HAVING</code> filters group
+  rows created by <code class="Nm">GROUP BY</code>. Each column referenced in
+  <i>condition</i> must unambiguously reference a grouping column, unless the
+  reference appears within an aggregate function or the ungrouped column is
+  functionally dependent on the grouping columns.</p>
+<p class="Pp">The presence of <code class="Nm">HAVING</code> turns a query into a
+  grouped query even if there is no <code class="Nm">GROUP BY</code> clause. This is
+  the same as what happens when the query contains aggregate functions but no
+  <code class="Nm">GROUP BY</code> clause. All the selected rows are considered to
+  form a single group, and the <code class="Nm">SELECT</code> list and <code class="Nm">HAVING</code>
+  clause can only reference table columns from within aggregate functions. Such a
+  query will emit a single row if the <code class="Nm">HAVING</code> condition is
+  true, zero rows if it is not true.</p>
+<p class="Pp">Currently, <code class="Nm">FOR NO KEY UPDATE</code>, <code class="Nm">FOR
+  UPDATE</code>, <code class="Nm">FOR SHARE</code> and <code class="Nm">FOR KEY
+  SHARE</code> cannot be specified with <code class="Nm">HAVING</code>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="WINDOW_Clause"><a class="permalink" href="#WINDOW_Clause">WINDOW
+  Clause</a></h1>
+<p class="Pp">The optional <code class="Nm">WINDOW</code> clause has the general
+  form</p>
+<div class="Bd-indent">
+<pre>WINDOW <i>window_name</i> AS ( <i>window_definition</i> ) [, ...]</pre>
+</div>
+<p class="Pp">where <i>window_name</i> is a name that can be referenced from
+  <code class="Nm">OVER</code> clauses or subsequent window definitions, and
+  <i>window_definition</i> is</p>
+<div class="Bd-indent">
+<pre>[ <i>existing_window_name</i> ]
+[ PARTITION BY <i>expression</i> [, ...] ]
+[ ORDER BY <i>expression</i> [ ASC | DESC | USING <i>operator</i> ] [ NULLS { FIRST | LAST } ] [, ...] ]
+[ <i>frame_clause</i> ]</pre>
+</div>
+<p class="Pp">If an <i>existing_window_name</i> is specified it must refer to an
+  earlier entry in the <code class="Nm">WINDOW</code> list; the new window copies
+  its partitioning clause from that entry, as well as its ordering clause if any.
+  In this case the new window cannot specify its own <code class="Nm">PARTITION BY</code>
+  clause, and it can specify <code class="Nm">ORDER BY</code> only if the copied
+  window does not have one. The new window always uses its own frame clause; the
+  copied window must not specify a frame clause.</p>
+<p class="Pp">The elements of the <code class="Nm">PARTITION BY</code> list are
+  interpreted in much the same fashion as elements of a <code class="Nm">GROUP BY</code>
+  clause, except that they are always simple expressions and never the name or
+  number of an output column. Another difference is that these expressions can
+  contain aggregate function calls, which are not allowed in a regular <code class="Nm">GROUP BY</code>
+  clause. They are allowed here because windowing occurs after grouping and
+  aggregation.</p>
+<p class="Pp">Similarly, the elements of the <code class="Nm">ORDER BY</code> list
+  are interpreted in much the same fashion as elements of a statement-level
+  <code class="Nm">ORDER BY</code> clause, except that the expressions are always
+  taken as simple expressions and never the name or number of an output column.</p>
+<p class="Pp">The optional <i>frame_clause</i> defines the window frame for
+  window functions that depend on the frame (not all do). The window frame is a
+  set of related rows for each row of the query (called the current row). The
+  <i>frame_clause</i> can be one of</p>
+<div class="Bd-indent">
+<pre>{ RANGE | ROWS | GROUPS } <i>frame_start</i> [ <i>frame_exclusion</i> ]
+{ RANGE | ROWS | GROUPS } BETWEEN <i>frame_start</i> AND <i>frame_end</i> [ <i>frame_exclusion</i> ]</pre>
+</div>
+<p class="Pp">where <i>frame_start</i> and <i>frame_end</i> can be one of</p>
+<div class="Bd-indent">
+<pre>U</pre>
+</div>
+</section>
+<div>
+<p class="Pp">y <i>frame_exclusion</i> puede ser uno de</p>
+<div class="Bd-indent">
+<pre>EXCLUIR FILA ACTUAL
+EXCLUIR GRUPO
+EXCLUIR EMPATES
+EXCLUIR NINGUNO MÁS</pre>
+</div>
+<p class="Pp">Si se omite <i>frame_end</i>, por defecto es CURRENT ROW. Las
+    restricciones son que <i>frame_start</i> no puede ser UNBOUNDED FOLLOWING,
+    <i>frame_end</i> no puede ser UNBOUNDED PRECEDING, y la opción <i>frame_end</i>
+    no puede aparecer antes en la lista anterior de opciones de <i>frame_start</i>
+    y <i>frame_end</i> que la opción <i>frame_start</i>; por ejemplo, RANGE BETWEEN
+    CURRENT ROW AND <i>offset</i> PRECEDING no está permitido.</p>
+<p class="Pp">La opción de marco predeterminada es RANGE UNBOUNDED PRECEDING,
+    que es lo mismo que RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW;
+    establece el marco para que sean todas las filas desde el inicio de la
+    partición hasta el último par de la fila actual (una fila que la cláusula
+    ORDER BY de la ventana considera equivalente a la fila actual; todas las filas
+    son pares si no hay ORDER BY). En general, UNBOUNDED PRECEDING significa que
+    el marco comienza con la primera fila de la partición, y de manera similar
+    UNBOUNDED FOLLOWING significa que el marco termina con la última fila de la
+    partición, independientemente del modo RANGE, ROWS o GROUPS. En el modo
+    ROWS, CURRENT ROW significa que el marco comienza o termina con la fila
+    actual; pero en el modo RANGE o GROUPS significa que el marco comienza o
+    termina con el primer o último par de la fila actual en el orden de
+    ORDER BY. Las opciones <i>offset</i> PRECEDING y <i>offset</i> FOLLOWING
+    varían en significado dependiendo del modo de marco. En el modo ROWS, el
+    <i>offset</i> es un entero que indica que el marco comienza o termina esa
+    cantidad de filas antes o después de la fila actual. En el modo GROUPS, el
+    <i>offset</i> es un entero que indica que el marco comienza o termina esa
+    cantidad de grupos de pares antes o después del grupo de pares de la fila
+    actual, donde un grupo de pares es un grupo de filas que son equivalentes
+    según la cláusula ORDER BY de la ventana. En el modo RANGE, el uso de la
+    opción <i>offset</i> requiere que haya exactamente una columna ORDER BY en
+    la definición de la ventana. Entonces, el marco contiene aquellas filas cuyo
+    valor de columna de ordenación no es más de <i>offset</i> menor que (para
+    PRECEDING) o mayor que (para FOLLOWING) el valor de la columna de ordenación
+    de la fila actual. En estos casos, el tipo de datos de la expresión <i>offset</i>
+    depende del tipo de datos de la columna de ordenación. Para columnas de
+    ordenación numéricas, suele ser del mismo tipo que la columna de ordenación,
+    pero para columnas de ordenación de fecha y hora es un intervalo. En todos
+    estos casos, el valor del <i>offset</i> debe ser no nulo y no negativo.
+    Además, aunque el <i>offset</i> no tiene que ser una constante simple, no
+    puede contener variables, funciones de agregación o funciones de ventana.</p>
+<p class="Pp">La opción <i>frame_exclusion</i> permite que las filas alrededor
+    de la fila actual sean excluidas del marco, incluso si estarían incluidas
+    según las opciones de inicio y fin del marco. EXCLUDE CURRENT ROW excluye la
+    fila actual del marco. EXCLUDE GROUP excluye la fila actual y sus pares de
+    ordenación del marco. EXCLUDE TIES excluye cualquier par de la fila actual
+    del marco, pero no la fila actual en sí. EXCLUDE NO OTHERS simplemente
+    especifica explícitamente el comportamiento predeterminado de no excluir la
+    fila actual o sus pares.</p>
+<p class="Pp">Tenga cuidado, ya que el modo ROWS puede producir resultados
+    impredecibles si el orden de ORDER BY no ordena las filas de forma única. Los
+    modos RANGE y GROUPS están diseñados para garantizar que las filas que son
+    pares en el orden de ORDER BY se traten por igual: todas las filas de un grupo
+    de pares estarán dentro del marco o excluidas de él.</p>
+<p class="Pp">El propósito de una cláusula WINDOW es especificar el
+    comportamiento de las funciones de ventana que aparecen en la lista
+    <b>SELECT</b> o en la cláusula ORDER BY de la consulta. Estas funciones pueden
+    referenciar las entradas de la cláusula WINDOW por nombre en sus cláusulas OVER.
+    Sin embargo, una entrada de la cláusula WINDOW no tiene que ser referenciada
+    en ningún lugar; si no se utiliza en la consulta, simplemente se ignora. Es
+    posible usar funciones de ventana sin ninguna cláusula WINDOW, ya que una
+    llamada a una función de ventana puede especificar su definición de ventana
+    directamente en su cláusula OVER. Sin embargo, la cláusula WINDOW ahorra
+    escribir cuando la misma definición de ventana se necesita para más de una
+    función de ventana.</p>
+<p class="Pp">Actualmente, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE y FOR KEY
+    SHARE no se pueden especificar con WINDOW.</p>
+<p class="Pp">Las funciones de ventana se describen en detalle en las
+    Secciones 3.5, 4.2.8 y 7.2.5.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='SELECT_List'><a class='permalink' href='#SELECT_List'>Lista   SELECT</a></h2>
+<p class="Pp">La lista <b>SELECT</b> (entre las palabras clave SELECT y FROM)
+    especifica las expresiones que forman las filas de salida de la sentencia
+    <b>SELECT</b>. Las expresiones pueden (y usualmente lo hacen) referirse a
+    columnas calculadas en la cláusula FROM.</p>
+<p class="Pp">Al igual que en una tabla, cada columna de salida de un <b>SELECT</b>
+    tiene un nombre. En un <b>SELECT</b> simple, este nombre se usa solo para
+    etiquetar la columna para su visualización, pero cuando el <b>SELECT</b> es
+    una subconsulta de una consulta más grande, el nombre es visto por la consulta
+    más grande como el nombre de columna de la tabla virtual producida por la
+    subconsulta. Para especificar el nombre a usar para una columna de salida,
+    escriba AS <i>nombre_salida</i> después de la expresión de la columna.
+    (Puede omitir AS, pero solo si el nombre de salida deseado no coincide con
+    ninguna palabra clave de PostgreSQL (ver Apéndice C). Para protegerse contra
+    posibles adiciones futuras de palabras clave, se recomienda que siempre
+    escriba AS o ponga entre comillas dobles el nombre de salida.) Si no especifica
+    un nombre de columna, PostgreSQL elige uno automáticamente. Si la expresión
+    de la columna es una referencia de columna simple, entonces el nombre elegido
+    es el mismo que el nombre de esa columna. En casos más complejos, se puede
+    usar un nombre de función o tipo, o el sistema puede recurrir a un nombre
+    generado como ?column?.</p>
+<p class="Pp">El nombre de una columna de salida se puede usar para referirse al
+    valor de la columna en las cláusulas ORDER BY y GROUP BY, pero no en las
+    cláusulas WHERE o HAVING; allí debe escribir la expresión en su lugar.</p>
+<p class="Pp">En lugar de una expresión, * puede escribirse en la lista de salida
+    como una abreviatura para todas las columnas de las filas seleccionadas.
+    Además, puede escribir <i>nombre_tabla</i>.* como una abreviatura para las
+    columnas que provienen solo de esa tabla. En estos casos, no es posible
+    especificar nuevos nombres con AS; los nombres de las columnas de salida serán
+    los mismos que los nombres de las columnas de la tabla.</p>
+<p class="Pp">De acuerdo con el estándar SQL, las expresiones en la lista de
+    salida deben calcularse antes de aplicar DISTINCT, ORDER BY o LIMIT. Esto es
+    obviamente necesario cuando se usa DISTINCT, ya que de lo contrario no está
+    claro qué valores se están haciendo distintos. Sin embargo, en muchos casos,
+    es conveniente que las expresiones de salida se calculen después de ORDER BY y
+    LIMIT; particularmente si la lista de salida contiene funciones volátiles o
+    costosas. Con ese comportamiento, el orden de evaluación de las funciones es
+    más intuitivo y no habrá evaluaciones correspondientes a filas que nunca
+    aparecen en la salida. PostgreSQL evaluará efectivamente las expresiones de
+    salida después de ordenar y limitar, siempre que esas expresiones no se
+    referencien en DISTINCT, ORDER BY o GROUP BY. (Como contraejemplo, SELECT
+    f(x) FROM tab ORDER BY 1 claramente debe evaluar <b>f(x)</b> antes de
+    ordenar.) Las expresiones de salida que contienen funciones que devuelven
+    conjuntos se evalúan efectivamente después de ordenar y antes de limitar, de
+    modo que LIMIT actuará para cortar la salida de una función que devuelve
+    conjuntos.</p>
+<div class="Bd-indent">
+<br/>
+<b>Nota</b>
+<br/>
+<p class="Pp">Las versiones de PostgreSQL anteriores a 9.6 no ofrecían ninguna
+    garantía sobre el momento de la evaluación de las expresiones de salida
+    frente a la ordenación y limitación; dependía de la forma del plan de consulta
+    elegido.</p>
+</div>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DISTINCT_Clause'><a class='permalink' href='#DISTINCT_Clause'>Cláusula   DISTINCT</a></h2>
+<p class="Pp">Si se especifica SELECT DISTINCT, se eliminan todas las filas
+    duplicadas del conjunto de resultados (se conserva una fila de cada grupo de
+    duplicados). SELECT ALL especifica lo contrario: se conservan todas las
+    filas; esa es la opción predeterminada.</p>
+<p class="Pp">SELECT DISTINCT ON ( <i>expresión</i> [, ...] ) conserva solo la
+    primera fila de cada conjunto de filas donde las expresiones dadas se evalúan
+    como iguales. Las expresiones DISTINCT ON se interpretan utilizando las mismas
+    reglas que para ORDER BY (ver arriba). Tenga en cuenta que la "primera fila"
+    de cada conjunto es impredecible a menos que se use ORDER BY para garantizar
+    que la fila deseada aparezca primero. Por ejemplo:</p>
+<div class="Bd-indent">
+<pre>SELECT DISTINCT ON (ubicacion) ubicacion, hora, reporte
+    FROM informes_tiempo
+    ORDER BY ubicacion, hora DESC;</pre>
+</div>
+<p class="Pp">recupera el informe meteorológico más reciente para cada
+    ubicación. Pero si no hubiéramos usado ORDER BY para forzar el orden
+    descendente de los valores de tiempo para cada ubicación, habríamos obtenido
+    un informe de una hora impredecible para cada ubicación.</p>
+<p class="Pp">Las expresiones (o la expresión) DISTINCT ON deben coincidir con las
+    expresiones de ORDER BY más a la izquierda. La cláusula ORDER BY normalmente
+    contendrá expresiones adicionales que determinan la precedencia deseada de las
+    filas dentro de cada grupo DISTINCT ON.</p>
+<p class="Pp">Actualmente, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE y FOR KEY
+    SHARE no se pueden especificar con DISTINCT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='UNION_Clause'><a class='permalink' href='#UNION_Clause'>Cláusula   UNION</a></h2>
+<p class="Pp">La cláusula UNION tiene esta forma general:</p>
+<div class="Bd-indent">
+<pre><i>sentencia_select</i> UNION [ ALL | DISTINCT ] <i>sentencia_select</i></pre>
+</div>
+<p class="Pp"><i>sentencia_select</i> es cualquier sentencia <b>SELECT</b> sin
+    una cláusula ORDER BY, LIMIT, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE o
+    FOR KEY SHARE. (ORDER BY y LIMIT se pueden adjuntar a una subexpresión si
+    está encerrada entre paréntesis. Sin paréntesis, estas cláusulas se aplicarán
+    al resultado de la UNION, no a la expresión de entrada de la derecha.)</p>
+<p class="Pp">El operador UNION calcula la unión de conjuntos de las filas
+    devueltas por las sentencias <b>SELECT</b> involucradas. Una fila está en la
+    unión de conjuntos de dos conjuntos de resultados si aparece en al menos uno
+    de los conjuntos de resultados. Las dos sentencias <b>SELECT</b> que
+    representan los operandos directos de la UNION deben producir el mismo número
+    de columnas, y las columnas correspondientes deben ser de tipos de datos
+    compatibles.</p>
+<p class="Pp">El resultado de UNION no contiene filas duplicadas a menos que se
+    especifique la opción ALL. ALL evita la eliminación de duplicados. (Por lo
+    tanto, UNION ALL suele ser significativamente más rápido que UNION; use ALL
+    cuando pueda.) DISTINCT se puede escribir para especificar explícitamente el
+    comportamiento predeterminado de eliminar filas duplicadas.</p>
+<p class="Pp">Múltiples operadores UNION en la misma sentencia <b>SELECT</b> se
+    evalúan de izquierda a derecha, a menos que se indique lo contrario mediante
+    paréntesis.</p>
+<p class="Pp">Actualmente, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE y FOR KEY
+    SHARE no se pueden especificar ni para un resultado de UNION ni para ninguna
+    entrada de una UNION.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='INTERSECT_Clause'><a class='permalink' href='#INTERSECT_Clause'>Cláusula   INTERSECT</a></h2>
+<p class="Pp">La cláusula INTERSECT tiene esta forma general:</p>
+<div class="Bd-indent">
+<pre><i>sentencia_select</i> INTERSECT [ ALL | DISTINCT ] <i>sentencia_select</i></pre>
+</div>
+<p class="Pp"><i>sentencia_select</i> es cualquier sentencia <b>SELECT</b></p>
+<section class="Sh">
+<h1 class="Sh" id='INTERSECT_Clause'><a class='permalink' href='#INTERSECT_Clause'>INTERSECT   Clause</a></h1>
+<p class="Pp">The INTERSECT clause has this general form:</p>
+<div class="Bd-indent">
+<pre><i>select_statement</i> INTERSECT [ ALL | DISTINCT ] <i>select_statement</i></pre>
+</div>
+<p class="Pp"><i>select_statement</i> is any <b>SELECT</b> statement without an
+    ORDER BY, LIMIT, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE, or FOR KEY SHARE
+    clause.</p>
+<p class="Pp">The INTERSECT operator computes the set intersection of the rows
+    returned by the involved <b>SELECT</b> statements. A row is in the
+    intersection of two result sets if it appears in both result sets.</p>
+<p class="Pp">The result of INTERSECT does not contain any duplicate rows unless
+    the ALL option is specified. With ALL, a row that has <i>m</i> duplicates in
+    the left table and <i>n</i> duplicates in the right table will appear
+    min(<i>m</i>,<i>n</i>) times in the result set. DISTINCT can be written to
+    explicitly specify the default behavior of eliminating duplicate rows.</p>
+<p class="Pp">Multiple INTERSECT operators in the same <b>SELECT</b> statement
+    are evaluated left to right, unless parentheses dictate otherwise. INTERSECT
+    binds more tightly than UNION. That is, A UNION B INTERSECT C will be read
+    as A UNION (B INTERSECT C).</p>
+<p class="Pp">Currently, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE and FOR KEY
+    SHARE cannot be specified either for an INTERSECT result or for any input of
+    an INTERSECT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='EXCEPT_Clause'><a class='permalink' href='#EXCEPT_Clause'>EXCEPT   Clause</a></h2>
+<p class="Pp">The EXCEPT clause has this general form:</p>
+<div class="Bd-indent">
+<pre><i>select_statement</i> EXCEPT [ ALL | DISTINCT ] <i>select_statement</i></pre>
+</div>
+<p class="Pp"><i>select_statement</i> is any <b>SELECT</b> statement without an
+    ORDER BY, LIMIT, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE, or FOR KEY SHARE
+    clause.</p>
+<p class="Pp">The EXCEPT operator computes the set of rows that are in the
+    result of the left <b>SELECT</b> statement but not in the result of the
+    right one.</p>
+<p class="Pp">The result of EXCEPT does not contain any duplicate rows unless
+    the ALL option is specified. With ALL, a row that has <i>m</i> duplicates in
+    the left table and <i>n</i> duplicates in the right table will appear
+    max(<i>m</i>-<i>n</i>,0) times in the result set. DISTINCT can be written to
+    explicitly specify the default behavior of eliminating duplicate rows.</p>
+<p class="Pp">Multiple EXCEPT operators in the same <b>SELECT</b> statement are
+    evaluated left to right, unless parentheses dictate otherwise. EXCEPT binds
+    at the same level as UNION.</p>
+<p class="Pp">Currently, FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE and FOR KEY
+    SHARE cannot be specified either for an EXCEPT result or for any input of an
+    EXCEPT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ORDER_BY_Clause'><a class='permalink' href='#ORDER_BY_Clause'>ORDER   BY Clause</a></h2>
+<p class="Pp">The optional ORDER BY clause has this general form:</p>
+<div class="Bd-indent">
+<pre>ORDER BY <i>expression</i> [ ASC | DESC | USING <i>operator</i> ] [ NULLS { FIRST | LAST } ] [, ...]</pre>
+</div>
+<p class="Pp">The ORDER BY clause causes the result rows to be sorted according
+    to the specified expression(s). If two rows are equal according to the
+    leftmost expression, they are compared according to the next expression and
+    so on. If they are equal according to all specified expressions, they are
+    returned in an implementation-dependent order.</p>
+<p class="Pp">Each <i>expression</i> can be the name or ordinal number of an
+    output column (<b>SELECT</b> list item), or it can be an arbitrary
+    expression formed from input-column values.</p>
+<p class="Pp">The ordinal number refers to the ordinal (left-to-right) position
+    of the output column. This feature makes it possible to define an ordering
+    on the basis of a column that does not have a unique name. This is never
+    absolutely necessary because it is always possible to assign a name to an
+    output column using the AS clause.</p>
+<p class="Pp">It is also possible to use arbitrary expressions in the ORDER BY
+    clause, including columns that do not appear in the <b>SELECT</b> output
+    list. Thus the following statement is valid:</p>
+<div class="Bd-indent">
+<pre>SELECT name FROM distributors ORDER BY code;</pre>
+</div>
+<p class="Pp">A limitation of this feature is that an ORDER BY clause applying
+    to the result of a UNION, INTERSECT, or EXCEPT clause can only specify an
+    output column name or number, not an expression.</p>
+<p class="Pp">If an ORDER BY expression is a simple name that matches both an
+    output column name and an input column name, ORDER BY will interpret it as
+    the output column name. This is the opposite of the choice that GROUP BY
+    will make in the same situation. This inconsistency is made to be compatible
+    with the SQL standard.</p>
+<p class="Pp">Optionally one can add the key word ASC (ascending) or DESC
+    (descending) after any expression in the ORDER BY clause. If not specified,
+    ASC is assumed by default. Alternatively, a specific ordering operator name
+    can be specified in the USING clause. An ordering operator must be a
+    less-than or greater-than member of some B-tree operator family. ASC is
+    usually equivalent to USING &lt; and DESC is usually equivalent to USING
+    &gt;. (But the creator of a user-defined data type can define exactly what
+    the default sort ordering is, and it might correspond to operators with
+    other names.)</p>
+<p class="Pp">If NULLS LAST is specified, null values sort after all non-null
+    values; if NULLS FIRST is specified, null values sort before all non-null
+    values. If neither is specified, the default behavior is NULLS LAST when ASC
+    is specified or implied, and NULLS FIRST when DESC is specified (thus, the
+    default is to act as though nulls are larger than non-nulls). When USING is
+    specified, the default nulls ordering depends on whether the operator is a
+    less-than or greater-than operator.</p>
+<p class="Pp">Note that ordering options apply only to the expression they
+    follow; for example ORDER BY x, y DESC does not mean the same thing as ORDER
+    BY x DESC, y DESC.</p>
+<p class="Pp">Character-string data is sorted according to the collation that
+    applies to the column being sorted. That can be overridden at need by
+    including a COLLATE clause in the <i>expression</i>, for example ORDER BY
+    mycolumn COLLATE &quot;en_US&quot;. For more information see
+    Section&#x00A0;4.2.10 and Section&#x00A0;23.2.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='LIMIT_Clause'><a class='permalink' href='#LIMIT_Clause'>LIMIT   Clause</a></h2>
+<p class="Pp">The LIMIT clause consists of two independent sub-clauses:</p>
+<div class="Bd-indent">
+<pre>LIMIT { <i>count</i> | ALL }
+OFFSET <i>start</i></pre>
+</div>
+<p class="Pp">The parameter <i>count</i> specifies the maximum number of rows to
+    return, while <i>start</i> specifies the number of rows to skip before
+    starting to return rows. When both are specified, <i>start</i> rows are
+    skipped before starting to count the <i>count</i> rows to be returned.</p>
+<p class="Pp">If the <i>count</i> expression evaluates to NULL, it is treated as
+    LIMIT ALL, i.e., no limit. If <i>start</i> evaluates to NULL, it is treated
+    the same as OFFSET 0.</p>
+<p class="Pp">SQL:2008 introduced a different syntax to achieve the same result,
+    which PostgreSQL also supports. It is:</p>
+<div class="Bd-indent">
+<pre>OFFSET <i>start</i> { ROW | ROWS }
+FETCH { FIRST | NEXT } [ <i>count</i> ] { ROW | ROWS } { ONLY | WITH TIES }</pre>
+</div>
+<p class="Pp">In this syntax, the <i>start</i> or <i>count</i> value is required
+    by the standard to be a literal constant, a parameter, or a variable name;
+    as a PostgreSQL extension, other expressions are allowed, but will generally
+    need to be enclosed in parentheses to avoid ambiguity. If <i>count</i> is
+    omitted in a FETCH clause, it defaults to 1. The WITH TIES option is used to
+    return any additional rows that tie for the last place in the result set
+    according to the ORDER BY clause; ORDER BY is mandatory in this case, and
+    SKIP LOCKED is not allowed. ROW and ROWS as well as FIRST and NEXT are noise
+    words that don't influence the effects of these clauses. According to the
+    standard, the OFFSET clause must come before the FETCH clause if both are
+    present; but PostgreSQL is laxer and allows either order.</p>
+<p class="Pp">When using LIMIT, it is a good idea to use an ORDER BY clause that
+    constrains the result rows into a unique order. Otherwise you will get an
+    unpredictable subset of the query's rows &#x2014; you might be asking for
+    the tenth through twentieth rows, but tenth through twentieth in what
+    ordering? You don't know what ordering unless you specify ORDER BY.</p>
+<p class="Pp">The query planner takes LIMIT into account when generating a query
+    plan, so you are very likely to get different plans (yielding different row
+    orders) depending on what you use for LIMIT and OFFSET. Thus, using
+    different LIMIT/OFFSET values to select different subsets of a query result
+    <i>will give inconsistent results</i> unless you enforce a predictable
+    result ordering with ORDER BY. This is not a bug; it is an inherent
+    consequence of the fact that SQL does not promise to deliver the results of
+    a query in any particular order unless ORDER BY is used to constrain the
+    order.</p>
+<p class="Pp">It is even possible for repeated executions of the same LIMIT
+    query to return different subsets of the rows of a table, if there is not an
+    ORDER BY to enforce selection of a deterministic subset. Again, this is not
+    a bug; determinism of the results is simply not guaranteed in such a
+  case.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='The_Locking_Clause'><a class='permalink' href='#The_Locking_Clause'>The   Locking Clause</a></h2>
+<p class="Pp">FOR UPDATE, FOR NO KEY UPDATE, FOR SHARE and FOR KEY SHARE are
+    locking clauses; they affect how SELECT locks rows as they are obtained from
+    the table.</p>
+<p class="Pp">The locking clause has the general form</p>
+<div class="Bd-indent">
+<pre>FOR <i>lock_strength</i> [ OF <i>from_reference</i> [, ...] ] [ NOWAIT | SKIP LOCKED ]</pre>
+</div>
+<p class="Pp">where <i>lock_strength</i> can be one of</p>
+<div class="Bd-indent">
+<pre>UPDATE
+NO KEY UPDATE
+SHARE
+KEY SHARE</pre>
+</div>
+<p class="Pp"><i>from_reference</i> must be a table <i>alias</i> or non-hidden
+    <i>table_name</i> referenced in the FROM clause. For more information on
+    each row-level lock mode, refer to Section&#x00A0;13.3.2.</p>
+<p class="Pp">To prevent the operation from waiting for other transactions to
+    commit, use either the NOWAIT or SKIP LOCKED option. With NOWAIT, the
+    statement reports an error, rather than waiting, if a selected row cannot be
+    locked immediately. With SKIP LOCKED, any selected rows that cannot be
+    immediately locked are skipped. Skipping locked rows provides an
+    inconsistent view of the data, so this is not suitable for general purpose
+    work, but can be used to avoid lock contention with multiple consumers
+    accessing a queue-like table. Note that NOWAIT and SKIP LOCKED apply only to
+    the row-level lock(s) &#x2014; the required ROW SHARE table-level lock is
+    still taken in the ordinary way (see Chapter&#x00A0;13). You can use
+    <b>LOCK</b> with the NOWAIT option first, if you need to acquire the
+    table-level lock without waiting.</p>
+<p class="Pp">If specific tables are named in a locking clause, then only rows
+    coming from those tables are locked; any other tables used in the
+    <b>SELECT</b> are simply read as usual. A locking clause without a table
+    list affects all tables used in the statement. If a locking clause is
+    applied to a view or sub-query, it affects all tables used in the view or
+    sub-query. However, these clauses do not apply to WITH queries referenced by
+    the primary query. If you want row locking to occur within a WITH query,
+    specify a locking clause within the WITH query.</p>
+<p class="Pp">Multiple locking clauses can be wri</p>
+claro, aquí está la traducción del contenido proporcionado al español, manteniendo la estructura del archivo:
+
+tten si es necesario especificar un comportamiento de bloqueo diferente para tablas distintas. Si la misma tabla se menciona (o se ve afectada implícitamente) por más de una cláusula de bloqueo, entonces se procesa como si solo se especificara por la más fuerte. De manera similar, una tabla se procesa como NOWAIT si eso se especifica en alguna de las cláusulas que la afectan. De lo contrario, se procesa como SKIP LOCKED si eso se especifica en alguna de las cláusulas que la afectan.</p>
+<p class="Pp">Las cláusulas de bloqueo no se pueden usar en contextos donde las filas devueltas no se pueden identificar claramente con filas de tabla individuales; por ejemplo, no se pueden usar con agregación.</p>
+<p class="Pp">Cuando una cláusula de bloqueo aparece en el nivel superior de una consulta <b>SELECT</b>, las filas que se bloquean son exactamente aquellas que devuelve la consulta; en el caso de una consulta de unión, las filas bloqueadas son aquellas que contribuyen a las filas de unión devueltas. Además, se bloquearán las filas que cumplieron las condiciones de la consulta en el momento de la instantánea de la consulta, aunque no se devolverán si se actualizaron después de la instantánea y ya no cumplen las condiciones de la consulta. Si se utiliza un LIMIT, el bloqueo se detiene una vez que se han devuelto suficientes filas para cumplir el límite (pero tenga en cuenta que las filas omitidas por OFFSET se bloquearán). De manera similar, si se utiliza una cláusula de bloqueo en la consulta de un cursor, solo se bloquearán las filas realmente recuperadas o pasadas por el cursor.</p>
+<p class="Pp">Cuando una cláusula de bloqueo aparece en una subconsulta <b>SELECT</b>, las filas bloqueadas son aquellas devueltas a la consulta externa por la subconsulta. Esto puede implicar menos filas de las que sugeriría la inspección de la subconsulta por sí sola, ya que las condiciones de la consulta externa pueden usarse para optimizar la ejecución de la subconsulta. Por ejemplo,</p>
+<div class="Bd-indent">
+<pre>SELECT * FROM (SELECT * FROM mi_tabla FOR UPDATE) ss WHERE col1 = 5;</pre>
+</div>
+<p class="Pp">bloqueará solo las filas con col1 = 5, incluso si esa condición no está textualmente dentro de la subconsulta.</p>
+<p class="Pp">Las versiones anteriores fallaban al preservar un bloqueo que se actualiza mediante un punto de guardado posterior. Por ejemplo, este código:</p>
+<div class="Bd-indent">
+<pre>BEGIN;
+SELECT * FROM mi_tabla WHERE clave = 1 FOR UPDATE;
+SAVEPOINT s;
+UPDATE mi_tabla SET ... WHERE clave = 1;
+ROLLBACK TO s;</pre>
+</div>
+<p class="Pp">no conservaba el bloqueo FOR UPDATE después de <b>ROLLBACK TO</b>. Esto se ha corregido en la versión 9.3.</p>
+<div class="Bd-indent">
+<br/>
+<b>Precaución</b>
+<br/>
+<p class="Pp">Es posible que un comando <b>SELECT</b> que se ejecuta en el nivel de aislamiento de transacción READ COMMITTED y que utiliza ORDER BY y una cláusula de bloqueo devuelva filas en un orden incorrecto. Esto se debe a que ORDER BY se aplica primero. El comando ordena el resultado, pero luego podría bloquearse al intentar obtener un bloqueo en una o más de las filas. Una vez que el SELECT se desbloquea, algunos de los valores de las columnas de ordenación podrían haberse modificado, lo que haría que esas filas parecieran estar fuera de orden (aunque están en orden en términos de los valores de las columnas originales). Esto se puede solucionar, si es necesario, colocando la cláusula FOR UPDATE/SHARE en una subconsulta, por ejemplo</p>
+<div class="Bd-indent">
+<pre>SELECT * FROM (SELECT * FROM mi_tabla FOR UPDATE) ss ORDER BY columna1;</pre>
+</div>
+<p class="Pp">Tenga en cuenta que esto resultará en el bloqueo de todas las filas de mi_tabla, mientras que FOR UPDATE en el nivel superior bloquearía solo las filas realmente devueltas. Esto puede marcar una diferencia significativa en el rendimiento, especialmente si ORDER BY se combina con LIMIT u otras restricciones. Por lo tanto, esta técnica solo se recomienda si se esperan actualizaciones concurrentes de las columnas de ordenación y se requiere un resultado estrictamente ordenado.</p>
+<p class="Pp">En los niveles de aislamiento de transacción REPEATABLE READ o SERIALIZABLE, esto causaría un fallo de serialización (con un SQLSTATE de '40001'), por lo que no hay posibilidad de recibir filas fuera de orden bajo estos niveles de aislamiento.</p>
+</section>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='TABLE_Command'><a class='permalink' href='#TABLE_Command'>Comando TABLE</a></h2>
+<p class="Pp">El comando</p>
+<div class="Bd-indent">
+<pre>TABLE <i>nombre</i></pre>
+</div>
+<p class="Pp">es equivalente a</p>
+<div class="Bd-indent">
+<pre>SELECT * FROM <i>nombre</i></pre>
+</div>
+<p class="Pp">Se puede usar como comando de nivel superior o como una variante de sintaxis que ahorra espacio en partes de consultas complejas. Solo se pueden usar las cláusulas de bloqueo WITH, UNION, INTERSECT, EXCEPT, ORDER BY, LIMIT, OFFSET, FETCH y FOR con <b>TABLE</b>; no se pueden usar la cláusula WHERE ni ninguna forma de agregación.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLES'><a class='permalink' href='#EXAMPLES'>EJEMPLOS</a></h1>
+<p class="Pp">Para unir la tabla films con la tabla distributors:</p>
+<div class="Bd-indent">
+<pre>SELECT f.titulo, f.did, d.nombre, f.fecha_produccion, f.tipo
+    FROM distributors d JOIN films f USING (did);
+       titulo      | did |     nombre     | fecha_produccion |   tipo
+-------------------+-----+--------------+------------+----------
+ La Delator       | 101 | British Lion | 1949-12-23 | Drama
+ La Reina de Africa | 101 | British Lion | 1951-08-11 | Romántica
+ ...</pre>
+</div>
+<p class="Pp">Para sumar la columna len de todas las películas y agrupar los resultados por tipo:</p>
+<div class="Bd-indent">
+<pre>SELECT tipo, sum(len) AS total FROM films GROUP BY tipo;
+   tipo   | total
+----------+-------
+ Acción   | 07:34
+ Comedia  | 02:58
+ Drama    | 14:28
+ Musical  | 06:42
+ Romántica | 04:38</pre>
+</div>
+<p class="Pp">Para sumar la columna len de todas las películas, agrupar los resultados por tipo y mostrar aquellos totales de grupo que son menores a 5 horas:</p>
+<div class="Bd-indent">
+<pre>SELECT tipo, sum(len) AS total
+    FROM films
+    GROUP BY tipo
+    HAVING sum(len) &lt; interval '5 hours';
+   tipo   | total
+----------+-------
+ Comedia  | 02:58
+ Romántica | 04:38</pre>
+</div>
+<p class="Pp">Los siguientes dos ejemplos son formas idénticas de ordenar los resultados individuales según el contenido de la segunda columna (nombre):</p>
+<div class="Bd-indent">
+<pre>SELECT * FROM distributors ORDER BY nombre;
+SELECT * FROM distributors ORDER BY 2;
+ did |       nombre
+-----+------------------
+ 109 | 20th Century Fox
+ 110 | Bavaria Atelier
+ 101 | British Lion
+ 107 | Columbia
+ 102 | Jean Luc Godard
+ 113 | Luso films
+ 104 | Mosfilm
+ 103 | Paramount
+ 106 | Toho
+ 105 | United Artists
+ 111 | Walt Disney
+ 112 | Warner Bros.
+ 108 | Westward</pre>
+</div>
+<p class="Pp">El siguiente ejemplo muestra cómo obtener la unión de las tablas
+    distributors y actors, restringiendo los resultados a aquellos que comienzan con la letra W en cada tabla. Solo se desean filas distintas, por lo que se omite la palabra clave ALL.</p>
+<div class="Bd-indent">
+<pre>distributors:               actors:
+ did |     nombre              id |     nombre
+-----+--------------        ----+----------------
+ 108 | Westward               1 | Woody Allen
+ 111 | Walt Disney            2 | Warren Beatty
+ 112 | Warner Bros.           3 | Walter Matthau
+ ...                         ...
+SELECT distributors.nombre
+    FROM distributors
+    WHERE distributors.nombre LIKE 'W%'
+UNION
+SELECT actors.nombre
+    FROM actors
+    WHERE actors.nombre LIKE 'W%';
+      nombre
+----------------
+ Walt Disney
+ Walter Matthau
+ Warner Bros.
+ Warren Beatty
+ Westward
+ Woody Allen</pre>
+</div>
+<p class="Pp">Este ejemplo muestra cómo usar una función en la cláusula FROM,
+    tanto con como sin una lista de definición de columna:</p>
+<div class="Bd-indent">
+<pre>CREATE FUNCTION distributors(int) RETURNS SETOF distributors AS $$
+    SELECT * FROM distributors WHERE did = $1;
+$$ LANGUAGE SQL;
+SELECT * FROM distributors(111);
+ did |    nombre
+-----+-------------
+ 111 | Walt Disney
+CREATE FUNCTION distributors_2(int) RETURNS SETOF record AS $$
+    SELECT * FROM distributors WHERE did = $1;
+$$ LANGUAGE SQL;
+SELECT * FROM distributors_2(111) AS (f1 int, f2 text);
+ f1  |     f2
+-----+-------------
+ 111 | Walt Disney</pre>
+</div>
+<p class="Pp">Aquí hay un ejemplo de una función con una columna de ordinalidad
+  añadida:</p>
+<div class="Bd-indent">
+<pre>SELECT * FROM unnest(ARRAY['a','b','c','d','e','f']) WITH ORDINALITY;
+ unnest | ordinality
+--------+----------
+ a      |        1
+ b      |        2
+ c      |        3
+ d      |        4
+ e      |        5
+ f      |        6
+(6 rows)</pre>
+</div>
+<p class="Pp">Este ejemplo muestra cómo usar una cláusula WITH simple:</p>
+<div class="Bd-indent">
+<pre>WITH t AS (
+    SELECT random() as x FROM generate_series(1, 3)
+  )
+SELECT * FROM t
+UNION ALL
+SELECT * FROM t;
+         x
+--------------------
+  0.534150459803641
+  0.520092216785997
+ 0.0735620250925422
+  0.534150459803641
+  0.520092216785997
+ 0.0735620250925422</pre>
+</div>
+<p class="Pp">Observe que la consulta WITH se evaluó solo una vez, por lo que obtuvimos dos conjuntos de los mismos tres valores aleatorios.</p>
+<p class="Pp">Este ejemplo utiliza WITH RECURSIVE para encontrar todos los subordinados (directos o indirectos) del empleado Mary, y su nivel de indirectez, a partir de una tabla que muestra solo subordinados directos:</p>
+<div class="Bd-indent">
+<pre>WITH RECURSIVE employee_recursive(distance, employee_name, manager_name) AS (
+    SELECT 1, employee_name, manager_name
+    FROM employee
+    WHERE manager_name = 'Mary'
+  UNION ALL
+    SELECT er.distance + 1, e.employee_name, e.manager_name
+    FROM employee_recursive er, employee e
+    WHERE er.employee_name = e.manager_name
+  )
+SELECT distance, employee_name FROM employee_recursive;</pre>
+</div>
+<p class="Pp">Observe la forma típica de las consultas recursivas: una condición inicial, seguida de UNION, seguida de la parte recursiva de la consulta. Asegúrese de que la parte recursiva de la consulta eventualmente no devuelva tuplas, o la consulta se ejecutará en un bucle infinito. (Ver Sección 7.8 para más ejemplos.)</p>
+<p class="Pp">Este ejemplo usa LATERAL para aplicar una función que devuelve conjuntos
+    <b>get_product_names()</b> para cada fila de la tabla manufacturers:</p>
+<div class="Bd-indent">
+<pre>SELECT m.name AS mname, pname
+FROM manufacturers m, LATERAL get_product_names(m.id) pname;</pre>
+</div>
+<p class="Pp">Los fabricantes que actualmente no tienen productos no aparecerían en el resultado, ya que es una inner join. Si deseáramos incluir los nombres de dichos fabricantes en el resultado, podríamos hacer:</p>
+<div class="Bd-indent">
+<pre>SELECT m.name AS mname, pname
+FROM manufacturers m LEFT JOIN LATERAL get_product_names(m.id) pname ON true;</pre>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COMPATIBILITY'><a class='permalink' href='#COMPATIBILITY'>COMPATIBILIDAD</a></h1>
+<p class="Pp">Por supuesto, la sentencia <b>SELECT</b> es compatible con el estándar SQL. Pero hay algunas extensiones y algunas características faltantes.</p>
+<section class="Ss">
+<h2 class="Ss" id='Omitted_FROM_Clauses'><a class='permalink' href='#Omitted_FROM_Clauses'>Cláusulas FROM Omitidas</a></h2>
+<p class="Pp">PostgreSQL permite omitir la cláusula FROM. Tiene un uso sencillo para calcular los resultados de expresiones simples:</p>
+<div class="Bd-indent">
+<pre>SELECT 2+2;
+ ?column?
+----------
+        4</pre>
+</div>
+<p class="Pp">Otras bases de datos SQL no pueden hacer esto excepto introduciendo una tabla ficticia de una fila de la cual hacer el <b>SELECT</b>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Empty_SELECT_Lists'><a class='permalink' href='#Empty_SELECT_Lists'>Listas SELECT Vacías</a></h2>
+<p class="Pp">La lista de expresiones de salida después de SELECT puede estar vacía, produciendo una tabla de resultados de cero columnas. Esto no es sintaxis válida según el estándar SQL. PostgreSQL lo permite para ser coherente con la permisión de tablas de cero columnas. Sin embargo, no se permite una lista vacía cuando se usa DISTINCT.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Omitting_the_AS_Key_Word'><a class='permalink' href='#Omitting_the_AS_Key_Word'>Omisión de la Palabra Clave AS</a></h2>
+<p class="Pp">En el estándar SQL, la palabra clave opcional AS se puede omitir
+    antes del nombre de una columna de salida siempre que el nuevo nombre de columna sea un nombre de columna válido (es decir, que no sea el mismo que alguna palabra clave reservada). PostgreSQL es ligeramente
+    más restrictivo: AS es obligatorio si el nuevo nombre de columna coincide con alguna palabra clave
+    en absoluto, sea o no reservada. La práctica recomendada es usar AS o comillas dobles para los nombres de las columnas de salida, para evitar cualquier posible conflicto con futuras adiciones de palabras clave.</p>
+<p class="Pp">En los elementos FROM, tanto el estándar como PostgreSQL permiten omitir AS antes de un alias que sea una palabra clave no reservada. Pero esto es
+    impráctico para los nombres de las columnas de salida, debido a ambigüedades sintácticas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Omitiendo_Alias_de_Sub-SELECT_en_FROM'><a class='permalink' href='#Omitiendo_Alias_de_Sub-SELECT_en_FROM'>Omitiendo   Alias de Sub-SELECT en FROM</a></h2>
+<p class="Pp">Según el estándar SQL, un sub-<b>SELECT</b> en la lista FROM
+    debe tener un alias. En PostgreSQL, este alias se puede omitir.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ONLY_y_Herencia'><a class='permalink' href='#ONLY_y_Herencia'>ONLY   y Herencia</a></h2>
+<p class="Pp">El estándar SQL requiere paréntesis alrededor del nombre de la tabla al escribir ONLY, por ejemplo SELECT * FROM ONLY (tab1), ONLY (tab2) WHERE ....
+    PostgreSQL considera que estos paréntesis son opcionales.</p>
+<p class="Pp">PostgreSQL permite escribir un * al final para especificar explícitamente el comportamiento no-ONLY de incluir tablas hijas. El estándar no permite esto.</p>
+<p class="Pp">(Estos puntos se aplican por igual a todos los comandos SQL que admiten la opción ONLY.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Restricciones_de_la_Cláusula_TABLESAMPLE'><a class='permalink' href='#Restricciones_de_la_Cláusula_TABLESAMPLE'>Restricciones   de la Cláusula TABLESAMPLE</a></h2>
+<p class="Pp">La cláusula TABLESAMPLE actualmente solo se acepta en tablas regulares y vistas materializadas. Según el estándar SQL, debería ser posible aplicarla a cualquier elemento FROM.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Llamadas_a_Funciones_en_FROM'><a class='permalink' href='#Llamadas_a_Funciones_en_FROM'>Llamadas   a Funciones en FROM</a></h2>
+<p class="Pp">PostgreSQL permite escribir una llamada a función directamente como un miembro de la lista FROM. En el estándar SQL sería necesario envolver dicha llamada a función en un sub-<b>SELECT</b>; es decir, la sintaxis FROM
+    <i>func</i>(...) <i>alias</i> es aproximadamente equivalente a FROM LATERAL
+    (SELECT <i>func</i>(...)) <i>alias</i>. Tenga en cuenta que LATERAL se considera implícito; esto se debe a que el estándar requiere semántica LATERAL para un elemento UNNEST() en FROM. PostgreSQL trata UNNEST() de la misma manera que otras funciones que devuelven conjuntos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Espacio_de_Nombres_Disponible_para_GROUP_BY_y_ORDER_BY'><a class='permalink' href='#Espacio_de_Nombres_Disponible_para_GROUP_BY_y_ORDER_BY'>Espacio   de Nombres Disponible para GROUP BY y ORDER BY</a></h2>
+<p class="Pp">En el estándar SQL-92, una cláusula ORDER BY solo puede usar nombres de columnas de salida o números, mientras que una cláusula GROUP BY solo puede usar expresiones basadas en nombres de columnas de entrada. PostgreSQL extiende cada una de estas cláusulas para permitir también la otra opción (pero usa la interpretación del estándar si hay ambigüedad). PostgreSQL también permite que ambas cláusulas especifiquen expresiones arbitrarias. Tenga en cuenta que los nombres que aparecen en una expresión siempre se tomarán como nombres de columnas de entrada, no como nombres de columnas de salida.</p>
+<p class="Pp">SQL:1999 y posteriores usan una definición ligeramente diferente que no es totalmente compatible hacia atrás con SQL-92. Sin embargo, en la mayoría de los casos, PostgreSQL interpretará una expresión ORDER BY o GROUP BY de la misma manera que lo hace SQL:1999.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Dependencias_Funcionales'><a class='permalink' href='#Dependencias_Funcionales'>Dependencias   Funcionales</a></h2>
+<p class="Pp">PostgreSQL reconoce la dependencia funcional (permitiendo omitir columnas de GROUP BY) solo cuando la clave primaria de una tabla está incluida en la lista GROUP BY. El estándar SQL especifica condiciones adicionales que deberían ser reconocidas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='LIMIT_y_OFFSET'><a class='permalink' href='#LIMIT_y_OFFSET'>LIMIT   y OFFSET</a></h2>
+<p class="Pp">Las cláusulas LIMIT y OFFSET son sintaxis específica de PostgreSQL, también utilizada por MySQL. El estándar SQL:2008 ha introducido las cláusulas OFFSET ... FETCH {FIRST|NEXT} ... para la misma funcionalidad, como se muestra anteriormente en la Cláusula LIMIT. Esta sintaxis también es utilizada por IBM DB2. (Las aplicaciones escritas para Oracle a menudo usan una solución alternativa que involucra la columna generada automáticamente rownum, que no está disponible en PostgreSQL, para implementar los efectos de estas cláusulas.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='FOR_NO_KEY_UPDATE,_FOR_UPDATE,_FOR_SHARE,_FOR_KEY_SHARE'><a class='permalink' href='#FOR_NO_KEY_UPDATE,_FOR_UPDATE,_FOR_SHARE,_FOR_KEY_SHARE'>FOR   NO KEY UPDATE, FOR UPDATE, FOR SHARE, FOR KEY SHARE</a></h2>
+<p class="Pp">Aunque FOR UPDATE aparece en el estándar SQL, el estándar solo lo permite como una opción de <b>DECLARE CURSOR</b>. PostgreSQL lo permite en cualquier consulta <b>SELECT</b>, así como en sub-<b>SELECT</b>s, pero esto es una extensión. Las variantes FOR NO KEY UPDATE, FOR SHARE y FOR KEY SHARE, así como las opciones NOWAIT y SKIP LOCKED, no aparecen en el
+    estándar.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Sentencias_que_Modifican_Datos_en_WITH'><a class='permalink' href='#Sentencias_que_Modifican_Datos_en_WITH'>Sentencias   que Modifican Datos en WITH</a></h2>
+<p class="Pp">PostgreSQL permite que <b>INSERT</b>, <b>UPDATE</b>, <b>DELETE</b> y
+    <b>MERGE</b> se utilicen como consultas WITH. Esto no se encuentra en el estándar SQL.</p>
+</section>
+<section class=" Ss">
+<h2 class="Ss" id='Cláusulas_No_Estándar'><a class='permalink' href='#Cláusulas_No_Estándar'>Cláusulas   No Estándar</a></h2>
+<p class="Pp">DISTINCT ON ( ... ) es una extensión del estándar SQL.</p>
+<p class="Pp">ROWS FROM( ... ) es una extensión del estándar SQL.</p>
+<p class="Pp">Las opciones MATERIALIZED y NOT MATERIALIZED de WITH son extensiones del estándar SQL.</p>
+</section>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025</td>
+    <td class="foot-os">PostgreSQL 18.1</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/postgresql/">extra/postgresql</a></dd>
+        <dt>Versión:</dt>
+        <dd>18.1-1</dd>
+        <dt>Principal:</dt>
+        <dd><a href="https://www.postgresql.org/">https://www.postgresql.org/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PostgreSQL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/postgresql/">/listing/extra/postgresql/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PARAMETERS">PARÁMETROS</a></li>
+        
+            <li><a href="#EXAMPLES">EJEMPLOS</a></li>
+        
+            <li><a href="#COMPATIBILITY">COMPATIBILIDAD</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/SELECT.7.es.txt">txt</a>, 
+        
+            <a href="/man/SELECT.7.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

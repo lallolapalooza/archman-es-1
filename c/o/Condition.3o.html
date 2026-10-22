@@ -1,0 +1,262 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Condition(3o) — Páginas de manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Condition(3o)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/ocaml/">ocaml</a></p>
+<p class="lic">Licencias: LGPL2.1, custom: QPL-1.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Condition(3)</td>
+    <td class="head-vol">Biblioteca OCaml</td>
+    <td class="head-rtitle">Condition(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Condition - Variables de condición.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Module'><a class='permalink' href='#Module'>Módulo</a></h1>
+<p class="Pp">Módulo Condition</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Documentation'><a class='permalink' href='#Documentation'>Documentación</a></h1>
+<p class="Pp">Módulo <b>Condition</b>
+  <br/>
+   : <b>sig end</b></p>
+<p class="Pp">Variables de condición.</p>
+<p class="Pp">Las variables de condición son útiles cuando varios hilos desean acceder
+    a una estructura de datos compartida que está protegida por un mutex (un candado
+    de exclusión mutua).</p>
+<p class="Pp">Una variable de condición es un canal de comunicación. En el lado
+    del receptor, uno o más hilos pueden indicar que desean esperar a que cierta
+    propiedad se vuelva verdadera. En el lado del emisor, un hilo puede señalar que esta
+    propiedad se ha vuelto verdadera, causando que uno (o más) hilos en espera sean despertados.</p>
+<p class="Pp">Por ejemplo, en la implementación de una estructura de datos de cola, si
+    un hilo que desea extraer un elemento encuentra que la cola está actualmente
+    vacía, entonces este hilo espera a que la cola se vuelva no vacía. Un hilo
+    que inserta un elemento en la cola señala que la cola se ha vuelto
+    no vacía. Una variable de condición se utiliza para este propósito. Este canal
+    de comunicación transmite la información de que la propiedad "la cola está
+    no vacía" es verdadera, o más precisamente, puede ser verdadera. (Explicamos más abajo
+    por qué el receptor de una señal no puede estar seguro de que la propiedad se cumple.)</p>
+<p class="Pp">Para continuar el ejemplo de la cola, asumiendo que la cola tiene
+    una capacidad máxima fija, entonces un hilo que desea insertar un elemento puede
+    encontrar que la cola está llena. Entonces, este hilo debe esperar a que la cola
+    se vuelva no llena, y un hilo que extrae un elemento de la cola señala
+    que la cola se ha vuelto no llena. Otra variable de condición se utiliza para
+    este propósito.</p>
+<p class="Pp">En resumen, una variable de condición <b>c</b> se utiliza para transmitir la
+    información de que cierta propiedad P sobre una estructura de datos compartida D,
+    protegida por un mutex <b>m</b> , puede ser verdadera.</p>
+<p class="Pp">Las variables de condición proporcionan una alternativa eficiente a la
+    espera activa (busy-waiting). Cuando se desea esperar a que la propiedad P sea verdadera, en lugar
+    de escribir un bucle de espera activa:</p>
+<pre>     Mutex.lock m;
+     while not P do
+       Mutex.unlock m; Mutex.lock m
+     done;
+     &lt;actualizar la estructura de datos&gt;;
+     Mutex.unlock m
+</pre>
+se utiliza <b>Condition.wait</b> en el cuerpo del bucle, de la siguiente manera:
+<pre>     Mutex.lock m;
+     while not P do
+       Condition.wait c m
+     done;
+     &lt;actualizar la estructura de datos&gt;;
+     Mutex.unlock m
+</pre>
+El bucle de espera activa es ineficiente porque el hilo en espera consume
+  tiempo de procesamiento y crea contención del mutex <b>m</b> . Llamar a
+  <b>Condition.wait</b> permite que el hilo en espera sea suspendido, de modo que no
+  consume ningún recurso de cómputo mientras espera.
+<p class="Pp">Con una variable de condición <b>c</b> , exactamente un mutex <b>m</b> está
+    asociado. Esta asociación es implícita: el mutex <b>m</b> no se
+    pasa explícitamente como argumento a <b>Condition.create</b> . Corresponde al
+    programador saber, para cada variable de condición <b>c</b> , cuál es el
+    mutex asociado <b>m</b> .</p>
+<p class="Pp">Con un mutex <b>m</b> , varias variables de condición pueden estar
+    asociadas. En el ejemplo de la cola acotada, una variable de condición se
+    utiliza para indicar que la cola está no vacía, y otra variable de condición
+    se utiliza para indicar que la cola no está llena.</p>
+<p class="Pp">Con una variable de condición <b>c</b> , exactamente una propiedad lógica
+    P debe estar asociada. Ejemplos de tales propiedades incluyen "la cola
+    está no vacía" y "la cola no está llena". Corresponde al
+    programador llevar la cuenta, para cada variable de condición, de la propiedad
+    correspondiente P. Se envía una señal en la variable de condición <b>c</b> como una
+    indicación de que la propiedad P es verdadera, o puede ser verdadera. En el extremo
+    receptor, sin embargo, un hilo que es despertado no puede asumir que P es verdadera; después
+    de que una llamada a <b>Condition.wait</b> termina, se debe probar explícitamente si
+    P es verdadera. Hay varias razones por las que es así. Una razón es que,
+    entre el momento en que se envía la señal y el momento en que un hilo en espera
+    recibe la señal y es programado, la propiedad P puede ser falsificada
+    por algún otro hilo que es capaz de adquirir el mutex <b>m</b> y alterar
+    la estructura de datos D. Otra razón es que pueden ocurrir despertares espurios: un
+    hilo en espera puede ser despertado incluso si no se envió ninguna señal.</p>
+<p class="Pp">Aquí hay un ejemplo completo, donde un mutex protege una cola
+    secuencial ilimitada, y donde una variable de condición se utiliza para señalar que la
+    cola está no vacía.</p>
+<pre>     type 'a safe_queue =
+       { queue : 'a Queue.t; mutex : Mutex.t; nonempty : Condition.t }
+     let create () =
+       { queue = Queue.create(); mutex = Mutex.create();
+         nonempty = Condition.create() }
+     let add v q =
+       Mutex.lock q.mutex;
+       let was_empty = Queue.is_empty q.queue in
+       Queue.add v q.queue;
+       if was_empty then Condition.broadcast q.nonempty;
+       Mutex.unlock q.mutex
+     let take q =
+       Mutex.lock q.mutex;
+       while Queue.is_empty q.queue do Condition.wait q.nonempty q.mutex done;
+       let v = Queue.take q.queue in (* no puede fallar ya que la cola no está vacía *)
+       Mutex.unlock q.mutex;
+       v
+</pre>
+Debido a que la llamada a <b>Condition.broadcast</b> tiene lugar dentro de la sección
+  crítica, la siguiente propiedad se cumple siempre que el mutex está desbloqueado: si la
+  cola está no vacía, entonces ningún hilo está esperando, o, en otras palabras, si algún
+  hilo está esperando, entonces la cola debe estar vacía. Esta es una propiedad deseable:
+  si un hilo que intenta ejecutar una operación <b>take</b> pudiera permanecer
+  suspendido aunque la cola estuviera no vacía, esa sería una situación
+  problemática, conocida como interbloqueo (deadlock).
+<p class="Pp"><i>type t</i></p>
+<p class="Pp">El tipo de las variables de condición.</p>
+<p class="Pp"><i>val create</i> : <b>unit -&gt; t</b></p>
+<p class="Pp"><b>create()</b> crea y devuelve una nueva variable de condición. Esta
+    variable de condición debe estar asociada (en la mente del programador) con
+    cierto mutex <b>m</b> y con cierta propiedad P de la estructura de datos
+    que está protegida por el mutex <b>m</b> .</p>
+<p class="Pp"><i>val wait</i> : <b>t -&gt; Mutex.t -&gt; unit</b></p>
+<p class="Pp">La llamada <b>wait c m</b> está permitida solo si <b>m</b> es el
+    mutex asociado con la variable de condición <b>c</b> , y solo si <b>m</b>
+    está actualmente bloqueado. Esta llamada desbloquea atómicamente el mutex <b>m</b> y
+    suspende el hilo actual en la variable de condición <b>c</b> . Este hilo
+    puede ser despertado más tarde después de que la variable de condición <b>c</b> haya sido
+    señalizada mediante <b>Condition.signal</b> o <b>Condition.broadcast</b> ;
+    sin embargo, también puede ser despertado sin razón alguna. El mutex <b>m</b> se bloquea
+    de nuevo antes de que <b>wait</b> retorne. No se puede asumir que la propiedad P
+    asociada con la variable de condición <b>c</b> se cumple cuando <b>wait</b>
+    retorna; se debe probar explícitamente si P se cumple después de llamar a <b>wait</b>
+    .</p>
+<p class="Pp"><i>val signal</i> : <b>t -&gt; unit</b></p>
+<p class="Pp"><b>signal c</b> despierta a uno de los hilos que esperan en la
+    variable de condición <b>c</b> , si hay alguno. Si no hay ninguno, esta llamada
+    no tiene efecto.</p>
+<p class="Pp">Se recomienda llamar a <b>signal c</b> dentro de una sección
+    crítica, es decir, mientras el mutex <b>m</b> asociado con <b>c</b> está
+    bloqueado.</p>
+<p class="Pp"><i>val broadcast</i> : <b>t -&gt; unit</b></p>
+<p class="Pp"><b>broadcast c</b> despierta a todos los hilos que esperan en la variable de condición <b>c</b> . Si no hay ninguno, esta llamada no tiene efecto.</p>
+<p class="Pp">Se recomienda llamar a <b>broadcast c</b> dentro de una sección
+    crítica, es decir, mientras el mutex <b>m</b> asociado con <b>c</b> está
+    bloqueado.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-11-01</td>
+    <td class="foot-os">OCamldoc</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/ocaml/">extra/ocaml</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.4.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://caml.inria.fr/">https://caml.inria.fr/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>LGPL2.1, custom: QPL-1.0</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/ocaml/">/listing/extra/ocaml/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#Module">Módulo</a></li>
+        
+            <li><a href="#Documentation">Documentación</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Condition.3o.en.txt">txt</a>, 
+        
+            <a href="/man/Condition.3o.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

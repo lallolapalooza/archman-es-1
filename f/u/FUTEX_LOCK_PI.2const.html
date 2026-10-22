@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FUTEX_LOCK_PI(2const) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">FUTEX_LOCK_PI.2const</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/any/man-pages/">man-pages</a></p>
+<p class="lic">Licencias: BSD-2-Clause, BSD-3-Clause, BSD-4.3TAHOE, BSD-4-Clause-UC, GPL-1.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-3.0-or-later, LGPL-3.0-linking-exception, LicenseRef-Public-Domain, LicenseRef-UltraPermissive, Linux-man-pages-1-para, Linux-man-pages-copyleft, Linux-man-pages-copyleft-2-para, Linux-man-pages-copyleft-var, MIT, Spencer-94</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">FUTEX_LOCK_PI(2const)</td>
+    <td class="head-vol"></td>
+    <td class="head-rtitle">FUTEX_LOCK_PI(2const)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">FUTEX_LOCK_PI - bloquear un futex de herencia de prioridad</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BIBLIOTECA'><a class='permalink' href='#BIBLIOTECA'>BIBLIOTECA</a></h1>
+<p class="Pp">Biblioteca C estándar (<i>libc</i>,&#x00A0;<i>-lc</i>)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre><b>#include &lt;linux/futex.h&gt;</b>  /* Definición de las constantes <b>FUTEX_*</b> */
+<b>#include &lt;sys/syscall.h&gt;</b>  /* Definición de las constantes <b>SYS_*</b> */
+<b>#include &lt;unistd.h&gt;</b></pre>
+<pre><b>long syscall(SYS_futex, uint32_t *</b><i>uaddr</i><b>, FUTEX_LOCK_PI, 0,</b>
+<b>             const struct timespec *</b><i>timeout</i><b>);</b></pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCION'><a class='permalink' href='#DESCRIPCION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esta operación se utiliza después de que un intento de adquirir el
+    bloqueo mediante una instrucción atómica en modo usuario falló porque la
+    palabra futex tenía un valor distinto de cero — específicamente, porque
+    contenía el TID (específico del espacio de nombres PID) del propietario del
+    bloqueo.</p>
+<p class="Pp">La operación comprueba el valor de la palabra futex en la dirección
+    <i>uaddr</i>. Si el valor es 0, entonces el kernel intenta establecer
+    atmicamente el valor del futex al TID del llamante. Si el valor de la palabra
+    futex es distinto de cero, el kernel establece atmicamente el bit
+    <b>FUTEX_WAITERS</b>, que indica al propietario del futex que no puede
+    desbloquear el futex en el espacio de usuario de forma atómica estableciendo el
+    valor del futex a 0. Después de eso, el kernel:</p>
+<dl class="Bl-tag">
+  <dt>(1)</dt>
+  <dd>Intenta encontrar el hilo asociado con el TID del propietario.</dd>
+  <dt>(2)</dt>
+  <dd>Crea o reutiliza el estado del kernel en nombre del propietario. (Si este
+      es el primer esperador, no hay estado del kernel para este futex, por lo
+      que se crea el estado del kernel bloqueando el RT-mutex y el propietario
+      del futex se convierte en el propietario del RT-mutex. Si hay esperadores
+      existentes, se reutiliza el estado existente).</dd>
+  <dt>(3)</dt>
+  <dd>Adjunta el esperador al futex (es decir, el esperador se encola en la lista
+      de esperadores del RT-mutex).</dd>
+</dl>
+<p class="Pp">Si existen varios esperadores, la encolación del esperador se realiza
+    en orden descendente de prioridad. (Para obtener información sobre el orden
+    de prioridad, consulte la discusión de las políticas de planificación
+    <b>SCHED_DEADLINE</b>, <b>SCHED_FIFO</b> y <b>SCHED_RR</b> en <a href='/man/sched.7.en'>sched(7)</a>.) El propietario hereda
+    ya sea el ancho de banda de CPU del esperador (si el esperador está planificado
+    bajo la política <b>SCHED_DEADLINE</b>) o la prioridad del esperador (si el
+    esperador está planificado bajo la política <b>SCHED_RR</b> o <b>SCHED_FIFO</b>).
+    Esta herencia sigue la cadena de bloqueo en caso de bloqueos anidados y
+    realiza detección de interbloqueos.</p>
+<p class="Pp">El argumento <i>timeout</i> proporciona un tiempo de espera para el
+    intento de bloqueo. Si <i>timeout</i> no es NULL, la estructura a la que apunta
+    especifica un tiempo de espera absoluto. Si <i>timeout</i> es NULL, la operación
+    se bloqueará indefinidamente.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VALOR_DE_RETORNO'><a class='permalink' href='#VALOR_DE_RETORNO'>VALOR DE RETORNO</a></h1>
+<p class="Pp">En caso de error, se devuelve -1 y <i>errno</i> se establece para
+    indicar el error.</p>
+<p class="Pp">En caso de éxito, <b>FUTEX_LOCK_PI</b> devuelve 0 si el futex se
+    bloqueó correctamente.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ERRORES'><a class='permalink' href='#ERRORES'>ERRORES</a></h1>
+<p class="Pp">Ver <a href='/man/futex.2.en'>futex(2)</a>.</p>
+<dl class="Bl-tag">
+  <dt id="EAGAIN"><a class="permalink" href="#EAGAIN"><b>EAGAIN</b></a></dt>
+  <dd>El ID del hilo propietario del futex en <i>uaddr</i> está a punto de salir,
+      pero aún no ha manejado la limpieza del estado interno. Inténtelo de
+      nuevo.</dd>
+  <dt id="EDEADLK"><a class="permalink" href="#EDEADLK"><b>EDEADLK</b></a></dt>
+  <dd>La palabra futex en <i>uaddr</i> ya está bloqueada por el llamante.</dd>
+  <dt id="EFAULT"><a class="permalink" href="#EFAULT"><b>EFAULT</b></a></dt>
+  <dd><i>timeout</i> no apuntaba a una dirección válida del espacio de usuario.</dd>
+  <dt id="EINVAL"><a class="permalink" href="#EINVAL"><b>EINVAL</b></a></dt>
+  <dd>El argumento <i>timeout</i> proporcionado no era válido (<i>tv_sec</i> era
+      menor que cero, o <i>tv_nsec</i> no era menor que 1.000.000.000).</dd>
+  <dt id="EINVAL~2"><a class="permalink" href="#EINVAL~2"><b>EINVAL</b></a></dt>
+  <dd>El kernel detectó una inconsistencia entre el estado del espacio de
+      usuario en <i>uaddr</i> y el estado del kernel. Esto indica corrupción de
+      estado o que el kernel encontró un esperador en <i>uaddr</i> que está
+      esperando a través de <b>FUTEX_WAIT</b>(2const) o
+      <b>FUTEX_WAIT_BITSET</b>(2const).</dd>
+  <dt id="ENOMEM"><a class="permalink" href="#ENOMEM"><b>ENOMEM</b></a></dt>
+  <dd>El kernel no pudo asignar memoria para mantener la información de estado.</dd>
+  <dt id="ENOSYS"><a class="permalink" href="#ENOSYS"><b>ENOSYS</b></a></dt>
+  <dd>Una comprobación en tiempo de ejecución determinó que la operación no está
+      disponible. Las operaciones PI-futex no están implementadas en todas las
+      arquitecturas y no son compatibles con algunas variantes de CPU.</dd>
+  <dt id="EPERM"><a class="permalink" href="#EPERM"><b>EPERM</b></a></dt>
+  <dd>No se permite al llamante adjuntarse al futex en <i>uaddr</i>. (Esto puede
+      ser causado por corrupción de estado en el espacio de usuario).</dd>
+  <dt id="ESRCH"><a class="permalink" href="#ESRCH"><b>ESRCH</b></a></dt>
+  <dd>El ID de hilo en la palabra futex en <i>uaddr</i> no existe.</dd>
+  <dt id="ETIMEDOUT"><a class="permalink" href="#ETIMEDOUT"><b>ETIMEDOUT</b></a></dt>
+  <dd>El tiempo de espera expiró antes de que se completara la operación.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ESTANDARES'><a class='permalink' href='#ESTANDARES'>ESTANDARES</a></h1>
+<p class="Pp">Linux.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HISTORIA'><a class='permalink' href='#HISTORIA'>HISTORIA</a></h1>
+<p class="Pp">Linux 2.6.18.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PRECAUCIONES'><a class='permalink' href='#PRECAUCIONES'>PRECAUCIONES</a></h1>
+<p class="Pp">A diferencia de otras operaciones de <a href='/man/futex.2.en'>futex(2)</a>, el tiempo de espera se mide
+    contra el reloj <b>CLOCK_REALTIME</b>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIEN'><a class='permalink' href='#VER_TAMBIEN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/futex.2.en'>futex(2)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-10-05</td>
+    <td class="foot-os">Páginas del manual de Linux 6.16</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/any/man-pages/">core/man-pages</a></dd>
+        <dt>Versión:</dt>
+        <dd>6.16-1</dd>
+        <dt>Versión anterior:</dt>
+        <dd><a href="https://www.kernel.org/doc/man-pages/">https://www.kernel.org/doc/man-pages/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>BSD-2-Clause, BSD-3-Clause, BSD-4.3TAHOE, BSD-4-Clause-UC, GPL-1.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-3.0-or-later, LGPL-3.0-linking-exception, LicenseRef-Public-Domain, LicenseRef-UltraPermissive, Linux-man-pages-1-para, Linux-man-pages-copyleft, Linux-man-pages-copyleft-2-para, Linux-man-pages-copyleft-var, MIT, Spencer-94</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/man-pages/">/listing/core/man-pages/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#BIBLIOTECA">BIBLIOTECA</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#VALOR_DE_RETORNO">VALOR DE RETORNO</a></li>
+        
+            <li><a href="#ERRORES">ERRORES</a></li>
+        
+            <li><a href="#ESTANDARES">ESTANDARES</a></li>
+        
+            <li><a href="#HISTORIA">HISTORIA</a></li>
+        
+            <li><a href="#PRECAUCIONES">PRECAUCIONES</a></li>
+        
+            <li><a href="#VER_TAMBIEN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/FUTEX_LOCK_PI.2const.es.txt">txt</a>, 
+        
+            <a href="/man/FUTEX_LOCK_PI.2const.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

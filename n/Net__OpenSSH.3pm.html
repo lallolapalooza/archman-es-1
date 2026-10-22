@@ -1,0 +1,2454 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Net::OpenSSH(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Net__OpenSSH(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-net-openssh/">perl-net-openssh</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Net::OpenSSH(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por usuarios</td>
+    <td class="head-rtitle">Net::OpenSSH(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Net::OpenSSH - paquete cliente SSH de Perl implementado sobre
+    OpenSSH</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Net::OpenSSH;
+my $ssh = Net::OpenSSH-&gt;new($host);
+$ssh-&gt;error and
+  die &quot;No se pudo establecer la conexión SSH: &quot;. $ssh-&gt;error;
+$ssh-&gt;system(&quot;ls /tmp&quot;) or
+  die &quot;falló el comando remoto: &quot; . $ssh-&gt;error;
+my @ls = $ssh-&gt;capture(&quot;ls&quot;);
+$ssh-&gt;error and
+  die &quot;falló el comando remoto ls: &quot; . $ssh-&gt;error;
+my ($out, $err) = $ssh-&gt;capture2(&quot;find /root&quot;);
+$ssh-&gt;error and
+  die &quot;falló el comando remoto find: &quot; . $ssh-&gt;error;
+my ($rin, $pid) = $ssh-&gt;pipe_in(&quot;cat &gt;/tmp/foo&quot;) or
+  die &quot;falló el método pipe_in: &quot; . $ssh-&gt;error;
+print $rin &quot;hello\n&quot;;
+close $rin;
+my ($rout, $pid) = $ssh-&gt;pipe_out(&quot;cat /tmp/foo&quot;) or
+  die &quot;falló el método pipe_out: &quot; . $ssh-&gt;error;
+while (&lt;$rout&gt;) { print }
+close $rout;
+my ($in, $out ,$pid) = $ssh-&gt;open2(&quot;foo&quot;);
+my ($pty, $pid) = $ssh-&gt;open2pty(&quot;foo&quot;);
+my ($in, $out, $err, $pid) = $ssh-&gt;open3(&quot;foo&quot;);
+my ($pty, $err, $pid) = $ssh-&gt;open3pty(&quot;login&quot;);
+my $sftp = $ssh-&gt;sftp();
+$sftp-&gt;error and die &quot;SFTP falló: &quot; . $sftp-&gt;error;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Net::OpenSSH es un paquete cliente de shell seguro implementado
+    sobre el cliente binario de OpenSSH (<span class="Li">&quot;ssh&quot;</span>).</p>
+<section class="Ss">
+<h2 class="Ss" id='Under_the_hood'><a class='permalink' href='#Under_the_hood'>Bajo el capó</a></h2>
+<p class="Pp">Este paquete está implementado en torno a la característica de
+    multiplexación que se encuentra en las versiones posteriores de OpenSSH. Esa
+    característica permite ejecutar varias sesiones a través de una única conexión
+    SSH (OpenSSH 4.1 fue el primero en proporcionar toda la funcionalidad requerida).</p>
+<p class="Pp">Cuando se crea un nuevo objeto Net::OpenSSH, el cliente
+    <span class="Li">&quot;ssh&quot;</span> de OpenSSH se ejecuta en modo maestro,
+    estableciendo una conexión persistente (durante la vida útil del objeto) con el
+    servidor.</p>
+<p class="Pp">Luego, cada vez que se solicita una nueva operación, se inicia un
+    nuevo proceso <span class="Li">&quot;ssh&quot;</span> en modo esclavo,
+    reutilizando efectivamente la conexión SSH maestra para enviar la solicitud al
+    lado remoto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Net::OpenSSH_Vs._Net::SSH::.*_modules'><a class='permalink' href='#Net::OpenSSH_Vs._Net::SSH::.*_modules'>Net::OpenSSH   vs.   módulos   Net::SSH::.*</a></h2>
+<p class="Pp">¿Por qué deberías usar Net::OpenSSH en lugar de cualquiera de los
+    otros clientes SSH de Perl disponibles?</p>
+<p class="Pp">Bueno, esta es mi opinión (sesgada):</p>
+<p class="Pp">Net::SSH::Perl no está bien mantenido hoy en día (actualización:
+    un nuevo mantenedor se ha hecho cargo, ¡¡¡así que esta situación podría cambiar!!!),
+    requiere un montón de módulos (algunos de ellos muy difíciles de instalar)
+    para ser aceptablemente eficiente y tiene una API que está limitada en
+    algunas maneras.</p>
+<p class="Pp">Net::SSH2 es mucho mejor que Net::SSH::Perl, pero aún no es
+    completamente estable. Puede ser muy difícil de instalar en algunos sistemas
+    operativos específicos y su API también es limitada, de la misma manera que
+    Net::SSH::Perl.</p>
+<p class="Pp">Usar Net::SSH::Expect, en general, es una mala idea. Manejar la
+    interacción con un shell a través de Expect de forma genérica simplemente no
+    se puede hacer de manera confiable.</p>
+<p class="Pp">Net::SSH es solo un envoltorio alrededor de cualquier comando SSH
+    binario disponible en la máquina. Puede ser muy lento ya que establecen una
+    nueva conexión SSH por cada operación realizada.</p>
+<p class="Pp">En comparación, Net::OpenSSH es un módulo puramente de Perl que no
+    tiene dependencias obligatorias (obviamente, además de requerir los binarios
+    de OpenSSH).</p>
+<p class="Pp">Net::OpenSSH tiene una interfaz muy perlish. La mayoría de las
+    operaciones se realizan de una manera muy similar a la de las funciones
+    integradas de Perl y módulos comunes (por ejemplo, IPC::Open2).</p>
+<p class="Pp">También es muy rápido. La sobrecarga introducida al lanzar un nuevo
+    proceso ssh por cada operación no es apreciable (al menos en mi caja Linux). El
+    cuello de botella es la latencia intrínseca del protocolo, por lo que
+    Net::OpenSSH es probablemente tan rápido como puede ser un cliente SSH.</p>
+<p class="Pp">Basarse en OpenSSH también es una ventaja: se utiliza una
+    implementación probada, estable, segura (a niveles paranoicos), inseparable y
+    bien mantenida del protocolo SSH.</p>
+<p class="Pp">Por otro lado, Net::OpenSSH no funciona en Windows, ni siquiera
+    bajo Cygwin.</p>
+<p class="Pp">Net::OpenSSH requiere específicamente el cliente SSH de OpenSSH (por
+    lo que sé, la característica de multiplexación no está disponible en ningún
+    otro cliente SSH). Sin embargo, ten en cuenta que interactuará con cualquier
+    software de servidor, no solo con servidores que ejecuten el <span class="Li">&quot;sshd&quot;</span>
+    de OpenSSH.</p>
+<p class="Pp">Para la autenticación por contraseña, se debe instalar IO::Pty.
+    Otros módulos y binarios también son necesarios para implementar
+    funcionalidades específicas (por ejemplo, Net::SFTP::Foreign, Expect o
+    <a href='/man/rsync.1.en'>rsync(1)</a>).</p>
+<p class="Pp">Net::OpenSSH y Net::SSH2 no soportan la versión 1 del protocolo SSH.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='API'><a class='permalink' href='#API'>API</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='Optional_arguments'><a class='permalink' href='#Optional_arguments'>Argumentos   opcionales</a></h2>
+<p class="Pp">Casi todos los métodos en este paquete aceptan como primer argumento
+    un puntero opcional a un hash que contiene parámetros
+    (<span class="Li">&quot;\%opts&quot;</span>). Por ejemplo, estas dos llamadas a
+    métodos son equivalentes:</p>
+<pre>my $out1 = $ssh-&gt;capture(@cmd);
+my $out2 = $ssh-&gt;capture({}, @cmd);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Error_handling'><a class='permalink' href='#Error_handling'>Manejo   de errores</a></h2>
+<p class="Pp">La mayoría de los métodos devuelven undef (o una lista vacía) para
+    indicar un fallo.</p>
+<p class="Pp">El método &quot;error&quot; siempre se puede usar para comprobar
+    explícitamente los errores. Por ejemplo:</p>
+<pre>my ($output, $errput) = $ssh-&gt;capture2({timeout =&gt; 1}, &quot;find /&quot;);
+$ssh-&gt;error and die &quot;ssh falló: &quot; . $ssh-&gt;error;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Net::OpenSSH_methods'><a class='permalink' href='#Net::OpenSSH_methods'>Métodos   de   Net::OpenSSH</a></h2>
+<p class="Pp">Estos son los métodos proporcionados por el paquete:</p>
+<dl class="Bl-tag">
+  <dt id="Net::OpenSSH"><a class="permalink" href="#Net::OpenSSH">Net::OpenSSH-&gt;new($host,
+    %opts)</a></dt>
+  <dd>Crea una nueva conexión maestra SSH
+    <p class="Pp"><span class="Li">$host</span> puede ser un nombre de host o una
+        dirección IP. También puede contener el nombre del usuario, su contraseña
+        y el número de puerto TCP en el que escucha el servidor:</p>
+        <pre>my $ssh1 = Net::OpenSSH-&gt;new('jack@foo.bar.com');
+my $ssh2 = Net::OpenSSH-&gt;new('jack:secret@foo.bar.com:10022');
+my $ssh3 = Net::OpenSSH-&gt;new('jsmith@2001:db8::1428:57ab'); # IPv6
+</pre>
+    <p class="Pp">Las direcciones IPv6 opcionalmente pueden ir entre corchetes:</p>
+        <pre>my $ssh4 = Net::OpenSSH-&gt;new('jsmith@[::1]:1022');
+</pre>
+    <p class="Pp">Este método siempre tiene éxito al devolver un nuevo objeto. La
+        comprobación de errores debe realizarse explícitamente después:</p>
+        <pre>my $ssh = Net::OpenSSH-&gt;new($host, %opts);
+$ssh-&gt;error and die &quot;No se puede hacer ssh a $host: &quot; . $ssh-&gt;error;
+</pre>
+    <p class="Pp">Si tienes problemas para que Net::OpenSSH se conecte al host
+        remoto, lee el capítulo de solución de problemas cerca del final de este
+        documento.</p>
+    <p class="Pp">Opciones aceptadas:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="user"><a class="permalink" href="#user">user =&gt; $nombre_usuario</a></dt>
+  <dd>Nombre de inicio de sesión</dd>
+  <dt id="port"><a class="permalink" href="#port">port =&gt; $puerto</a></dt>
+  <dd>Número de puerto TCP donde se ejecuta el servidor</dd>
+  <dt id="password"><a class="permalink" href="#password">password =&gt;
+    $contraseña</a></dt>
+  <dd>Contraseña proporcionada por el usuario para la autenticación.
+    <p class="Pp">Ten en cuenta que usar la autenticación por contraseña en
+        scripts automatizados es una muy mala idea. Cuando sea posible, deberías
+        usar autenticación por clave pública en su lugar.</p>
+  </dd>
+  <dt id="passphrase"><a class="permalink" href="#passphrase">passphrase =&gt;
+    $frase_contraseña</a></dt>
+  <dd>Usa la frase de contraseña dada para abrir la clave privada.</dd>
+  <dt id="key_path"><a class="permalink" href="#key_path">key_path =&gt;
+    $ruta_clave_privada</a></dt>
+  <dd>Usa la clave almacenada en la ruta de archivo dada para la autenticación.</dd>
+  <dt id="gateway"><a class="permalink" href="#gateway">gateway =&gt;
+    $gateway</a></dt>
+  <dd>Si el argumento dado es un objeto gateway como el devuelto por el método
+      &quot;find_gateway&quot; en Net::OpenSSH::Gateway, úsalo para conectarte
+      al host remoto.
+    <p class="Pp">Si es una referencia de hash, llama primero al método
+        <span class="Li">&quot;find_gateway&quot;</span>.</p>
+    <p class="Pp">Por ejemplo, los siguientes fragmentos de código son
+        equivalentes:</p>
+        <pre>my $gateway = Net::OpenSSH::Gateway-&gt;find_gateway(
+        proxy =&gt; 'http://proxy.corporate.com');
+$ssh = Net::OpenSSH-&gt;new($host, gateway =&gt; $gateway);
+</pre>
+    <p class="Pp">y</p>
+        <pre>$ssh = Net::OpenSSH-&gt;new($host,
+        gateway =&gt; { proxy =&gt; 'http://proxy.corporate.com'});
+</pr
+</div>
+</section>
+</section>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+    </body>
+</html>
+e>
+  </dd>
+  <dt id="proxy_command"><a class="permalink" href="#proxy_command">proxy_command
+    => $proxy_command</a></dt>
+  <dd>Utiliza el comando dado para establecer la conexión con el host remoto
+      (ver <span class="Li">"ProxyCommand"</span> en
+      <a href='/man/ssh_config.5.en'>ssh_config(5)</a>).</dd>
+  <dt id="batch_mode"><a class="permalink" href="#batch_mode">batch_mode =>
+    1</a></dt>
+  <dd>Deshabilita la solicitud de contraseña y frases secretas al usuario.</dd>
+  <dt id="ctl_dir"><a class="permalink" href="#ctl_dir">ctl_dir =>
+    $path</a></dt>
+  <dd>Directorio donde se creará el socket de control maestro de SSH.
+    <p class="Pp">Este directorio y sus padres solo deben ser escribibles por el
+        usuario efectivo actual o root, de lo contrario, la conexión se abortará
+        para evitar operaciones inseguras.</p>
+    <p class="Pp">Por defecto se utiliza
+        <span class="Li">"~/.libnet-openssh-perl"</span>.</p>
+  </dd>
+  <dt id="ctl_path"><a class="permalink" href="#ctl_path">ctl_path =>
+    $path</a></dt>
+  <dd>Ruta al socket de control maestro de SSH.
+    <p class="Pp">Normalmente se debe evitar esta opción, ya que el módulo puede
+        seleccionar una ruta de socket no utilizada por sí mismo. Una excepción a
+        esta regla es cuando la característica
+        <span class="Li">"external_master"</span> está habilitada.</p>
+    <p class="Pp">Tenga en cuenta que la longitud de la ruta suele estar limitada
+        entre 92 y 108 bytes, dependiendo del sistema operativo subyacente.</p>
+  </dd>
+  <dt id="ssh_cmd"><a class="permalink" href="#ssh_cmd">ssh_cmd =>
+    $cmd</a></dt>
+  <dd>Nombre o ruta completa al binario <span class="Li">"ssh"</span> de OpenSSH.
+      Por ejemplo:
+        <pre>my $ssh = Net::OpenSSH-&gt;new($host, ssh_cmd =&gt; '/opt/OpenSSH/bin/ssh');
+</pre>
+  </dd>
+  <dt id="scp_cmd"><a class="permalink" href="#scp_cmd">scp_cmd =>
+    $cmd</a></dt>
+  <dd>Nombre o ruta completa al binario <span class="Li">"scp"</span> de OpenSSH.
+    <p class="Pp">Por defecto, se infiere del
+        <span class="Li">"ssh"</span>.</p>
+  </dd>
+  <dt id="rsync_cmd"><a class="permalink" href="#rsync_cmd">rsync_cmd =>
+    $cmd</a></dt>
+  <dd>Nombre o ruta completa al binario <span class="Li">"rsync"</span>.
+      Por defecto es <span class="Li">"rsync"</span>.</dd>
+  <dt id="remote_shell"><a class="permalink" href="#remote_shell">remote_shell
+    => $name</a></dt>
+  <dd>Nombre del shell remoto. Se utiliza para seleccionar el backend de comillas
+      de argumentos.</dd>
+  <dt id="timeout"><a class="permalink" href="#timeout">timeout =>
+    $timeout</a></dt>
+  <dd>Tiempo máximo aceptable que puede transcurrir sin tráfico de red o
+      cualquier otro evento en métodos que no son inmediatos (por ejemplo, al
+      establecer la conexión SSH maestra o dentro de los métodos
+      <span class="Li">"capture"</span>,
+      <span class="Li">"system"</span>,
+      <span class="Li">"scp_get"</span>, etc.).
+    <p class="Pp">Ver también &quot;Timeouts&quot;.</p>
+  </dd>
+  <dt id="kill_ssh_on_timeout"><a class="permalink" href="#kill_ssh_on_timeout">kill_ssh_on_timeout
+    => 1</a></dt>
+  <dd>Esta opción indica a Net::OpenSSH que mate el proceso SSH esclavo local
+      cuando alguna operación supere el tiempo de espera.
+    <p class="Pp">Ver también &quot;Timeouts&quot;.</p>
+  </dd>
+  <dt id="strict_mode"><a class="permalink" href="#strict_mode">strict_mode
+    => 0</a></dt>
+  <dd>Por defecto, la conexión se abortará si la ruta al socket utilizado para la
+      multiplexión resulta insegura (por ejemplo, cuando alguno de los directorios
+      padre es escribible por otros usuarios).
+    <p class="Pp">Esta opción se puede utilizar para deshabilitar esa función.
+        ¡¡¡Úselo con precaución!!!</p>
+  </dd>
+  <dt id="async"><a class="permalink" href="#async">async => 1</a></dt>
+  <dd>Por defecto, el constructor espera hasta que el socket de multiplexión esté
+      disponible. Esta opción se puede utilizar para aplazar la espera hasta que
+      el socket se utilice realmente.
+    <p class="Pp">Por ejemplo, el siguiente código se conecta a varias máquinas
+        remotas en paralelo:</p>
+        <pre>my (%ssh, %ls);
+# se establecen múltiples conexiones en paralelo:
+for my $host (@hosts) {
+    $ssh{$host} = Net::OpenSSH-&gt;new($host, async =&gt; 1);
+}
+# luego para ejecutar algún comando en todos los hosts (secuencialmente):
+for my $host (@hosts) {
+    $ssh{$host}-&gt;system('ls /');
+}
+</pre>
+  </dd>
+  <dt id="connect"><a class="permalink" href="#connect">connect => 0</a></dt>
+  <dd>No inicie el proceso SSH maestro todavía.</dd>
+  <dt id="master_opts"><a class="permalink" href="#master_opts">master_opts
+    => [...]</a></dt>
+  <dd>Opciones adicionales para pasar al comando <span class="Li">"ssh"</span>
+      al establecer la conexión maestra. Por ejemplo:
+        <pre>my $ssh = Net::OpenSSH-&gt;new($host,
+    master_opts =&gt; [-o =&gt; &quot;ProxyCommand corkscrew httpproxy 8080 $host&quot;]);
+</pre>
+  </dd>
+  <dt id="default_ssh_opts"><a class="permalink" href="#default_ssh_opts">default_ssh_opts
+    => [...]</a></dt>
+  <dd>Opciones de línea de comandos SSH esclavo por defecto para &quot;open_ex&quot;
+      y métodos derivados.
+    <p class="Pp">Por ejemplo:</p>
+        <pre>my $ssh = Net::OpenSSH-&gt;new($host,
+    default_ssh_opts =&gt; [-o =&gt; &quot;ConnectionAttempts=0&quot;]);
+</pre>
+  </dd>
+  <dt id="forward_agent"><a class="permalink" href="#forward_agent">forward_agent
+    => 1</a></dt>
+  <dd></dd>
+  <dt id="forward_agent~2"><a class="permalink" href="#forward_agent~2">forward_agent
+    => 'always'</a></dt>
+  <dd>Habilita el reenvío del agente de autenticación.
+    <p class="Pp">Cuando se pasa <span class="Li">"always"</span> como
+        argumento, el reenvío del agente estará habilitado por defecto en todos
+        los canales creados desde el objeto. De lo contrario, tendrá que ser
+        solicitado explícitamente al llamar a los métodos de creación de canales
+        (es decir, <span class="Li">"open_ex"</span> y sus derivaciones).</p>
+    <p class="Pp">Esta opción no se puede usar al pasar una frase secreta (a
+        través de &quot;passphrase&quot;) para desbloquear la clave privada de
+        inicio de sesión.</p>
+    <p class="Pp">Tenga en cuenta que Net::OpenSSH no ejecutará
+        <span class="Li">"ssh-agent"</span> por usted. Esto debe hacerse con
+        anticipación y la variable de entorno
+        <span class="Li">"SSH_AUTH_SOCK"</span> debe estar configurada
+        apuntando al lugar correcto.</p>
+  </dd>
+  <dt id="forward_X11"><a class="permalink" href="#forward_X11">forward_X11
+    => 1</a></dt>
+  <dd>Habilita el reenvío del protocolo X11</dd>
+  <dt id="default_stdin_fh"><a class="permalink" href="#default_stdin_fh">default_stdin_fh
+    => $fh</a></dt>
+  <dd></dd>
+  <dt id="default_stdout_fh"><a class="permalink" href="#default_stdout_fh">default_stdout_fh
+    => $fh</a></dt>
+  <dd></dd>
+  <dt id="default_stderr_fh"><a class="permalink" href="#default_stderr_fh">default_stderr_fh
+    => $fh</a></dt>
+  <dd>Flujos de E/S por defecto para &quot;open_ex&quot; y métodos derivados
+      (actualmente, eso significa cualquier método excepto
+      &quot;pipe_in&quot; y &quot;pipe_out&quot; y planeo eliminar esas
+      excepciones pronto).
+    <p class="Pp">Por ejemplo:</p>
+        <pre>open my $stderr_fh, '&gt;&gt;', '/tmp/$host.err' or die ...;
+open my $stdout_fh, '&gt;&gt;', '/tmp/$host.log' or die ...;
+my $ssh = Net::OpenSSH-&gt;new($host, default_stderr_fh =&gt; $stderr_fh,
+                                   default_stdout_fh =&gt; $stdout_fh);
+$ssh-&gt;error and die &quot;SSH connection failed: &quot; . $ssh-&gt;error;
+$ssh-&gt;scp_put(&quot;/foo/bar*&quot;, &quot;/tmp&quot;)
+  or die &quot;scp failed: &quot; . $ssh-&gt;error;
+</pre>
+  </dd>
+  <dt id="default_stdin_file"><a class="permalink" href="#default_stdin_file">default_stdin_file
+    = $fn</a></dt>
+  <dd></dd>
+  <dt id="default_stdout_file"><a class="permalink" href="#default_stdout_file">default_stdout_file
+    = $fn</a></dt>
+  <dd></dd>
+  <dt id="default_stderr_file"><a class="permalink" href="#default_stderr_file">default_stderr_file
+    = $fn</a></dt>
+  <dd>Abre los nombres de archivo dados y los utiliza como valores predeterminados.</dd>
+  <dt id="master_stdout_fh"><a class="permalink" href="#master_stdout_fh">master_stdout_fh
+    => $fh</a></dt>
+  <dd></dd>
+  <dt id="master_stderr_fh"><a class="permalink" href="#master_stderr_fh">master_stderr_fh
+    => $fh</a></dt>
+  <dd>Redirige los flujos stdio correspondientes del proceso SSH maestro a los
+      filehandles dados.</dd>
+  <dt id="master_stdout_discard"><a class="permalink" href="#master_stdout_discard">master_stdout_discard
+    => $bool</a></dt>
+  <dd></dd>
+  <dt id="master_stderr_discard"><a class="permalink" href="#master_stderr_discard">master_stderr_discard
+    => $bool</a></dt>
+  <dd>Descarta los flujos stdio correspondientes.</dd>
+  <dt id="expand_vars"><a class="permalink" href="#expand_vars">expand_vars
+    => $bool</a></dt>
+  <dd>Activa la expansión de variables dentro de los argumentos de comandos y
+      rutas de archivos.
+    <p class="Pp">Ver &quot;Variable expansion&quot; abajo.</p>
+  </dd>
+  <dt id="vars"><a class="permalink" href="#vars">vars => \%vars</a></dt>
+  <dd>Conjunto inicial de variables.</dd>
+  <dt id="external_master"><a class="permalink" href="#external_master">external_master
+    => 1</a></dt>
+  <dd>En lugar de lanzar un nuevo cliente OpenSSH en modo maestro, el módulo
+      intenta reutilizar uno ya existente.
+      <span class="Li">"ctl_path"</span> también debe pasarse cuando se
+      establece esta opción. Ver también &quot;get_ctl_path&quot;.
+    <p class="Pp">Ejemplo:</p>
+        <pre>$ssh = Net::OpenSSH-&gt;new('foo', external_master =&gt; 1, ctl_path = $path);
+</pre>
+    <p class="Pp">Cuando se establece
+        <span class="Li">"external_master"</span>, el argumento del nombre de
+        host se vuelve opcional (<span class="Li">0.0.0.0</span> se pasa a
+        OpenSSH, que no lo utiliza en absoluto).</p>
+  </dd>
+  <dt id="default_encoding"><a class="permalink" href="#default_encoding">default_encoding
+    => $encoding</a></dt>
+  <dd></dd>
+  <dt id="default_stream_encoding"><a class="permalink" href="#default_stream_encoding">default_stream_encoding
+    => $encoding</a></dt>
+  <dd></dd>
+  <dt id="default_argument_encoding"><a class="permalink" href="#default_argument_encoding">default_argument_encoding
+    => $encoding</a></dt>
+  <dd>Establece las codificaciones por defecto. Ver &quot;Data encoding&quot;.</dd>
+  <dt id="password_prompt"><a class="permalink" href="#password_prompt">password_prompt
+    => $string</a></dt>
+  <dd></dd>
+  <dt id="password_prompt~2"><a class="permalink" href="#password_prompt~2">password_prompt
+    => $re</a></dt>
+  <dd>Por defecto, cuando se utiliza autenticación por contraseña, el módulo
+      espera que el lado remoto envíe una solicitud de contraseña que coincida
+      con
+      <span class="Li">"/[?:]/"</span>.
+    <p class="Pp">Esta opción se puede utilizar para anular ese valor predeterminado
+        para los casos raros en los que se utiliza una solicitud diferente.</p>
+    <p class="Pp">Ejemplos:</p>
+        <pre>password_prompt =&gt; ']'; # no es necesario escapar ']'
+password_prompt =&gt; qr/[:?&gt;]/;
+</pre>
+  </dd>
+  <dt id="login_handler"><a class="permalink" href="#login_handler">login_handler
+    => \&amp;custom_login_handler</a></dt>
+  <dd>Algunos servidores SSH remotos pueden requerir una interacción de inicio de
+      sesión/autenticación personalizada que no es compatible de forma nativa
+      con Net::OpenSSH. En esos casos, puede utilizar esta opción para reemplazar
+      la lógica de inicio de sesión predeterminada.
+    <p class="Pp">La devolución de llamada se invocará repetidamente como
+        <span class="Li">"custom_login_handler($ssh,</span>
+        <span class="Li">$pty, $data)"</span>, donde
+        <span class="Li">$ssh</span> es el objeto Net::OpenSSH actual,
+        <span class="Li">"pty"</span> es un objeto IO::Pty adjunto al TTY del
+        proceso SSH esclavo y
+        <span class="Li">$data</span> es una referencia a un escalar que puede
+        utilizar a voluntad.</p>
+    <p class="Pp">El manejador de inicio de sesión debe devolver 1 después de que
+        el proc de inicio de sesión</dd>
+</dl>    completado exitosamente o 0 en caso de que aún necesite hacer algo más.
+    Si ocurre algún error, debe fallar.</p>
+    <p class="Pp">Tenga en cuenta que las operaciones de bloqueo no deben
+        realizarse dentro del manejador de inicio de sesión (al menos si desea
+        que las características <span class="Li">&quot;async&quot;</span> y
+        <span class="Li">&quot;timeout&quot;</span> funcionen).</p>
+    <p class="Pp">Vea también el script de ejemplo
+        <span class="Li">&quot;login_handler.pl&quot;</span> en el directorio
+        <span class="Li">&quot;examples&quot;</span>.</p>
+    <p class="Pp">El uso de esta opción es incompatible con las opciones
+        <span class="Li">&quot;password&quot;</span> y
+        <span class="Li">&quot;passphrase&quot;</span>; deberá manejar la contraseña
+        o las frases secretas desde el manejador personalizado usted mismo.</p>
+  </dd>
+  <dt id="master_setpgrp"><a class="permalink" href="#master_setpgrp">master_setpgrp
+    =&gt; 1</a></dt>
+  <dd>Cuando esta opción está configurada, el proceso maestro se ejecuta como un
+      grupo de procesos diferente. Como consecuencia, no morirá cuando el
+      usuario presione Ctrl-C en la terminal.
+    <p class="Pp">Para permitir que el proceso maestro SSH solicite cualquier
+        información al usuario, el módulo puede configurarlo como el proceso de
+        control de la terminal mientras se establece la conexión (usando
+        &quot;tcsetpgrp&quot; en POSIX). Después, el proceso de control de la
+        terminal se restablece.</p>
+    <p class="Pp">Esta característica es altamente experimental. Por favor,
+        informe de cualquier problema que encuentre.</p>
+  </dd>
+  <dt id="master_pty_force"><a class="permalink" href="#master_pty_force">master_pty_force
+    =&gt; 1</a></dt>
+  <dd>Por defecto, Net::OpenSSH adjunta el proceso maestro SSH a un pty solo
+      cuando se solicita algún tipo de autenticación interactiva. Si esta bandera
+      está configurada, siempre se adjuntará un pty.
+    <p class="Pp">Eso permite obtener mejores diagnósticos para algunos tipos
+        de errores (como, por ejemplo, claves de host incorrectas) y también
+        permite recuperar el registro del pty usando get_master_pty_log.</p>
+  </dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$ssh-&gt;error</dt>
+  <dd>Devuelve la condición de error para la última operación realizada.
+    <p class="Pp">El valor devuelto es un dualvar como $! (ver &quot;$!&quot; en
+        perlvar) que muestra un mensaje informativo cuando se usa en contexto de
+        cadena o un número de error en contexto numérico (los códigos de error
+        aparecen en Net::OpenSSH::Constants).</p>
+  </dd>
+  <dt>$ssh-&gt;get_master_pty_log</dt>
+  <dd>Para manejar la autenticación de contraseña o la entrada de la frase
+      secreta para una clave privada, Net::OpenSSH puede ejecutar el proceso
+      maestro SSH conectado a un pty.
+    <p class="Pp">En ese caso y después de que una llamada al constructor
+        devuelva un error de falla de conexión, se puede llamar a este método
+        para recuperar la salida capturada en el pty (el registro se descarta
+        cuando la conexión se establece exitosamente).</p>
+    <p class="Pp">Cualquier dato consumido del pty por los manejadores de inicio
+        de sesión personalizados faltará en el registro devuelto.</p>
+  </dd>
+  <dt>$ssh-&gt;get_user</dt>
+  <dd></dd>
+  <dt>$ssh-&gt;get_host</dt>
+  <dd></dd>
+  <dt>$ssh-&gt;get_port</dt>
+  <dd>Devuelve los parámetros de inicio de sesión SSH correspondientes.</dd>
+  <dt>$ssh-&gt;get_ctl_path</dt>
+  <dd>Devuelve la ruta al socket donde el proceso maestro OpenSSH escucha
+      nuevas conexiones multiplexadas.</dd>
+  <dt>($in, $out, $err, $pid) = $ssh-&gt;open_ex(\%opts, @cmd)</dt>
+  <dd><i>Nota: ¡este es un método de bajo nivel que probablemente no necesite
+      usar!</i>
+    <p class="Pp">Este método inicia el comando <span class="Li">@cmd</span> en la
+        máquina remota creando nuevas tuberías para los canales de E/S según se
+        especifica en el hash <span class="Li">%opts</span>.</p>
+    <p class="Pp">Si se omite <span class="Li">@cmd</span>, se ejecuta el shell
+        del usuario remoto.</p>
+    <p class="Pp">Devuelve cuatro valores, los tres primeros
+        (<span class="Li">$in</span>, <span class="Li">$out</span> y
+        <span class="Li">$err</span>) corresponden al lado local de las tuberías
+        creadas (pueden ser undef) y el cuarto (<span class="Li">$pid</span>) al
+        PID del nuevo proceso esclavo de SSH. Se devuelve una lista vacía en caso
+        de fallo.</p>
+    <p class="Pp">Tenga en cuenta que se debe usar
+        <span class="Li">&quot;waitpid&quot;</span> después para recopilar el
+        proceso esclavo de SSH.</p>
+    <p class="Pp">Opciones aceptadas:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="stdin_pipe"><a class="permalink" href="#stdin_pipe">stdin_pipe =&gt;
+    1</a></dt>
+  <dd>Crea una nueva tubería y conecta el lado de lectura al flujo stdin del
+      proceso remoto. El lado de escritura se devuelve como el primer valor
+      (<span class="Li">$in</span>).</dd>
+  <dt id="stdin_pty"><a class="permalink" href="#stdin_pty">stdin_pty =&gt;
+    1</a></dt>
+  <dd>Similar a <span class="Li">&quot;stdin_pipe&quot;</span>, pero en lugar de
+      una tubería regular, utiliza un pseudo-tty (pty).
+    <p class="Pp">Tenga en cuenta que en algunos sistemas operativos (por ejemplo,
+        HP-UX, AIX), los ttys no son fiables. Pueden desbordarse cuando se escriben
+        grandes trozos o cuando los datos se escriben más rápido de lo que se
+        leen.</p>
+  </dd>
+  <dt id="stdin_fh"><a class="permalink" href="#stdin_fh">stdin_fh =&gt;
+    $fh</a></dt>
+  <dd>Duplica <span class="Li">$fh</span> y lo utiliza como flujo stdin del
+      proceso remoto.</dd>
+  <dt id="stdin_file"><a class="permalink" href="#stdin_file">stdin_file =&gt;
+    $filename</a></dt>
+  <dd></dd>
+  <dt id="stdin_file~2"><a class="permalink" href="#stdin_file~2">stdin_file
+    =&gt; \@open_args</a></dt>
+  <dd>Abre el archivo con el nombre dado para lectura y lo utiliza como flujo de
+      entrada estándar del proceso remoto.
+    <p class="Pp">Si se pasa una referencia de matriz, sus contenidos se utilizan
+        como argumentos para la llamada subyacente a open. Por ejemplo:</p>
+        <pre>$ssh-&gt;system({stdin_file =&gt; ['-|', 'gzip -c -d file.gz']}, $rcmd);
+</pre>
+  </dd>
+  <dt id="stdin_discard"><a class="permalink" href="#stdin_discard">stdin_discard
+    =&gt; 1</a></dt>
+  <dd>Utiliza /dev/null como flujo stdin del proceso remoto.</dd>
+  <dt id="stdout_pipe"><a class="permalink" href="#stdout_pipe">stdout_pipe
+    =&gt; 1</a></dt>
+  <dd>Crea una nueva tubería y conecta el lado de escritura al flujo stdout del
+      proceso remoto. El lado de lectura se devuelve como el segundo valor
+      (<span class="Li">$out</span>).</dd>
+  <dt id="stdout_pty"><a class="permalink" href="#stdout_pty">stdout_pty =&gt;
+    1</a></dt>
+  <dd>Conecta el flujo stdout del proceso remoto al pseudo-pty. Esta opción
+      requiere que <span class="Li">&quot;stdin_pty&quot;</span> también esté
+      configurado.</dd>
+  <dt id="stdout_fh"><a class="permalink" href="#stdout_fh">stdout_fh =&gt;
+    $fh</a></dt>
+  <dd>Duplica <span class="Li">$fh</span> y lo utiliza como flujo stdout del
+      proceso remoto.</dd>
+  <dt id="stdout_file"><a class="permalink" href="#stdout_file">stdout_file
+    =&gt; $filename</a></dt>
+  <dd></dd>
+  <dt id="stdout_file~2"><a class="permalink" href="#stdout_file~2">stdout_file
+    =&gt; \@open_args</a></dt>
+  <dd>Abre el archivo con el nombre de archivo dado y redirige stdout allí.</dd>
+  <dt id="stdout_discard"><a class="permalink" href="#stdout_discard">stdout_discard
+    =&gt; 1</a></dt>
+  <dd>Utiliza /dev/null como flujo stdout del proceso remoto.</dd>
+  <dt id="stdinout_socket"><a class="permalink" href="#stdinout_socket">stdinout_socket
+    =&gt; 1</a></dt>
+  <dd>Crea un nuevo par de sockets, adjunta los flujos stdin y stdout del proceso
+      esclavo SSH a un extremo y devuelve el otro como el primer valor
+      (<span class="Li">$in</span>) y undef para el segundo
+      (<span class="Li">$out</span>).
+    <p class="Pp">Ejemplo:</p>
+        <pre>my ($socket, undef, undef, $pid) = $ssh-&gt;open_ex({stdinout_socket =&gt; 1},
+                                                 '/bin/netcat $dest');
+</pre>
+    <p class="Pp">Ver también &quot;open2socket&quot;.</p>
+  </dd>
+  <dt id="stdinout_dpipe"><a class="permalink" href="#stdinout_dpipe">stdinout_dpipe
+    =&gt; $cmd</a></dt>
+  <dd></dd>
+  <dt id="stdinout_dpipe~2"><a class="permalink" href="#stdinout_dpipe~2">stdinout_dpipe
+    =&gt; \@cmd</a></dt>
+  <dd>Ejecuta el comando dado localmente adjuntando sus flujos stdio a los del
+      comando SSH remoto. Conceptualmente, es equivalente al comando de shell
+        <a href='/man/dpipe.1.en'>dpipe(1)</a>.</dd>
+  <dt id="stderr_pipe"><a class="permalink" href="#stderr_pipe">stderr_pipe
+    =&gt; 1</a></dt>
+  <dd>Crea una nueva tubería y conecta el lado de escritura al flujo stderr del
+      proceso remoto. El lado de lectura se devuelve como el tercer valor
+      (<span class="Li">$err</span>).
+    <p class="Pp">Ejemplo:</p>
+        <pre>my $pid = $ssh-&gt;open_ex({stdinout_dpipe =&gt; 'vncviewer -stdio'},
+                        x11vnc =&gt; '-inetd');
+</pre>
+  </dd>
+  <dt id="stderr_fh"><a class="permalink" href="#stderr_fh">stderr_fh =&gt;
+    $fh</a></dt>
+  <dd>Duplica <span class="Li">$fh</span> y lo utiliza como flujo stderr del
+      proceso remoto.</dd>
+  <dt id="stderr_file"><a class="permalink" href="#stderr_file">stderr_file
+    =&gt; $filename</a></dt>
+  <dd>Abre el archivo con el nombre dado y redirige stderr allí.</dd>
+  <dt id="stderr_to_stdout"><a class="permalink" href="#stderr_to_stdout">stderr_to_stdout
+    =&gt; 1</a></dt>
+  <dd>Hace que stderr apunte a stdout.</dd>
+  <dt id="tty"><a class="permalink" href="#tty">tty =&gt; $bool</a></dt>
+  <dd>Indica a <span class="Li">&quot;ssh&quot;</span> que asigne un pseudo-tty
+      para el proceso remoto. Por defecto, se asigna un tty si el flujo de entrada
+      estándar del comando remoto está conectado a un tty.
+    <p class="Pp">Cuando esta bandera está configurada y la entrada estándar no
+        está conectada a un tty, los procesos maestro y esclavo de ssh pueden
+        generar advertencias espurias sobre operaciones de tty fallidas. Esto es
+        causado por un error presente en versiones antiguas de OpenSSH.</p>
+  </dd>
+  <dt id="close_slave_pty"><a class="permalink" href="#close_slave_pty">close_slave_pty
+    =&gt; 0</a></dt>
+  <dd>Cuando se utiliza un pseudo pty para el flujo de entrada estándar, el
+      lado esclavo se cierra automáticamente en el proceso padre después de bifurcar
+      el comando ssh.
+    <p class="Pp">Esta opción deshabilita esa característica, de modo que el
+        pty esclavo se pueda acceder en el proceso padre como
+        <span class="Li">&quot;$pty-&gt;slave&quot;</span>. Deberá cerrarse
+        explícitamente (ver IO::Pty)</p>
+  </dd>
+  <dt id="quote_args"><a class="permalink" href="#quote_args">quote_args =&gt;
+    $bool</a></dt>
+  <dd>Ver &quot;Shell quoting&quot; abajo.</dd>
+  <dt id="remote_shell~2"><a class="permalink" href="#remote_shell~2">remote_shell
+    =&gt; $shell</a></dt>
+  <dd>Establece el shell remoto. Permite cambiar el mecanismo de comillas de
+      argumentos de forma individual por comando.
+    <p class="Pp">Esto puede ser útil al interactuar con una máquina Windows
+        donde el análisis de argumentos puede realizarse a nivel de comando de
+        maneras personalizadas.</p>
+    <p class="Pp">Ejemplo:</p>
+        <pre>$ssh-&gt;system({remote_shell =&gt; 'MSWin'}, echo =&gt; $line);
+$ssh-&gt;system({remote_shell =&gt; 'MSCmd,MSWin'}, type =&gt; $file);
+</pre>
+  </dd>
+  <dt id="forward_agent~3"><a class="permalink" href="#forward_agent~3">forward_agent
+    =&gt; $bool</a></dt>
+  <dd>Habilita/deshabilita el reenvío del agente de autenticación.
+    <p class="Pp">Esta opción solo se puede usar cuando el reenvío del agente se
+        solicitó previamente en el constructor.</p>
+  </dd>
+  <dt id="forward_X11~2"><a class="permalink" href="#forward_X11~2">forward_X11
+    =&gt; $bool</a></dt>
+  <dd>Habilita/deshabilita el reenvío del protocolo X11.
+    <p class="Pp">Esta opción solo se puede usar cuando el reenvío X11 se
+        solicitó previamente en el constructor.</p>
+  </dd>
+  <dt id="ssh_opts"><a class="permalink" href="#ssh_opts">ssh_opts =&gt;
+    \@opts</a></dt>
+  <dd>Lista de opciones adicionales para el
+<span class="Li">&quot;ssh&quot;</span>
+      comando.
+    <p class="Pp">Esta característica debe usarse con cuidado, ya que las opciones dadas
+        no son verificadas de ninguna manera por el módulo, y podrían interferir con
+        él.</p>
+  </dd>
+  <dt id="tunnel"><a class="permalink" href="#tunnel">tunnel =&gt;
+    $bool</a></dt>
+  <dd>En lugar de ejecutar un comando en el host remoto, esta opción indica a
+      Net::OpenSSH que cree un túnel TCP. Los argumentos se convierten en la IP y el puerto de destino o la ruta remota para un socket Unix.
+    <p class="Pp">Ejemplo:</p>
+        <pre>my ($in, $out, undef, $pid) = $ssh-&gt;open_ex({tunnel =&gt; 1}, $IP, $port);
+my ($in, $out, undef, $pid) = $ssh-&gt;open_ex({tunnel =&gt; 1}, $socket_path);
+</pre>
+    <p class="Pp">Ver también &quot;Tunnels&quot;.</p>
+  </dd>
+  <dt id="subsystem"><a class="permalink" href="#subsystem">subsystem =&gt;
+    $bool</a></dt>
+  <dd>Solicita una conexión a un subsistema SSH. El nombre del subsistema debe
+      pasarse como argumento, como en el siguiente ejemplo:
+        <pre>my $s = $ssh-&gt;open2socket({subsystem =&gt; 1}, 'netconf');
+</pre>
+  </dd>
+  <dt id="encoding"><a class="permalink" href="#encoding">encoding =&gt;
+    $encoding</a></dt>
+  <dd></dd>
+  <dt id="argument_encoding"><a class="permalink" href="#argument_encoding">argument_encoding
+    =&gt; $encoding</a></dt>
+  <dd>Establece las codificaciones. Ver &quot;Data encoding&quot;.</dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Ejemplo de uso:</p>
+<pre># similar a la función open2 de IPC::Open2:
+my ($in_pipe, $out_pipe, undef, $pid) =
+    $ssh-&gt;open_ex( { stdin_pipe =&gt; 1,
+                     stdout_pipe =&gt; 1 },
+                   @cmd )
+    or die &quot;open_ex falló: &quot; . $ssh-&gt;error;
+# haz algo de E/S a través de $in/$out
+# ...
+waitpid($pid);</pre>
+</div>
+<dl class="Bl-tag">
+  <dt id="setpgrp"><a class="permalink" href="#setpgrp">setpgrp =&gt; 1</a></dt>
+  <dd>Llama a <span class="Li">&quot;setpgrp&quot;</span> después de bifurcar el proceso hijo. Como resultado, no morirá cuando el usuario presione Ctrl+C en la consola. Ver también &quot;setpgrp&quot; en perlfunc.
+    <p class="Pp">Usar esta opción sin establecer también
+        <span class="Li">&quot;master_setpgrp&quot;</span> en la llamada al constructor
+        es en gran parte inútil, ya que la señal se entregará al proceso maestro y todos los comandos remotos se abortarán.</p>
+    <p class="Pp">Esta característica es experimental.</p>
+  </dd>
+  <dt>$ssh-&gt;system(\%opts, @cmd)</dt>
+  <dd>Ejecuta el comando <span class="Li">@cmd</span> en la máquina remota.
+    <p class="Pp">Devuelve verdadero en caso de éxito, indefinido en caso contrario.</p>
+    <p class="Pp">El estado de error se establece en
+        <span class="Li">&quot;OSSH_SLAVE_CMD_FAILED&quot;</span> cuando el
+        comando remoto sale con un código distinto de cero (el código está disponible en
+        <span class="Li">$?</span>, ver &quot;$?&quot; en perlvar).</p>
+    <p class="Pp">Ejemplo:</p>
+        <pre>$ssh-&gt;system('ls -R /')
+  or die &quot;ls falló: &quot; . $ssh-&gt;error&quot;;
+</pre>
+    <p class="Pp">Al igual que con la función incorporada <span class="Li">&quot;system&quot;</span>,
+        las señales <span class="Li">&quot;SIGINT&quot;</span> y
+        <span class="Li">&quot;SIGQUIT&quot;</span> están bloqueadas. (ver
+        &quot;system&quot; en perlfunc). Además, establecer
+        <span class="Li">$SIG{CHLD}</span> a
+        <span class="Li">&quot;IGNORE&quot;</span> o a un manejador de señales personalizado
+        interferirá con este método.</p>
+    <p class="Pp">Opciones aceptadas:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="stdin_data"><a class="permalink" href="#stdin_data">stdin_data =&gt;
+    $input</a></dt>
+  <dd></dd>
+  <dt id="stdin_data~2"><a class="permalink" href="#stdin_data~2">stdin_data
+    =&gt; \@input</a></dt>
+  <dd>Envía los datos dados a través del flujo stdin al proceso remoto.
+    <p class="Pp">Por ejemplo, el siguiente código crea un archivo en el lado remoto:</p>
+        <pre>$ssh-&gt;system({stdin_data =&gt; \@data}, &quot;cat &gt;/tmp/foo&quot;)
+  or die &quot;no se pudo escribir el archivo: &quot; . $ssh-&gt;error;
+</pre>
+  </dd>
+  <dt id="timeout~2"><a class="permalink" href="#timeout~2">timeout =&gt;
+    $timeout</a></dt>
+  <dd>La operación se aborta después de que transcurran <span class="Li">$timeout</span> segundos
+      sin actividad de red.
+    <p class="Pp">Ver también &quot;Timeouts&quot;.</p>
+  </dd>
+  <dt id="async~2"><a class="permalink" href="#async~2">async =&gt; 1</a></dt>
+  <dd>No espera a que el proceso hijo termine. Se devuelve el PID del nuevo proceso.
+    <p class="Pp">Tenga en cuenta que cuando esta opción se combina con
+        <span class="Li">&quot;stdin_data&quot;</span>, los datos dados se transferirán al lado remoto antes de devolver el control al llamador.</p>
+    <p class="Pp">Ver también la documentación del método &quot;spawn&quot; a continuación.</p>
+  </dd>
+  <dt id="stdin_fh~2"><a class="permalink" href="#stdin_fh~2">stdin_fh =&gt;
+    $fh</a></dt>
+  <dd></dd>
+  <dt id="stdin_discard~2"><a class="permalink" href="#stdin_discard~2">stdin_discard
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="stdout_fh~2"><a class="permalink" href="#stdout_fh~2">stdout_fh =&gt;
+    $fh</a></dt>
+  <dd></dd>
+  <dt id="stdout_discard~2"><a class="permalink" href="#stdout_discard~2">stdout_discard
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="stderr_fh~2"><a class="permalink" href="#stderr_fh~2">stderr_fh =&gt;
+    $fh</a></dt>
+  <dd></dd>
+  <dt id="stderr_discard"><a class="permalink" href="#stderr_discard">stderr_discard
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="stderr_to_stdout~2"><a class="permalink" href="#stderr_to_stdout~2">stderr_to_stdout
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="stdinout_dpipe~3"><a class="permalink" href="#stdinout_dpipe~3">stdinout_dpipe
+    =&gt; $cmd</a></dt>
+  <dd></dd>
+  <dt id="tty~2"><a class="permalink" href="#tty~2">tty =&gt; $bool</a></dt>
+  <dd>Ver la documentación del método &quot;open_ex&quot; para una explicación de
+      estas opciones.</dd>
+  <dt id="stdin_keep_open"><a class="permalink" href="#stdin_keep_open">stdin_keep_open
+    =&gt; $bool</a></dt>
+  <dd>Cuando se proporciona <span class="Li">&quot;stdin_data&quot;</span>, el módulo
+      cierra el flujo stdin una vez que se han enviado todos los datos. Desafortunadamente,
+      algunos servidores SSH defectuosos no manejan este evento correctamente y cierran
+      el canal prematuramente.
+    <p class="Pp">Como solución alternativa, cuando esta bandera está activada, stdin se deja abierto
+        hasta que el proceso remoto termine.</p>
+  </dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>$ok = $ssh-&gt;test(\%opts, @cmd);</dt>
+  <dd>Ejecuta el comando dado y devuelve su estado de salida de éxito/fallo como 1 o
+      0 respectivamente. Devuelve indefinido cuando algo sale mal en la capa SSH.
+    <p class="Pp">El estado de error no se establece en OSSH_SLAVE_CMD_FAILED cuando el
+        comando remoto sale con un código distinto de cero.</p>
+    <p class="Pp">Por defecto, este método descarta los flujos
+        <span class="Li">&quot;stdout&quot;</span> y
+        <span class="Li">&quot;sterr&quot;</span> del comando remoto.</p>
+    <p class="Pp">Ejemplo de uso:</p>
+        <pre>if ($ssh-&gt;test(ps =&gt; -C =&gt; $executable)) {
+  say &quot;$executable se está ejecutando en la máquina remota&quot;
+}
+else {
+  die &quot;algo salió mal: &quot;. $ssh-&gt;error if $ssh-&gt;error;
+  say &quot;$executable no se está ejecutando en la máquina remota&quot;
+}
+</pre>
+    <p class="Pp">Este método admite el mismo conjunto de opciones que
+        <span class="Li">&quot;system&quot;</span>, excepto
+        <span class="Li">&quot;async&quot;</span> y
+        <span class="Li">&quot;tunnel&quot;</span>.</p>
+  </dd>
+  <dt>$output = $ssh-&gt;capture(\%opts, @cmd);</dt>
+  <dd></dd>
+  <dt>@output = $ssh-&gt;capture(\%opts, @cmd);</dt>
+  <dd>Este método es conceptualmente equivalente al operador de comillas invertidas de Perl
+      (por ejemplo, <span class="Li">`ls`</span>): ejecuta el comando en la máquina remota
+      y captura su salida.
+    <p class="Pp">En contexto escalar, devuelve la salida como un escalar. En contexto de lista
+        devuelve la salida dividida en líneas (respeta
+        <span class="Li">$/</span>, ver &quot;$/&quot; en perlvar).</p>
+    <p class="Pp">El estado de salida del comando remoto se devuelve en
+        <span class="Li">$?</span>.</p>
+    <p class="Pp">Cuando ocurre un error al capturar (por ejemplo, la
+        operación se agota), se devolverá la salida parcial capturada.
+        Las condiciones de error deben verificarse explícitamente utilizando el
+        método &quot;error&quot;. Por ejemplo:</p>
+        <pre>my $output = $ssh-&gt;capture({ timeout =&gt; 10 },
+                           &quot;echo hello; sleep 20; echo bye&quot;);
+$ssh-&gt;error and
+    warn &quot;la operación no se completó con éxito: &quot;. $ssh-&gt;error;
+print $output;
+</pre>
+    <p class="Pp">Establecer <span class="Li">$SIG{CHLD}</span> a un manejador de señales personalizado
+        o a <span class="Li">&quot;IGNORE&quot;</span> interferirá
+        con este método.</p>
+    <p class="Pp">Opciones aceptadas:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="stdin_data~3"><a class="permalink" href="#stdin_data~3">stdin_data
+    =&gt; $input</a></dt>
+  <dd></dd>
+  <dt id="stdin_data~4"><a class="permalink" href="#stdin_data~4">stdin_data
+    =&gt; \@input</a></dt>
+  <dd></dd>
+  <dt id="stdin_keep_open~2"><a class="permalink" href="#stdin_keep_open~2">stdin_keep_open
+    =&gt; $bool</a></dt>
+  <dd>Ver la documentación del método &quot;system&quot; para una explicación de
+      estas opciones.</dd>
+  <dt id="timeout~3"><a class="permalink" href="#timeout~3">timeout =&gt;
+    $timeout</a></dt>
+  <dd>Ver &quot;Timeouts&quot;.</dd>
+  <dt id="stdin_fh~3"><a class="permalink" href="#stdin_fh~3">stdin_fh =&gt;
+    $fh</a></dt>
+  <dd></dd>
+  <dt id="stdin_discard~3"><a class="permalink" href="#stdin_discard~3">stdin_discard
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="stderr_fh~3"><a class="permalink" href="#stderr_fh~3">stderr_fh =&gt;
+    $fh</a></dt>
+  <dd></dd>
+  <dt id="stderr_discard~2"><a class="permalink" href="#stderr_discard~2">stderr_discard
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="stderr_to_stdout~3"><a class="permalink" href="#stderr_to_stdout~3">stderr_to_stdout
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="tty~3"><a class="permalink" href="#tty~3">tty =&gt; $bool</a></dt>
+  <dd>Ver la documentación del método &quot;open_ex&quot; para una explicación de
+      estas opciones.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>($output, $errput) = $ssh-&gt;capture2(\%opts, @cmd)</dt>
+  <dd>captura la salida enviada a stdout y stderr por
+      <span class="Li">@cmd</span> en la máquina remota.
+    <p class="Pp">Establecer <span class="Li">$SIG{CHLD}</span> a un manejador de señales personalizado
+        o a <span class="Li">&quot;IGNORE&quot;</span> también
+        interferirá con este método.</p>
+    <p class="Pp">Las opciones aceptadas son:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="stdin_data~5"><a class="permalink" href="#stdin_data~5">stdin_data
+    =&gt; $input</a></dt>
+  <dd></dd>
+  <dt id="stdin_data~6"><a class="permalink" href="#stdin_data~6">stdin_data
+    =&gt; \@input</a></dt>
+  <dd></dd>
+  <dt id="stdin_keep_open~3"><a class="permalink" href="#stdin_keep_open~3">stdin_keep_open
+    =&gt; $bool</a></dt>
+  <dd>Ver la documentación del método &quot;system&quot; para una explicación de
+      estas opciones.</dd>
+  <dt id="timeout~4"><a class="permalink" href="#timeout~4">timeout =&gt;
+    $timeout</a></dt>
+  <dd>Ver &quot;Timeouts&quot;.</dd>
+  <dt id="stdin_fh~4"><a class="permalink" href="#stdin_fh~4">stdin_fh =&gt;
+    $fh</a></dt>
+  <dd></dd>
+  <dt id="stdin_discard~4"><a class="permalink" href="#stdin_discard~4">stdin_discard
+    =&gt; $bool</a></dt>
+  <dd></dd>
+  <dt id="tty~4"><a class="permalink" href="#tty~4">tty =&gt; $bool</a></dt>
+  <dd>Ver la documentación del método &quot;open_ex&quot; para una explicación de
+      estas opciones.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>($in, $pid) = $ss</dt>
+  <dd></dd>
+</dl>
+<h-&gt;pipe_in(\%opts, @cmd)</h-&gt;
+<dd>Este método es similar a la siguiente llamada de Perl
+<span class="Li">&quot;open&quot;</span>
+<pre>$pid = open $in, '|-', @cmd</pre>
+<p class="Pp">pero ejecutando <span class="Li">@cmd</span> en la máquina remota
+(ver &quot;open&quot; en perlfunc).</p>
+<p class="Pp">Actualmente no se aceptan opciones.</p>
+<p class="Pp">No es necesario realizar un waitpid en el PID devuelto ya que
+será hecho automáticamente por Perl cuando se cierre <span class="Li">$in</span>.</p>
+<p class="Pp">Ejemplo:</p>
+<pre>my ($in, $pid) = $ssh-&gt;pipe_in('cat &gt;/tmp/fpp')
+or die &quot;pipe_in falló: &quot; . $ssh-&gt;error;
+print $in $_ for @data;
+close $in or die &quot;close falló&quot;;
+</pre>
+</dd>
+<dt>($out, $pid) = $ssh-&gt;pipe_out(\%opts, @cmd)</dt>
+<dd>Recíproco al método anterior, es equivalente a
+<pre>$pid = open $out, '-|', @cmd</pre>
+<p class="Pp">ejecutando <span class="Li">@cmd</span> en la máquina
+remota.</p>
+<p class="Pp">Actualmente no se aceptan opciones.</p>
+</dd>
+<dt>($in, $out, $pid) = $ssh-&gt;open2(\%opts, @cmd)</dt>
+<dd></dd>
+<dt>($pty, $pid) = $ssh-&gt;open2pty(\%opts, @cmd)</dt>
+<dd></dd>
+<dt>($socket, $pid) = $ssh-&gt;open2socket(\%opts, @cmd)</dt>
+<dd></dd>
+<dt>($in, $out, $err, $pid) = $ssh-&gt;open3(\%opts, @cmd)</dt>
+<dd></dd>
+<dt>($pty, $err, $pid) = $ssh-&gt;open3pty(\%opts, @cmd)</dt>
+<dd>Atajos alrededor del método &quot;open_ex&quot;.</dd>
+<dt>$pid = $ssh-&gt;spawn(\%opts, @_)</dt>
+<dd>Otro atajo de &quot;open_ex&quot;, lanza un nuevo proceso remoto en
+segundo plano y devuelve el PID del proceso SSH esclavo local.
+<p class="Pp">Más adelante en tu script, se debe llamar a
+<span class="Li">&quot;waitpid&quot;</span> en el PID devuelto para recoger el
+proceso SSH esclavo.</p>
+<p class="Pp">Por ejemplo, puedes ejecutar un comando en varios hosts en
+paralelo con el siguiente código:</p>
+<pre>my %conn = map { $_ =&gt; Net::OpenSSH-&gt;new($_, async =&gt; 1) } @hosts;
+my @pid;
+for my $host (@hosts) {
+    open my($fh), '&gt;', &quot;/tmp/out-$host.txt&quot;
+      or die &quot;no se pudo crear el archivo: $!&quot;;
+    push @pid, $conn{$host}-&gt;spawn({stdout_fh =&gt; $fh}, $cmd);
+}
+waitpid($_, 0) for @pid;
+</pre>
+<p class="Pp">Ten en cuenta que <span class="Li">&quot;spawn&quot;</span> no debe
+usarse para iniciar procesos remotos desconectados que puedan sobrevivir
+al programa local (ver también el &quot;FAQ&quot; sobre la ejecución de
+procesos remotos desconectados).</p>
+</dd>
+<dt>($socket, $pid) = $ssh-&gt;open_tunnel(\%opts, $dest_host, $port)</dt>
+<dd></dd>
+<dt>($socket, $pid) = $ssh-&gt;open_tunnel(\%opts, $socket_path)</dt>
+<dd>Similar a &quot;open2socket&quot;, pero en lugar de ejecutar un comando,
+abre un túnel TCP a la dirección dada. Ver también
+&quot;Tunnels&quot;.</dd>
+<dt>$out = $ssh-&gt;capture_tunnel(\%opts, $dest_host, $port)</dt>
+<dd></dd>
+<dt>@out = $ssh-&gt;capture_tunnel(\%opts, $dest_host, $port)</dt>
+<dd>Similar a &quot;capture&quot;, pero en lugar de ejecutar un comando, abre
+un túnel TCP.
+<p class="Pp">Ejemplo:</p>
+<pre>$out = $ssh-&gt;capture_tunnel({stdin_data =&gt; join(&quot;\r\n&quot;,
+&quot;GET / HTTP/1.0&quot;,
+&quot;Host: www.perl.org&quot;,
+&quot;&quot;, &quot;&quot;) },
+&quot;www.perl.org&quot;, 80)
+</pre>
+<p class="Pp">Ver también &quot;Tunnels&quot;.</p>
+</dd>
+<dt>$ssh-&gt;scp_get(\%opts, $remote1, $remote2,..., $local_dir_or_file)</dt>
+<dd></dd>
+<dt>$ssh-&gt;scp_put(\%opts, $local, $local2,..., $remote_dir_or_file)</dt>
+<dd>Estos dos métodos son envoltorios alrededor del comando
+<span class="Li">&quot;scp&quot;</span> que permiten transferir archivos
+hacia/desde el host remoto usando la conexión maestra SSH existente.
+<p class="Pp">Al transferir varios archivos, el argumento destino debe
+apuntar a un directorio existente. Si solo se va a transferir un archivo,
+el argumento destino puede ser un directorio o un nombre de archivo, o
+puede omitirse. Por ejemplo:</p>
+<pre>$ssh-&gt;scp_get({glob =&gt; 1}, '/var/tmp/foo*', '/var/tmp/bar*', '/tmp');
+$ssh-&gt;scp_put('/etc/passwd');
+</pre>
+<p class="Pp">Ambos métodos, &quot;scp_get&quot; y &quot;scp_put&quot;,
+devuelven un valor verdadero cuando todos los archivos se transfieren
+correctamente, de lo contrario devuelven undef.</p>
+<p class="Pp">Opciones aceptadas:</p>
+</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+<dt id="quiet"><a class="permalink" href="#quiet">quiet =&gt; 0</a></dt>
+<dd>Por defecto, <span class="Li">&quot;scp&quot;</span> se llama con la bandera
+<span class="Li">&quot;-q&quot;</span> habilitada para suprimir la información de
+progreso. Esta opción permite volver a habilitar la barra de indicación de
+progreso.</dd>
+<dt id="verbose"><a class="permalink" href="#verbose">verbose =&gt; 1</a></dt>
+<dd>Llama a <span class="Li">&quot;scp&quot;</span> con la bandera
+<span class="Li">&quot;-v&quot;</span>.</dd>
+<dt id="recursive"><a class="permalink" href="#recursive">recursive =&gt;
+1</a></dt>
+<dd>Copia archivos y directorios recursivamente.</dd>
+<dt id="glob"><a class="permalink" href="#glob">glob =&gt; 1</a></dt>
+<dd>Habilita la expansión de metacaracteres de shell en la lista de fuentes
+para que los comodines puedan usarse para seleccionar archivos.</dd>
+<dt id="glob_flags"><a class="permalink" href="#glob_flags">glob_flags =&gt;
+$flags</a></dt>
+<dd>Segundo argumento pasado a la función File::Glob::bsd_glob. Solo disponible
+para el método &quot;scp_put&quot;.</dd>
+<dt id="copy_attrs"><a class="permalink" href="#copy_attrs">copy_attrs =&gt;
+1</a></dt>
+<dd>Copia los tiempos de modificación y acceso, y los modos de los archivos
+originales.</dd>
+<dt id="bwlimit"><a class="permalink" href="#bwlimit">bwlimit =&gt;
+$Kbits</a></dt>
+<dd>Limita el ancho de banda utilizado, especificado en Kbit/s.</dd>
+<dt id="timeout~5"><a class="permalink" href="#timeout~5">timeout =&gt;
+$secs</a></dt>
+<dd>La transferencia se aborta si la conexión no finaliza antes de que
+transcurra el tiempo de espera especificado. Ver también
+&quot;Timeouts&quot;.</dd>
+<dt id="async~3"><a class="permalink" href="#async~3">async =&gt;
+1</a></dt>
+<dd>No espera a que el comando <span class="Li">&quot;scp&quot;</span>
+finalice. Cuando se usa esta opción, el método devuelve el PID del proceso
+hijo de <span class="Li">&quot;scp&quot;</span>.
+<p class="Pp">Por ejemplo, es posible transferir archivos a varios hosts en
+paralelo de la siguiente manera:</p>
+<pre>use Errno;
+my (%pid, %ssh);
+for my $host (@hosts) {
+  $ssh{$host} = Net::OpenSSH-&gt;new($host, async =&gt; 1);
+}
+for my $host (@hosts) {
+  $pid{$host} = $ssh{$host}-&gt;scp_put({async =&gt; 1}, $local_fn, $remote_fn)
+    or warn &quot;scp_put a $host falló: &quot; . $ssh{$host}-&gt;error . &quot;\n&quot;;
+}
+for my $host (@hosts) {
+  if (my $pid = $pid{$host}) {
+    if (waitpid($pid, 0) &gt; 0) {
+      my $exit = ($? &gt;&gt; 8);
+      $exit and warn &quot;transferencia de archivo a $host falló ($exit)\n&quot;;
+    }
+    else {
+      redo if ($! == EINTR);
+      warn &quot;waitpid($pid) falló: $!\n&quot;;
+    }
+  }
+}</pre>
+</dd>
+<dt id="stdout_fh~3"><a class="permalink" href="#stdout_fh~3">stdout_fh =&gt;
+$fh</a></dt>
+<dd></dd>
+<dt id="stderr_fh~4"><a class="permalink" href="#stderr_fh~4">stderr_fh =&gt;
+$fh</a></dt>
+<dd></dd>
+<dt id="stderr_to_stdout~4"><a class="permalink" href="#stderr_to_stdout~4">stderr_to_stdout
+=&gt; 1</a></dt>
+<dd>Estas opciones se pasan sin cambios al método &quot;open_ex&quot;,
+permitiendo capturar la salida del programa <span class="Li">&quot;scp&quot;</span>.
+<p class="Pp">Ten en cuenta que <span class="Li">&quot;scp&quot;</span> no
+generará informes de progreso a menos que su flujo de salida estándar esté
+conectado a una tty.</p>
+</dd>
+<dt id="ssh_opts~2"><a class="permalink" href="#ssh_opts~2">ssh_opts =&gt;
+\@opts</a></dt>
+<dd>Lista de opciones adicionales para el comando <span class="Li">&quot;ssh&quot;</span>.
+<p class="Pp">Esta característica debe usarse con cuidado, ya que el módulo
+no verifica de ninguna manera las opciones dadas y podrían interferir con
+él.</p>
+</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+<dt>$ssh-&gt;rsync_get(\%opts, $remote1, $remote2,...,
+$local_dir_or_file)</dt>
+<dd></dd>
+<dt>$ssh-&gt;rsync_put(\%opts, $local1, $local2,...,
+$remote_dir_or_file)</dt>
+<dd>Estos métodos utilizan <span class="Li">&quot;rsync&quot;</span> sobre SSH para
+transferir archivos desde/hacia la máquina remota.
+<p class="Pp">Aceptan el mismo conjunto de opciones que los de
+<span class="Li">&quot;scp&quot;</span>.</p>
+<p class="Pp">Cualquier opción no reconocida se pasará como argumento al
+comando <span class="Li">&quot;rsync&quot;</span> (ver <a href='/man/rsync.1.en'>rsync(1)</a>).
+Se pueden usar guiones bajos en lugar de guiones en los nombres de las opciones
+de <span class="Li">&quot;rsync&quot;</span>.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>$ssh-&gt;rsync_get({exclude =&gt; '*~',
+verbose =&gt; 1,
+safe_links =&gt; 1},
+'/remote/dir', '/local/dir');
+</pre>
+</dd>
+<dt>$sftp = $ssh-&gt;sftp(%sftp_opts)</dt>
+<dd>Crea un nuevo objeto Net::SFTP::Foreign para la interacción SFTP que se
+ejecuta a través de la conexión maestra ssh.</dd>
+<dt>@call = $ssh-&gt;make_remote_command(\%opts, @cmd)</dt>
+<dd></dd>
+<dt>$call = $ssh-&gt;make_remote_command(\%opts, @cmd)</dt>
+<dd>Este método devuelve los argumentos necesarios para ejecutar un comando en la
+máquina remota a través de SSH. Por ejemplo:
+<pre>my @call = $ssh-&gt;make_remote_command(ls =&gt; &quot;/var/log&quot;);
+system @call;
+</pre>
+<p class="Pp">En contexto escalar, devuelve los argumentos citados y unidos
+en una sola cadena:</p>
+<pre>my $remote = $ssh-&gt;make_remote_comand(&quot;cd /tmp/ &amp;&amp; tar xf -&quot;);
+system &quot;tar cf - . | $remote&quot;;
+</pre>
+<p class="Pp">Las opciones aceptadas son las siguientes:</p>
+</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+<dt id="tty~5"><a class="permalink" href="#tty~5">tty =&gt;
+$bool</a></dt>
+<dd>Habilita/deshabilita la asignación de una tty en el lado remoto.</dd>
+<dt id="forward_agent~4"><a class="permalink" href="#forward_agent~4">forward_agent
+=&gt; $bool</a></dt>
+<dd>Habilita/deshabilita el reenvío del agente de autenticación.
+<p class="Pp">Esta opción solo se puede usar cuando el reenvío de agente se
+ha solicitado previamente en el constructor.</p>
+</dd>
+<dt id="tunnel~2"><a class="permalink" href="#tunnel~2">tunnel =&gt;
+1</a></dt>
+<dd>Devuelve un comando para crear una conexión a algún servidor TCP accesible
+desde el host remoto. En ese caso, los argumentos son la dirección y el puerto
+destino. Por ejemplo:
+<pre>$cmd = $ssh-&gt;make_remote_command({tunnel =&gt; 1}, $host, $port);
+</pre>
+</dd>
+<dt id="subsystem~2"><a class="permalink" href="#subsystem~2">subsystem =&gt;
+1</a></dt>
+<dd>Devuelve un comando para invocar un subsistema SSH (es decir, SFTP o
+netconf). En ese caso, el único argumento es el nombre del subsistema.</dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+<dt>$ssh-&gt;wait_for_master($async)</dt>
+<dd>Cuando la conexión se ha establecido llamando al constructor con la opción
+<span class="Li">&quot;async&quot;</span>, esta llamada permite avanzar el
+proceso.
+<p class="Pp">Si <span class="Li">$async</span> es verdadero, realizará cualquier
+trabajo que se pueda hacer de inmediato sin esperar (por ejemplo, ingresar la
+contraseña o verificar la existencia del socket de multiplexación) y luego
+regresará. Si se da un valor falso, finalizará el</dd>
+</dl>
+<section class="Ss">
+<h2 class="Ss" id='METHODS'><a class='permalink' href='#METHODS'>METHODS</a></h2>
+<dl class="Bl-tag">
+  <dt>$ssh-&gt;connect</dt>
+  <dd>Intenta establecer la conexión maestra.
+    <p class="Pp">Este método se llama automáticamente cuando se invoca el primer
+        método que necesita una conexión (por ejemplo, `open-&gt;shell` o
+        `system`). Si se llama explícitamente, esperará a que la conexión se
+        realice. Solo hay una conexión maestra de ida y vuelta por host.
+        Si la conexión maestra ya existe, no se vuelve a intentar y se
+        devuelve verdaderamente.</p>
+    <p class="Pp">Puede que se necesite llamar a este método antes de que cualquier
+        otro método sea invocado cuando la opción `async` se establece a
+        verdadero durante la creación del objeto. De otra manera, si no se
+        establece `async` a verdadero, el método `wait_for_master` se llama
+        automáticamente y bloquea el proceso hasta que la conexión maestra
+        esté disponible.</p>
+    <p class="Pp">En caso de fallo, este método puede lanzar una excepción o
+        devolver falso. Usa el método `error` para obtener más detalles. Si se
+        ha llamado a `connect` antes, es posible que necesites llamar
+        `wait_for_master` para obtener el estado de la conexión.</p>
+    <p class="Pp">Para las versiones 0.64 y posteriores, la llamada a `connect`
+        devolverá falso si el proceso maestro aún está en un estado inestable
+        (como durante el login o al intentar matar el proceso) y devolverá
+        verdadero si está en un estado estable (en ejecución, detenido o
+        desaparecido).</p>
+  </dd>
+  <dt>$ssh-&gt;wait_for_master</dt>
+  <dd>Espera hasta que el proceso maestro SSH esté disponible.
+    <p class="Pp">Este método debe ser llamado cuando se crea el objeto con la
+        opción <span class="Li">&quot;async&quot;</span> establecida a
+        verdadero. El método intenta establecer la conexión maestra y espera
+        hasta que el socket de multiplexación esté disponible.</p>
+    <p class="Pp">Devuelve un valor verdadero después de que la conexión se haya
+        establecido con éxito. Devuelve falso si el proceso de conexión falla o
+        si aún no se ha completado (en ese caso, el método "error" puede usarse
+        para distinguir entre ambos casos).</p>
+    <p class="Pp">Desde la versión 0.64 en adelante, devuelve `undef` cuando el
+        maestro todavía está en un estado inestable (login, matando, etc.) y
+        `0` cuando está en un estado estable (en ejecución, detenido o
+        desaparecido).</p>
+  </dd>
+  <dt>$ssh-&gt;check_master</dt>
+  <dd>Este método realiza varias comprobaciones para asegurar que la conexión
+      maestra todavía está activa.</dd>
+  <dt>$ssh-&gt;shell_quote(@args)</dt>
+  <dd>Devuelve la lista de argumentos entrecomillados para que se restauren a su
+      forma original al ser analizados por el shell remoto.
+    <p class="Pp">En contexto escalar, devuelve la lista de argumentos entrecomillados
+        y unidos.</p>
+    <p class="Pp">Normalmente, esta tarea la realiza automáticamente el módulo.
+        Ver "Comillas de shell" más abajo.</p>
+    <p class="Pp">Este método también puede usarse como un método de clase.</p>
+    <p class="Pp">Ejemplo:</p>
+        <pre>my $quoted_args = Net::OpenSSH-&gt;shell_quote(@args);
+system('ssh', '--', $host, $quoted_args);
+</pre>
+  </dd>
+  <dt>$ssh-&gt;shell_quote_glob(@args)</dt>
+  <dd>Este método es como el anterior <span class="Li">&quot;shell_quote&quot;</span>
+      pero deja los caracteres comodín sin entrecomillar.
+    <p class="Pp">También se puede usar como un método de clase.</p>
+  </dd>
+  <dt>$ssh-&gt;set_expand_vars($bool)</dt>
+  <dd>Habilita/deshabilita la característica de expansión de variables (ver
+      "Expansión de variables").</dd>
+  <dt>$ssh-&gt;get_expand_vars</dt>
+  <dd>Devuelve el estado actual de la característica de expansión de variables.</dd>
+  <dt>$ssh-&gt;set_var($name, $value)</dt>
+  <dd></dd>
+  <dt>$ssh-&gt;get_var($name, $value)</dt>
+  <dd>Estos métodos permiten cambiar y recuperar el valor del nombre dado.</dd>
+  <dt>$ssh-&gt;get_master_pid</dt>
+  <dd>Devuelve el PID del proceso maestro SSH</dd>
+  <dt>$ssh-&gt;master_exited</dt>
+  <dd>Este método permite indicar al módulo que el proceso maestro ha salido
+      cuando obtenemos su PID de alguna llamada externa `wait` o `waitpid`. Por
+      ejemplo:
+        <pre>my $ssh = Net::OpenSSH-&gt;new('foo', async =&gt; 1);
+# crea nuevos procesos
+# ...
+# los mata...
+my $master_pid = $ssh-&gt;master_pid;
+while ((my $pid = wait) &gt; 0) {
+  if ($pid == $master_pid) {
+    $ssh-&gt;master_exited;
+  }
+}
+</pre>
+    <p class="Pp">Si tu programa mata el proceso maestro y este método no se llama,
+        el sistema operativo podría reasignar el PID a un nuevo proceso no
+        relacionado y el módulo intentaría matarlo en el momento de la
+        destrucción del objeto.</p>
+  </dd>
+  <dt>$ssh-&gt;disconnect($async)</dt>
+  <dd>Cierra la conexión SSH.
+    <p class="Pp">Normalmente, no necesitas llamar a este método explícitamente,
+        simplemente deja que el objeto Net::OpenSSH salga del ámbito.</p>
+    <p class="Pp">Si <span class="Li">&quot;async&quot;</span> es verdadero, no
+        espera a que la conexión SSH termine. En ese caso,
+        &quot;wait_for_master&quot; debe ser llamado repetidamente hasta que la
+        secuencia de apagado termine (Ver la sección de integración
+        &quot;AnyEvent&quot; abajo).</p>
+  </dd>
+  <dt>$ssh-&gt;restart($async)</dt>
+  <dd>Reinicia la sesión SSH cerrando cualquier conexión abierta y creando una
+      nueva. Cualquier canal abierto también sería terminado.
+    <p class="Pp">Nota que llamar a este método puede solicitar de nuevo la
+        contraseña o la frase de contraseña al usuario.</p>
+    <p class="Pp">En modo asíncrono, este método requiere que la conexión esté
+        terminada antes de ser llamada. Después,
+        <span class="Li">&quot;wait_for_master&quot;</span> debería ser
+        llamado repetidamente hasta que la nueva conexión se establezca. Por
+        ejemplo:</p>
+        <pre>my $async = 1;
+$ssh-&gt;disconnect($async);
+while (1) {
+  defined $ssh-&gt;wait_for_master($async) # devuelve 0 cuando el
+                                        # proceso de desconexión
+                                        # finaliza
+    and last;
+  do_something_else();
+}
+$ssh-&gt;restart($async);
+while (1) {
+  defined $ssh-&gt;wait_for_master($async)
+    and last;
+  do_something_else();
+}
+</pre>
+  </dd>
+  <dt>$pid = $ssh-&gt;sshfs_import(\%opts, $remote_fs, $local_mnt_point)</dt>
+  <dd></dd>
+  <dt>$pid = $ssh-&gt;sshfs_export(\%opts, $local_fs, $remote_mnt_point)</dt>
+  <dd>Estos métodos utilizan <a href='/man/sshfs.1.en'>sshfs(1)</a> para importar o
+      exportar un sistema de archivos a través de la conexión SSH.
+    <p class="Pp">Devuelven el <span class="Li">$pid</span> del proceso
+        <span class="Li">&quot;sshfs&quot;</span> o del proceso esclavo
+        <span class="Li">&quot;ssh&quot;</span> utilizado para proxy. Matar
+        ese proceso desmonta el sistema de archivos, aunque probablemente sea
+        mejor usar <a href='/man/fusermount.1.en'>fusermount(1)</a>.</p>
+    <p class="Pp">Las opciones aceptadas son las siguientes:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt id="ssh_opts~3"><a class="permalink" href="#ssh_opts~3">ssh_opts =&gt;
+    \@ssh_opts</a></dt>
+  <dd>Opciones pasadas al proceso <span class="Li">&quot;ssh&quot;</span>
+      esclavo.</dd>
+  <dt id="sshfs_opts"><a class="permalink" href="#sshfs_opts">sshfs_opts =&gt;
+    \@sshfs_opts</a></dt>
+  <dd>Opciones pasadas al comando <span class="Li">&quot;sshfs&quot;</span>.
+      Por ejemplo, para montar el sistema de archivos en modo de solo lectura:
+        <pre>my $pid = $ssh-&gt;sshfs_export({sshfs_opts =&gt; [-o =&gt; 'ro']},
+                             &quot;/&quot;, &quot;/mnt/foo&quot;);
+</pre>
+  </dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Ten en cuenta que este comando requiere una versión reciente de
+    <span class="Li">&quot;sshfs&quot;</span> para funcionar (en el momento de
+    escribir esto, requiere la versión aún no publicada disponible desde el
+    repositorio git de FUSE).</p>
+<p class="Pp">Ver también la página del manual <a href='/man/sshfs.1.en'>sshfs(1)</a>
+    y los sitios web de <span class="Li">&quot;sshfs&quot;</span> y FUSE en
+    <a href='https://github.com/libfuse/sshfs'>https://github.com/libfuse/sshfs</a> y
+    <a href='https://github.com/libfuse/libfuse'>https://github.com/libfuse/libfuse</a> respectivamente.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>$or = $ssh-&gt;object_remote(@args)</dt>
+  <dd>Devuelve una instancia de Object::Remote::Connection ejecutándose sobre la
+      conexión Net::OpenSSH.
+    <p class="Pp">Ejemplo:</p>
+        <pre>my $or = $ssh-&gt;object_remote;
+my $hostname = Sys::Hostname-&gt;can::on($or, 'hostname');
+say $hostname-&gt;();
+</pre>
+    <p class="Pp">Ver también Object::Remote.</p>
+  </dd>
+  <dt>$any = $ssh-&gt;any(%opts)</dt>
+  <dd>Envuelve el objeto actual dentro de un Net::SSH::Any.
+    <p class="Pp">Ejemplo:</p>
+        <pre>my $any = $ssh-&gt;any;
+my $content = $any-&gt;scp_get_content(&quot;my-file.txt&quot;);
+</pre>
+  </dd>
+  <dt>$pid = $ssh-&gt;disown_master</dt>
+  <dd>En operación normal, Net::OpenSSH controla el ciclo de vida del proceso
+      maestro <span class="Li">&quot;ssh&quot;</span> y cuando el objeto es
+      destruido, el proceso maestro y cualquier conexión que corra sobre él se
+      terminan.
+    <p class="Pp">En algunos (raros) casos, es deseable permitir que el proceso
+        maestro y todas las conexiones en ejecución sobrevivan. Llamar a este
+        método hace precisamente eso, le dice al objeto Net::OpenSSH que el
+        proceso maestro ya no le pertenece.</p>
+    <p class="Pp">El valor de retorno es el PID del proceso maestro.</p>
+    <p class="Pp">También ten en cuenta que desvincular el proceso maestro no
+        afecta la operación del módulo en ningún otro aspecto.</p>
+    <p class="Pp">Por ejemplo:</p>
+        <pre># Ver examples/sshfs_mount.pl para un programa funcional
+my $ssh = Net::OpenSSH-&gt;new($host);
+my $sshfs_pid = $ssh-&gt;sshfs_import(&quot;/home/foo&quot;, &quot;my-remote-home&quot;);
+$ssh-&gt;disown_master;
+$ssh-&gt;stop; # le dice al maestro que deje de aceptar peticiones
+exit(0);
+</pre>
+  </dd>
+  <dt>$ssh-&gt;default_ssh_configuration</dt>
+  <dd>Permite recuperar la configuración SSH predeterminada para el host de destino
+      de los archivos del sistema (es decir,
+      <span class="Li">&quot;/etc/ssh/ssh_config&quot;</span>) y archivos de
+      usuario (<span class="Li">&quot;~/.ssh/config&quot;</span>).
+    <p class="Pp">Bajo el capó, este método simplemente llama a
+        <span class="Li">&quot;ssh -G $host&quot;</span> y devuelve la salida sin
+        procesar.</p>
+    <p class="Pp">Ejemplo:</p>
+        <pre>my $ssh = Net::OpenSSH-&gt;new($host, connect =&gt; 0);
+my $txt = $ssh-&gt;default_ssh_configuration;
+my @lines = split /^/m, $txt;
+chomp @lines;
+my %def_cfg = map split(/\s+/, $_, 2), @lines;
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Shell_quoting'><a class='permalink' href='#Shell_quoting'>Comillas de   shell</a></h2>
+<p class="Pp">Por defecto, al invocar comandos remotos, este módulo intenta
+    imitar el comportamiento incorporado de `system` de Perl con respecto al
+    procesamiento de argumentos. Entrecomillando `system` en perlfunc:</p>
+<pre>El procesamiento de argumentos varía según el número de argumentos. Si
+hay más de un argumento en LIST, o si LIST es una matriz con más de un valor,
+inicia el programa dado por el primer elemento de la lista con los argumentos
+dados por el resto de la lista. Si hay solo un argumento escalar, el argumento
+se comprueba si hay metacaracteres de shell y, si los hay, todo el argumento se
+pasa al shell de comandos del sistema para su análisis (este es "/bin/sh -c" en
+plataformas Unix, pero varía en otras plataformas).</pre>
+<p class="Pp">Toma como ejemplo el método `system` de Net::OpenSSH:</p>
+<pre>$ssh-&gt;system(&quot;ls -l *&quot;);
+$ssh-&gt;system('ls', '-l', '/');</pre>
+<p class="Pp">La primera llamada pasa el argumento sin cambios a ssh y se ejecuta
+    en el lado remoto a través del shell, que interpreta los metacaracteres.</p>
+<p class="Pp">La segunda llamada escapa cualquier metacaracter de shell de modo
+    que, efectivamente, sea equivalente a llamar al comando directamente y no a
+    través del shell.</p>
+<p class="Pp">Bajo el capó, como el protocolo Secure Shell no proporciona este
+    modo de operación y siempre inicia un nuevo shell donde ejecuta el comando
+    dado, Net::OpenSSH entrecomilla cualquier metacaracter de shell en la lista
+    de comandos.</p>
+<p class="Pp">Todos los métodos que invocan un comando remoto (system, open_ex,
+    etc.) aceptan la opción <span class="Li">&quot;quote_args&quot;</span> que
+    permite forzar/deshabilitar las comillas de shell.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>$ssh-&gt;system({quote_args =&gt; 1}, &quot;/ruta con espacios/bin/foo&quot;);</pre>
+<p class="Pp">manejará correctamente los espacios en la ruta del programa.</p>
+<p class="Pp">El mecanismo de comillas de shell implementa algunas extensiones
+    (por ejemplo, realizar redirecciones a /dev/null en el lado remoto) que se
+    pueden deshabilitar con la opción
+    <span class="Li">&quot;quote_args_extended&quot;</span>:</p>
+<pre>$ssh-&gt;system({ stderr_discard =&gt; 1,
+               quote_args =&gt; 1, quote_args_extended =&gt; 0 },
+             @cmd);</pre>
+<p class="Pp">La opción <span class="Li">&quot;quote_args&quot;</span> también puede
+    usarse para deshabilitar las comillas cuando se pasan más de un argumento.
+    Por ejemplo, para expandir algún patrón por el shell remoto:</p>
+<pre>$ssh-&gt;system({quote_args =&gt; 0}, 'ls', '-l', &quot;/tmp/files_*.dat&quot;);</pre>
+<p class="Pp">El método <span class="Li">&quot;shell_quote&quot;</span> puede usarse
+    para entrecomillar selectivamente algunos argumentos y dejar otros sin
+    tocar:</p>
+<pre>$ssh-&gt;system({quote_args =&gt; 0},
+             $ssh-&gt;shell_quote('ls', '-l'),
+             &quot;/tmp/files_*.dat&quot;);</pre>
+<p class="Pp">Cuando la opción de globbing se establece en
+    <span class="Li">&quot;scp&quot;</span> y
+    <span class="Li">&quot;rsync&quot;</span> fi</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Timeouts'><a class='permalink' href='#Timeouts'>Tiempos de espera</a></h2>
+<p class="Pp">Para detener los procesos remotos cuando exceden el tiempo de espera, la mejor forma sería enviar señales a través de la conexión SSH según el estándar del protocolo. Sin embargo, OpenSSH no implementa esta función, por lo que Net::OpenSSH tiene que usar métodos imperfectos:</p>
+<ul class="Bl-bullet">
+  <li>cerrar los flujos de I/O de la escucha remota
+    <p class="Pp">Cerrando los flujos de entrada estándar (STDIN) y salida estándar (STDOUT) de un proceso remoto inactivo hará que el proceso intente acceder a uno de ellos y se transmitirá un SIGPIPE.</p>
+    <p class="Pp">Los procesos remotos pueden no acceder a STDIN o STDOUT, pero Net::OpenSSH puede cerrar estos canales solo cuando los captura, por lo que este enfoque no siempre funciona.</p>
+  </li>
+  <li>terminar el proceso local de SSH
+    <p class="Pp">Esta acción puede dejar el proceso remoto activo, creando un orfano remoto, por lo que Net::OpenSSH no lo utiliza, a menos que se configure la opción de construcción <span class="Li">&quot;kill_ssh_on_timeout&quot;</span>.</p>
+  </li>
+</ul>
+<p class="Pp">Afortunadamente, futuras versiones de OpenSSH podrán señalar a los procesos remotos a través del canal mux.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Variable_expansion'><a class='permalink' href='#Variable_expansion'>Expansión de variables</a></h2>
+<p class="Pp">La función de expansión de variables permite definir variables que se expanden automáticamente dentro de argumentos de comandos y caminos de archivos.</p>
+<p class="Pp">Esta función se desactiva por defecto y se utiliza con módulos como Net::OpenSSH::Parallel y otros similares.</p>
+<p class="Pp">Las variables se delimitan por un par de signos del porcentaje (<span class="Li">&quot;%&quot;</span>), por ejemplo <span class="Li">&quot;%HOST%&quot;</span>. También, dos signos del porcentaje consecutivos se reemplazan por uno solo.</p>
+<p class="Pp">Las variables especiales <span class="Li">&quot;HOST&quot;</span>, <span class="Li">&quot;USER&quot;</span> y <span class="Li">&quot;PORT&quot;</span> son mantenidas internamente por el módulo y toman los valores obvios.</p>
+<p class="Pp">La expansión de variables se realiza antes de la expansión de comandos en la shell (ver "Expansión de comandos en la shell").</p>
+<p class="Pp">Un ejemplo de uso:</p>
+<pre>my $ssh = Net::OpenSSH-&gt;new('server.foo.com', expand_vars =&gt; 1);
+$ssh-&gt;set_var(ID =&gt; 42);
+$ssh-&gt;system(&quot;ls &gt;/tmp/ls.out-%HOST%-%ID%&quot;);</pre>
+<p class="Pp">dirigirá la salida del comando <span class="Li">&quot;ls&quot;</span> a <span class="Li">&quot;/tmp/ls.out-server.foo.com-42&quot;</span> en el host remoto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Tunnels'><a class='permalink' href='#Tunnels'>Puertos de túnel</a></h2>
+<p class="Pp">Además de ejecutar comandos en el host remoto, Net::OpenSSH también permite crear puertos de túnel para máquinas remotas accesibles desde el servidor SSH.</p>
+<p class="Pp">Esta funcionalidad se presenta mediante la opción <span class="Li">&quot;tunnel&quot;</span> del método <span class="Li">&quot;open_ex&quot;</span>, así como mediante métodos wrapper <span class="Li">&quot;open_tunnel&quot;</span> y <span class="Li">&quot;capture_tunnel&quot;</span>, y otros donde sea adecuado.</p>
+<p class="Pp">Ejemplo:</p>
+<pre>$ssh-&gt;system({tunnel =&gt; 1,
+              stdin_data =&gt; &quot;GET / HTTP/1.0\r\n\r\n&quot;,
+              stdout_file =&gt; &quot;/tmp/$server.res&quot;},
+             $server, 80)
+    or die &quot;unable to retrieve page: &quot; . $ssh-&gt;error;</pre>
+<p class="Pp">o capturar la salida de varias solicitudes en paralelo:</p>
+<pre>my @pids;
+for (@servers) {
+  my $pid = $ssh-&gt;spawn({tunnel =&gt; 1,
+                         stdin_file =&gt; &quot;/tmp/request.req&quot;,
+                         stdout_file =&gt; &quot;/tmp/$_.res&quot;},
+                        $_, 80);
+  if ($pid) {
+    push @pids, $pid;
+  }
+  else {
+    warn &quot;unable to spawn tunnel process to $_: &quot; . $ssh-&gt;error;
+  }
+}
+waitpid ($_, 0) for (@pids);</pre>
+<p class="Pp">Más allá de eso, para crear un túnel, se genera un nuevo proceso <span class="Li">&quot;ssh&quot;</span> con la opción <span class="Li">&quot;-W${address}:${port}&quot;</span> (disponible desde OpenSSH 5.4 y más tarde), lo que lo dirige a la dirección remota dada. A diferencia de cuando se usa <span class="Li">&quot;ssh&quot;</span> con la opción <span class="Li">&quot;-L&quot;</span> para crear un túnel, no se abre ningún puerto TCP en el lado local, por lo que esta operación es completamente segura.</p>
+<p class="Pp">El PID del nuevo proceso se devuelve mediante métodos nombrados. Debe eliminarse la PID una vez que los manejadores de canal para el lado local hayan sido cerrados.</p>
+<p class="Pp">Es necesario que la versión de OpenSSH sea 5.4 o superior para que la funcionalidad de túnel funcione. También, notar que el forwarding de puertos puede ser administrativamente prohibido en el lado del servidor (ver <a href='/man/sshd.8.en'>sshd(8)</a> y <a href='/man/sshd_config.5.en'>sshd_config(5)</a> o la documentación proporcionada por el proveedor del servidor SSH).</p>
+<p class="Pp"><i>Túneles dirigidos a sockets UNIX</i></p>
+<p class="Pp">Cuando se conecta a hosts que ejecuten una versión reciente de OpenSSH sshd, también se pueden abrir conexiones dirigidas a sockets UNIX.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>my $response = $ssh-&gt;capture({tunnel =&gt; 1, stdin_data =&gt; $request },
+                             &quot;/tmp/socket-foo&quot;);</pre>
+<p class="Pp">Actualmente, esta función requiere un cliente OpenSSH con parche. El parche está disponible como <span class="Li">&quot;patches/openssh-fwd-stdio-to-streamlocal-1.patch&quot;</span>.</p>
+<p class="Pp"><i>Redirección de puertos</i></p>
+<p class="Pp">Net::OpenSSH no ofrece soporte directo para manejar la redirección de puertos entre servidor y cliente. Sin embargo, puede hacerse fácilmente pasando opciones personalizadas a los métodos.</p>
+<p class="Pp">Por ejemplo, las opciones de túnel pueden pasarse al constructor:</p>
+<pre>my $ssh = Net::OpenSSH-&gt;new(...
+                  master_opts =&gt; -Llocalhost:1234:localhost:3306');</pre>
+<p class="Pp">También se pueden cambiar las redirecciones de puertos para una conexión SSH en ejecución usando el comando Control:</p>
+<pre># configurando un túnel:
+$ssh-&gt;system({ssh_opts =&gt; ['-O','forward',
+                           '-L127.0.0.1:12345:127.0.0.1:3306']});
+# cancelando el túnel:
+$ssh-&gt;system({ssh_opts =&gt; ['-O', 'cancel',
+                           '-L127.0.0.1:12345:127.0.0.1:3306']});</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Data_encoding'><a class='permalink' href='#Data_encoding'>Codificación de datos</a></h2>
+<p class="Pp">Net::OpenSSH tiene cierto soporte para convertir transparentemente los datos enviados o recibidos por el servidor remoto a representación interna de Unicode en Perl.</p>
+<p class="Pp">Los métodos que soportan esta funcionalidad son aquellos que mueven datos entre estructuras de Perl (por ejemplo, <span class="Li">&quot;capture&quot;</span>, <span class="Li">&quot;capture2&quot;</span>, <span class="Li">&quot;capture_tunnel&quot;</span> y métodos que soportan la opción <span class="Li">&quot;stdin_data&quot;</span>). Los datos accesibles a través de tuberías, sockets o redirecciones no se ven afectados por las opciones de codificación.</p>
+<p class="Pp">También es posible configurar la codificación del comando y de los argumentos pasados al servidor remoto en la línea de comandos.</p>
+<p class="Pp">Por defecto, si no se proporciona ninguna opción de codificación en el constructor o en las llamadas a métodos, Net::OpenSSH no realizará ninguna transformación de codificación, procesando los datos como <span class="Li">&quot;latin1&quot;</span>.</p>
+<p class="Pp">Cuando los datos no pueden convertirse entre la representación interna de Perl y la codificación seleccionada dentro de algún método de Net::OpenSSH, se lanzará un error <span class="Li">&quot;OSSH_ENCODING_ERROR&quot;</span>.</p>
+<p class="Pp">Las opciones de codificación soportadas son las siguientes:</p>
+<dl class="Bl-tag">
+  <dt id="stream_encoding"><a class="permalink" href="#stream_encoding">stream_encoding =&gt; $encoding</a></dt>
+  <dd>define la codificación de los datos recibidos y enviados en métodos de captura.</dd>
+  <dt id="argument_encoding~2"><a class="permalink" href="#argument_encoding~2">argument_encoding =&gt; $encoding</a></dt>
+  <dd>define la codificación de los argumentos de la línea de comandos.</dd>
+  <dt id="encoding~2"><a class="permalink" href="#encoding~2">encoding =&gt; $encoding</a></dt>
+  <dd>define ambas <span class="Li">&quot;argument_encoding&quot;</span> y <span class="Li">&quot;stream_encoding&quot;</dd>
+</dl>
+<p class="Pp">El constructor también acepta <span class="Li">&quot;default_encoding&quot;</span>, <span class="Li">&quot;default_stream_encoding&quot;</span> y <span class="Li">&quot;default_argument_encoding&quot;</span> que establecen los valores por defecto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Diverting_&amp;quot;new&amp;quot;'><a class='permalink' href='#Diverting_&amp;quot;new&amp;quot;'>Desviando la funcionalidad &quot;new&quot;</a></h2>
+<p class="Pp">Cuando se instala una referencia de código en <span class="Li">$Net::OpenSSH::FACTORY</span>, las llamadas a <span class="Li">&quot;new&quot;</span> se redirigen a través de ella.</p>
+<p class="Pp">Esta característica puede usarse para transportar el flujo de entrada y salida de los procesos.</p>
+</section><section class="Sh">
+<h1 class="Sh" id="APLICACIÓN_ADICIONAL"><a class="permalink" href="#APLICACIÓN_ADICIONAL">APLICACIÓN ADICIONAL</a></h1>
+<p class="Pp">Hay varias formas en que Net::OpenSSH puede usarse para hacer las cosas un poco más convenientes. Por ejemplo, la conexión de multiplexación se puede implementar, por ejemplo:</p>
+<pre>my $old_factory = $Net::OpenSSH::FACTORY;
+%cache;
+sub factory {
+  my ($class, %opts) = @_;
+  my $signature = join("\0", $class, map { $_ => $opts{$_} }, sort keys %opts);
+  my $old = $cache{$signature};
+  return $old if ($old and $old-&gt;error != OSSH_MASTER_FAILED);
+  local $Net::OpenSSH::FACTORY = $old_factory;
+  $cache{$signature} = $class-&gt;new(%opts);
+}
+$Net::OpenSSH::FACTORY = \&factory;</pre>
+<p class="Pp">... ¡y estoy seguro de que se puede abusar de él de muchas otras maneras!</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="INTEGRACIÓN_DE_MÓDULOS_DE_TERCEROS"><a class="permalink" href="#INTEGRACIÓN_DE_MÓDULOS_DE_TERCEROS">INTEGRACIÓN DE MÓDULOS DE TERCEROS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="Expect"><a class="permalink" href="#Expect">Expect</a></h2>
+<p class="Pp">A veces, querrás usar Expect para controlar algún programa que se ejecuta en el host remoto. Puedes hacerlo de la siguiente manera:</p>
+<pre>my ($pty, $pid) = $ssh-&gt;open2pty(@cmd)
+    or die "unable to run remote command @cmd";
+my $expect = Expect-&gt;init($pty);</pre>
+<p class="Pp">Luego, podrás usar el nuevo objeto Expect en <span class="Li">$expect</span> como de costumbre.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Net::Telnet"><a class="permalink" href="#Net::Telnet">Net::Telnet</a></h2>
+<p class="Pp">Este ejemplo está adaptado de la documentación de Net::Telnet:</p>
+<pre>my ($pty, $pid) = $ssh-&gt;open2pty({stderr_to_stdout =&gt; 1})
+  or die "unable to start remote shell: " . $ssh-&gt;error;
+my $telnet = Net::Telnet-&gt;new(-fhopen =&gt; $pty,
+                              -prompt =&gt; '/.*\$ $/',
+                              -telnetmode =&gt; 0,
+                              -cmd_remove_mode =&gt; 1,
+                              -output_record_separator =&gt; "\r");
+$telnet-&gt;waitfor(-match =&gt; $telnet-&gt;prompt,
+                 -errmode =&gt; "return")
+  or die "login failed: " . $telnet-&gt;lastline;
+my @lines = $telnet-&gt;cmd("who");
+...
+$telnet-&gt;close;
+waitpid($pid, 0);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="mod_perl_y_mod_perl2"><a class="permalink" href="#mod_perl_y_mod_perl2">mod_perl y mod_perl2</a></h2>
+<p class="Pp">mod_perl y mod_perl2 vinculan STDIN y STDOUT a objetos que no están respaldados por descriptores de archivo reales a nivel del sistema operativo. Net::OpenSSH fallará si alguno de estos identificadores se utiliza de forma explícita o implícita al llamar a algún comando remoto.</p>
+<p class="Pp">La solución es redirigirlos a <span class="Li">"/dev/null"</span> o a algún archivo:</p>
+<pre>open my $def_in, '&lt;', '/dev/null' or die "unable to open /dev/null";
+my $ssh = Net::OpenSSH-&gt;new($host,
+                            default_stdin_fh =&gt; $def_in);
+my $out = $ssh-&gt;capture($cmd1);
+$ssh-&gt;system({stdout_discard =&gt; 1}, $cmd2);
+$ssh-&gt;system({stdout_to_file =&gt; '/tmp/output'}, $cmd3);</pre>
+<p class="Pp">Además, ten en cuenta que desde el punto de vista de la seguridad, ejecutar <span class="Li">"ssh"</span> desde dentro del proceso del servidor web no es una gran idea. Un atacante que explote algún error de Apache podría acceder a las claves y contraseñas SSH y obtener acceso ilimitado a los sistemas remotos.</p>
+<p class="Pp">Si puedes, usa una cola (como TheSchwartz) o cualquier otro mecanismo para ejecutar los comandos ssh desde otro proceso que se ejecute bajo una cuenta de usuario diferente.</p>
+<p class="Pp">Como mínimo, asegúrate de que <span class="Li">"~www-data/.ssh"</span> (o similar) no sea accesible a través del servidor web.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Net::SFTP::Foreign"><a class="permalink" href="#Net::SFTP::Foreign">Net::SFTP::Foreign</a></h2>
+<p class="Pp">Ver método <span class="Li">"sftp"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Net::SSH::Any"><a class="permalink" href="#Net::SSH::Any">Net::SSH::Any</a></h2>
+<p class="Pp">Ver método <span class="Li">"any"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Object::Remote"><a class="permalink" href="#Object::Remote">Object::Remote</a></h2>
+<p class="Pp">Ver método <span class="Li">"object_remote"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="AnyEvent_(y_frameworks_similares)"><a class="permalink" href="#AnyEvent_(y_frameworks_similares)">AnyEvent (y frameworks similares)</a></h2>
+<p class="Pp">Net::OpenSSH proporciona toda la funcionalidad requerida para integrarse dentro de un framework de programación orientado a eventos como AnyEvent o IO::Async de la siguiente manera:</p>
+<dl class="Bl-tag">
+  <dt>1. Crear un objeto Net::OpenSSH desconectado:</dt>
+  <dd>
+    <pre>my $ssh = Net::OpenSSH-&gt;new($host, async =&gt; 1, ...);
+</pre>
+  </dd>
+  <dt>2. Permitir que el objeto se conecte al host remoto:</dt>
+  <dd>Utiliza un temporizador para llamar al método
+      <span class="Li">"wait_for_master"</span> en modo asíncrono repetidamente hasta que devuelva un valor verdadero que indique éxito.
+    <p class="Pp">Además, se debe verificar el estado de error del objeto después de cada llamada para detectar conexiones fallidas. Por ejemplo:</p>
+        <pre>my $ssh = Net::OpenSSH-&gt;new(..., async =&gt; 1);
+my $w;
+$w = AE::timer 0.1, 0.1, sub {
+  if ($ssh-&gt;wait_for_master(1)) {
+    # ¡la conexión se ha establecido!
+    # ahora se pueden ejecutar comandos remotos
+    undef $w;
+    on_ssh_success(...);
+  }
+  elsif ($ssh-&gt;error) {
+    # no se puede establecer la conexión
+    undef $w;
+    on_ssh_failure(...);
+  }
+}
+</pre>
+  </dd>
+  <dt>3. Usar el framework de eventos para lanzar los procesos remotos:</dt>
+  <dd>Llama a <span class="Li">"make_remote_command"</span> de Net::OpenSSH para construir comandos que se puedan ejecutar utilizando las instalaciones regulares del framework para lanzar comandos externos.
+    <p class="Pp">La verificación de errores también debe realizarse en este punto porque la conexión SSH podría haberse roto.</p>
+    <p class="Pp">Por ejemplo:</p>
+        <pre>if (defined(my $cmd = $ssh-&gt;make_remote_command(echo =&gt; 'hello!')) {
+  AnyEvent::Util::run_cmd($cmd, %run_cmd_opts);
+}
+else {
+  # ¡algo salió mal!
+}
+</pre>
+    <p class="Pp">Alternativamente, se podrían usar cualquiera de los métodos
+        <span class="Li">"open*"</span> proporcionados por Net::OpenSSH para lanzar comandos remotos.</p>
+  </dd>
+  <dt>4. Al terminar, desconectar asincrónicamente</dt>
+  <dd>Después de iniciar una desconexión asíncrona con
+      <span class="Li">disconnect(1)</span>, llama repetidamente a
+      <span class="Li">"wait_for_master"</span> hasta que obtengas un valor definido pero falso:
+        <pre>$ssh-&gt;disconnect(1);
+my $w; $w = AE::timer 0.1, 0.1, sub {
+  my $res = $ssh-&gt;wait_for_master(1);
+  if (defined $res &amp;&amp; !$res) {
+    undef $w;
+    undef $ssh;
+  }
+};
+</pre>
+    <p class="Pp">Ten cuidado de no dejar que el objeto <span class="Li">$ssh</span> salga del ámbito hasta que la desconexión haya finalizado, de lo contrario, su destructor esperará y bloqueará tu programa hasta que la desconexión se complete.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Otros_módulos"><a class="permalink" href="#Otros_módulos">Otros módulos</a></h2>
+<p class="Pp">CPAN contiene varios módulos que dependen de SSH para cumplir sus funciones, como por ejemplo IPC::PerlSSH o GRID::Machine.</p>
+<p class="Pp">A menudo, es posible instruirlos para que utilicen una conexión multiplexada de Net::OpenSSH empleando alguna opción del constructor disponible. Por ejemplo:</p>
+<pre>use Net::OpenSSH;
+use IPC::PerlIPC;
+my $ssh = Net::OpenSSH-&gt;new(...);
+$ssh-&gt;error and die "unable to connect to remote host: " . $ssh-&gt;error;
+my @cmd = $ssh-&gt;make_remote_command('/usr/bin/perl');
+my $ipc = IPC::PerlSSH-&gt;new(Command =&gt; \@cmd);
+my @r = $ipc-&gt;eval('...');</pre>
+<p class="Pp">o...</p>
+<pre>use GRID::Machine;
+...
+my @cmd = $ssh-&gt;make_remote_command('/usr/bin/perl');
+my $grid = GRID::Machine-&gt;new(command =&gt; \@cmd);
+my $r = $grid-&gt;eval('print "hello world!\n"');</pre>
+<p class="Pp">En otros casos, los módulos de terceros proporcionan algún tipo de mecanismo de plugin para permitir diferentes transportes. El método <span class="Li">"open2"</span> puede usarse para crear un par de tuberías para el transporte en estos casos.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SOLUCIÓN_DE_PROBLEMAS"><a class="permalink" href="#SOLUCIÓN_DE_PROBLEMAS">SOLUCIÓN DE PROBLEMAS</a></h1>
+<p class="Pp">Por lo general, Net::OpenSSH funciona sin problemas, pero cuando falla, a algunos usuarios les cuesta encontrar la causa del problema. Esta mini guía de solución de problemas debería ayudarte a encontrarla y resolverla.</p>
+<dl class="Bl-tag">
+  <dt>1 - Comprueba el mensaje de error</dt>
+  <dd>Agrega en tu script, después de la llamada al constructor de Net::OpenSSH, una verificación de errores:
+        <pre>$ssh = Net::OpenSSH-&gt;new(...);
+$ssh-&gt;error and die "SSH connection failed: " . $ssh-&gt;error;
+</pre>
+    <p class="Pp">El mensaje de error te dirá qué salió mal.</p>
+  </dd>
+  <dt>2 - Comprueba los parámetros de conexión</dt>
+  <dd>Lo creas o no, pasar parámetros incorrectos a Net::OpenSSH es una de las principales causas de fallos, así que comprueba que estás utilizando los parámetros correctos.
+    <p class="Pp">Específicamente, si los obtienes del exterior, asegúrate de que no tengan espacios adicionales o saltos de línea adjuntos (¿necesitas <span class="Li">"chomp"</span>?).</p>
+    <p class="Pp">Las contraseñas y las URI pueden contener caracteres de
+        <span class="Li">"$"</span> o
+        <span class="Li">"@"</span>. Si los has codificado en tu script, asegúrate de que estén correctamente entrecomillados (y, por cierto, usa
+        <span class="Li">"strict"</span>).</p>
+  </dd>
+  <dt>3 - Versión de OpenSSH</dt>
+  <dd>Asegúrate de tener una versión de
+      <span class="Li">"ssh"</span> suficientemente reciente:
+        <pre>$ ssh -V
+OpenSSH_5.1p1 Debian-5, OpenSSL 0.9.8g 19 Oct 2007
+</pre>
+    <p class="Pp">OpenSSH versión 4.1 fue la primera en admitir la función de multiplexación y es el mínimo requerido por el módulo para funcionar. Te recomiendo que uses la última versión de OpenSSH (actualmente 7.5).</p>
+    <p class="Pp">La opción del constructor
+        <span class="Li">"ssh_cmd"</span> te permite seleccionar el binario
+        <span class="Li">"ssh"</span> a utilizar. Por ejemplo:</p>
+        <pre>$ssh = Net::OpenSSH-&gt;new($host,
+                         ssh_cmd =&gt; "/opt/OpenSSH/5.8/bin/ssh")
+</pre>
+    <p class="Pp">Algunos proveedores de hardware (por ejemplo, Sun, err... Oracle) incluyen versiones personalizadas de OpenSSH empaquetadas con el sistema operativo. En principio, Net::OpenSSH debería funcionar con estos clientes SSH siempre que se deriven de alguna versión de OpenSSH suficientemente reciente. De todos modos, ¡mi consejo es usar el software OpenSSH real si puedes!</p>
+  </dd>
+  <dt>4 - Ejecuta ssh desde la línea de comandos</dt>
+  <dd>Comprueba que puedes conectarte al host remoto usando los mismos parámetros que estás pasando a Net::OpenSSH. En particular, asegúrate de que estás ejecutando
+      <span class="Li">"ssh"</span> como el mismo usuario local.
+    <p class="Pp">Si estás ejecutando tu script desde un servidor web, el usuario probablemente sería
+        <span class="Li">"www"</span>,
+        <span class="Li">"apache"</span> o algo similar.</p>
+    <p class="Pp">Problemas comunes son:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>La clave pública del host remoto no está presente en el archivo known_hosts.
+    <p class="Pp">El protocolo SSH utiliza claves públicas para identificar los hosts remotos, de modo que no puedan ser suplantados por terceros malintencionados.</p>
+    <p class="Pp">Para OpenSSH, normalmente la clave pública del servidor se almacena en
+        <span class="Li">"/etc/s"</span></li>
+</ul>
+</div>
+</section>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li><span class="Li">&quot;/etc/ssh/ssh_host_dsa_key.pub&quot;</span> o en
+    <span class="Li">&quot;/etc/ssh/ssh_host_rsa_key.pub&quot;</span> y
+    qué clave debe copiarse en el archivo
+    <span class="Li">&quot;~/.ssh/known_hosts&quot;</span> de la máquina local (otras
+    implementaciones de SSH podrían usar otras ubicaciones de archivos).</li>
+  <li>La clave pública del host remoto en el archivo de conocidos es incorrecta.
+    <p class="Pp">Este es otro problema común que ocurre cuando un servidor es
+      reemplazado o reiniciado de cero y su clave pública cambia a ser diferente
+      a la instalada en el archivo de conocidos.</p>
+    <p class="Pp">La forma más fácil de resolver este problema es eliminar la clave antigua
+      del archivo de conocidos manualmente usando cualquier editor y luego conectar
+      al servidor respondiendo <span class="Li">&quot;yes&quot;</span> cuando se le pregunte
+      por la clave nueva.</p>
+  </li>
+  <li>Permisos incorrectos en el directorio <span class="Li">&quot;~/.ssh&quot;</span> o sus contenidos.
+    <p class="Pp">El cliente OpenSSH realiza varias comprobaciones sobre los permisos
+      del directorio <span class="Li">&quot;~/.ssh&quot;</span> y sus contenidos y rechaza
+      usarlos cuando están mal configurados. Consulte la sección FILES de la página
+      <a href='/man/ssh.1.en'>ssh(1)</a> del manual.</p>
+  </li>
+  <li>Configuración incorrecta para la autenticación por contraseña o clave pública.
+    <p class="Pp">Verifique que esté usando la contraseña correcta o que la clave pública
+      del usuario esté correctamente instalada en el servidor.</p>
+  </li>
+</ul>
+</div>
+<dl class="Bl-tag">
+  <dt>5 - chequeos de seguridad en el socket de multiplexing</dt>
+  <dd>Net::OpenSSH realiza algunos chequeos de seguridad en el directorio donde
+      se va a colocar el socket de multiplexing para asegurarse de que no pueda
+      ser accedido por otros usuarios.
+    <p class="Pp">La ubicación predeterminada del socket de multiplexing está bajo
+        <span class="Li">&quot;~/.libnet-openssh-perl&quot;</span>. Puede modificarse
+        usando los argumentos <span class="Li">&quot;ctl_dir&quot;</span> y
+        <span class="Li">&quot;ctl_path&quot;</span> del constructor de la clase.</p>
+    <p class="Pp">Los requisitos para este directorio y sus padres son:</p>
+  </dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Deben ser todos propiedad del usuario que ejecuta el script o de root.</li>
+  <li>Deben tener un umbral de permisos 0755 o más restrictivo, de manera que nadie
+      más pueda realizar operaciones de escritura en ellos.</li>
+</ul>
+</div>
+<div class="Bd-indent">
+<p class="Pp">La opción del constructor <span class="Li">&quot;strict_mode&quot;</span> deshabilita estos chequeos de seguridad, pero no debe usarse
+    a menos que comprenda sus implicaciones.</p>
+</div>
+<dl class="Bl-tag">
+  <dt>6 - el sistema de archivos debe soportar sockets</dt>
+  <dd>Algunos sistemas de archivos (como por ejemplo FAT o AFS) no soportan
+      colocar sockets dentro de ellos.
+    <p class="Pp">Asegúrese de que la ruta <span class="Li">&quot;ctl_dir&quot;</span>
+        no esté dentro de esos sistemas de archivos.</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DEBUGGING'><a class='permalink' href='#DEBUGGING'>DEPURACIÓN</a></h1>
+<p class="Pp">La depuración interna de Net::OpenSSH está controlada por la variable
+    <span class="Li">$Net::OpenSSH::debug</span>. Cada bit de esta variable activa
+    la depuración de algunos subsistemas según lo siguiente:</p>
+<dl class="Bl-tag">
+  <dt id="bit"><a class="permalink" href="#bit">bit 1 - errores</a></dt>
+  <dd>Imprime cambios en el atributo interno del objeto donde se almacenan los
+    errores.</dd>
+  <dt id="bit~2"><a class="permalink" href="#bit~2">bit 2 - ctl_path</a></dt>
+  <dd>Imprime información sobre el cálculo de ctl_path y las pruebas realizadas en
+      ese directorio para decidir si es seguro colocar el socket de multiplexing
+      dentro de él.</dd>
+  <dt id="bit~3"><a class="permalink" href="#bit~3">bit 4 - conectando</a></dt>
+  <dd>Imprime información sobre el establecimiento de nuevas conexiones master.</dd>
+  <dt id="bit~4"><a class="permalink" href="#bit~4">bit 8 - comandos y argumentos</a></dt>
+  <dd>Imprime los comandos y argumentos de cada llamada a sistema/exec.</dd>
+  <dt id="bit~5"><a class="permalink" href="#bit~5">bit 16 - ejecución de comandos</a></dt>
+  <dd>Imprime información sobre el progreso de la ejecución de comandos.</dd>
+  <dt id="bit~6"><a class="permalink" href="#bit~6">bit 32 - destrucción</a></dt>
+  <dd>Imprime información sobre la destrucción de objetos de Net::OpenSSH y la
+      terminación de los procesos master de SSH.</dd>
+  <dt id="bit~7"><a class="permalink" href="#bit~7">bit 64 - bucle_IO</a></dt>
+  <dd>Imprime información sobre el progreso del bucle_IO en operaciones de captura.</dd>
+  <dt id="bit~8"><a class="permalink" href="#bit~8">bit 128 - hexadumps</a></dt>
+  <dd>Genera hexadumps de la información que viaja por los canales SSH durante las
+      capturas.</dd>
+  <dt id="bit~9"><a class="permalink" href="#bit~9">bit 512 - rastreo del proceso master en el sistema operativo</a></dt>
+  <dd>Usa el módulo Net::OpenSSH::OSTracer para rastrear el proceso master de SSH
+      a nivel del sistema operativo.</dd>
+</dl>
+<p class="Pp">Por ejemplo, para activar todas las banderas de depuración, puede usar:</p>
+<pre>$Net::OpenSSH::debug = ~0;</pre>
+<p class="Pp">Tenga en cuenta que el significado de las banderas y la información generada
+    está destinada únicamente a la depuración del módulo y puede cambiar sin previo
+    aviso entre versiones.</p>
+<p class="Pp">Si está utilizando autenticación por contraseña, habilitar la depuración para
+    IO::Tty también puede mostrar información interesante:</p>
+<pre>$IO::Tty::DEBUG = 1;</pre>
+<p class="Pp">Finalmente, por defecto, la salida de depuración se envía a <span class="Li">&quot;STDERR&quot;</span>. Puede cambiarlo apuntando
+    <span class="Li">$Net::OpenSSH::debug_fh</span> a un manejador de archivo diferente.
+    Por ejemplo:</p>
+<pre>BEGIN {
+  open my $out, '&gt;', '/tmp/debug.txt' or warn $!;
+  $Net::OpenSSH::debug_fh = $out;
+  $Net::OpenSSH::debug = -1;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SECURITY'><a class='permalink' href='#SECURITY'>SEGURIDAD</a></h1>
+<p class="Pp"><b>¿Es seguro este módulo?</b></p>
+<p class="Pp"><b>¿Sí?</b> ¡Bueno, intenta serlo!</p>
+<p class="Pp">Desde un punto de vista de seguridad, el objetivo de este módulo es ser
+    tan seguro como OpenSSH, su sistema operativo, su shell y su entorno en general.</p>
+<p class="Pp">No toma ninguna medida de cortesía solo para hacer su vida más fácil si
+    eso implica disminuir el nivel de seguridad (por ejemplo, desactivar
+    <span class="Li">&quot;StrictHostKeyChecking&quot;</span> por defecto).</p>
+<p class="Pp">En las características de código que no son solo proxies a OpenSSH, el módulo
+    intenta mantener los mismos estándares de seguridad que OpenSSH (por
+    ejemplo, verificar permisos de directorios y archivos al colocar el
+    socket de multiplexing).</p>
+<p class="Pp">Por otro lado, siguiendo la filosofía de OpenSSH, el módulo permite
+    desactivar casi todas estas medidas de seguridad. ¡Pero solo porque permite
+    hacerlo, no significa que sea una buena idea hacerlo!</p>
+<p class="Pp">Si es un programador o usuario nuevo de SSH, y al buscar en Google ha
+    encontrado un parámetro que no entiende pero que parece resolver sus problemas
+    de conexión... ¡confíe en mí, es probable que sea una mala idea usarlo! ¡Pida
+    ayuda a alguien que realmente conozca el tema!</p>
+<p class="Pp">Para que quede claro, si su código contiene alguna de las palabras clave de la
+    siguiente lista (y no sabe por qué), probablemente esté comprometiendo la seguridad
+    del protocolo SSH:</p>
+<pre>strict_mode
+StrictHostKeyChecking
+UserKnownHostsFile</pre>
+<p class="Pp">Otros aspectos de seguridad que podría conocer son:</p>
+<dl class="Bl-tag">
+  <dt id="Taint"><a class="permalink" href="#Taint">Modo Taint</a></dt>
+  <dd>El módulo soporta el modo Taint.
+    <p class="Pp">Si está en un entorno expuesto, debería habilitar este modo en
+        su script para capturar cualquier comando no validado que se ejecute en
+        el lado remoto.</p>
+  </dd>
+  <dt id="Web"><a class="permalink" href="#Web">Entornos Web</a></dt>
+  <dd>Es una mala idea establecer conexiones SSH desde su servidor web porque si
+      se compromete, el atacante podría usar las credenciales de su script para
+      conectarse al host remoto y hacer lo que desee.</dd>
+  <dt id="Command"><a class="permalink" href="#Command">Ejecución de Comandos</a></dt>
+  <dd>El módulo puede realizar el quoting de comandos y argumentos de forma flexible
+      y potente.
+    <p class="Pp">Esta es una característica que debería usar ya que reduce la
+        posibilidad de que un atacante pueda inyectar y ejecutar comandos arbitrarios
+        en el host remoto (e incluso para scripts no expuestos, siempre es
+        recomendable habilitar el quoting de argumentos).</p>
+    <p class="Pp">Sin embargo, tenga en cuenta que el quoting de argumentos es solo
+        un parche para emular la función de invocación sin shell de funciones de
+        Perl como <span class="Li">&quot;system&quot;</span> y similares. Podría haber
+        errores en el código de quoting, su shell podría tener reglas de quoting
+        diferentes a las de casos extremos de un problema o cualquier cosa similar.
+        Si su script está expuesto externamente, debería validar sus entradas y
+        limitar lo que acepta como válido.</p>
+    <p class="Pp">[* ¡incluso si esta es una parte intensamente probada del módulo!]</p>
+  </dd>
+  <dt id="Shellshock"><a class="permalink" href="#Shellshock">Shellshock</a></dt>
+  <dd>(ver Shellshock
+      <a href='http://en.wikipedia.org/wiki/Shellshock_%28software_bug%29'>http://en.wikipedia.org/wiki/Shellshock_%28software_bug%29</a>)
+    <p class="Pp">Cuando se ejecutan comandos locales, el módulo siempre evita
+        llamar al shell, por lo que no se ve afectado por Shellshock.</p>
+    <p class="Pp">Sin embargo, algunos comandos (<span class="Li">&quot;scp&quot;</span>,
+        <span class="Li">&quot;rsync&quot;</span> y <span class="Li">&quot;ssh&quot;</span> cuando
+        se usa la opción <span class="Li">&quot;ProxyCommand&quot;</span>) invocan
+        otros comandos bajo el shell del usuario. Esto abre la puerta a la
+        explotación de Shellshock local.</p>
+    <p class="Pp">La invocación de shell en el lado remoto es inevitable debido a la
+        arquitectura del protocolo.</p>
+    <p class="Pp">Por defecto, SSH no envía variables de entorno, pero algunas
+        distribuciones Linux cambian explícitamente la configuración predeterminada
+        de OpenSSH para habilitar el envío y la aceptación de algunas específicas
+        (por ejemplo, <span class="Li">&quot;LANG&quot;</span> y <span class="Li">&quot;LC_*&quot;</span>
+        en Debian y derivados, y Fedora lo hace así también). Esto también abre
+        la puerta a la explotación de Shellshock.</p>
+    <p class="Pp">Tenga en cuenta que el shell utilizado para invocar comandos no es
+        <span class="Li">&quot;/bin/sh&quot;</span> sino el shell del usuario configurado
+        en <span class="Li">&quot;/etc/passwd&quot;</span>, PAM o cualquier
+        sistema de autenticación que se utilice en el sistema local o remoto. Los
+        usuarios de Debian, ¡no se preocupen por estar afectados porque su
+        <span class="Li">&quot;/bin/sh&quot;</span> apunta a <span class="Li">&quot;dash&quot;</span>!</p>
+  </dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FAQ'><a class='permalink' href='#FAQ'>PREGUNTAS FRECUENTES</a></h1>
+<p>
+<p class="Pp">Preguntas frecuentes sobre el módulo:</p>
+<dl class="Bl-tag">
+  <dt id="Connecting"><a class="permalink" href="#Connecting">Conexión a
+    conmutadores, enrutadores, etc.</a></dt>
+  <dd><b>P</b>: No puedo hacer que el método
+      <span class="Li">&quot;system&quot;</span>,
+      <span class="Li">&quot;capture&quot;</span>, etc. funcione al conectarme a algún enrutador, conmutador, etc. ¿Qué estoy haciendo mal?
+    <p class="Pp"><b>R</b>: A grandes rasgos, el protocolo SSH permite dos modos de
+        operación: modo comando y modo interactivo.</p>
+    <p class="Pp">El modo comando está diseñado para ejecutar comandos individuales en el host remoto. Abre un canal SSH entre ambos hosts, solicita al ordenador remoto que ejecute un comando dado y, cuando termina, el canal se cierra. Es lo que obtienes, por ejemplo, cuando ejecutas algo como...</p>
+        <pre>$ ssh my.unix.box cat foo.txt
+</pre>
+    <p class="Pp">...y también es la forma en que Net::OpenSSH ejecuta comandos en el host remoto.</p>
+    <p class="Pp">El modo interactivo lanza un shell en los hosts remotos con sus flujos stdio redirigidos a los locales para que el usuario pueda interactuar con él de forma transparente.</p>
+    <p class="Pp">Algunos dispositivos (como probablemente el que estás utilizando) no ejecutan un shell estándar de propósito general (por ejemplo,
+        <span class="Li">&quot;bash&quot;</span>,
+        <span class="Li">&quot;csh&quot;</span> o
+        <span class="Li">&quot;ksh&quot;</span>), sino algún programa personalizado especialmente enfocado y limitado a la tarea de configurar el
+      dispositivo.</p>
+    <p class="Pp">Normalmente, el servidor SSH que se ejecuta en estos dispositivos no admite el modo comando. Conecta incondicionalmente el shell restringido a cualquier conexión SSH entrante y espera a que el usuario introduzca comandos a través del flujo stdin redirigido.</p>
+    <p class="Pp">La única forma de solucionar esta limitación es hacer que tu script hable con el shell restringido (1-abrir una nueva sesión SSH, 2-esperar el prompt del shell, 3-enviar un comando, 4-leer la salida hasta que vuelvas al prompt del shell, repetir desde 3). La mejor herramienta para esta tarea es probablemente Expect, utilizada sola o combinada con Net::OpenSSH (ver "Expect").</p>
+    <p class="Pp">Hay algunos dispositivos que admiten el modo comando pero que solo aceptan un comando por conexión. En esos casos, usar Expect es también probablemente la mejor opción.</p>
+    <p class="Pp">Hoy en día, hay un nuevo actor, Net::CLI::Interact, que puede ser más adecuado que Expect, y Net::Appliance::Session para trabajar específicamente con dispositivos de red.</p>
+  </dd>
+  <dt id="Connection"><a class="permalink" href="#Connection">Falla la conexión</a></dt>
+  <dd><b>P</b>: No puedo hacer que el módulo se conecte al host remoto...
+    <p class="Pp"><b>R</b>: ¿Has leído la sección de solución de problemas? (ver
+        "TROUBLESHOOTING").</p>
+  </dd>
+  <dt id="Disable"><a class="permalink" href="#Disable">Deshabilitar
+    StrictHostKeyChecking</a></dt>
+  <dd><b>P</b>: ¿Por qué <span class="Li">&quot;ssh&quot;</span> no se ejecuta con
+      <span class="Li">&quot;StrictHostKeyChecking=no&quot;</span>?
+    <p class="Pp"><b>R</b>: Usar
+        <span class="Li">&quot;StrictHostKeyChecking=no&quot;</span> relaja el
+        nivel de seguridad por defecto de SSH y será relativamente fácil terminar con una configuración SSH incorrecta (por ejemplo, cuando
+        <span class="Li">&quot;known_hosts&quot;</span> no es escribible) que
+        podría ser falsificada para conectarse a un host incorrecto para realizar ataques de intermediario (man-in-the-middle), etc.</p>
+    <p class="Pp">Te aconsejo que no uses esa opción a menos que entiendas completamente sus implicaciones desde el punto de vista de la seguridad.</p>
+    <p class="Pp">Si aun así quieres usarla, pásala al constructor:</p>
+        <pre>$ssh = Net::OpenSSH-&gt;new($host,
+         master_opts =&gt; [-o =&gt; &quot;StrictHostKeyChecking=no&quot;],
+         ...);
+</pre>
+  </dd>
+  <dt id="child"><a class="permalink" href="#child">El proceso hijo
+    STDIN/STDOUT/STDERR no es un manejador de archivos real del sistema</a></dt>
+  <dd><b>P</b>: Las llamadas a <span class="Li">&quot;system&quot;</span>,
+      <span class="Li">&quot;capture&quot;</span>, etc. fallan con el error anterior, ¿qué está pasando?
+    <p class="Pp"><b>R</b>: El flujo stdio reportado está cerrado o no está adjunto a un manejador de archivos real (por ejemplo, es un manejador enlazado). Redirigirlo a <span class="Li">&quot;/dev/null&quot;</span> o a un archivo real:</p>
+        <pre>my $out = $ssh-&gt;capture({stdin_discard =&gt; 1, stderr_to_stdout =&gt; 1},
+                        $cmd);
+</pre>
+    <p class="Pp">Ver también la entrada mod_perl anterior.</p>
+  </dd>
+  <dt id="Solaris"><a class="permalink" href="#Solaris">Solaris (y AIX y
+    probablemente otros)</a></dt>
+  <dd><b>P</b>: Estaba probando Net::OpenSSH en Solaris y parece que me encuentro con un problema...
+    <p class="Pp"><b>R</b>: El cliente SSH incluido con Solaris es una bifurcación temprana de OpenSSH que no proporciona la funcionalidad de multiplexación requerida por Net::OpenSSH. Deberás instalar el cliente OpenSSH.</p>
+    <p class="Pp">Hay paquetes precompilados disponibles en Sun Freeware
+        (<a href='http://www.sunfreeware.com'>http://www.sunfreeware.com</a>). Allí, selecciona tu versión de SO y arquitectura de CPU, descarga el paquete OpenSSH y sus dependencias e instálalos. Ten en cuenta que **no** necesitas configurar Solaris para usar el servidor OpenSSH <span class="Li">&quot;sshd&quot;</span>.</p>
+    <p class="Pp">Asegúrate de que el cliente OpenSSH esté en tu ruta antes que el <span class="Li">&quot;ssh&quot;</span> del sistema o, alternativamente, puedes codificar la ruta completa en tus scripts de la siguiente manera:</p>
+        <pre>$ssh = Net::OpenSSH-&gt;new($host,
+                         ssh_cmd =&gt; '/usr/local/bin/ssh');
+</pre>
+    <p class="Pp">AIX y probablemente otros sistemas Unix también incluyen clientes SSH que carecen de la funcionalidad de multiplexación y requieren la instalación del OpenSSH real.</p>
+  </dd>
+  <dt id="Can"><a class="permalink" href="#Can">No se puede cambiar el directorio de trabajo</a></dt>
+  <dd><b>P</b>: Quiero ejecutar un comando dentro de un directorio remoto dado, pero no puedo cambiar el directorio de trabajo. Por ejemplo:
+        <pre>$ssh-&gt;system('cd /home/foo/bin');
+$ssh-&gt;systen('ls');
+</pre>
+    <p class="Pp">no lista el contenido de
+        <span class="Li">&quot;/home/foo/bin&quot;</span>.</p>
+    <p class="Pp">¿Qué estoy haciendo mal?</p>
+    <p class="Pp"><b>R</b>: Net::OpenSSH (y, de hecho, todos los módulos SSH disponibles en CPAN excepto Net::SSH::Expect) ejecutan cada comando en una nueva sesión, por lo que la mayoría de los comandos integrados del shell que se ejecutan por sus efectos secundarios se vuelven inútiles (por ejemplo, <span class="Li">&quot;cd&quot;</span>,
+        <span class="Li">&quot;export&quot;</span>,
+        <span class="Li">&quot;ulimit&quot;</span>,
+        <span class="Li">&quot;umask&quot;</span>, etc., normalmente, puedes listarlos ejecutando <span class="Li">&quot;help&quot;</span> desde el
+      shell).</p>
+    <p class="Pp">Una solución es combinar varios comandos en uno, por ejemplo:</p>
+        <pre>$ssh-&gt;system('cd /home/foo/bin &amp;&amp; ls');
+</pre>
+    <p class="Pp">Nota el uso del operador del shell
+        <span class="Li">&quot;&amp;&amp;&quot;</span> en lugar de
+        <span class="Li">&quot;;&quot;</span> para abortar el comando tan pronto como alguno de los subcomandos falle.</p>
+    <p class="Pp">Además, se pueden combinar varios comandos en uno mientras se sigue utilizando la característica de cita de varios argumentos de la siguiente manera:</p>
+        <pre>$ssh-&gt;system(@cmd1, \\'&amp;&amp;', @cmd2, \\'&amp;&amp;', @cmd3, ...);
+</pre>
+  </dd>
+  <dt id="Running"><a class="permalink" href="#Running">Ejecución de procesos remotos desvinculados</a></dt>
+  <dd><b>P</b>: Necesito poder conectarme por ssh a varias máquinas desde mi script, lanzar un proceso para que se ejecute en segundo plano allí y luego regresar inmediatamente mientras los programas remotos siguen ejecutándose...
+    <p class="Pp"><b>R</b>: Si los sistemas remotos ejecutan alguna variante de Unix/Linux, el enfoque correcto es usar
+        <a href='/man/nohup.1.en'>nohup(1)</a>, que desconectará el
+        proceso remoto de los flujos stdio y solicitará al shell que ejecute el comando en segundo plano. Por ejemplo:</p>
+        <pre>$ssh-&gt;system(&quot;nohup $long_running_command &amp;&quot;);
+</pre>
+    <p class="Pp">Además, puede ser posible demonizar el programa remoto. Si está escrito en Perl puedes usar App::Daemon para ello (de hecho, hay varios módulos CPAN que proporcionan este tipo de funcionalidad).</p>
+    <p class="Pp">En cualquier caso, ten en cuenta que no deberías usar "spawn"
+        para esto.</p>
+  </dd>
+  <dt id="MaxSessions"><a class="permalink" href="#MaxSessions">Se alcanzó el límite del servidor MaxSessions</a></dt>
+  <dd><b>P</b>: Creé un objeto <span class="Li">$ssh</span> y luego generé muchos procesos hijos que usan este objeto. Cuando el número de hijos es mayor que <span class="Li">&quot;MaxSessions&quot;</span> como se define en la configuración de sshd (por defecto es 10), al intentar generar nuevos comandos remotos se le pedirá al usuario la contraseña.
+    <p class="Pp"><b>R</b>: Cuando el cliente SSH esclavo recibe una respuesta de los servidores remotos indicando que se ha alcanzado el número máximo de sesiones para la conexión actual, recurre a abrir una nueva conexión directa sin pasar por el socket de multiplexación.</p>
+    <p class="Pp">Para evitar que esto suceda, se puede utilizar el siguiente hack:</p>
+        <pre>$ssh = Net::OpenSSH-&gt;new(host,
+    default_ssh_opts =&gt; ['-oConnectionAttempts=0'],
+    ...);
+</pre>
+  </dd>
+  <dt id="Running~2"><a class="permalink" href="#Running~2">Ejecución de comandos remotos con sudo</a></dt>
+  <dd><b>P</b>: ¿Cómo puedo ejecutar comandos remotos usando
+      <span class="Li">&quot;sudo&quot;</span> para convertirme primero en root?
+    <p class="Pp"><b>R</b>: La forma más sencilla es indicar a
+        <span class="Li">&quot;sudo&quot;</span> que lea la contraseña desde stdin con la opción <span class="Li">&quot;-S&quot;</span> y que no use credenciales cacheadas con la opción <span class="Li">&quot;-k&quot;</span>. También te puede gustar usar la opción <span class="Li">&quot;-p&quot;</span> para indicar a
+        <span class="Li">&quot;sudo&quot;</span> que muestre un prompt vacío. Por ejemplo:</p>
+        <pre>my @out = $ssh-&gt;capture({ stdin_data =&gt; &quot;$sudo_passwd\n&quot; },
+                        'sudo', '-Sk',
+                        '-p', '',
+                        '--',
+                        @cmd);
+</pre>
+    <p class="Pp">Si la versión de sudo instalada en el host remoto no admite la opción <span class="Li">&quot;-S&quot;</span> (que le indica a sudo que lea la contraseña desde su flujo STDIN), puedes hacerlo de la siguiente manera:</p>
+        <pre>my @out = $ssh-&gt;capture({ tty =&gt; 1,
+                          stdin_data =&gt; &quot;$sudo_passwd\n&quot; },
+                        'sudo', '-k',
+                        '-p', '',
+                        '--',
+                        @cmd);
+</pre>
+    <p class="Pp">Esto puede generar una advertencia espuria e inofensiva de la conexión maestra SSH (porque estamos solicitando la asignación de un tty en el lado remoto y localmente lo estamos adjuntando a un par de pipes regular).</p>
+    <p class="Pp">Si por alguna razón los métodos descritos anteriormente fallan, siempre puedes recurrir a usar Expect para hablar con el
+        <span class="Li">&quot;sudo&quot;</span> remoto. Consulta el script
+        <span class="Li">&quot;examples/expect.pl&quot;</span> de la distribución de este módulo.</p>
+  </dd>
+  <dt id="Interactive"><a class="permalink" href="#Interactive">Interactivo
+  </dd>
+</dl>
+[
+  {
+    "section": "SESIONES",
+    "content": {
+      "Q": "¿Cómo inicio una sesión remota interactiva?\n    <p class=\"Pp\"><b>R</b>: Simplemente llame al método <span class=\"Li\">&quot;system&quot;</span> con una lista de argumentos vacía:</p>\n        <pre>my $ssh = Net::OpenSSH-&gt;new(...);\n$ssh-&gt;system;\n</pre>\n    <p class=\"Pp\">¿Cómo ejecuto una sesión interactiva de <span class=\"Li\">&quot;sftp&quot;</span>?</p>\n    <p class=\"Pp\"><b>R</b>: Los programas que utilizan una conexión ssh subyacente suelen proporcionar alguna forma (por ejemplo, la opción de línea de comandos <span class=\"Li\">&quot;-o&quot;</span>) para pasar opciones adicionales al comando <span class=\"Li\">&quot;ssh&quot;</span> utilizado para ejecutar esa conexión. Solo necesitamos usar tal mecanismo para pasar la ruta al socket de control.</p>\n    <p class=\"Pp\">Por ejemplo, para el caso particular de <span class=\"Li\">&quot;sftp&quot;</span>:</p>\n        <pre>$cp = $ssh-&gt;get_ctl_path;\nsystem \"sftp\", \"-oControlPath=$cp\", $host;\n</pre>\n    "
+    }
+  },
+  {
+    "section": "VER TAMBIÉN",
+    "content": {
+      "p": "Documentación del cliente OpenSSH <a href='/man/ssh.1.en'>ssh(1)</a>, <a href='/man/ssh_config.5.en'>ssh_config(5)</a>, el sitio web del proyecto <a href='http://www.openssh.org'>http://www.openssh.org</a> y su FAQ <a href='http://www.openbsd.org/openssh/faq.html'>http://www.openbsd.org/openssh/faq.html</a>. <a href='/man/scp.1.en'>scp(1)</a> y <a href='/man/rsync.1.en'>rsync(1)</a>. El Wikilibro de OpenSSH <a href='http://en.wikibooks.org/wiki/OpenSSH'>http://en.wikibooks.org/wiki/OpenSSH</a>.",
+      "p_1": "Net::OpenSSH::Gateway para instrucciones detalladas sobre cómo hacer que este módulo se conecte a hosts a través de proxies y otros servidores gateway SSH.",
+      "p_2": "Documentación principal de Perl perlipc, \"open\" en perlfunc, \"waitpid\" en perlfunc.",
+      "p_3": "IO::Pty para saber cómo usar los objetos pseudo tty devueltos por varios métodos de este paquete.",
+      "p_4": "Net::SFTP::Foreign proporciona una implementación SFTP compatible.",
+      "p_5": "Expect puede usarse para interactuar con comandos ejecutados a través de este módulo en la máquina remota (ver también los scripts \"expect.pl\" y <0xC2><0xA0>autosudo.pl> en el directorio de ejemplos).",
+      "p_6": "SSH::OpenSSH::Parallel es un planificador avanzado que permite ejecutar comandos en hosts remotos en paralelo. Obviamente, se basa en Net::OpenSSH.",
+      "p_7": "SSH::Batch permite ejecutar comandos remotos en paralelo en un clúster. Está construido sobre <span class=\"Li\">&quot;Net::OpenSSH&quot;</span> también.",
+      "p_8": "Otros clientes SSH de Perl: Net::SSH::Perl, Net::SSH2, Net::SSH, Net::SSH::Expect, Net::SCP, Net::SSH::Mechanize.",
+      "p_9": "Net::OpenSSH::Compat es un paquete que ofrece un conjunto de capas de compatibilidad para otros módulos SSH sobre Net::OpenSSH.",
+      "p_10": "IPC::PerlSSH, GRID::Machine permiten la ejecución de código Perl en máquinas remotas a través de SSH.",
+      "p_11": "SSH::RPC implementa un mecanismo RPC sobre SSH utilizando Net::OpenSSH para manejar las conexiones.",
+      "p_12": "Net::CLI::Interact permite interactuar con shells remotos y otros servicios. Es especialmente adecuado para la interacción con equipos de red. El enfoque de libro de frases que utiliza es muy inteligente. También puede que le interese consultar otros módulos <a href='https://metacpan.org/author/OLIVER'>https://metacpan.org/author/OLIVER</a> de su autor, Oliver Gorwits."
+    }
+  },
+  {
+    "section": "ERRORES Y SOPORTE",
+    "subsections": [
+      {
+        "subsection": "Funciones experimentales",
+        "content": {
+          "p": "El soporte para la función <span class=\"Li\">&quot;restart&quot;</span> es experimental.",
+          "p_1": "La integración de Object::Remote es muy experimental.",
+          "p_2": "El soporte para túneles dirigidos a sockets Unix es muy experimental.",
+          "p_3": "El soporte para la función <span class=\"Li\">&quot;setpgrp&quot;</span> es muy experimental.",
+          "p_4": "El soporte para la función gateway es muy experimental y mayormente estancado.",
+          "p_5": "El soporte para el modo taint es experimental."
+        }
+      },
+      {
+        "subsection": "Problemas conocidos",
+        "content": {
+          "p": "Net::OpenSSH no funciona en Windows. La función de multiplexación de OpenSSH requiere pasar manejadores de archivos a través de sockets, algo que no es compatible con ninguna versión de Windows.",
+          "p_1": "Tampoco funciona en VMS... bueno, probablemente, no funciona en nada que no se parezca a un sistema operativo Linux/Unix moderno.",
+          "p_2": "Versiones antiguas de <span class=\"Li\">&quot;ssh&quot;</span> de OpenSSH pueden dejar los flujos stdio en modo no bloqueante. Eso puede resultar en fallos al escribir en <span class=\"Li\">&quot;STDOUT&quot;</span> o <span class=\"Li\">&quot;STDERR&quot;</span> después de usar el módulo. Para solucionar este problema, se puede usar el \"fcntl\" de Perl en perlfunc para desactivar la bandera no bloqueante:",
+          "pre": "use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);\nmy $flags = fcntl(STDOUT, F_GETFL, 0);\nfcntl(STDOUT, F_SETFL, $flags &amp; ~O_NONBLOCK);\n"
+        }
+      },
+      {
+        "subsection": "Informar de errores y pedir ayuda",
+        "content": {
+          "p": "Para informar de errores, envíe un correo electrónico a la dirección que aparece a continuación o utilice el sistema de seguimiento de errores de CPAN en <a href='http://rt.cpan.org'>http://rt.cpan.org</a>.",
+          "p_1": "<b>Publique preguntas relacionadas con cómo usar el módulo en PerlMonks</b> <a href='http://perlmonks.org/'>http://perlmonks.org/</a>, probablemente obtendrá respuestas más rápidas que si me contacta directamente y yo visito PerlMonks con bastante frecuencia, así que veré su pregunta de todos modos."
+        }
+      },
+      {
+        "subsection": "Soporte comercial",
+        "content": {
+          "p": "El soporte comercial, los servicios profesionales y el desarrollo de software personalizado en torno a este módulo están disponibles a través de mi empresa actual. Envíeme un correo electrónico con una descripción general de sus requisitos y nos pondremos en contacto con usted lo antes posible."
+        }
+      },
+      {
+        "subsection": "Mi lista de deseos",
+        "content": {
+          "p": "Si le gusta este módulo y se siente generoso, eche un vistazo a mi lista de deseos de Amazon: <a href='http://amzn.com/w/1WU1P6IR5QZ42'>http://amzn.com/w/1WU1P6IR5QZ42</a>.",
+          "p_1": "Considere también contribuir al proyecto OpenSSH en el que se basa este módulo: <a href='http://www.openssh.org/donations.html'>http://www.openssh.org/donations.html</a>."
+        }
+      }
+    ]
+  },
+  {
+    "section": "TODO",
+    "content": {
+      "p": "- Pruebas para los métodos <span class=\"Li\">&quot;scp_*&quot;</span>, <span class=\"Li\">&quot;rsync_*&quot;</span> y <span class=\"Li\">&quot;sftp&quot;</span>",
+      "p_1": "- Hacer que los métodos \"pipe_in\" y \"pipe_out\" se basen en \"open_ex\"",
+      "p_2": "- Característica <span class=\"Li\">&quot;auto_discard_streams&quot;</span> para mod_perl2 y entornos similares",
+      "p_3": "- Refactorizar el soporte de open_ex para múltiples comandos, tal vez solo manteniendo el túnel, ssh y raw",
+      "p_4": "¡Envíe sus solicitudes de características, ideas o cualquier comentario, por favor!"
+    }
+  },
+  {
+    "section": "CONTRIBUCIÓN DE CÓDIGO",
+    "content": {
+      "p": "El código fuente de este módulo está alojado en GitHub: <a href='http://github.com/salva/p5-Net-OpenSSH'>http://github.com/salva/p5-Net-OpenSSH</a>.",
+      "p_1": "Se aceptan contribuciones de código al módulo, pero debe obedecer las siguientes reglas:",
+      "dl": [
+        {
+          "dt": "Solo se requiere Perl 5.8.4",
+          "dd": "Sí, es bastante antiguo, pero Net::OpenSSH está destinado a ser utilizado también por administradores de sistemas que a veces tienen que lidiar con sistemas antiguos. La razón para elegir 5.8.4 es que ha sido el perl predeterminado en Solaris durante mucho tiempo."
+        },
+        {
+          "dt": "Evite el síndrome \"Todo el mundo es un PC Linux\"",
+          "dd": "El módulo debe funcionar en cualquier sistema operativo Unix o Linux (apenas) sensato. Especialmente, no se debe asumir que las utilidades y la cadena de herramientas de GNU, sobrecargadas de funciones, están disponibles."
+        },
+        {
+          "dt": "Las dependencias son opcionales",
+          "dd": "Para que el módulo sea muy fácil de instalar, no se permiten dependencias obligatorias de otros módulos CPAN.\n        <p class=\"Pp\">Los módulos opcionales, que se cargan solo bajo demanda, son aceptables cuando se utilizan para agregar nueva funcionalidad (como se hace, por ejemplo, con IO::Pty).</p>\n        <p class=\"Pp\">El código de pegamento para la integración con módulos de terceros también está permitido (como se hace con Expect).</p>\n        <p class=\"Pp\">El uso de módulos de extensión de lenguaje y similares no es aceptable.</p>\n    "
+        },
+        {
+          "dt": "Las pruebas deben ser laxas",
+          "dd": "No queremos falsos negativos al probar. En caso de duda, las pruebas deben tener éxito.\n        <p class=\"Pp\">Además, en caso de que las pruebas invoquen algún programa externo, se debe verificar que el programa externo esté disponible y que funcione como se espera, o de lo contrario omitir esas pruebas.</p>\n    "
+        },
+        {
+          "dt": "Compatibilidad hacia atrás",
+          "dd": "Hoy en día, Net::OpenSSH es bastante estable y hay muchos scripts que lo utilizan y que no queremos romper, por lo que mantener la compatibilidad hacia atrás de la API es una prioridad.\n        <p class=\"Pp\">Probablemente solo los problemas de seguridad podrían justificar ahora un cambio incompatible hacia atrás.</p>\n    "
+        },
+        {
+          "dt": "Sigue mi estilo de codificación",
+          "dd": "Mira el resto del código.\n        <p class=\"Pp\">Dejo que Emacs formatee por mí usando cperl-mode PerlStyle.</p>\n    "
+        },
+        {
+          "dt": "Habla conmigo",
+          "dd": "Antes de hacer un gran cambio o implementar una nueva característica, ponte en contacto conmigo.\n        <p class=\"Pp\">Puede que tenga mis propias ideas sobre cómo deben hacerse las cosas. Es mejor que las conozcas de antemano, de lo contrario, corres el riesgo de que tu parche sea rechazado.</p>\n    "
+        }
+      ],
+      "p_2": "Bueno, en realidad debes saber que soy bastante bueno rechazando parches, ¡pero no es mi culpa!\n        La mayoría de los parches que recibo están rotos de alguna manera: no siguen los principios principales del módulo, a veces el autor no captó la imagen completa y resolvió el problema de manera miope, etc.\n        En cualquier caso, no debes desanimarte a contribuir. Incluso si tu parche no se aplica directamente, ver cómo resuelve tus requisitos o, en el caso de errores, el análisis del problema subyacente puede ser muy útil y ayudarme a hacerlo... a mi manera.\n        Siempre doy la bienvenida a correcciones y mejoras de la documentación."
+    }
+  },
+  {
+    "section": "COPYRIGHT Y LICENCIA",
+    "content": {
+      "p": "Copyright (C) 2008-2022 por Salvador Fandiño (sfandino@yahoo.com)",
+      "p_1": "Esta biblioteca es software libre; puede redistribuirla y/o modificarla bajo los mismos términos que Perl."
+    }
+  }
+]
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Net::OpenSSH - Perl documentation</title>
+        <link rel="stylesheet" href="/css/main.css" />
+        <link rel="stylesheet" href="/css/theme.css" />
+    </head>
+    <body>
+        
+        <main>
+            <article>
+                <section class="man-page">
+    
+    <section>
+        <h2><a href="#NAME">NAME</a></h2>
+        <p>Net::OpenSSH::Protocol::Packet - SSH Protocol Packet Handling</p>
+    </section>
+    <section>
+        <h2><a href="#SYNOPSIS">SYNOPSIS</a></h2>
+        <pre>
+use Net::OpenSSH::Protocol::Packet;
+</pre>
+    </section>
+    <section>
+        <h2><a href="#DESCRIPTION">DESCRIPTION</a></h2>
+        <p>This module implements the SSH packet handling, encryption and decryption.
+It is a low-level component of the Net::OpenSSH module, and is not intended
+for direct use by end-users.</p>
+        <p>It handles the framing of data into SSH packets, including length
+and padding, and interfaces with the encryption modules to encrypt and
+decrypt packet contents.</p>
+    </section>
+    <section>
+        <h2><a href="#API">API</a></h2>
+        <p>The API is internal and not documented here. Consult the source code
+for details.</p>
+    </section>
+    <section>
+        <h2><a href="#3rd_PARTY_MODULE_INTEGRATION">3rd PARTY MODULE INTEGRATION</a></h2>
+        <p>This module relies on other modules for encryption (e.g., Crypt::OpenSSL::AES)
+and might need specific versions or configurations for optimal compatibility.</p>
+    </section>
+    <section>
+        <h2><a href="#TROUBLESHOOTING">TROUBLESHOOTING</a></h2>
+        <p>Issues related to packet handling, such as incorrect padding or
+encryption/decryption errors, may indicate problems with this module or
+its dependencies.</p>
+    </section>
+    <section>
+        <h2><a href="#DEBUGGING">DEBUGGING</a></h2>
+        <p>Debugging this module typically involves inspecting packet contents
+before and after encryption/decryption. Use of Net::OpenSSH's own debugging
+flags might provide insights.</p>
+    </section>
+    <section>
+        <h2><a href="#SECURITY">SECURITY</a></h2>
+        <p>This module is critical for the security of the SSH connection. Any
+vulnerabilities or flaws in its implementation could compromise the entire
+communication channel. It relies heavily on the security of the underlying
+cryptographic libraries.</p>
+    </section>
+    <section>
+        <h2><a href="#FAQ">FAQ</a></h2>
+        <p>Q: Why is my SSH connection failing with packet errors?</p>
+        <p>A: This could be due to incorrect packet framing, issues with the
+encryption/decryption process, or network problems interfering with packet
+integrity. Check debugging output and ensure all dependencies are correctly
+installed.</p>
+    </section>
+    <section>
+        <h2><a href="#SEE_ALSO">SEE ALSO</a></h2>
+        <p><a href="/man/Net::OpenSSH.3pm.html">Net::OpenSSH</a>, <a href="/man/Net::OpenSSH::Protocol.3pm.html">Net::OpenSSH::Protocol</a></p>
+    </section>
+    <section>
+        <h2><a href="#BUGS_AND_SUPPORT">BUGS AND SUPPORT</a></h2>
+        <p>Please report bugs to the Net::OpenSSH issue tracker on [Issue Tracker URL].</p>
+    </section>
+    <section>
+        <h2><a href="#TODO">TODO</a></h2>
+        <p>Future work might include optimizations for packet processing and
+support for newer SSH protocol features.</p>
+    </section>
+    <section>
+        <h2><a href="#CONTRIBUTING_CODE">CONTRIBUTING CODE</a></h2>
+        <p>Contributions are welcome. Please refer to the main Net::OpenSSH
+repository for contribution guidelines.</p>
+    </section>
+    <section>
+        <h2><a href="#COPYRIGHT_AND_LICENSE">COPYRIGHT AND LICENSE</a></h2>
+        <p>Copyright (c) 2004-2024, The Net::OpenSSH Developers.
+All rights reserved.</p>
+        <p>This module is distributed under the terms of the Artistic License 2.0.
+See the LICENSE file in the Net::OpenSSH distribution for details.</p>
+        <p>This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.10.0
+or, at your option, any later version of Perl 5 you may have available.</p>
+    </section>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-net-openssh/">extra/perl-net-openssh</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.84-4</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Net-OpenSSH">https://metacpan.org/release/Net-OpenSSH</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-net-openssh/">/listing/extra/perl-net-openssh/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#API">API</a></li>
+        
+            <li><a href="#3rd_PARTY_MODULE_INTEGRATION">INTEGRACIÓN DE MÓDULOS DE TERCEROS</a></li>
+        
+            <li><a href="#TROUBLESHOOTING">SOLUCIÓN DE PROBLEMAS</a></li>
+        
+            <li><a href="#DEBUGGING">DEPURACIÓN</a></li>
+        
+            <li><a href="#SECURITY">SEGURIDAD</a></li>
+        
+            <li><a href="#FAQ">PREGUNTAS FRECUENTES</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#BUGS_AND_SUPPORT">ERRORES Y SOPORTE</a></li>
+        
+            <li><a href="#TODO">TODO</a></li>
+        
+            <li><a href="#CONTRIBUTING_CODE">CONTRIBUCIÓN DE CÓDIGO</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">COPYRIGHT Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Net::OpenSSH::Protocol::Packet.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/Net::OpenSSH::Protocol::Packet.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

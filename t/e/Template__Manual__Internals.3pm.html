@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Template::Manual::Internals(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Template__Manual__Internals(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Template::Manual::Internals(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Template::Manual::Internals(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Template::Manual::Internals - Internos de Template Toolkit</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Introducci<0xC3><0xB3>n'><a class='permalink' href='#Introducci<0xC3><0xB3>n'>Introducción</a></h1>
+<p class="Pp">Esta sección de la documentación está dirigida a desarrolladores que deseen
+    saber más sobre cómo funciona Template Toolkit internamente para extenderlo o
+    adaptarlo a sus propias necesidades.</p>
+<p class="Pp">Si esto no te suena a ti, probablemente no necesites leerlo. No hay
+    ningún examen después.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Mirando_desde_fuera'><a class='permalink' href='#Mirando_desde_fuera'>Mirando desde fuera</a></h1>
+<p class="Pp">El módulo Template es simplemente un módulo de interfaz que crea y
+    utiliza un Template::Service y dirige la salida a donde quieras
+    (<span class="Li">&quot;STDOUT&quot;</span> por defecto, o quizás a un archivo,
+    escalar, etc.). El módulo <span class="Li">&quot;Apache::Template&quot;</span>
+    (disponible por separado en CPAN) es otra interfaz. Crea un objeto
+    <span class="Li">&quot;Template::Service::Apache&quot;</span>, lo llama según sea
+    necesario y envía la salida de vuelta al objeto
+    <span class="Li">&quot;Apache::Request&quot;</span> relevante.</p>
+<p class="Pp">Estos módulos de interfaz están realmente ahí solo para manejar las
+    especificidades del entorno en el que se están utilizando. La interfaz
+    <span class="Li">&quot;Apache::Template&quot;</span>, por ejemplo, maneja las
+    especificidades de <span class="Li">&quot;Apache::Request&quot;</span> y la
+    configuración a través de <i>httpd.conf</i>. La interfaz regular de
+    Template se encarga de <span class="Li">&quot;STDOUT&quot;</span>, referencias de
+    variables, etc. De lo contrario, es Template::Service (o una subclase) la que
+    hace todo el trabajo.</p>
+<p class="Pp">El módulo Template::Service proporciona un servicio de entrega de
+    plantillas de alta calidad, con campanas, silbatos, acuerdo de nivel de
+    servicio firmado y garantía de devolución de dinero sin preguntas en 30
+    días. &quot;Pásalo bien, siempre&quot;, ese es nuestro lema.</p>
+<p class="Pp">Dentro de los niveles inferiores de Template Toolkit, hay muchos
+    detalles confusos que generalmente no queremos tener que preocuparnos la
+    mayor parte del tiempo. Cosas como plantillas que no se encuentran, o que
+    fallan al analizarse correctamente, excepciones no capturadas que se
+    lanzan, módulos de plugin o dependencias faltantes, etc. Template::Service
+    oculta todo eso y hace que todo parezca simple para el observador externo.
+    Proporciona características adicionales, como <span class="Li">&quot;PRE_PROCESS&quot;</span>,
+    <span class="Li">&quot;PROCESS&quot;</span> y <span class="Li">&quot;POST_PROCESS&quot;</span>,
+    y también proporciona el mecanismo de recuperación de errores a través de
+    <span class="Li">&quot;ERROR&quot;</span>. Le pides que procese una plantilla y se
+    encarga de todo por ti. El módulo <span class="Li">&quot;Apache::Template::Service&quot;</span>
+    va un poco más allá, agregando algunas cabeceras adicionales a
+    Apache::Request, estableciendo algunas variables de plantilla adicionales,
+    etc.</p>
+<p class="Pp">En su mayor parte, el trabajo de un servicio es realmente solo de
+    programación y despacho. Recibe una solicitud en forma de llamada a su
+    método <b>process()</b> y programa la plantilla nombrada especificada como
+    argumento, y posiblemente varias otras plantillas
+    (<span class="Li">&quot;PRE_PROCESS&quot;</span>, etc.) para que se procesen en
+    orden. En realidad, no procesa las plantillas él mismo, sino que realiza una
+    llamada a <b>process()</b> contra un objeto Template::Context.</p>
+<p class="Pp">Template::Context es el motor de ejecución de Template Toolkit, el
+    módulo que une todo en los niveles inferiores de Template Toolkit y el que
+    hace la mayor parte del trabajo real, aunque sea mediante una delegación
+    astuta a varios otros módulos auxiliares amigables.</p>
+<p class="Pp">Dado un nombre de plantilla (o quizás una referencia a un escalar o
+    un manejador de archivo), el método <b>process()</b> del contexto debe cargar
+    y compilar, o recuperar una copia en caché de una plantilla previamente
+    compilada, correspondiente a ese nombre. Lo hace llamando a una lista de uno
+    o más objetos Template::Provider (la camarilla de
+    <span class="Li">&quot;LOAD_TEMPLATES&quot;</span>) quienes a su vez pueden
+    involucrarse con un Template::Parser para ayudar a convertir plantillas de
+    código fuente en código Perl ejecutable (pero más sobre eso más adelante).</p>
+<p class="Pp">Afortunadamente, toda esta complejidad está oculta detrás de un simple
+    método <b>template()</b>. Lo llamas pasando un nombre de plantilla como
+    argumento, y devuelve una plantilla compilada en forma de objeto
+    Template::Document, o de lo contrario lanza una excepción.</p>
+<p class="Pp">Un Template::Document es un envoltorio de objeto ligero alrededor de
+    una subrutina de plantilla compilada. El objeto implementa un método
+    <b>process()</b> que realiza un poco de mantenimiento y luego llama a la
+    subrutina de plantilla. El objeto también define metadatos de plantilla
+    (definidos en directivas <span class="Li">&quot;[% META</span> <span class="Li">... %]&quot;</span>)
+    y tiene un método <b>block()</b> que devuelve un hash de cualquier definición
+    adicional de <span class="Li">&quot;[% BLOCK xxxx %]&quot;</span> encontrada en
+    el código fuente de la plantilla.</p>
+<p class="Pp">Así que el contexto recupera un documento compilado a través de su
+    propio método <b>template()</b> y luego se prepara para procesarlo. Primero
+    actualiza el stash (el lugar donde se definen las variables de plantilla, más
+    sobre eso en breve) para establecer cualquier definición de variable de
+    plantilla especificada como segundo argumento por referencia a un array de
+    hashes. Luego, llama al método <b>process()</b> del documento, pasando una
+    referencia a sí mismo, el objeto de contexto, como argumento. Al hacer esto,
+    se proporciona a sí mismo como un objeto contra el cual el código de la
+    plantilla puede realizar devoluciones de llamada para acceder a los recursos
+    en tiempo de ejecución y a la funcionalidad de Template Toolkit.</p>
+<p class="Pp">Lo que intentamos decir aquí es esto: el objeto Template::Context no
+    solo recibe llamadas desde el *exterior*, es decir, las que se originan en el
+    código del usuario llamando al método <b>process()</b> en un objeto
+    Template, sino que también recibe llamadas desde el *interior*, es decir,
+    las que se originan en directivas de plantilla del tipo <span class="Li">&quot;[%
+    PROCESS template %]&quot;</span>.</p>
+<p class="Pp">Antes de pasar a eso, aquí hay un diagrama de estructura simple que
+    muestra las capas externas de Template Toolkit hacia el interior, con
+    anotaciones de pseudocódigo que muestran una secuencia de invocación
+    típica.</p>
+<pre> ,--------.
+ | Llamador |     use Template;
+ `--------'     my $tt = Template-&gt;new( ... );
+      |         $tt-&gt;process($template, \%vars);
+      |                                                     Fuera
+- - - | - - - - - - - - - - - - - - - - - - - - - - - - - - - - T T
+      |         package Template;                            Dentro
+      V
++----------+    sub process($template, \%vars) {
+| Template |        $out = $self-&gt;SERVICE-&gt;process($template, $vars);
++----------+        print $out o envíalo a $self-&gt;OUTPUT;
+      |         }
+      |
+      |         package Template::Service;
+      |
+      |         sub process($template, \%vars) {
+      |             try {
++----------+            foreach $p in @self-&gt;PRE_PROCESS
+| Servicio |                $self-&gt;CONTEXT-&gt;process($p, $vars);
++----------+
+      |                 $self-&gt;CONTEXT-&gt;process($template, $vars);
+      |
+      |                 foreach $p @self-&gt;POST_PROCESS
+      |                     $self-&gt;CONTEXT-&gt;process($p, $vars);
+      |             }
+      |             catch {
+      |                 $self-&gt;CONTEXT-&gt;process($self-&gt;ERROR);
+      |             }
+      |         }
+      |
+      V         package Template::Context;
++----------+
+| Contexto |    sub process($template, \%vars) {
++----------+        # buscar plantilla compilada
+      |             $template = $self-&gt;template($template)
+      |             # actualizar stash
+      |             $self-&gt;STASH-&gt;update($vars);
+      |             # procesar plantilla
+      |             $template-&gt;process($self)
+      |         }
+      V
++----------+    package Template::Document;
+| Documento|
++----------+    sub process($context) {
+                    $output = &amp;{ $self-&gt;BLOCK }($context);
+                }</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Mirando_hacia_afuera'><a class='permalink' href='#Mirando_hacia_afuera'>Mirando hacia afuera</a></h1>
+<p class="Pp">Para entender mejor lo que está sucediendo en estos niveles inferiores,
+    necesitamos ver cómo se ve una plantilla compilada. De hecho, una plantilla
+    compilada es solo una subrutina Perl regular. Aquí hay una muy simple.</p>
+<pre>sub my_compiled_template {
+    return &quot;Esta es una plantilla compilada.\n&quot;;
+}</pre>
+<p class="Pp">Es poco probable que veas una plantilla compilada tan simple a menos que
+    la hayas escrito tú mismo, pero es totalmente válida. Todo lo que una subrutina
+    de plantilla está obligada a hacer es devolver alguna salida (que puede estar
+    vacía, por supuesto). Si no puede por alguna razón, entonces debería lanzar un
+    error a través de <span class="Li">die()</span>.</p>
+<pre>sub my_todo_template {
+    die &quot;Plantilla no implementada todavía\n&quot;;
+}</pre>
+<p class="Pp">Si quiere ser más sofisticado, puede lanzar un error como un objeto
+    Template::Exception. Un objeto de excepción es en realidad solo un envoltorio
+    conveniente para los campos '<span class="Li">&quot;type&quot;</span>' y
+    '<span class="Li">&quot;info&quot;</span>'.</p>
+<pre>sub my_solilique_template {
+    die (Template::Exception-&gt;new('yorrick', 'Compañero de infinita burla'));
+}</p>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="Internals"><a class="permalink" href="#Internals">Internals</a></h1>
+<p class="Pp">Las plantillas generalmente necesitan hacer mucho más que generar
+    salida estática o generar errores. Puede que deseen inspeccionar valores
+    de variables, procesar otra plantilla, cargar un plugin, ejecutar un filtro,
+    y así sucesivamente. Cada vez que se llama a una subrutina de plantilla, se
+    le pasa una referencia a un objeto <code class="Li">Template::Context</code>.
+    Es a través de este objeto de contexto que el código de la plantilla puede
+    acceder a las características del Template Toolkit.</p>
+<p class="Pp">Anteriormente describimos cómo el objeto <code class="Li">Template::Service</code>
+    llama a <code class="Li">Template::Context</code> para manejar una solicitud de
+    <code class="Li">process()</code> desde el <i>exterior</i>. Podemos hacer una
+    solicitud similar a un contexto para procesar una plantilla, pero desde
+    dentro del código de otra plantilla. Esta es una llamada desde el
+    <i>interior</i>.</p>
+<pre>sub my_process_template {
+    my $context = shift;
+    my $output = $context-&gt;process('header', { title =&gt; 'Hello World' })
+               . &quot;\nsome content\n&quot;
+               . $context-&gt;process('footer');
+}</pre>
+<p class="Pp">Esto es aproximadamente equivalente a una plantilla fuente algo
+    como esto:</p>
+<pre>[% PROCESS header
+    title = 'Hello World'
+%]
+some content
+[% PROCESS footer %]</pre>
+<p class="Pp">Las variables de plantilla se almacenan y administran en un objeto
+    <code class="Li">Template::Stash</code>. Este es un hash array "bendecido" en
+    el que se definen las variables de plantilla. El envoltorio del objeto
+    proporciona métodos <code class="Li">get()</code> y <code class="Li">set()</code>
+    que implementan todas las <i>features.magical.variable</i> del Template
+    Toolkit.</p>
+<p class="Pp">Cada objeto de contexto tiene su propio stash, una referencia al cual
+    puede ser devuelta por el método apropiadamente llamado <code class="Li">stash()</code>.
+    Así que para imprimir el valor de alguna variable de plantilla, o por
+    ejemplo, para representar la siguiente plantilla fuente:</p>
+<pre>&lt;title&gt;[% title %]&lt;/title&gt;</pre>
+<p class="Pp">podríamos tener una definición de subrutina algo como esto:</p>
+<pre>sub {
+    my $context = shift;
+    my $stash = $context-&gt;stash();
+    return '&lt;title&gt;' . $stash-&gt;get('title') . '&lt;/title&gt;';
+}</pre>
+<p class="Pp">El método <code class="Li">get()</code> del stash oculta los detalles
+    de los tipos de variables subyacentes, llamando automáticamente a referencias
+    de código, verificando valores de retorno y realizando otros trucos
+    similares. Si '<span class="Li">&quot;title&quot;</span>' está enlazado a
+    una subrutina, entonces podemos especificar parámetros adicionales como una
+    referencia de lista pasada como segundo argumento a <code class="Li">get()</code>.</p>
+<pre>[% title('The Cat Sat on the Mat') %]</pre>
+<p class="Pp">Esto se traduce en la llamada al stash:</p>
+<pre>$stash-&gt;get([ 'title', ['The Cat Sat on the Mat'] ]);</pre>
+<p class="Pp">Las variables compuestas separadas por puntos se pueden solicitar
+    pasando una sola referencia de lista al método <code class="Li">get()</code>
+    en lugar del nombre de la variable. Cada par de elementos en la lista debe
+    corresponder al nombre de la variable y a una referencia a una lista de
+    argumentos para cada elemento delimitado por puntos de la variable.</p>
+<pre>[% foo(1, 2).bar(3, 4).baz(5) %]</pre>
+<p class="Pp">es por lo tanto equivalente a</p>
+<pre>$stash-&gt;get([ foo =&gt; [1,2], bar =&gt; [3,4], baz =&gt; [5] ]);</pre>
+<p class="Pp">Si no hay argumentos para un elemento, puedes especificar una lista
+    de argumentos vacía, cero o nula.</p>
+<pre>[% foo.bar %]
+$stash-&gt;get([ 'foo', 0, 'bar', 0 ]);</pre>
+<p class="Pp">El método <code class="Li">set()</code> funciona de manera similar.
+    Toma un nombre de variable y un valor de variable que debe asignarse a
+    él.</p>
+<pre>[% x = 10 %]
+$stash-&gt;set('x', 10);
+[% x.y = 10 %]
+$stash-&gt;set([ 'x', 0, 'y', 0 ], 10);</pre>
+<p class="Pp">Así que el stash nos da acceso a las variables de plantilla y el
+    contexto proporciona la funcionalidad de alto nivel.</p>
+<p class="Pp">Junto al método <code class="Li">process()</code> se encuentra el
+    método <code class="Li">include()</code>. Al igual que con las directivas
+    <span class="Li">&quot;PROCESS&quot;</span> / <span class="Li">&quot;INCLUDE&quot;</span>,
+    la diferencia clave está en la localización de variables. Antes de procesar
+    una plantilla, el método <code class="Li">process()</code> simplemente actualiza
+    el stash para establecer las nuevas definiciones de variables, sobrescribiendo
+    cualquier valor existente. En contraste, el método <code class="Li">include()</code>
+    crea una copia del stash existente, en un proceso conocido como <i>clonación</i>
+    del stash, y luego lo utiliza como un almacén de variables temporal.
+    Cualquier variable previamente existente sigue definida, pero cualquier cambio
+    realizado en las variables, incluido el establecimiento de los nuevos valores
+    de variable pasados como argumentos, afectará solo a la copia local del
+    stash (aunque ten en cuenta que es solo una copia superficial, por lo que no
+    es infalible). Una vez procesada la plantilla, el método <code class="Li">include()</code>
+    restaura el estado anterior de las variables mediante la <i>desclonación</i>
+    del stash.</p>
+<p class="Pp">El contexto también proporciona un método <code class="Li">insert()</code>
+    para implementar la directiva <span class="Li">&quot;INSERT&quot;</span>, pero
+    no un método <code class="Li">wrapper()</code>. Esta funcionalidad se puede
+    implementar reescribiendo el código Perl y llamando a <code class="Li">include()</code>.</p>
+<pre>[% WRAPPER foo -%]
+   blah blah [% x %]
+[%- END %]
+$context-&gt;include('foo', {
+    content =&gt; 'blah blah ' . $stash-&gt;get('x'),
+});</pre>
+<p class="Pp">Además de los métodos de procesamiento de plantillas
+    <code class="Li">process()</code>, <code class="Li">include()</code> e
+    <code class="Li">insert()</code>, el contexto define métodos para obtener
+    objetos de plugin, <code class="Li">plugin()</code>, y filtros,
+    <code class="Li">filter()</code>.</p>
+<pre># Directiva TT USE
+[% USE foo = Bar(10) %]
+# Perl equivalente
+$stash-&gt;set('foo', $context-&gt;plugin('Bar', [10]));
+# Bloque TT FILTER
+[% FILTER bar(20) %]
+   blah blah blah
+[% END %]
+# Perl equivalente
+my $filter = $context-&gt;filter('bar', [20]);
+&amp;$filter('blah blah blah');</pre>
+<p class="Pp">Prácticamente todo lo demás que quieras hacer en una plantilla se
+    puede hacer en código Perl. Cosas como <span class="Li">&quot;IF&quot;</span>,
+    <span class="Li">&quot;UNLESS&quot;</span>, <span class="Li">&quot;FOREACH&quot;</span>
+    y así sucesivamente tienen contrapartidas directas en Perl.</p>
+<pre># Directiva TT IF
+[% IF msg %]
+   Message: [% msg %]
+[% END %];
+# Perl equivalente
+if ($stash-&gt;get('msg')) {
+    $output .=  'Message: ';
+    $output .= $stash-&gt;get('msg');
+}</pre>
+<p class="Pp">La mejor manera de comprender mejor lo que sucede "detrás de escena"
+    es establecer el indicador
+    <span class="Li">$Template::Parser::DEBUG</span> a un valor verdadero y
+    comenzar a procesar plantillas. Esto hará que el analizador imprima el código
+    Perl generado para cada plantilla que compile en <span class="Li">&quot;STDERR&quot;</span>.
+    Probablemente también querrás establecer la opción
+    <span class="Li">$Template::Directive::PRETTY</span> para que el Perl se
+    imprima de forma "bonita" para el consumo humano.</p>
+<pre>use Template;
+use Template::Parser;
+use Template::Directive;
+$Template::Parser::DEBUG = 1;
+$Template::Directive::PRETTY = 1;
+my $template = Template-&gt;new();
+$template-&gt;process(\*DATA, { cat =&gt; 'dog', mat =&gt; 'log' });
+__DATA__
+The [% cat %] sat on the [% mat %]</pre>
+<p class="Pp">La salida enviada a <span class="Li">&quot;STDOUT&quot;</span>
+    permanece como esperarías:</p>
+<pre>The dog sat on the log</pre>
+<p class="Pp">La salida enviada a <span class="Li">&quot;STDERR&quot;</span>
+    se vería algo así:</p>
+<pre>compiled main template document block:
+sub {
+    my $context = shift || die &quot;template sub called without context\n&quot;;
+    my $stash   = $context-&gt;stash;
+    my $output  = '';
+    my $error;
+    eval { BLOCK: {
+        $output .=  &quot;The &quot;;
+        $output .=  $stash-&gt;get('cat');
+        $output .=  &quot; sat on the &quot;;
+        $output .=  $stash-&gt;get('mat');
+        $output .=  &quot;\n&quot;;
+    } };
+    if ($@) {
+        $error = $context-&gt;catch($@, \$output);
+        die $error unless $error-&gt;type eq 'return';
+    }
+    return $output;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="Hacking_on_the_Template_Toolkit"><a class="permalink" href="#Hacking_on_the_Template_Toolkit">Hacking
+    on the Template Toolkit</a></h1>
+<p class="Pp">Por favor, siéntete libre de modificar el Template Toolkit. Si
+    encuentras un error que necesita ser corregido, si tienes una idea para algo
+    que falta, o si te sientes inclinado a abordar algo en la lista de TAREAS
+    PENDIENTES (TODO), ¡adelante y hazlo!</p>
+<p class="Pp">Si estás contemplando algo no trivial, probablemente querrás
+    mencionarlo primero en la lista de correo para tener una idea del estado
+    actual de las cosas, averiguar si alguien ya está trabajando en ello, y
+    así sucesivamente.</p>
+<p class="Pp">El repositorio de código fuente del Template Toolkit está alojado
+    en Github.</p>
+<a href="https://github.com/abw/Template2">https://github.com/abw/Template2</a>
+<p class="Pp">Clona el repositorio, haz tus cambios, confírmalos y luego envía
+    una solicitud de extracción (pull request).</p>
+<p class="Pp">Una vez que hayas hecho tus cambios, recuerda actualizar el conjunto
+    de pruebas agregando pruebas adicionales a uno de los scripts de prueba
+    existentes en el subdirectorio <span class="Li">&quot;t&quot;</span>, o
+    agregando tu propio script de prueba nuevo. Y por supuesto, ejecuta
+    <span class="Li">&quot;make test&quot;</span> para asegurarte de que todas las
+    pruebas pasan con tu nuevo código.</p>
+<p class="Pp">No olvides que cualquier archivo que agregues deberá ser añadido al
+    MANIFEST. Ejecutar <span class="Li">&quot;make manifest&quot;</span> lo
+    hará por ti, pero necesitas asegurarte de no tener ningún otro archivo
+    temporal por ahí que también pueda ser añadido.</p>
+<p class="Pp">La documentación es a menudo algo que se pasa por alto, pero es tan
+    importante como el código. Si estás agregando un nuevo módulo, un módulo
+    de plugin, por ejemplo, entonces está bien incluir la documentación POD
+    dentro del módulo, pero <i>por favor</i> escríbela toda en una sola pieza al
+    final del archivo, <i>después</i> del código (simplemente mira cualquier
+    otro módulo <span class="Li">&quot;Template::*&quot;</span> como ejemplo).
+    Es un tema religioso, lo sé, pero tengo una fuerte aversión a la documentación
+    POD intercalada a lo largo del código. En mi opinión (no tan humilde), hace
+    que tanto el código como la documentación sean más difíciles de leer (el mismo
+    tipo de problema que incrustar Perl en HTML).</p>
+<p class="Pp">Luego, agrega una línea al archivo Changes que describa muy brevemente
+    lo que has hecho. No es necesario entrar en detalles aquí (guarda eso para el
+    mensaje de commit, comentarios en el código o documentación donde sea
+    apropiado).</p>
+<p class="Pp">Por favor, asegúrate también de agregar tu nombre al archivo
+    lib/Template/Manual/Credits.pod (si no está ya allí).</p>
+<p class="Pp">Luego, confirma tus cambios y envía una solicitud de extracción.</p>
+</section>
+</section>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+<details id="contents">
+    <summary>Contenidos</summary>
+    <nav class="toc">
+        <ul>
+            <li><a href="#NAME">NOMBRE</a></li>
+            <li><a href="#Introduction">Introducción</a></li>
+            <li><a href="#Outside_Looking_In">Mirando desde fuera</a></li>
+            <li><a href="#Inside_Looking_Out">Mirando desde dentro</a></li>
+            <li><a href="#Hacking_on_the_Template_Toolkit">Programando en el Template Toolkit</a></li>
+        </ul>
+    </nav>
+</details>
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        <a href="/man/Template::Manual::Internals.3pm.es.txt">txt</a>,
+        <a href="/man/Template::Manual::Internals.3pm.es.raw">raw</a>
+    </p>
+</nav>
+
+</aside>
+
+</main>
+<footer>
+    
+    <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+       excepto por el contenido de las páginas del manual, que tienen su propia licencia
+       especificada en el paquete correspondiente de Arch Linux.
+    </p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Pegex::Tutorial::Calculator(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Pegex__Tutorial__Calculator(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-pegex/">perl-pegex</a></p>
+<p class="lic">Licencias: PerlArtistic, GPL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Pegex::Tutorial::Calculator(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Pegex::Tutorial::Calculator(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='Pegex_Tutorial_Calculator'><a class='permalink' href='#Pegex_Tutorial_Calculator'>Pegex   Tutorial Calculadora</a></h1>
+<p class="Pp">Una Calculadora Pegex</p>
+<p class="Pp">Cuando buscas en la web información sobre análisis sintáctico,
+    inevitablemente encuentras un montón de ejemplos sobre cómo escribir un
+    analizador de precedencia para expresiones matemáticas.</p>
+<ul class="Bl-bullet">
+  <li><a href='http://en.wikipedia.org/wiki/Operator-precedence_parser'>http://en.wikipedia.org/wiki/Operator-precedence_parser</a></li>
+  <li><a href='http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/'>http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/</a></li>
+  <li><a href='http://www.hokstad.com/operator-precedence-parser.html'>http://www.hokstad.com/operator-precedence-parser.html</a></li>
+  <li><a href='http://www.perlmonks.org/?node_id=554516'>http://www.perlmonks.org/?node_id=554516</a></li>
+</ul>
+<p class="Pp">Este tutorial es la versión Pegex de eso. Pegex incluye un
+    directorio de ejemplos que contiene dos programas de calculadora para
+    análisis/evaluación de expresiones aritméticas:</p>
+<ul class="Bl-bullet">
+  <li><a href='https://github.com/ingydotnet/pegex-pm/blob/master/eg/calculator/calculator1.pl'>https://github.com/ingydotnet/pegex-pm/blob/master/eg/calculator/calculator1.pl</a></li>
+  <li><a href='https://github.com/ingydotnet/pegex-pm/blob/master/eg/calculator/calculator2.pl'>https://github.com/ingydotnet/pegex-pm/blob/master/eg/calculator/calculator2.pl</a></li>
+</ul>
+<p class="Pp">Ambos hacen lo mismo pero utilizando diferentes enfoques de análisis.
+    Los cubriremos ambos en detalle. Espero que encuentres que Pegex maneja el
+    análisis de precedencia de operadores de manera elegante.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='The_Problem'><a class='permalink' href='#The_Problem'>El   Problema</a></h1>
+<p class="Pp">Los analizadores de precedencia son interesantes porque necesitas
+    lidiar con operadores que tienen la misma precedencia, diferentes
+    precedencias y asociatividad tanto izquierda como derecha.</p>
+<p class="Pp">Considera la ecuación:</p>
+<pre>1 - 2 ^ 3 ^ 4 + 5 * 6 / 7</pre>
+<p class="Pp">Las reglas normales de precedencia y asociatividad hacen que esto
+    sea lo mismo que:</p>
+<pre>(1 - (2 ^ (3 ^ 4)) + ((5 * 6) / 7))</pre>
+<p class="Pp">Nuestra calculadora debería producir el mismo resultado para
+    ambos. Ten en cuenta que esto significa que analizaremos números, 5
+    operadores, paréntesis y espacios en blanco separadores.</p>
+<p class="Pp">Aquí tienes un ejemplo del programa calculadora en
+  acción:</p>
+<pre>&gt; perl eg/calculator1.pl
+Introduce una ecuación: 1+2*3
+1+2*3 = 7
+Introduce una ecuación: (1 + 2) * 3
+(1 + 2) * 3 = 9
+Introduce una ecuación:</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='The_Solutions'><a class='permalink' href='#The_Solutions'>Las   Soluciones</a></h1>
+<p class="Pp">La mayoría de las soluciones que leerás en la web implican (o
+    asumen) un paso de <em>lexing</em>/<em>tokenización</em> antes del
+    análisis. Pegex siempre analiza un flujo de entrada directamente, extrayendo
+    los "tokens" que necesita usando capturas de expresiones regulares. Así que el
+    análisis ocurre como una sola operación, lo que tiene muchas ventajas.</p>
+<p class="Pp">Pero, ¿cómo incorporamos las reglas de precedencia de operadores
+    en esto? Bueno, tenemos 2 formas diferentes:</p>
+<section class="Ss">
+<h2 class="Ss" id='calculator1.pl_-_Operator_Precedence_Climbing'><a class='permalink' href='#calculator1.pl_-_Operator_Precedence_Climbing'>calculator1.pl   - Escalada de Precedencia de Operadores</a></h2>
+<p class="Pp">Nota: El código en este ejemplo se copia y pega de
+    &quot;calculator/&quot; en los archivos de ejemplo. El código en esos archivos
+    en ejecución es ligeramente diferente, pero reescrito para tener más sentido
+    en este documento.</p>
+<p class="Pp">Nuestra primera calculadora de ejemplo utiliza lo que se conoce
+    como el método de Escalada de Precedencia de Operadores. Ver:
+    <a href='http://en.wikipedia.org/wiki/Operator-precedence_parser#Precedence_climbing_method'>http://en.wikipedia.org/wiki/Operator-precedence_parser#Precedence_climbing_method</a>.</p>
+<p class="Pp">Esta es básicamente una técnica inteligente para especificar
+    nuestras reglas gramaticales de tal manera que impliquen precedencia. Aquí
+    está la gramática pegex del código:</p>
+<pre>expr: add-sub
+add-sub: mul-div+ % /- ( [ '+-' ])/
+mul-div: power+ % /- ([ '*/' ])/
+power: token+ % /- '^' /
+token: /- '(' -/ expr /- ')'/ | number
+number: /- ( '-'? DIGIT+ )/</pre>
+<p class="Pp">Es un poco extraña pero funciona. Dice que cualquier expresión es
+    una suma/resta y que una suma/resta es en realidad una multiplicación/división
+    etc. Finalmente, después del último operador viene el token numérico y los
+    paréntesis.</p>
+<p class="Pp">Se siente un poco al revés. Uno de los mayores inconvenientes de
+    PCM es que se vuelve cada vez menos eficiente con más y más operadores.
+    Necesita recorrer todo el árbol, solo para encontrar cada número.</p>
+<p class="Pp">Pero funciona y el código es mínimo. La clase receptora recibe los
+    números en el orden correcto, evalúa la respuesta inmediatamente y devuelve
+    la respuesta para cada nivel. Sea cual sea el valor de retorno de la operación
+    final, se convierte en el resultado del análisis. Aquí está la clase
+    receptora:</p>
+<pre>{
+    package Calculator;
+    use base 'Pegex::Tree';
+    sub gotrule {
+        my ($self, $list) = @_;
+        return $list unless ref $list;
+        # Asociativa a la derecha:
+        if ($self-&gt;rule eq 'power') {
+            while (@$list &gt; 1) {
+                my ($a, $b) = splice(@$list, -2, 2);
+                push @$list, $a ** $b;
+            }
+        }
+        # Asociativa a la izquierda:
+        else {
+            while (@$list &gt; 1) {
+                my ($a, $op, $b) = splice(@$list, 0, 3);
+                unshift @$list,
+                    ($op eq '+') ? ($a + $b) :
+                    ($op eq '-') ? ($a - $b) :
+                    ($op eq '*') ? ($a * $b) :
+                    ($op eq '/') ? ($a / $b) :
+                    die;
+            }
+        }
+        return @$list;
+    }
+}</pre>
+<p class="Pp">Como puedes ver, tiene un método de acción para cada nivel o
+    precedencia. Recorre la expresión, evaluándola. Si recorre de izquierda a
+    derecha o de derecha a izquierda depende de la asociatividad que queramos
+    usar.</p>
+<p class="Pp">Nuestro código de ejecución se ve así:</p>
+<pre>while (1) {
+    print &quot;\nIntroduce una ecuación: &quot;;
+    my $expr = &lt;&gt; || '';
+    chomp $expr;
+    last unless length $expr;
+    calc($expr);
+}
+sub calc {
+    my ($expr) = @_;
+    my $result = pegex($grammar, 'Calculator')-&gt;parse($expr);
+    if ($@) {
+        warn $@;
+        return;
+    }
+    print &quot;$expr = $result\n&quot;;
+}</pre>
+<p class="Pp">¡Y eso es todo! Tenemos una calculadora funcional según lo
+    especificado.</p>
+<p class="Pp">Sin embargo, el verdadero propósito de esto es explorar buenas
+    técnicas de análisis sintáctico, y el PCM nos deja con ganas de probar algo
+    más eficiente. Probemos otro enfoque...</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='calculator2.pl_-_Shunting_Yard_Algorithm'><a class='permalink' href='#calculator2.pl_-_Shunting_Yard_Algorithm'>calculator2.pl   - Algoritmo Shunting-Yard</a></h2>
+<p class="Pp">Una forma antigua de analizar expresiones es de alguna manera
+    poner los números y operadores en una pila RPN (Notación Polaca Inversa), que
+    es cada operando seguido de su operador. Una vez en esa forma, se tiene en
+    cuenta la precedencia y la asociatividad.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>1 / 2 - ( -3 * 4 )</pre>
+<p class="Pp">se convierte en:</p>
+<pre>1, 2, /, -3, 4, *, -</pre>
+<p class="Pp">Para evaluar una RPN, sacas un operador y luego intentas sacar un
+    operando. Si el operando es otro operador, recursas. Cuando tienes 2
+    operandos, realizas la operación y pones el resultado de nuevo en la pila.
+    Cuando solo queda 1 elemento en la pila, has terminado. Ese es tu
+  resultado.</p>
+<p class="Pp">Veamos nuestra nueva gramática en
+    <span class="Li">&quot;calculator2.pl&quot;</span>:</p>
+<pre>expr: operand (operator operand)*
+operator: /- (['+-*/^'])/
+operand: num | /- '('/ expr /- ')'/
+num: /- ('-'? DIGIT+)/</pre>
+<p class="Pp">Esto es mucho más fácil de entender. Simplemente estamos
+    extrayendo los tokens. En un sentido (muy real), estamos usando Pegex como
+    un <em>lexer</em>.</p>
+<p class="Pp">Ahora veamos la clase receptora:</p>
+<pre>{
+    package Calculator;
+    use base 'Pegex::Tree', 'Precedence';
+    my $operator_precedence_table = {
+        '+' =&gt; {p =&gt; 1, a =&gt; 'l'},
+        '-' =&gt; {p =&gt; 1, a =&gt; 'l'},
+        '*' =&gt; {p =&gt; 2, a =&gt; 'l'},
+        '/' =&gt; {p =&gt; 2, a =&gt; 'l'},
+        '^' =&gt; {p =&gt; 3, a =&gt; 'r'},
+    };
+    sub got_expr {
+        my ($self, $expr) = @_;
+        $self-&gt;precedence_rpn($expr, $operator_precedence_table);
+    }
+}</pre>
+<p class="Pp">Esto también es mucho más simple. Solo hay un método. ¿Qué está
+    pasando? Bueno, el secreto es que puse el código para convertir los tokens
+    en RPN en una clase base separada llamada &quot;lib/Precedence.pm&quot; en
+    el ejemplo.</p>
+<p class="Pp">¡Esta es una implementación del famoso Algoritmo Shunting-Yard de
+    Edsger Dijkstra de 1961! Son solo 20 líneas de Perl. No lo incluiré en línea
+    aquí, pero échale un vistazo por ti mismo.
+    <a href='https://github.com/ingydotnet/pegex-pm/blob/master/eg/calculator/lib/Precedence.pm'>https://github.com/ingydotnet/pegex-pm/blob/master/eg/calculator/lib/Precedence.pm</a></p>
+<p class="Pp">El algoritmo Shunting-yard simplemente toma una lista de tokens de
+    expresión y los transforma en una pila RPN. Utiliza información de una tabla
+    de precedencia/asociatividad como la anterior.</p>
+<p class="Pp">A diferencia de calculator1.pl, donde evaluamos mientras
+    analizábamos, calculator2.pl crea una RPN que es similar a un AST. En otras
+    palabras, se parece más a algo que un lenguaje real</p>
+</section>
+</section>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+compilador haría.</p>
+<p class="Pp">Pero estamos escribiendo una calculadora y todavía necesitamos evaluar
+    este cachorrito. Cambié el código del ejecutor para que se vea así:</p>
+<pre>sub calc {
+    my $expr = shift;
+    my $calculator = pegex($grammar, 'Calculator');
+    my $rpn = eval { $calculator-&gt;parse($expr) };
+    my $result = RPN::evaluate($rpn);
+    print $@ || &quot;$expr = $result\n&quot;;
+}</pre>
+<p class="Pp">Así que, en general, esta segunda solución fue un poco más de código, pero
+    también se siente más sólida en varios niveles.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='Conclusion'><a class='permalink' href='#Conclusion'>Conclusión</a></h1>
+<p class="Pp">Pegex se esfuerza por ser la forma más agradable y reutilizable de
+    escribir nuevos analizadores. Los analizadores de precedencia de operadores son
+    una parte necesaria del análisis de expresiones matemáticas y lenguajes
+    informáticos. Este tutorial le mostró 2 formas de hacerlo. A medida que las
+    demandas de Pegex crezcan, podemos ver aún más formas de hacerlo.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-pegex/">extra/perl-pegex</a></dd>
+        <dt>Versión:</dt>
+        <dd>0.75-7</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Pegex">https://metacpan.org/release/Pegex</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic, GPL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-pegex/">/listing/extra/perl-pegex/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#Pegex_Tutorial_Calculator">Pegex Tutorial Calculadora</a></li>
+        
+            <li><a href="#The_Problem">El Problema</a></li>
+        
+            <li><a href="#The_Solutions">Las Soluciones</a></li>
+        
+            <li><a href="#Conclusion">Conclusión</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Pegex::Tutorial::Calculator.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/Pegex::Tutorial::Calculator.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

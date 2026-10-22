@@ -1,0 +1,373 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Glib::devel(3pm) — Páginas man </title>de Arch
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Glib__devel(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/glib-perl/">glib-perl</a></p>
+
+        r
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">devel</td>(3)
+    <td class="head-vol">Documentación de Perl contribuida por </td>usuarios
+    <td class="head-rtitle">de</td>ve</tr>l(</table>3)
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBR</a></h1>E
+<p class="Pp">Glib::devel - Resumen para</p> desarrolladores de enlac</section>es de las internas de Glib
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓ</a></h1>N
+<p class="Pp">¿Necesitas saber cómo funcionan los enlaces de lenguaje gtk2-perl, o
+    necesitas escribir tus propios enlaces de lenguaje para una biblioteca basada en Glib/Gtk2? Entonces
+    has llegado al lugar correcto. Si eres solo un desarrollador de perl que quiere
+    escribir programas con Glib o Gtk2, entonces esto probablemente está muy por encima de tu
+  </p>nivel.
+<p class="Pp">Este documento comenzó su vida como una publicación en gtk-perl-list sobre un
+    rediseño de los fundamentos de los enlaces; hoy es la documentación
+    de referencia para los desarrolladores de los </p>enlaces.
+<p class="Pp">Para reducir la confusión, refiérete a GLib, la biblioteca C, con una L
+    mayúscula, y Glib el módulo de perl con una l minúscula. Aunque el módulo Gtk2 es
+    el cliente principal de Glib, no es necesariamente el único; de hecho, los
+    enlaces de perl para la biblioteca GStreamer se construyen directamente sobre Glib. Por lo tanto,
+    este documento describe solo los fundamentos de GLib/Glib. Para detalles sobre cómo Gtk2
+    extiende los conceptos presentados aquí, consulta Gtk2::</p>devel.
+<p class="Pp">En varios lugares, usamos el nombre GPerl para referirnos al subsistema
+    de enlaces </p>real.
+<p class="Pp">Para evitar quedar rápidamente desactualizado, este documento
+    no entra </p>en gran detalle sobre las APIs. gperl.h está bastante comentado,
+    y deb</section>e considerarse la fuente canónica de información
+    correcta sobre la API.
+<section class="Sh">
+<h1 class="Sh" id='Basic_Philosophy'><a class='permalink' href='#Basic_Philosophy'>Filosofía   </a></h1>Básica
+<p class="Pp">GLib es una biblioteca de portabilidad para programas C, proporcionando un conjunto
+    común de APIs y servicios en varias plataformas. Junto con eso obtienes
+    libgobject, que proporciona un sistema de tipos basado en herencia y otras cosas
+    </p>geniales.
+<p class="Pp">Glib, como módulo de perl, debe decidir qué porciones de las facilidades de GLib
+    mapear a perl y cuáles abstraer y </p>encapsular.
+<p class="Pp">En el gran esquema, los enlaces se han diseñado con algunos
+    principios básicos en </p>mente:
+<ul class="Bl-dash">
+  <li>Mantenerse cerca de la API de C, para permitir a un desarrollador de perl usar conocimientos de la
+      API de C y la documentación de referencia de la API con los enlaces de perl; esto es anulado
+      en algunos lugares por los principios </li>restantes.
+  <li>Ser perlish. Esto es lo más importante. El usuario de los enlaces de perl
+      no debería tener que preocuparse por la gestión de memoria, el conteo de referencias,
+      liberar objetos y todo eso, de lo contrario podría ir a escribir en C
+      en su </li>lugar.
+  <li>Dejar fuera la funcionalidad </li>obsoleta.
+  <li>No añadir nueva funcionalidad. Las excepciones a esta regla son la consolidación
+      de métodos donde se pueden usar parámetros por defecto, o donde el análogo
+      directo de C no es </li>práctico.
+  <li>Ser ligero. La menor cantidad de indirección y bloat posible. Si es posible,
+      implementar cada módulo de nivel superior (ej., Glib, Gtk2, Gnome2, GtkHTML, etc) como
+      un .pm y un .</li>so.
+  <li>Ser extensible. Exportar archivos de cabecera y typemap</li>s para que otros módulos puedan
+      encadenarse fácil</ul>mente sobre nuestra base. No requerir todo Gtk2 para
+ </section>     alguien que solo necesita construir sobre GObject.
+<section class="Sh">
+<h1 class="Sh" id='The_Glib_Module'><a class='permalink' href='#The_Glib_Module'>El   Módulo </a></h1>Glib
+<p class="Pp">En consonancia con el principio de no requerir todo el coche para
+    alguien que solo necesita una sola rueda, dividí la familia de bibliotecas glib/gobject
+    en su propio módulo y espacio de nombres. Esto ha resultado ser una bendición,
+    ya que ha hecho que las cosas sean muy fáciles de depurar; hay una separación clara entre
+    la base del sistema de tipos y las cosas encima de </p>él.
+<p class="Pp">El módulo Glib se encarga de todos los tipos básicos manejados por la
+    biblioteca GObject --- GEnum, GFlags, GBoxed, GObject, GValue, GClosure --- así
+    como el marshalling de señales y tal en GSignal. Discutiré cada uno de estos
+    por </p>separado.
+<p class="Pp">En la práctica, raramente verás llamadas directas a las funciones
+    que convierten objetos dentro y fuera de perl. La mayor parte del código debería usar el
+    preprocesador de C para proporcionar nombres más fáciles de recordar que siguen el estilo de la API de
+    perl, ej., newSVGObject(obj) en lugar de gperl_new_object(type,obj) y
+    SvGObject(sv) en lugar de gperl_get_gobject(type, sv). La convención usada en
+    todo gtk2-perl se describe en Gtk2::</p>devel.
+<section class="Ss">
+<h2 class="Ss" id='Wrappers'><a class='permalink' href='#Wrappers'>Envolvente</a></h2>s
+<p class="Pp">FIXME tal vez esta sección debería integrarse en las secciones de GBoxed y
+    </p>GObject?
+<p class="Pp">Para usar las estructuras de datos de C desde Perl, necesitamos envolver
+    esos objetos en objetos de Perl. En general, un objeto de Perl es simplemente una
+    referencia bendecida. Un esquema típico para representar objetos de C en perl es
+    bendecir una referencia a un escalar que contiene el valor del puntero de C; perl destruirá
+    el escalar con conteo de referencias cuando ya no haya referencias a él, y
+    uno normalmente destruiría la estructura de datos subyacente en este punto.
+    Sin embargo, GLib es un poco más complejo que tu biblioteca C típica, así que esta
+    configuración fácil y típica no nos </p>funcionará.
+<p class="Pp">Los tipos GBoxed son envolventes opacos para estructuras de C, proporcionando
+    funciones de copia y liberación, para permitir que los tipos se usen genéricamente. En la mayor
+    parte podemos salirnos con la usando el esquema típico descrito arriba para
+    proporcionar un objeto opaco, pero en algunas instancias un objeto opaco es muy
+    ajeno en perl. La sección Glib::Boxed explica cómo superamos </p>esto.
+<p class="Pp">GObject, por otro lado, es un objeto con conciencia de tipo y con conteo de referencias
+    con semánticas de vida que difieren un poco de los SVs de perl. Así que
+    necesitamos algo un poco más sofisticado que un simple envolvente opaco; de
+    hecho, usamos una referencia a hash bendecida con el puntero al objeto de C
+    guardado en magia adjunta, y un puntero al SV almacenado en los
+    datos de usuario del GObject. El objeto combinado perl/C hace un ingenioso
+    préstamo de conteo de referencias para asegurar que la vida del objeto se gestione
+    </p>correctamente.
+<p class="Pp">Si un objeto es creado por una función que devuelve directamente a
+    perl, entonces el envolvente devuelto por esa función debería "poseer" el
+    objeto. Si ningún otro código asume la propiedad de ese objeto (por ref'ing un
+    GObject o copiando un GBoxed), entonces el objeto debería ser destruido cuando
+    el escalar perl sea destruido (en realidad, como parte de su destrucción)</p>.
+<p class="Pp">Si una función devuelve un objeto preexistente poseído por alguien más,
+ </p>   entonces los enlaces NO deberían destruir el objeto con el envolvente </section>de perl. Cómo
+    manejamos esto para los varios tipos se describe abajo.
+<section class="Ss">
+<h2 class="Ss" id='GType_to_Package_Mappings'><a class='permalink' href='#GType_to_Package_Mappings'>Mapeos   de GType a </a></h2>Paquetes
+<p class="Pp">GType es el identificador de tipo único de la biblioteca GObject; esta es una
+    variable en tiempo de ejecución, porque los tipos de GLib pueden cargarse dinámicamente. El análogo
+    directo en perl es el nombre del paquete, que especifica únicamente la clase
+    de un objeto. Dado que estos hacen aproximadamente lo mismo, reemplazamos completamente el GType
+    con el paquete de </p>perl.
+<p class="Pp">Por varias razones, principalmente relacionadas con la robustez y el rendimiento,
+    existe un mapeo uno a uno entre las clases GType y los nombres de paquetes de perl.
+    Estos deben registrarse, usualmente como parte del proceso de inicialización
+    del </p>módulo.
+<p class="Pp">Además, el sistema de tipos intenta recuperarse cuando las cosas
+    no van bien, usando el sistema GType a su favor. Si devuelves
+    un objeto de C de un tipo que no está registrado con Gperl, como
+    MyCustomTypeFoo, gperl_new_object (ver abajo) te advertirá que ha
+    bendecido el MyCustomTypeFoo desconocido en el primer paquete conocido en su
+    ascendencia, Gtk2::</p>VBox.
+<p class="Pp">GBoxed y GObject tienen registros de mapeo distintos para evitar
+    la polinización cruzada y errores en el sistema de tipos. Ver </p>abajo.
+<p class="Pp">Para ayudar en el manejo de la herencia que no está especificada directamente por
+    el sistema GType, la función gperl_set_isa te permite añadir elementos al <span class="Li">@ISA </span>de un paquete. gperl_register_object hace
+    esto por ti, pero podrías necesitar añadir padres adicionales, ej., para
+    implementar GInterfaces. (ver Gtk2/xs/GtkEntry.xs para un </p>ejemplo)
+<p class="Pp">Podrías estar pensando que podríamos usar reglas de sustitución para mapear
+    las clases de GObject a paquetes </p>de perl. En la práctica, esto es una mala idea,
+    lleno de problemas; las reglas de sustitución no son fácilment</section>e extensibles y
+    son fácilmente rotas por paquetes de extensión que no siguen las convenciones de
+    nombres.
+<section class="Ss">
+<h2 class="Ss" id='GEnums_and_GFlags'><a class='permalink' href='#GEnums_and_GFlags'>GEnums   y </a></h2>GFlags
+<p class="Pp">GLib proporciona un mecanismo para crear información de tipo en tiempo de ejecución
+    sobre tipos de enumeración y banderas. Las enumeraciones son listas de valores específicos,
+    uno de los cuales puede usarse a la vez, mientras que múltiples valores de bandera pueden
+    suministrarse a la vez. En C las banderas se usan con campos de bits. Un GType
+    se asocia con los varios valores válidos para un tipo GEnum o GFlags
+    como cadenas, tanto en forma de nombre completo como de </p>apodo.
+<p class="Pp">GPerl usa este mecanismo para evitar la necesidad de conocer valores enteros
+    para tipos de enum y banderas a nivel de perl. Un valor de enum es solo una
+    cadena; un campo de bits de valores de bandera se representa como una referencia a un
+    arreglo deesas cadenas son los apodos proporcionados por GLib. Por comodidad de un desarrollador de perl, los bindings tratan '-' y '_' como equivalentes al buscar los valores enteros correspondientes durante la </p>conversión.
+<p class="Pp">Un tipo GEnum o GFlags debe registrarse </p>con
+<pre>void gperl_register_fundamental (GType gtype, const char * package)</pre>;
+<p class="Pp">para que sus nombres de paquete puedan usarse donde se requiera un GType
+    (por ejemplo, como tipos de propiedades de GObject o tipos de columnas de GtkTreeModel)</p>.
+<p class="Pp">Las funciones básicas para convertir entre valores C y perl
+  </p>son
+<pre>/* croak si val no es parte del tipo, si no, devuelve
+ * el valor correspondiente. Este es el caso general. */
+gint gperl_convert_enum (GType type, SV * val);
+/* devuelve un escalar que es el apodo del valor de enumeración
+ * val, o croak si val no es un miembro de la enumeración. */
+SV * gperl_convert_back_enum (GType type, gint val);
+/* colapsa una lista de cadenas a un entero con todos los
+ * bits correctos establecidos, croak si algo es inválido. */
+gint gperl_convert_flags (GType type, SV * val);
+/* convierte un campo de bits a una lista de cadenas, o croak. */
+SV * gperl_convert_back_flags (GType type, gint val)</pre>;
+<p class="Pp">Otras funciones de utilidad permiten un control más detallado, como
+    la capacidad de pasar valores desconocidos, lo que </p>puede ser necesario en casos especiales.
+    En general, cada una de estas funciones lanza una excepción cuando algo va
+   </section> mal. Para ser útiles, hacen croak con un mensaje que lista los valores válidos
+    cuando encuentran una entrada inválida.
+<section class="Ss">
+<h2 class="Ss" id='GBoxed'><a class='permalink' href='#GBoxed'>GBoxe</a></h2>d
+<p class="Pp">GBoxed proporciona una forma de registrar funciones que crean, copian y
+    destruyen estructuras opacas. Para nuestros propósitos, permitiremos que cualquier paquete perl
+    herede de Glib::Boxed e implemente accesores para los miembros de la estructura, pero
+    Glib::Boxed manejará los problemas de vida útil del objeto y del </p>envoltorio.
+<p class="Pp">Hay dos funciones para crear envoltorios </p>boxed:
+<pre>SV * gperl_new_boxed (gpointer boxed, GType gtype, gboolean own);
+SV * gperl_new_boxed_copy (gpointer boxed, GType gtype)</pre>;
+<p class="Pp">Si own es TRUE, el envoltorio devuelto por gperl_new_boxed tomará
+    boxed consigo cuando muera. En el caso de una copia, own está implícito, así que
+    hay una función separada que no necesita la opción </p>own.
+<p class="Pp">Para obtener un puntero boxed de un envoltorio escalar, solo llamas a
+    gperl_get_boxed_check --- esto hará croak si el sv es undef o no está bendito
+    en el paquete </p>especificado.
+<p class="Pp">Cuando registras un tipo boxed tienes la opción de proporcionar una
+    tabla de punteros a funciones que describen cómo el objeto boxed debe ser
+    envuelto, desenvuelto y destruido. Esto te permite decidir en la función de
+    envoltura qué subclase de la clase del tipo boxed debe tomar realmente el
+    envoltorio (un truco usado por Gtk2::Gdk::Event), o representar un tipo boxed como
+    un tipo perl nativo (como usar referencias a arrays para objetos Gnome2::Canvas::Point).
+    Todo esto ocurre automáticamente, detrás de escena, y la mayoría de los
+    tipos asumen la clase de envoltorio por </p>defecto.
+<p class="Pp">Consulta los coment</p>arios en gperl.h pa</section>ra más información.
+<section class="Ss">
+<h2 class="Ss" id='GObject'><a class='permalink' href='#GObject'>GObjec</a></h2>t
+<p class="Pp">El GObject conoce su propio tipo. Por lo tanto, necesitamos solo un parámetro
+    para crear un envoltorio GObject. En realidad, pedimos </p>dos:
+<pre>SV * gperl_new_object (GObject * object, gboolean own)</pre>;
+<p class="Pp">El envoltorio SV será bendito en el paquete correspondiente al
+    gtype devuelto por G_OBJECT_TYPE (object), es decir, el tipo más bajo
+    en la cadena de herencia. Si ese tipo más bajo no es conocido, la función
+    sube por el árbol hasta que encuentra uno que es conocido, bendice la
+    referencia en ese paquete, y emite una advertencia en stderr. Para silenciar la
+    advertencia, solo necesitas llamar </p>a
+<p class="Pp">En general, este proceso reclamará una referencia en el GObject
+    (con <b>g_object_ref())</b>, de modo que el objeto C permanezca vivo mientras
+    haya un envoltorio perl para él. Si &lt;i&gt;own&lt;/i&gt; está establecido en TRUE,
+    el envoltorio perl reclamará la propiedad del objeto C eliminando esa
+    referencia; en teoría, para un GObject nuevo, recién salido de un constructor, esto
+    deja el objeto con una sola referencia propiedad del objeto perl. La siguiente
+    pregunta de tu boca debería ser, "¿Pero qué pasa con los derivados de GObject
+    que requieren sinking u otros métodos extraños para reclamar
+    la propiedad?" Para la respuesta, consulta la descripción de las funciones de
+    sink en la sección </p>GtkObject.
+<pre>void gperl_register_object (GType gtype, const char * package)</pre>;
+<p class="Pp">Esta función mágica también configura el
+    <span class="Li">@ISA </span>del paquete para que apunte al paquete
+    correspondiente a g_type_parent (gtype). [Dado que esto requiere que el paquete
+    padre esté registrado, hay un simple mecanismo de diferimiento, lo que significa que tu
+    @ISA podría no establecerse hasta la siguiente llamada a
+    gperl_register_object.] <span class="Li">@ISA </span>podría no establecerse hasta la siguiente llamada a
+    gperl_register_object.</p>]
+<p class="Pp">Hay dos formas de obtener un objeto de un SV (aunque creo
+    que solo una es realmente necesaria)</p>:
+<pre>GObject * gperl_get_object (SV * sv);
+GObject * gperl_get_object_check (SV * sv, GType gtype)</pre>;
+<p class="Pp">La segunda es como la primera, pero hace croak si el objeto no está
+    derivado de </p>gtype.
+<p class="Pp">Puedes obtener y establecer d</p>atos de objeto y parámetros d</section>e objeto como
+    esperarías.
+<section class="Ss">
+<h2 class="Ss" id='GSignal'><a class='permalink' href='#GSignal'>GSigna</a></h2>l
+<p class="Pp">Todo este asunto de GObject no sería muy útil si no pudieras
+    conectar señales y closures. Obtuve la mayor parte de mi código de manejo de
+    gtk2-perl y pygtk, y es bastante sencillo. El miembro data es opcional, y
+    debe ser un </p>escalar.
+<p class="Pp">Para conectar subrutinas perl a </p>GSignals uso GClosures, que
+   </section> requieren el manejo de GValues.
+<section class="Ss">
+<h2 class="Ss" id='GPerlClosure'><a class='permalink' href='#GPerlClosure'>GPerlClosur</a></h2>e
+<p class="Pp">Usa un GPerlClosure donde usarías un GClosure y las cosas
+    deberían funcionar genial. <i>FIXME d</i></p>ecir m</section>ás aquí
+<section class="Ss">
+<h2 class="Ss" id='GPerlCallback'><a class='permalink' href='#GPerlCallback'>GPerlCallbac</a></h2>k
+<p class="Pp">Se requieren punteros a funciones en muchos lugares a lo largo de gtk+,
+    usualmente para un callback que se usa como una función "fo</p>reach" o para
+    algún otro propósito. Desafortunadamente, la mayoría de estos lugares no están diseñados
+    para trabajar con GClosu</section>res (usualmente al carecer de una forma de destruir los datos asociados
+    con el callback cuando ya no son necesarios). Para este pr</section>opósito, el
+    GPerlCallback envuelve el trabajo pesado de usar el call_sv de perl para usar una
+    función de callback directamente.
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   </a></h1>TAMBIÉN
+<p class="Pp"><a href='/man/perl.1.en'>perl(1)</a>, <a href='/man/perlxs.1.en'>perlxs(1)</a>, <a href='/man/perlguts.1.en'>perlguts(1)</a>,
+    <a href='/man/perlapi.1.en'>perlapi(1)</a>, <a href='/man/perlxstut.1.en'>perlxstut(1), ExtUtils::Depends(</a>3pm),
+    ExtUtils::PkgConfig(3p</p>m) Glib(3pm), Glib::Object::Sub</section>class(3pm),
+    Glib::xsapi(3pm)
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTO</a></h1>R
+<p class="Pp">muppet &lt;sc</p>ott at as</section>ofyet.org&gt;
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE </a></h1>AUTOR
+<p class="Pp">Copyright (C) 2003 by the gtk2-perl team (see the file AUTHORS for
+    the full </p>list)
+<p class="Pp">Esta biblioteca es software libre; puedes redistribuirla y/o
+    modificarla bajo los términos de la GNU Library General Public License como
+    publicada por la Free Software Foundation; ya sea la versión 2.1 de la
+    Licencia, o (a tu elección) cualquier versión </p>posterior.
+<p class="Pp">Esta biblioteca se distribuye con la esperanza de que sea útil,
+    pero SIN NINGUNA GARANTÍA; sin siquiera la garantía implícita de
+    COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulta la GNU Library
+    General Public License para más </p>detalles.
+<p class="Pp">Deberías haber recibido una copia de la GNU Library Gene</p>ral Public
+    License junto con esta biblioteca; si no,</section> escribe a la Free Software
+    Foundation, Inc., 51 Fran</div>klin Street, Fifth Floor, Boston, MA 02110-1301
+    USA.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07</td>-13
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/glib-perl/">extra/gli</a></dd>b-perl
+        <dt>Vers</dt>ión:
+        <dd>1.</dd>329.4-3
+        <dt>Upst</dt>ream:
+        <dd><a href="http://gtk2-perl.sourceforge.net/">http://gtk2-perl.sourceforge.</a></dd>net/
+        <dt>Licen</dt>cias:
+        <dd>L</dd>GPL
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/glib-perl/">/listi</a></dd>ng/ext</dl>ra/glib</section>-perl/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#Basic_Philosophy">Filosofía </a></li>básica
+        
+            <li><a href="#The_Glib_Module">El </a></li>módulo Glib
+        
+            <li><a href="#SEE_ALSO">VER </a></li>TAMBIÉN
+        
+            <li><a href="#AUTHOR">A</a></li>UTOR
+        
+            <li><a href="#COPYRIGHT">DER</a></li>ECHO</ul>S D</nav>E AU</details>TOR
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Glib::devel.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/Glib::devel.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> de Arch Linux correspondiente.

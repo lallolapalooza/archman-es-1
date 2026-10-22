@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Test2::IPC::Driver(3perl) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Test2__IPC__Driver.3perl</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/core/x86_64/perl/">perl</a></p>
+<p class="lic">Licencias: Artistic-1.0-Perl OR GPL-1.0-or-later</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Test2::IPC::Driver(3perl)</td>
+    <td class="head-vol">Guía de referencia para programadores de Perl</td>
+    <td class="head-rtitle">Test2::IPC::Driver(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Test2::IPC::Driver - Clase base para controladores IPC de Test2.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre>package Test2::IPC::Driver::MiDriver;
+use base 'Test2::IPC::Driver';
+...</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS'><a class='permalink' href='#MÉTODOS'>MÉTODOS</a></h1>
+<dl class="Bl-tag">
+  <dt>$self-&gt;abortar($msg)</dt>
+  <dd>Si una IPC encuentra un error fatal, debería usar esto. Imprimirá el mensaje
+      en STDERR con el prefijo <span class="Li">'IPC Fatal Error: '</span> y luego
+      saldrá forzosamente con el código 255. Los errores de IPC pueden ocurrir en
+      hilos o procesos distintos al principal, este método proporciona la mejor
+      oportunidad para que el harness note el error.</dd>
+  <dt>$self-&gt;abortar_rastreo($msg)</dt>
+  <dd>Esto es lo mismo que
+      <span class="Li">&quot;$ipc-&gt;abortar($msg)&quot;</span> excepto que
+      utiliza <span class="Li">&quot;Carp::longmess&quot;</span> para agregar un
+      rastreo de pila al mensaje.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CARGA_DE_CONTROLADORES'><a class='permalink' href='#CARGA_DE_CONTROLADORES'>CARGA DE CONTROLADORES</a></h1>
+<p class="Pp">Test2::IPC::Driver tiene un método <span class="Li">import()</span>.
+    Todos los controladores heredan este método de importación. Este método de
+    importación registra el controlador.</p>
+<p class="Pp">En la mayoría de los casos, solo necesita cargar el controlador IPC
+    deseado para que funcione. Debe cargar este controlador lo antes posible. Se
+    emitirá una advertencia si lo carga demasiado tarde para que sea efectivo.</p>
+<pre>use Test2::IPC::Driver::MiDriver;
+...</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ESCRITURA_DE_CONTROLADORES'><a class='permalink' href='#ESCRITURA_DE_CONTROLADORES'>ESCRITURA DE CONTROLADORES</a></h1>
+<pre>package Test2::IPC::Driver::MiDriver;
+use strict;
+use warnings;
+use base 'Test2::IPC::Driver';
+sub es_viable {
+    return 0 if $^O eq 'win32'; # No funcionará en windows.
+    return 1;
+}
+sub agregar_hub {
+    my $self = shift;
+    my ($hid) = @_;
+    ... # Hacer posible contactar al hub
+}
+sub soltar_hub {
+    my $self = shift;
+    my ($hid) = @_;
+    ... # Nada debería intentar contactar al hub anymore.
+}
+sub enviar {
+    my $self = shift;
+    my ($hid, $e, $global) = @_;
+    ... # Enviar el evento al hub apropiado.
+    # Esto puede notificar a otros procesos/hilos que hay un evento pendiente.
+    Test2::API::test2_ipc_set_pending($uniq_val);
+}
+sub depurar {
+    my $self = shift;
+    my ($hid) = @_;
+    my @eventos = ...; # Aquí es donde obtienes los eventos para el hub
+    return @eventos;
+}
+sub esperando {
+    my $self = shift;
+    ... # Notificar a todos los procesos y hilos en espera que el proceso
+    ... # principal/hilo está esperando que terminen.
+}
+1;</pre>
+<section class="Ss">
+<h2 class="Ss" id='MÉTODOS_QUE_LAS_SUBCLASES_DEBEN_IMPLEMENTAR'><a class='permalink' href='#MÉTODOS_QUE_LAS_SUBCLASES_DEBEN_IMPLEMENTAR'>MÉTODOS QUE LAS SUBCLASES DEBEN IMPLEMENTAR</a></h2>
+<dl class="Bl-tag">
+  <dt>$ipc-&gt;es_viable</dt>
+  <dd>Debería devolver verdadero si el controlador funciona en el entorno actual.
+      Debería devolver falso si no es así. Este es un método de CLASE.</dd>
+  <dt>$ipc-&gt;agregar_hub($hid)</dt>
+  <dd>Esto se usa para alertar al controlador de que un nuevo hub está esperando
+      eventos. El controlador debe mantener un registro de los IDs de proceso e
+      hilo, el hub solo debe ser liberado por el proceso+hilo que lo inició.
+        <pre>sub agregar_hub {
+    my $self = shift;
+    my ($hid) = @_;
+    ... # Hacer posible contactar al hub
+}
+</pre>
+  </dd>
+  <dt>$ipc-&gt;soltar_hub($hid)</dt>
+  <dd>Esto se usa para alertar al controlador de que un hub ya no acepta
+      eventos. El controlador debe mantener un registro de los IDs de proceso e
+      hilo, el hub solo debe ser liberado por el proceso+hilo que lo inició (la
+      responsabilidad de hacer cumplir esto recae en el controlador).
+        <pre>sub soltar_hub {
+    my $self = shift;
+    my ($hid) = @_;
+    ... # Nada debería intentar contactar al hub anymore.
+}
+</pre>
+  </dd>
+  <dt>$ipc-&gt;enviar($hid, $evento);</dt>
+  <dd></dd>
+  <dt>$ipc-&gt;enviar($hid, $evento, $global);</dt>
+  <dd>Se utiliza para enviar eventos desde el proceso/hilo actual al hub
+      especificado en su proceso+hilo.
+        <pre>sub enviar {
+    my $self = shift;
+    my ($hid, $e) = @_;
+    ... # Enviar el evento al hub apropiado.
+    # Esto puede notificar a otros procesos/hilos que hay un evento pendiente.
+    Test2::API::test2_ipc_set_pending($uniq_val);
+}
+</pre>
+    <p class="Pp">Si <span class="Li">$global</span> es verdadero, el controlador
+        debería enviar el evento a todos los hubs en todos los procesos e hilos.</p>
+  </dd>
+  <dt>@eventos = $ipc-&gt;depurar($hid)</dt>
+  <dd>Se utiliza para recopilar los eventos que se han enviado al hub
+      especificado.
+        <pre>sub depurar {
+    my $self = shift;
+    my ($hid) = @_;
+    my @eventos = ...; # Aquí es donde obtienes los eventos para el hub
+    return @eventos;
+}
+</pre>
+  </dd>
+  <dt>$ipc-&gt;<b>esperando()</b></dt>
+  <dd>Esto se llama en el proceso padre cuando ha terminado y está esperando que
+      todos los procesos e hilos hijos completen.
+        <pre>sub esperando {
+    my $self = shift;
+    ... # Notificar a todos los procesos y hilos en espera que el proceso
+    ... # principal/hilo está esperando que terminen.
+}
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='MÉTODOS_QUE_LAS_SUBCLASES_PUEDEN_IMPLEMENTAR_O_SOBREESCRIBIR'><a class='permalink' href='#MÉTODOS_QUE_LAS_SUBCLASES_PUEDEN_IMPLEMENTAR_O_SOBREESCRIBIR'>MÉTODOS QUE LAS SUBCLASES PUEDEN IMPLEMENTAR O SOBREESCRIBIR</a></h2>
+<dl class="Bl-tag">
+  <dt>$ipc-&gt;controlador_abortar($msg)</dt>
+  <dd>Este es un hook llamado por
+      <span class="Li">&quot;Test2::IPC::Driver-&gt;abortar()&quot;</span>. Esta
+      es tu oportunidad de limpiar cuando ocurre un aborto. No puedes prevenir el
+      aborto, pero puedes aceptarlo de manera elegante.</dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FUENTE'><a class='permalink' href='#FUENTE'>FUENTE</a></h1>
+<p class="Pp">El repositorio de código fuente de Test2 se puede encontrar en
+    <a href='https://github.com/Test-More/test-more/'>https://github.com/Test-More/test-more/</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MANTENEDORES'><a class='permalink' href='#MANTENEDORES'>MANTENEDORES</a></h1>
+<dl class="Bl-tag">
+  <dt id="Chad"><a class="permalink" href="#Chad">Chad Granum
+    &lt;exodist@cpan.org&gt;</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTORES'><a class='permalink' href='#AUTORES'>AUTORES</a></h1>
+<dl class="Bl-tag">
+  <dt id="Chad~2"><a class="permalink" href="#Chad~2">Chad Granum
+    &lt;exodist@cpan.org&gt;</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DERECHOS_DE_AUTOR'><a class='permalink' href='#DERECHOS_DE_AUTOR'>DERECHOS DE AUTOR</a></h1>
+<p class="Pp">Copyright Chad Granum &lt;exodist@cpan.org&gt;.</p>
+<p class="Pp">Este programa es software libre; puedes redistribuirlo y/o modificarlo
+    bajo los mismos términos que Perl mismo.</p>
+<p class="Pp">Ver <a href='https://dev.perl.org/licenses/'>https://dev.perl.org/licenses/</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/core/x86_64/perl/">core/perl</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.42.0-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://www.perl.org">https://www.perl.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>Artistic-1.0-Perl OR GPL-1.0-or-later</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/core/perl/">/listing/core/perl/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#MÉTODOS">MÉTODOS</a></li>
+        
+            <li><a href="#CARGA_DE_CONTROLADORES">CARGA DE CONTROLADORES</a></li>
+        
+            <li><a href="#ESCRITURA_DE_CONTROLADORES">ESCRITURA DE CONTROLADORES</a></li>
+        
+            <li><a href="#FUENTE">FUENTE</a></li>
+        
+            <li><a href="#MANTENEDORES">MANTENEDORES</a></li>
+        
+            <li><a href="#AUTORES">AUTORES</a></li>
+        
+            <li><a href="#DERECHOS_DE_AUTOR">DERECHOS DE AUTOR</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Test2::IPC::Driver.3perl.es.txt">txt</a>, 
+        
+            <a href="/man/Test2::IPC::Driver.3perl.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

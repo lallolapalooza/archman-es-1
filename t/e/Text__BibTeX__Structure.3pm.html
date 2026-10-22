@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Text::BibTeX::Structure(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Text__BibTeX__Structure(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Text::BibTeX::Structure(3pm)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Text::BibTeX::Structure(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Text::BibTeX::Structure - proporciona clases base para módulos de estructura de usuario</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre># Definir una estructura 'Foo' para bases de datos BibTeX: primero, la
+# clase de estructura:
+package Text::BibTeX::FooStructure;
+@ISA = ('Text::BibTeX::Structure');
+sub known_option 
+{
+   my ($self, $option) = @_;
+   ...
+}
+sub default_option
+{
+   my ($self, $option) = @_;
+   ...
+}
+sub describe_entry
+{
+   my $self = shift;
+   $self-&gt;set_fields ($type,
+                      \@required_fields,
+                      \@optional_fields,
+                      [$constraint_1, $constraint_2, ...]);
+   ...
+}
+# Ahora, la clase de entrada estructurada
+package Text::BibTeX::FooEntry;
+@ISA = ('Text::BibTeX::StructuredEntry');
+# definir los métodos que desees</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">El módulo
+    <span class="Li">&quot;Text::BibTeX::Structure&quot;</span> proporciona dos
+    clases que forman la base del sistema de &quot;módulo de estructura&quot; de
+    <b>btOOL</b>. Este sistema es cómo se definen e imponen las estructuras de
+    base de datos en archivos BibTeX, y proporciona una elegante síntesis de
+    técnicas orientadas a objetos con estructuras de bases de datos al estilo
+    BibTeX. Nada de lo descrito aquí es particularmente profundo o sutil; cualquiera
+    familiarizado con la programación orientada a objetos debería poder seguirlo.
+    Sin embargo, se inventa y se utiliza una buena cantidad de jerga, así que preste
+    atención.</p>
+<p class="Pp">Una <i>estructura de base de datos</i>, en la jerga de
+    <b>btOOL</b>, es simplemente un conjunto de tipos de entrada permitidos y
+    las reglas para los campos en cada uno de esos tipos de entrada. Actualmente,
+    hay tres tipos de reglas que se aplican a los campos: algunos campos son
+    <i>obligatorios</i>, lo que significa que deben estar presentes en cada entrada
+    para un tipo dado; otros son <i>opcionales</i>, lo que significa que pueden
+    estar presentes y se utilizarán si lo están; otros campos son miembros de
+    <i>conjuntos de restricciones</i>, que se explican en &quot;Listas de
+    campos y conjuntos de restricciones&quot; más adelante.</p>
+<p class="Pp">Una estructura de <b>btOOL</b> se implementa con dos clases: la
+    <i>clase de estructura</i> y la <i>clase de entrada estructurada</i>. La
+    primera define todo lo que se aplica a la estructura en su conjunto (tipos
+    permitidos y reglas de campos). La segunda proporciona métodos que operan
+    sobre entradas individuales que se ajustan (o se supone que se ajustan) a la
+    estructura. Las dos clases proporcionadas por el módulo
+    <span class="Li">&quot;Text::BibTeX::Structure&quot;</span> son
+    <span class="Li">&quot;Text::BibTeX::Structure&quot;</span> y
+    <span class="Li">&quot;Text::BibTeX::StructuredEntry&quot;</span>; estas
+    sirven como clases base para, respectivamente, todas las clases de
+    estructura y todas las clases de entrada estructurada. Una estructura canónica
+    se proporciona como ejemplo con
+    <b>btOOL</b>: la estructura
+    <span class="Li">&quot;Bib&quot;</span>, que (a través de las clases
+    <span class="Li">&quot;BibStructure&quot;</span> y
+    <span class="Li">&quot;BibEntry&quot;</span>) proporciona la misma
+    funcionalidad que los archivos de estilo estándar de BibTeX 0.99. Se espera
+    que otros programadores escriban nuevas estructuras relacionadas con la
+    bibliografía, posiblemente derivando de la estructura
+    <span class="Li">&quot;Bib&quot;</span>, para emular parte de la
+    funcionalidad que está disponible a través de archivos de estilo BibTeX de
+    terceros.</p>
+<p class="Pp">El propósito de esta página del manual es describir todo el sistema
+    de &quot;módulo de estructura&quot;. Es principalmente para programadores que
+    desean implementar una nueva estructura de base de datos para archivos de datos
+    con sintaxis BibTeX; si está interesado en las reglas particulares para la
+    estructura <span class="Li">&quot;Bib&quot;</span> que emula BibTeX, consulte
+  Text::BibTeX::Bib.</p>
+<p class="Pp">Tenga en cuenta que el prefijo
+    <span class="Li">&quot;Text::BibTeX&quot;</span> se omite de la mayoría de los
+    nombres de módulos y clases en esta página del manual, excepto donde sea
+    necesario.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="STRUCTURE_CLASSES"><a class='permalink' href='#STRUCTURE_CLASSES'>CLASES DE ESTRUCTURA</a></h1>
+<p class="Pp">Las clases de estructura tienen dos roles: definir la lista de tipos
+    permitidos y las reglas de campos, y manejar las <i>opciones de
+    estructura</i>.</p>
+<section class="Ss">
+<h2 class="Ss" id="Field_lists_and_constraint_sets"><a class='permalink' href='#Field_lists_and_constraint_sets'>Listas de campos y conjuntos de restricciones</a></h2>
+<p class="Pp">Las listas de campos y los conjuntos de restricciones definen la
+    estructura de la base de datos para un tipo de entrada particular: es decir,
+    especifican las reglas que una entrada debe seguir para ajustarse a la
+    estructura (asumiendo que la entrada es de un tipo permitido). Hay tres
+    componentes en las reglas de campos para cada tipo de entrada: una lista de
+    campos obligatorios, una lista de campos opcionales y <i>restricciones de
+    campos</i>. Los campos obligatorios y opcionales deben ser obvios para
+    cualquiera con experiencia en BibTeX: todos los campos obligatorios deben
+    estar presentes, y cualquier campo opcional que esté presente tiene algún
+    significado para la estructura. (Se podría concebir una interpretación
+    &quot;estricta&quot;, donde cualquier campo no mencionado en la definición
+    oficial no está permitido; esto sería contrario al espíritu abierto de las
+    bases de datos BibTeX, pero podría ser útil en ciertas aplicaciones donde se
+    desea un nivel de control más estricto. Actualmente,
+    <b>btOOL</b> no ofrece tal opción). </p>
+<p class="Pp">Las restricciones de campos capturan las relaciones del tipo
+    &quot;uno o el otro, pero no ambos&quot; presentes para algunos tipos de
+    entrada en los archivos de estilo estándar de BibTeX. La mayoría de la
+    documentación de BibTeX omite la distinción entre campos mutuamente
+    restringidos y campos obligatorios/opcionales. Por ejemplo, uno de los tipos
+    de entrada estándar es
+    <span class="Li">&quot;book&quot;</span>, y
+    &quot;<span class="Li">&quot;author&quot;</span> o
+    <span class="Li">&quot;editor&quot;</span>&quot; se da en la lista de campos
+    obligatorios para ese tipo. El significado de esto es que una entrada de tipo
+    <span class="Li">&quot;book&quot;</span> debe tener *o* los campos
+    <span class="Li">&quot;author&quot;</span> *o*
+    <span class="Li">&quot;editor&quot;</span>, pero no ambos. De manera similar,
+    &quot;<span class="Li">&quot;volume&quot;</span> o
+    <span class="Li">&quot;number&quot;</span>&quot; se enumeran bajo el encabezado
+    &quot;campos opcionales&quot; para entradas
+    <span class="Li">&quot;book&quot;</span>; sería más exacto decir que cada
+    entrada <span class="Li">&quot;book&quot;</span> puede tener uno o el otro, o
+    ninguno, de <span class="Li">&quot;volume&quot;</span> o
+    <span class="Li">&quot;number&quot;</span>, pero no ambos.</p>
+<p class="Pp"><b>btOOL</b> intenta aclarar esta situación creando una tercera
+    categoría de campos, aquellos que están mutuamente restringidos. Por ejemplo,
+    ni <span class="Li">&quot;author&quot;</span> ni
+    <span class="Li">&quot;editor&quot;</span> aparecen en la lista de campos
+    obligatorios para el tipo <span class="Li">&quot;inbook&quot;</span> según
+    <b>btOOL</b>; en su lugar, se crea una restricción de campo para expresar
+    esta relación:</p>
+<pre>[1, 1, ['author', 'editor']]</pre>
+<p class="Pp">Es decir, una restricción de campo es una referencia a una lista de
+    tres elementos. El último elemento es una referencia al <i>conjunto de
+    restricción</i>, la lista de campos a los que se aplica la restricción.
+    (Llamarlo conjunto es un poco impreciso, ya que hay condiciones en las que el
+    orden de los campos importa — vea el método
+    <span class="Li">&quot;check_field_constraints&quot;</span> en
+    &quot;MÉTODOS 2: CLASE BASE DE ENTRADA ESTRUCTURADA&quot;.) Los dos primeros
+    elementos son el número mínimo y máximo de campos del conjunto de
+    restricción que deben estar presentes para que una entrada se ajuste a la
+    restricción. Esta restricción expresa así que debe haber exactamente uno
+    (≥ 1 y ≤ 1) de los campos <span class="Li">&quot;author&quot;</span> o
+    <span class="Li">&quot;editor&quot;</span> en una entrada
+    <span class="Li">&quot;book&quot;</span>.</p>
+<p class="Pp">La restricción &quot;uno o ninguno, pero no ambos&quot; que se
+    aplica a los campos <span class="Li">&quot;volume&quot;</span> y
+    <span class="Li">&quot;number&quot;</span> para entradas
+    <span class="Li">&quot;book&quot;</span> se expresa de manera ligeramente
+    diferente:</p>
+<pre>[0, 1, ['volume', 'number']]</pre>
+<p class="Pp">Es decir, puede estar presente 0 o 1, pero no los 2 completos, de
+    <span class="Li">&quot;volume&quot;</span> o
+    <span class="Li">&quot;number&quot;</span>.</p>
+<p class="Pp">Es importante notar que la comprobación y aplicación de las
+    restricciones de campos se basa puramente en contar qué campos de un conjunto
+    están realmente presentes; este mecanismo no puede capturar relaciones del tipo
+    &quot;x debe estar presente si y está presente&quot;.</p>
+<p class="Pp">Los requisitos impuestos a la clase de estructura real son simples:
+    debe proporcionar un método <span class="Li">&quot;describe_entry&quot;</span>
+    que configura una estructura de datos elaborada que describe los tipos de
+    entrada permitidos y todas las reglas de campos para esos tipos. La clase
+    <span class="Li">&quot;Structure&quot;</span> proporciona métodos (heredados
+    por una clase de estructura particular) para ayudar a las clases de
+    estructura particulares a crear esta estructura de datos de una manera
+    consistente y controlada. Por ejemplo, el método
+    <span class="Li">&quot;describe_structure&quot;</span> en la clase
+    <span class="Li">&quot;BibStructure&quot;</span> que emula BibTeX 0.99 es bastante
+    simple:</p>
+</section>
+</section>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+/p>
+<pre>sub describe_entry
+{
+   my $self = shift;
+   # serie de 13 llamadas a $self-&gt;set_fields (una para cada tipo de
+   # entrada estándar)
+}</pre>
+<p class="Pp">Una de esas llamadas al método
+    <span class="Li">&quot;set_fields&quot;</span> define las reglas para las
+    entradas de tipo <span class="Li">&quot;book&quot;</span>:</p>
+<pre>$self-&gt;set_fields ('book',
+                   [qw(title publisher year)],
+                   [qw(series address edition month note)],
+                   [1, 1, [qw(author editor)]],
+                   [0, 1, [qw(volume number)]]);</pre>
+<p class="Pp">La primera lista de campos es la lista de campos requeridos, y la
+    segunda es la lista de campos opcionales. Puede haber cualquier número de
+    restricciones de campo después de la lista de campos opcionales; en este
+    caso, hay dos, una para cada una de las restricciones
+    (<span class="Li">&quot;author&quot;</span>/<span class="Li">&quot;editor&quot;</span>
+    y <span class="Li">&quot;volume&quot;</span>/<span class="Li">&quot;number&quot;</span>)
+    descritas anteriormente. En ningún momento se suministra explícitamente una
+    lista de tipos permitidos; en cambio, cada llamada a
+    <span class="Li">&quot;set_fields&quot;</span> añade un tipo permitido
+    más.</p>
+<p class="Pp">Los nuevos módulos de estructura que derivan de otros existentes
+    probablemente usarán el método
+    <span class="Li">&quot;add_fields&quot;</span> (y posiblemente
+    <span class="Li">&quot;add_constraints&quot;</span>) para aumentar un tipo de
+    entrada existente. La adición de nuevos tipos debe hacerse con
+    <span class="Li">&quot;set_fields&quot;</span>, sin embargo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Opciones_de_estructura'><a class='permalink' href='#Opciones_de_estructura'>Opciones de estructura</a></h2>
+<p class="Pp">La otra responsabilidad de las clases de estructura es manejar las
+    *opciones de estructura*. Estos son valores escalares que permiten al usuario
+    personalizar el comportamiento tanto de la clase de estructura como de la
+    clase de entrada estructurada. Por ejemplo, se podría tener una opción para
+    habilitar la "estructura extendida", que podría añadir un montón de nuevos
+    tipos de entrada y nuevos campos. (En este caso, el método
+    <span class="Li">&quot;describe_entry&quot;</span> tendría que prestar atención
+    a esta opción y modificar su comportamiento en consecuencia.) O bien, se
+    podrían tener opciones para controlar cómo la clase de entrada estructurada
+    ordena o formatea las entradas (para estructuras de bibliografía como
+    <span class="Li">&quot;Bib&quot;</span>).</p>
+<p class="Pp">La forma fácil de manejar las opciones de estructura es proporcionar
+    dos métodos, <span class="Li">&quot;known_option&quot;</span> y
+    <span class="Li">&quot;default_option&quot;</span>. Estos devuelven,
+    respectivamente, si una opción dada es compatible y cuál es su valor
+    predeterminado. (Si tu estructura no soporta ninguna opción, puedes simplemente
+    heredar estos métodos de la clase
+    <span class="Li">&quot;Structure&quot;</span>. El
+    <span class="Li">&quot;known_option&quot;</span> predeterminado devuelve
+    falso para todas las opciones, y su compañero
+    <span class="Li">&quot;default_option&quot;</span> falla con un error de
+    "opción desconocida".)</p>
+<p class="Pp">Una vez que se proporcionan
+    <span class="Li">&quot;known_option&quot;</span> y
+    <span class="Li">&quot;default_option&quot;</span>, la clase de estructura
+    puede relajarse y heredar los métodos más visibles
+    <span class="Li">&quot;set_options&quot;</span> y
+    <span class="Li">&quot;get_options&quot;</span> de la clase
+    <span class="Li">&quot;Structure&quot;</span>. Estos son los métodos que se
+    usan realmente para modificar/consultar opciones, y serán utilizados por los
+    programas de aplicación para personalizar el comportamiento del módulo de
+    estructura, y por el propio módulo de estructura para prestar atención a los
+    deseos del usuario.</p>
+<p class="Pp">Las opciones generalmente deben tener valores de cadena puros, para
+    que el método genérico set_options no tenga que analizar cadenas suministradas
+    por el usuario en una estructura complicada. Sin embargo,
+    <span class="Li">&quot;set_options&quot;</span> acepta cualquier valor escalar,
+    por lo que si el módulo de estructura documenta claramente sus requisitos, el
+    programa de aplicación podría suministrar una estructura que cumpla sus
+    necesidades. Ten en cuenta que esto requiere cooperación entre la aplicación
+    y el módulo de estructura; el código intermediario en
+    <span class="Li">&quot;Text::BibTeX::Structure&quot;</span> no sabe nada sobre
+    el formato o la sintaxis de las opciones de tu estructura, y cualquier escalar
+    que la aplicación pase a través de
+    <span class="Li">&quot;set_options&quot;</span> se almacenará para que tu
+    módulo lo recupere a través de
+    <span class="Li">&quot;get_options&quot;</span>.</p>
+<p class="Pp">Como ejemplo, la estructura
+    <span class="Li">&quot;Bib&quot;</span> soporta una serie de opciones de
+    "etiquetado" que permiten a las aplicaciones controlar el lenguaje de
+    etiquetado utilizado para formatear entradas bibliográficas. Estas opciones
+    se emparejan de forma natural, ya que los comandos de formato en los lenguajes
+    de etiquetado generalmente tienen que activarse y desactivarse. La estructura
+    <span class="Li">&quot;Bib&quot;</span> por lo tanto espera referencias a listas
+    de dos elementos para las opciones de etiquetado; para especificar el énfasis
+    estilo LaTeX 2e para títulos de libros, una aplicación como
+    <span class="Li">&quot;btformat&quot;</span> establecería la opción
+    <span class="Li">&quot;btitle_mkup&quot;</span> de la siguiente manera:</p>
+<pre>$structure-&gt;set_options (btitle_mkup =&gt; ['\emph{', '}']);</pre>
+<p class="Pp">Otras opciones para otras estructuras podrían tener una estructura
+    más complicada, pero depende de la clase de estructura documentar y hacer
+    cumplir esto.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CLASES_DE_ENTRADAS_ESTRUCTURADAS'><a class='permalink' href='#CLASES_DE_ENTRADAS_ESTRUCTURADAS'>CLASES DE ENTRADAS ESTRUCTURADAS</a></h1>
+<p class="Pp">Una *clase de entrada estructurada* define el comportamiento de las
+    entradas individuales bajo el régimen de una estructura de base de datos
+    particular. Esta es la *razón de ser* de cualquier estructura de base de
+    datos: la clase de estructura simplemente establece las reglas para que las
+    entradas cumplan con la estructura, pero la clase de entrada estructurada
+    proporciona los métodos que operan realmente sobre las entradas individuales.
+    Dado que esto es completamente abierto, los requisitos de una clase de entrada
+    estructurada son mucho menos rígidos que para una clase de estructura. De
+    hecho, todos los requisitos de una clase de entrada estructurada se pueden
+    cumplir simplemente heredando de
+    <span class="Li">&quot;Text::BibTeX::StructuredEntry&quot;</span>, la otra
+    clase proporcionada por el módulo
+    <span class="Li">&quot;Text::BibTeX::Structure&quot;</span>. (Para que conste,
+    esos requisitos son: una clase de entrada estructurada debe proporcionar los
+    métodos de análisis/consulta/manipulación de entradas de la clase
+    <span class="Li">&quot;Entry&quot;</span>, y debe proporcionar los métodos
+    <span class="Li">&quot;check&quot;</span>,
+    <span class="Li">&quot;coerce&quot;</span> y
+    <span class="Li">&quot;silently_coerce&quot;</span> de la clase
+    <span class="Li">&quot;StructuredEntry&quot;</span>. Dado que
+    <span class="Li">&quot;StructuredEntry&quot;</span> hereda de
+    <span class="Li">&quot;Entry&quot;</span>, ambos requisitos se cumplen "gratis"
+    por las clases de entrada estructurada que heredan de
+    <span class="Li">&quot;Text::BibTeX::StructuredEntry&quot;</span>, ¡así que
+    naturalmente este es el curso de acción recomendado!)</p>
+<p class="Pp">Deliberadamente no hay otros métodos requeridos de las clases de
+    entrada estructurada. Una aplicación particular (por ejemplo,
+    <span class="Li">&quot;btformat&quot;</span> para estructuras de bibliografía)
+    requerirá ciertos métodos, pero depende de la aplicación y del módulo de
+    estructura acordar los requisitos a través de la documentación.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='INTERACCIONES_DE_CLASES'><a class='permalink' href='#INTERACCIONES_DE_CLASES'>INTERACCIONES DE CLASES</a></h1>
+<p class="Pp">Imponer una estructura de base de datos a tus entradas desencadena
+    una reacción en cadena de interacciones entre varias clases en la biblioteca
+    <span class="Li">&quot;Text::BibTeX&quot;</span> que deberían ser transparentes
+    cuando todo va bien. Podría resultar confuso si las cosas van mal y tienes
+    que adentrarte en varios niveles de programas de aplicación, clases centrales
+    de <span class="Li">&quot;Text::BibTeX&quot;</span> y algún módulo de
+    estructura.</p>
+<p class="Pp">La justificación de este complicado comportamiento es que te permite
+    escribir programas que utilizarán un módulo estructurado particular sin
+    saber el nombre de la estructura cuando escribas el programa. Por lo tanto,
+    el usuario puede suministrar una estructura de base de datos, y finalmente los
+    objetos de entrada que manipules serán bendecidos en una clase suministrada
+    por el módulo de estructura. Un breve ejemplo ilustrará esto.</p>
+<p class="Pp">Típicamente, un programa basado en
+    <span class="Li">&quot;Text::BibTeX&quot;</span> se basa en un núcleo de código
+    como este:</p>
+<pre>$bibfile = Text::BibTeX::File-&gt;new(&quot;foo.bib&quot;);
+while ($entry = Text::BibTeX::Entry-&gt;new($bibfile))
+{
+   # procesar $entry
+}</pre>
+<p class="Pp">En este caso, no ocurre nada especial entre bastidores: el objeto
+    <span class="Li">$bibfile</span> es bendecido en la clase
+    <span class="Li">&quot;Text::BibTeX::File&quot;</span>, y
+    <span class="Li">$entry</span> es bendecido en
+    <span class="Li">&quot;Text::BibTeX::Entry&quot;</span>. Este es el
+    comportamiento convencional de las clases de Perl, pero no es el único
+    comportamiento posible. Supongamos ahora que se espera que
+    <span class="Li">$bibfile</span> cumpla con una estructura de base de datos
+    especificada por <span class="Li">$structure</span> (presumiblemente un valor
+    suministrado por el usuario, y por lo tanto desconocido en tiempo de compilación):</p>
+<pre>$bibfile = Text::BibTeX::File-&gt;new(&quot;foo.bib&quot;);
+$bibfile-&gt;set_structure ($structure);
+while ($entry = Text::BibTeX::Entry-&gt;new($bibfile))
+{
+   # procesar $entry
+}</pre>
+<p class="Pp">Ocurren muchas cosas entre bastidores con la llamada al método
+    <span class="Li">&quot;set_structure&quot;</span> de
+    <span class="Li">$bibfile</span>. Primero, se crea un nuevo objeto de
+    estructura a partir de <span class="Li">$structure</span>. El nombre de la
+    estructura implica el nombre de un módulo de Perl —el módulo de estructura—
+    que es cargado por el constructor
+    <span class="Li">&quot;Structure&quot;</span>. (La principal consecuencia de
+    esto es que cualquier error en tiempo de compilación en tu módulo de
+    estructura no se revelará hasta que una llamada a
+    <span class="Li">&quot;Text::BibTeX::File::set_structure&quot;</span> o
+    <span class="Li">&quot;Text::BibTeX::Structure::new&quot;</span> intente
+    cargarlo.)</p>
+<p class="Pp">Recuerda que la primera responsabilidad de un módulo de estructura
+    es definir una clase de estructura. El "objeto de estructura" creado por la
+    llamada al método
+    <span class="Li">&quot;set_structure&quot;</span> es en realidad un objeto de
+    esta clase; este es el primer truco —el objeto de estructura (oculto entre
+    bastidores) es bendecido en una clase cuyo nombre no se conoce hasta el
+    tiempo de ejecución.</p>
+<p class="Pp">Ahora, el comportamiento del constructor
+    <span class="Li">&quot;Text::BibTeX::Entry::new&quot;</span> cambia sutilmente:
+    en lugar de devolver un objeto bendecido en la clase
+    <span class="Li">&quot;Text::BibTeX::Entry&quot;</span> como podrías esperar
+    del código, el objeto es bendecido en la clase de entrada estructurada
+    asociada con <span class="Li">$structure</span>.</p>
+<p class="Pp">Por ejemplo, si el valor de
+    <span class="Li">$structure</span> es
+    <span class="Li">&quot;Foo&quot;</span>, eso significa que el usuario ha
+    suministrado un módulo que implementa la estructura
+    <span class="Li">&quot;Foo&quot;</span>. (Normalmente, este módulo se llamaría
+    <span class="Li">&quot;Text::BibTeX::Foo&quot;</span>, pero puedes personalizar
+    esto.) Llamar al método
+    <span class="Li">&quot;set_structure&quot;</span> en
+    <span class="Li">$bibfile</span> hará que al</p><section class="Sh">
+<h1 class="Sh" id='INTERNAL_MECHANICS'><a class='permalink' href='#INTERNAL_MECHANICS'>MECÁNICAS INTERNAS</a></h1>
+<p class="Pp">El intento de crear una nueva estructura de objeto a través del constructor <span class="Li">&quot;Text::BibTeX::Structure&quot;</span>, que carga el módulo de estructura <span class="Li">&quot;Text::BibTeX::Foo&quot;</span>. Una vez que este módulo se carga con éxito, el nuevo objeto se "bendice" (blessed) en su clase de estructura, que presumiblemente se llamará <span class="Li">&quot;Text::BibTeX::FooStructure&quot;</span> (de nuevo, esto es personalizable). Al nuevo objeto se le proporcionan las opciones de estructura del usuario a través del método <span class="Li">&quot;set_options&quot;</span> (generalmente heredado), y luego se le pide que describa la disposición real de las entradas llamando a su método <span class="Li">&quot;describe_entry&quot;</span>. Esto, a su vez, generalmente llamará al método heredado <span class="Li">&quot;set_fields&quot;</span> para cada tipo de entrada en la estructura de la base de datos. Cuando el constructor <span class="Li">&quot;Structure&quot;</span> finaliza, el nuevo objeto de estructura se almacena en el objeto <span class="Li">&quot;File&quot;</span> (recuerde, empezamos todo esto llamando a <span class="Li">&quot;set_structure&quot;</span> en un objeto <span class="Li">&quot;File&quot;</span>) para referencia futura.</p>
+<p class="Pp">Luego, cuando se crea un nuevo objeto <span class="Li">&quot;Entry&quot;</span> y se analiza a partir de ese objeto <span class="Li">&quot;File&quot;</span> en particular, ocurren más trucos. Trivialmente, el objeto de estructura almacenado en el objeto <span class="Li">&quot;File&quot;</span> también se almacena en el objeto <span class="Li">&quot;Entry&quot;</span>. (La idea es que las entradas podrían pertenecer a una estructura de base de datos independientemente de cualquier archivo, pero por lo general simplemente obtendrán la estructura que se asignó a su archivo de base de datos). Más importante aún, el nuevo objeto <span class="Li">&quot;Entry&quot;</span> se "bendice" (re-blessed) de nuevo en la clase de entrada estructurada proporcionada por el módulo de estructura, presumiblemente, en este caso, <span class="Li">&quot;Text::BibTeX::FooEntry&quot;</span> (también personalizable).</p>
+<p class="Pp">Una vez que toda esta prestidigitación se ha logrado, la aplicación puede tratar sus objetos de entrada como objetos de la clase de entrada estructurada para la estructura <span class="Li">&quot;Foo&quot;</span>; pueden llamar a los métodos de verificación/coerción heredados de <span class="Li">&quot;Text::BibTeX::StructuredEntry&quot;</span>, y también pueden llamar a cualquier método específico de las entradas para esta estructura de base de datos en particular. Cuáles podrían ser estos métodos depende del implementador de la estructura decidir y documentar; por lo tanto, las aplicaciones pueden ser específicas de una estructura de base de datos en particular, o pueden funcionar en todas las estructuras que proporcionan ciertos métodos. La elección depende del desarrollador de la aplicación, y el rango de opciones abiertas para él depende de qué métodos proporcionan los implementadores de la estructura.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXAMPLE'><a class='permalink' href='#EXAMPLE'>EJEMPLO</a></h1>
+<p class="Pp">Para ver código de ejemplo, consulte el código fuente del módulo <span class="Li">&quot;Bib&quot;</span> y las aplicaciones <span class="Li">&quot;btcheck&quot;</span>, <span class="Li">&quot;btsort&quot;</span> y <span class="Li">&quot;btformat&quot;</span> suministradas con <span class="Li">&quot;Text::BibTeX&quot;</span>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS_1:_BASE_STRUCTURE_CLASS'><a class='permalink' href='#METHODS_1:_BASE_STRUCTURE_CLASS'>MÉTODOS   1: CLASE BASE DE ESTRUCTURA</a></h1>
+<p class="Pp">La primera clase proporcionada por el módulo <span class="Li">&quot;Text::BibTeX::Structure&quot;</span> es <span class="Li">&quot;Text::BibTeX::Structure&quot;</span>. Esta clase está destinada a proporcionar métodos que serán heredados por las clases de estructura suministradas por el usuario; tales clases no deben anular ninguno de los métodos descritos aquí (excepto <span class="Li">&quot;known_option&quot;</span> y <span class="Li">&quot;default_option&quot;</span>) sin una muy buena razón. Además, anular el método <span class="Li">&quot;new&quot;</span> sería inútil, porque en general las aplicaciones no conocerán el nombre de su clase de estructura; solo pueden llamar a <span class="Li">&quot;Text::BibTeX::Structure::new&quot;</span> (generalmente a través de <span class="Li">&quot;Text::BibTeX::File::set_structure&quot;</span>).</p>
+<p class="Pp">Finalmente, hay tres métodos que las clases de estructura deben implementar: <span class="Li">&quot;known_option&quot;</span>, <span class="Li">&quot;default_option&quot;</span> y <span class="Li">&quot;describe_entry&quot;</span>. Los dos primeros se describen en &quot;Opciones de estructura&quot; más arriba, el último en &quot;Listas de campos y conjuntos de restricciones&quot;. Tenga en cuenta que <span class="Li">&quot;describe_entry&quot;</span> depende en gran medida de los métodos <span class="Li">&quot;set_fields&quot;</span>, <span class="Li">&quot;add_fields&quot;</span> y <span class="Li">&quot;add_constraints&quot;</span> descritos aquí.</p>
+<section class="Ss">
+<h2 class="Ss" id='Constructor/simple_query_methods'><a class='permalink' href='#Constructor/simple_query_methods'>Constructor/métodos de consulta simples</a></h2>
+<dl class="Bl-tag">
+  <dt id="new"><a class="permalink" href="#new">new (ESTRUCTURA, [OPCIÓN =&gt;
+    VALOR, ...])</a></dt>
+  <dd>Construye un nuevo objeto de estructura, *no* un objeto
+      <span class="Li">&quot;Text::BibTeX::Structure&quot;</span>, sino más bien un
+      objeto "bendecido" (blessed) en la clase de estructura asociada con
+      ESTRUCTURA. Más precisamente:</dd>
+</dl>
+<div class="Bd-indent">
+<ul class="Bl-bullet">
+  <li>Carga (con <span class="Li">&quot;require&quot;</span>) el módulo que
+      implementa ESTRUCTURA. En ausencia de otra información, el nombre del módulo
+      se deriva añadiendo ESTRUCTURA a <span class="Li">&quot;Text::BibTeX::&quot;</span>,
+      por lo tanto, el módulo <span class="Li">&quot;Text::BibTeX::Bib&quot;</span>
+      implementa la estructura <span class="Li">&quot;Bib&quot;</span>. Use la
+      pseudo-opción <span class="Li">&quot;module&quot;</span> para anular este
+      nombre de módulo. Por ejemplo, si la estructura <span class="Li">&quot;Foo&quot;</span>
+      es implementada por el módulo <span class="Li">&quot;Foo&quot;</span>:
+        <pre>$structure = Text::BibTeX::Structure-&gt;new
+   ('Foo', module =&gt; 'Foo');
+</pre>
+    <p class="Pp">Este método falla (`die`) si hay algún error al cargar/compilar
+        el módulo de estructura.</p>
+  </li>
+  <li>Verifica que el módulo de estructura proporcione una clase de estructura y
+      una clase de entrada estructurada. La clase de estructura se nombra añadiendo
+      <span class="Li">&quot;Structure&quot;</span> al nombre del módulo, y la
+      clase de entrada estructurada añadiendo <span class="Li">&quot;Entry&quot;</span>.
+      Por lo tanto, en ausencia de una opción <span class="Li">&quot;module&quot;</span>,
+      estas dos clases (para la estructura <span class="Li">&quot;Bib&quot;</span>)
+      se llamarían <span class="Li">&quot;Text::BibTeX::BibStructure&quot;</span>
+      y <span class="Li">&quot;Text::BibTeX::BibEntry&quot;</span>. Cualquiera o
+      ambos nombres de clase predeterminados pueden ser anulados haciendo que el
+      módulo de estructura devuelva una referencia a un hash (en contraposición al
+      tradicional <span class="Li">1</span> devuelto por los módulos). Este hash
+      podría entonces proporcionar un elemento <span class="Li">&quot;structure_class&quot;</span>
+      para nombrar la clase de estructura, y un elemento
+      <span class="Li">&quot;entry_class&quot;</span> para nombrar la clase de
+      entrada estructurada.
+    <p class="Pp">Además de garantizar que las dos clases realmente existan,
+        <span class="Li">&quot;new&quot;</span> verifica que heredan correctamente
+        (de <span class="Li">&quot;Text::BibTeX::Structure&quot;</span> y
+        <span class="Li">&quot;Text::BibTeX::StructuredEntry&quot;</span>
+        respectivamente), y que la clase de estructura proporciona los métodos
+        requeridos <span class="Li">&quot;known_option&quot;</span>,
+        <span class="Li">&quot;default_option&quot;</span> y
+        <span class="Li">&quot;describe_entry&quot;</span>.</p>
+  </li>
+  <li>Crea el nuevo objeto de estructura y lo "bendice" (blesses) en la clase de
+      estructura. Le proporciona opciones pasando todos los pares (OPCIÓN,
+      VALOR) a su método <span class="Li">&quot;set_options&quot;</span>. Llama a
+      su método <span class="Li">&quot;describe_entry&quot;</span>, que debería
+      listar los requisitos de campo para todos los tipos de entrada reconocidos
+      por esta estructura. <span class="Li">&quot;describe_entry&quot;</span>
+      probablemente usará algunos o todos los métodos <span class="Li">&quot;set_fields&quot;</span>,
+      <span class="Li">&quot;add_fields&quot;</span> y
+      <span class="Li">&quot;add_constraints&quot;</span>, descritos a
+      continuación, para esto.</li>
+</ul>
+</div>
+<dl class="Bl-tag">
+  <dt id="name"><a class="permalink" href="#name">name ()</a></dt>
+  <dd>Devuelve el nombre de la estructura descrita por el objeto.</dd>
+  <dt id="entry_class"><a class="permalink" href="#entry_class">entry_class
+    ()</a></dt>
+  <dd>Devuelve el nombre de la clase de entrada estructurada asociada con esta
+      estructura.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Field_structure_description_methods'><a class='permalink' href='#Field_structure_description_methods'>Métodos de descripción de la estructura de campos</a></h2>
+<dl class="Bl-tag">
+  <dt id="add_constraints"><a class="permalink" href="#add_constraints">add_constraints
+    (TIPO, RESTRICCIÓN, ...)</a></dt>
+  <dd>Añade una o más restricciones de campo a la estructura. Una restricción de
+      campo se especifica como una referencia a una lista de tres elementos; el
+      último elemento es una referencia a la lista de campos afectados, y los
+      primeros dos elementos son el número mínimo y máximo de campos del conjunto
+      de restricciones permitidos en una entrada de tipo TIPO. Consulte
+      &quot;Listas de campos y conjuntos de restricciones&quot; para una
+      explicación completa de las restricciones de campo.</dd>
+  <dt id="add_fields"><a class="permalink" href="#add_fields">add_fields (TIPO,
+    REQUERIDOS [, OPCIONALES [, RESTRICCIÓN, ...]])</a></dt>
+  <dd>Añade campos a las listas de requeridos/opcionales para entradas de tipo
+      TIPO. También puede añadir restricciones de campo, pero puede hacerlo tan
+      fácilmente usando <span class="Li">&quot;add_constraints&quot;</span> para
+      ello.
+    <p class="Pp">REQUERIDOS y OPCIONALES, si se definen, deben ser referencias a
+        listas de campos que se añadirán a las listas respectivas. Las
+        RESTRICCIONES, si se dan, son exactamente como se describen para
+        <span class="Li">&quot;add_constraints&quot;</span> más arriba.</p>
+  </dd>
+  <dt id="set_fields"><a class="permalink" href="#set_fields">set_fields (TIPO,
+    REQUERIDOS [, OPCIONALES [, RESTRICCIONES, ...]])</a></dt>
+  <dd>Establece las listas de campos requeridos/opcionales para entradas de tipo
+      TIPO. Idéntico a <span class="Li">&quot;add_fields&quot;</span>, excepto
+      que las listas de campos y la lista de restricciones se establecen desde cero
+      aquí, en lugar de añadirse a las existentes.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Field_structure_query_methods'><a class='permalink' href='#Field_structure_query_methods'>Métodos de consulta de la estructura de campos</a></h2>
+<dl class="Bl-tag">
+  <dt id="types"><a class="permalink" href="#types">types ()</a></dt>
+  <dd>Devuelve la lista de tipos de entrada admitidos por la estructura.</dd>
+  <dt id="known_type"><a class="permalink" href="#known_type">known_type
+    (TIPO)</a></dt>
+  <dd>Devuelve verdadero si TIPO es un tipo de entrada admitido.</dd>
+  <dt id="known_field"><a class="permalink" href="#known_field">known_field
+    (TIPO, CAMPO)</a></dt>
+  <dd>Devuelve verdadero si CAMPO está en la lista requerida, lista opcional, o
+      uno de los conjuntos de restricciones para entradas de tipo TIPO.</dd>
+  <dt id="required_fields"><a class="permalink" href="#required_fields">required_f</a></dt>
+</dl>
+</section>
+</section>
+{
+  "required_fields": {
+    "type": "method",
+    "name": "required_fields",
+    "description": "Retorna la lista de campos requeridos para entradas del tipo TIPO.",
+    "parameters": [
+      {
+        "name": "TYPE",
+        "type": "TYPE",
+        "description": "El tipo de entrada para el que se solicitarán los campos requeridos."
+      }
+    ]
+  },
+  "optional_fields": {
+    "type": "method",
+    "name": "optional_fields",
+    "description": "Retorna la lista de campos opcionales para entradas del tipo TIPO.",
+    "parameters": [
+      {
+        "name": "TYPE",
+        "type": "TYPE",
+        "description": "El tipo de entrada para el que se solicitarán los campos opcionales."
+      }
+    ]
+  },
+  "field_constraints": {
+    "type": "method",
+    "name": "field_constraints",
+    "description": "Retorna la lista de restricciones de campo (en el formato proporcionado a \"add_constraints\") para entradas del tipo TIPO.",
+    "parameters": [
+      {
+        "name": "TYPE",
+        "type": "TYPE",
+        "description": "El tipo de entrada para el que se solicitarán las restricciones de campo."
+      }
+    ]
+  }
+}
+```
+<section class="Ss">
+<h2 class="Ss" id='Métodos_de_opciones'><a class='permalink' href='#Option_methods'>Métodos de opciones</a></h2>
+<dl class="Bl-tag">
+  <dt id="known_option"><a class="permalink" href="#known_option">known_option
+    (OPCIÓN)</a></dt>
+  <dd>Retorna falso. Esto es principalmente para el uso de estructuras derivadas que no
+      tienen opciones, y por lo tanto no necesitan proporcionar su propio
+      método <span class="Li">&quot;known_option&quot;</span>. Las estructuras que
+      realmente ofrecen opciones deberían sobrescribir este método; debería retornar verdadero si OPCIÓN es una opción admitida.</dd>
+  <dt id="default_option"><a class="permalink" href="#default_option">default_option
+    (OPCIÓN)</a></dt>
+  <dd>Se bloquea con un mensaje de \"opción desconocida\". De nuevo, esto es principalmente
+      para uso por parte de clases de estructura derivadas que en realidad no ofrecen ninguna
+      opción. Las estructuras que manejan opciones deberían sobrescribir este método; cada
+      opción manejada por <span class="Li">&quot;known_option&quot;</span> debería
+      tener un valor predeterminado (que podría ser simplemente
+      <span class="Li">&quot;undef&quot;</span>) que es retornado por
+      <span class="Li">&quot;default_option&quot;</span>. Tu método
+      <span class="Li">&quot;default_options&quot;</span> debería fallar ante una opción desconocida, quizás llamando a
+      <span class="Li">&quot;SUPER::default_option&quot;</span> (para asegurar mensajes de error consistentes). Por ejemplo:
+        <pre>sub default_option
+{
+   my ($self, $option) = @_;
+   return $default_options{$option}
+      if exists $default_options{$option};
+   $self-&gt;SUPER::default_option ($option);   # crash
+}
+</pre>
+    <p class="Pp">El valor predeterminado para una opción es retornado por
+        <span class="Li">&quot;get_options&quot;</span> cuando esa opción no ha sido establecida explícitamente con
+        <span class="Li">&quot;set_options&quot;</span>.</p>
+  </dd>
+  <dt id="set_options"><a class="permalink" href="#set_options">set_options
+    (OPCIÓN =&gt; VALOR, ...)</a></dt>
+  <dd>Establece uno o más valores de opción. (Puedes suministrar tantos pares de
+      <span class="Li">&quot;OPCIÓN =&gt; VALOR&quot;</span> como quieras, siempre y cuando haya un número par de argumentos.) Cada OPCIÓN debe
+      ser manejada por el módulo de estructura (como se indica en el método
+      <span class="Li">&quot;known_option&quot;</span>); de lo contrario,
+      <span class="Li">&quot;set_options&quot;</span> fallará (`croak`). Cada VALOR puede ser cualquier valor escalar; depende del módulo de estructura validarlos.</dd>
+  <dt id="get_options"><a class="permalink" href="#get_options">get_options
+    (OPCIÓN, ...)</a></dt>
+  <dd>Retorna el(los) valor(es) de una o más opciones. Cualquier OPCIÓN que no haya sido establecida por
+      <span class="Li">&quot;set_options&quot;</span> retornará su valor predeterminado, obtenido usando el método
+      <span class="Li">&quot;default_value&quot;</span>. Si la OPCIÓN no es admitida por el módulo de estructura, entonces tu programa ya se ha bloqueado (cuando intentó establecerla con
+      <span class="Li">&quot;set_option&quot;</span>), o se bloqueará aquí (gracias a la llamada a
+    <span class="Li">&quot;default_option&quot;</span>).</dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS_2:_CLASE_BASE_DE_ENTRADAS_ESTRUCTURADAS'><a class='permalink' href='#METHODS_2:_BASE_STRUCTURED_ENTRY_CLASS'>MÉTODOS 2: CLASE BASE DE ENTRADAS ESTRUCTURADAS</a></h1>
+<p class="Pp">La otra clase proporcionada por el módulo
+    <span class="Li">&quot;Structure&quot;</span> es
+    <span class="Li">&quot;StructuredEntry&quot;</span>, la clase base para todas las clases de entradas estructuradas. Esta clase hereda de
+    <span class="Li">&quot;Entry&quot;</span>, por lo que todos sus métodos de consulta/manipulación de entradas están disponibles.
+    <span class="Li">&quot;StructuredEntry&quot;</span> añade métodos para
+    verificar que una entrada se ajusta a la estructura de la base de datos definida por una clase de estructura.</p>
+<p class="Pp">Solo tiene sentido que
+    <span class="Li">&quot;StructuredEntry&quot;</span> se utilice como clase base; nunca crearías objetos
+    <span class="Li">&quot;StructuredEntry&quot;</span> independientes. La razón superficial de esto es que solo las clases particulares de entrada estructurada tienen una clase de estructura asociada con ellas;
+    <span class="Li">&quot;StructuredEntry&quot;</span> por sí sola no tiene información sobre tipos permitidos, campos requeridos, restricciones de campo, etc. Para una comprensión más profunda, consulta &quot;INTERACCIONES DE CLASES&quot; arriba.</p>
+<p class="Pp">Dado que <span class="Li">&quot;StructuredEntry&quot;</span> deriva de
+    <span class="Li">&quot;Entry&quot;</span>, opera naturalmente sobre entradas BibTeX. Por lo tanto, las siguientes descripciones se refieren a &quot;la entrada&quot; — este es solo el objeto (entrada) sobre el que se opera. Ten en cuenta que estos métodos se presentan en orden ascendente, lo que significa que los métodos que es más probable que uses realmente —
+    <span class="Li">&quot;check&quot;</span>,
+    <span class="Li">&quot;coerce&quot;</span> y
+    <span class="Li">&quot;silently_coerce&quot;</span> — están al final. En una primera lectura, probablemente querrás saltar directamente a ellos para un resumen rápido.</p>
+<dl class="Bl-tag">
+  <dt id="structure"><a class="permalink" href="#structure">structure
+    ()</a></dt>
+  <dd>Retorna el objeto que define la estructura a la que se supone que la entrada debe ajustarse. Esta será una instancia de alguna clase de estructura, y existe principalmente para que los métodos de verificación/coerción puedan consultar la estructura sobre los tipos y campos que reconoce. Si, por alguna razón, quisieras consultar la estructura de una entrada sobre la validez del tipo
+      <span class="Li">&quot;foo&quot;</span>, podrías hacer esto:
+        <pre># asume que $entry es un objeto de alguna clase de entrada estructurada, es decir,
+# hereda de Text::BibTeX::StructuredEntry
+$structure = $entry-&gt;structure;
+$foo_known = $structure-&gt;known_type ('foo');
+</pre>
+  </dd>
+  <dt id="check_type"><a class="permalink" href="#check_type">check_type
+    ([WARN])</a></dt>
+  <dd>Retorna verdadero si la entrada tiene un tipo válido según su estructura. Si
+      WARN es verdadero, entonces un tipo inválido resulta en una advertencia impresa.</dd>
+  <dt id="check_required_fields"><a class="permalink" href="#check_required_fields">check_required_fields
+    ([WARN [, COERCE]])</a></dt>
+  <dd>Verifica que todos los campos requeridos estén presentes en la entrada. Si WARN es verdadero,
+      entonces se imprime una advertencia por cada campo faltante. Si COERCE es verdadero,
+      entonces los campos faltantes se establecen a una cadena vacía.
+    <p class="Pp">Esto no es usado generalmente por otro código; consulta los métodos
+        <span class="Li">&quot;check&quot;</span> y
+        <span class="Li">&quot;coerce&quot;</span> a continuación.</p>
+  </dd>
+  <dt id="check_field_constraints"><a class="permalink" href="#check_field_constraints">check_field_constraints
+    ([WARN [, COERCE]])</a></dt>
+  <dd>Verifica que la entrada se ajuste a todas las restricciones de campo impuestas por
+      su estructura. Recuerda que una restricción de campo consiste en una lista de
+      campos y un número mínimo y máximo de esos campos que deben estar presentes en una entrada. Para cada restricción,
+      <span class="Li">&quot;check_field_constraints&quot;</span> simplemente cuenta cuántos campos del conjunto de campos de la restricción están presentes. Si este recuento cae por debajo del mínimo o por encima del máximo para esa restricción y WARN es verdadero, se emite una advertencia. En general, esta advertencia tiene el formato
+      &quot;entre x e y de los campos foo, bar y baz deben estar presentes&quot;.
+      Los casos más comunes se manejan especialmente para generar mensajes de advertencia más útiles y fáciles de leer.
+    <p class="Pp">Si COERCE es verdadero, entonces la entrada se modifica para forzar su conformidad con todas las restricciones de campo. Cómo se hace esto depende de si la violación es una cuestión de no tener suficientes campos presentes en la entrada, o de tener demasiados campos presentes. En el primer caso, se agregan suficientes campos (como cadenas vacías) para cumplir con los requisitos de la restricción; en el segundo caso, se eliminan campos. Qué campos agregar o eliminar se controla por el orden de los campos en la lista de campos de la restricción.</p>
+    <p class="Pp">Un ejemplo debería aclarar esto. Por ejemplo, una restricción de campo que especifica que exactamente uno de
+        <span class="Li">&quot;author&quot;</span> o
+        <span class="Li">&quot;editor&quot;</span> debe aparecer en una entrada se vería así:</p>
+        <pre>[1, 1, ['author', 'editor']]
+</pre>
+    <p class="Pp">Supongamos que la siguiente entrada se analiza y se espera que se ajuste a esta estructura:</p>
+        <pre>@inbook{unknown:1997a,
+  title = &quot;Un capítulo de libro no atribuido&quot;,
+  booktitle = &quot;Un libro no editado&quot;,
+  publisher = &quot;Foo, Bar \&amp; Company&quot;,
+  year = 1997
+}
+</pre>
+    <p class="Pp">Si se llama a <span class="Li">&quot;check_field_constraints&quot;</span> en este método con COERCE verdadero (lo cual es hecho por cualquiera de los métodos
+        <span class="Li">&quot;full_check&quot;</span>,
+        <span class="Li">&quot;coerce&quot;</span> y
+        <span class="Li">&quot;silently_coerce&quot;</span>), entonces el campo
+        <span class="Li">&quot;author&quot;</span> se establece como una cadena vacía. (Recorremos la lista de campos en el conjunto de campos de la restricción en orden — dado que
+        <span class="Li">&quot;author&quot;</span> es el primer campo faltante, lo proporcionamos; con eso hecho, la entrada ahora se ajusta a la restricción
+        <span class="Li">&quot;author&quot;</span>/<span class="Li">&quot;editor&quot;</span>, así que hemos terminado.)</p>
+    <p class="Pp">Sin embargo, si la misma estructura se aplicara a esta entrada:</p>
+        <pre>@inbook{smith:1997a,
+  author = &quot;John Smith&quot;,
+  editor = &quot;Fred Jones&quot;,
+  ...
+}
+</pre>
+    <p class="Pp">entonces el campo
+        <span class="Li">&quot;editor&quot;</span> sería eliminado. En este caso, permitimos el primer campo en la lista de campos de la restricción —
+        <span class="Li">&quot;author&quot;</span>.
+        Dado que solo un campo del conjunto puede estar presente, todos los campos posteriores al primero están en violación, por lo que se eliminan.</p>
+    <p class="Pp">De nuevo, este método no es usado generalmente por otro código; más bien,
+        es llamado por <span class="Li">&quot;full_check&quot;</span> y sus
+        amigos a continuación.</p>
+  </dd>
+  <dt id="full_check"><a class="permalink" href="#full_check">full_check ([WARN
+    [, COERCE]])</a></dt>
+  <dd>Retorna verdadero si el tipo y los campos de una entrada son todos válidos. Es decir, llama a
+      <span class="Li">&quot;check_type&quot;</span>,
+      <span class="Li">&quot;check_required_fields&quot;</span> y
+      <span class="Li">&quot;check_field_constraints&quot;</span>; si todas devuelven verdadero, entonces también lo hace
+      <span class="Li">&quot;full_check&quot;</span>. WARN y COERCE simplemente se pasan a los tres métodos
+      <span class="Li">&quot;check_*&quot;</span>: el primero controla la impresión de advertencias, y el segundo
+      decide si debemos modificar la entrada para forzar su conformidad.</dd>
+  <dt id="check"><a class="permalink" href="#check">check ()</a></dt>
+  <dd>Verifica que la entrada se ajusta a los requisitos</dd>
+</dl>
+</section>
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="Content-Style-Type" content="text/css" />
+    <meta name="generator" content="mandoc 1.2.4" />
+    <title>Text::BibTeX::Structure(3pm)</title>
+    <link rel="stylesheet" href="/style.css" type="text/css" media="all" />
+  </head>
+  <body>
+    <div class="NAVHEADER">
+      <table class="nav" summary="Navigation header">
+        <tr>
+          <th colspan="3" align="center">Text::BibTeX::Structure(3pm)</th>
+        </tr>
+        <tr>
+          <td width="20%" align="left"><a accesskey="p" href="Text::BibTeX::Structured_Entry.3pm.html">Prev</a></td>
+          <th width="60%" align="center"></th>
+          <td width="20%" align="right"><a accesskey="n" href="Text::BibTeX.3pm.html">Next</a></td>
+        </tr>
+      </table>
+      <hr />
+    </div>
+    <article>
+      <section class="Sh">
+        <h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+        <p class="Pp">Text::BibTeX::Structure - Base class for BibTeX structures</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+        <pre>
+    use Text::BibTeX::Structure;
+
+    # Subclasses inherit methods from this class.
+    #
+    # For example:
+    package My::BibTeX::Structure;
+    use base qw(Text::BibTeX::Structure);
+    # ...
+    </pre>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+        <p class="Pp">This is the base class for objects representing BibTeX
+            structures (like <code class="Nd">Text::BibTeX::String</code>,
+            <code class="Nd">Text::BibTeX::Value</code>, etc.). Subclasses should
+            inherit from this class.</p>
+        <p class="Pp">It defines methods for checking the validity of a
+            structure against its associated database structure, and for coercing
+            it into conformance.</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="STRUCTURE_CLASSES"><a class="permalink" href="#STRUCTURE_CLASSES">STRUCTURE
+            CLASSES</a></h1>
+        <p class="Pp"><code class="Nd">Text::BibTeX::String</code>,
+            <code class="Nd">Text::BibTeX::Value</code>,
+            <code class="Nd">Text::BibTeX::Comment</code>,
+            <code class="Nd">Text::BibTeX::Macro</code>,
+            <code class="Nd">Text::BibTeX::Braced_Literal</code>,
+            <code class="Nd">Text::BibTeX::Quoted_Literal</code>.</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="STRUCTURED_ENTRY_CLASSES"><a class="permalink" href="#STRUCTURED_ENTRY_CLASSES">STRUCTURED
+            ENTRY CLASSES</a></h1>
+        <p class="Pp"><code class="Nd">Text::BibTeX::Entry</code>,
+            <code class="Nd">Text::BibTeX::Preamble</code>,
+            <code class="Nd">Text::BibTeX::String_Def</code>,
+            <code class="Nd">Text::BibTeX::Variable</code>.</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="CLASS_INTERACTIONS"><a class="permalink" href="#CLASS_INTERACTIONS">CLASS
+            INTERACTIONS</a></h1>
+        <p class="Pp">The methods defined in this class are primarily intended for
+            use by <code class="Nd">Text::BibTeX::Database</code> and the structured
+            entry classes.</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="EXAMPLE"><a class="permalink" href="#EXAMPLE">EXAMPLE</a></h1>
+        <pre>
+    use Text::BibTeX::Entry;
+    use Text::BibTeX::Value;
+    use Text::BibTeX::Database;
+
+    # Create a simple database with a single entry
+    my $db = Text::BibTeX::Database-&gt;new;
+    my $entry = Text::BibTeX::Entry-&gt;new('article', 'unique-key');
+    $entry-&gt;set_field('author', 'Some One');
+    $entry-&gt;set_field('title', 'An Article Title');
+    $entry-&gt;set_field('year', Text::BibTeX::Value-&gt;new(1999));
+    $db-&gt;add_entry($entry);
+
+    # Check the validity of the entry
+    if ($db-&gt;check) {
+        print "Entry is valid.\n";
+    } else {
+        print "Entry is invalid.\n";
+        # Use $db-&gt;errors to see details
+    }
+
+    # Coerce the entry (e.g., fix missing fields if possible)
+    $db-&gt;coerce;
+    </pre>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="METHODS_1:_BASE_STRUCTURE_CLASS"><a class="permalink" href="#METHODS_1:_BASE_STRUCTURE_CLASS">METHODS
+            1: BASE STRUCTURE CLASS</a></h1>
+        <dl class="Bl-tag">
+          <dt id="check"><a class="permalink" href="#check">check ()</a></dt>
+          <dd>Checks the validity of the object (and its children, if any) against
+              its associated database structure: the type must be known, all
+              required fields must be present, and all field constraints must be
+              met. See <span class="Li">&quot;check_type&quot;</span>,
+              <span class="Li">&quot;check_required_fields&quot;</span>, and
+              <span class="Li">&quot;check_field_constraints&quot;</span> for
+              details.</dd>
+          <dt id="full_check"><a class="permalink" href="#full_check">full_check
+              (WARN =&gt; boolean, COERCE =&gt; boolean)</a></dt>
+          <dd>Performs a full check of the object against its associated
+              database structure. <code class="Nd">WARN</code> (default true)
+              enables printing of warnings for non-critical errors. <code class="Nd">COERCE</code>
+              (default false) attempts to coerce the object into conformance with
+              the database structure before checking. Returns true if the object
+              is valid, false otherwise.</dd>
+        </dl>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="METHODS_2:_BASE_STRUCTURED_ENTRY_CLASS"><a class="permalink" href="#METHODS_2:_BASE_STRUCTURED_ENTRY_CLASS">METHODS
+            2: BASE STRUCTURED ENTRY CLASS</a></h1>
+        <p class="Pp">These methods are primarily intended for use by structured
+            entry classes (like <code class="Nd">Text::BibTeX::Entry</code>) which
+            inherit from <code class="Nd">Text::BibTeX::Structure</code>.</p>
+        <dl class="Bl-tag">
+          <dt id="check"><a class="permalink" href="#check">check ()</a></dt>
+          <dd>Checks the validity of the object and its associated fields against
+              its associated database structure: the type must be known, all
+              required fields must be present, and all field constraints must be
+              met. See <span class="Li">&quot;check_type&quot;</span>,
+              <span class="Li">&quot;check_required_fields&quot;</span>, and
+              <span class="Li">&quot;check_field_constraints&quot;</span> for
+              details.</dd>
+          <p class="Pp">Calling <span class="Li">&quot;check&quot;</span> is the same
+              as calling <span class="Li">&quot;full_check&quot;</span> with WARN
+              true and COERCE false.</p>
+          <dt id="coerce"><a class="permalink" href="#coerce">coerce ()</a></dt>
+          <dd>Same as <span class="Li">&quot;check&quot;</span>, except entries are
+              coerced into conformance with the database structure---that is,
+              it's just like <span class="Li">&quot;full_check&quot;</span> with
+              both WARN and COERCE true.</dd>
+          <dt id="silently_coerce"><a class="permalink" href="#silently_coerce">silently_coerce
+              ()</a></dt>
+          <dd>Same as <span class="Li">&quot;coerce&quot;</span>, except warnings
+              aren't printed---that is, it's just like
+              <span class="Li">&quot;full_check&quot;</span> with WARN false and
+              COERCE true.</dd>
+        </dl>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE
+            ALSO</a></h1>
+        <p class="Pp">Text::BibTeX, Text::BibTeX::Entry, Text::BibTeX::File</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="AUTHOR"><a class="permalink" href="#AUTHOR">AUTHOR</a></h1>
+        <p class="Pp">Greg Ward &lt;gward@python.net&gt;</p>
+      </section>
+      <section class="Sh">
+        <h1 class="Sh" id="COPYRIGHT"><a class="permalink" href="#COPYRIGHT">COPYRIGHT</a></h1>
+        <p class="Pp">Copyright (c) 1997-2000 by Gregory P. Ward. All rights
+            reserved. This file is part of the Text::BibTeX library. This library
+            is free software; you may redistribute it and/or modify it under the
+            same terms as Perl itself.</p>
+      </section>
+    </article>
+    <table class="foot">
+      <tr>
+        <td class="foot-date">2025-07-14</td>
+        <td class="foot-os">perl v5.42.0</td>
+      </tr>
+    </table>

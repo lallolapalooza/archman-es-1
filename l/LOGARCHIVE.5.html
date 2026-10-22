@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>LOGARCHIVE(5) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">LOGARCHIVE(5)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/pcp/">pcp</a></p>
+<p class="lic">Licencias: GPL-2.0-or-later, LGPL-2.1-or-later, CC-BY-3.0</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">LOGARCHIVE(5)</td>
+    <td class="head-vol">Manual de formatos de archivo</td>
+    <td class="head-rtitle">LOGARCHIVE(5)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp"><b>LOGARCHIVE</b> - Formatos de archivo de Performance Co-Pilot</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Los archivos de Performance Co-Pilot (PCP) almacenan valores históricos
+    sobre métricas arbitrarias registradas de un solo host. Los archivos son
+    independientes de la máquina y autosuficientes: todos los datos y metadatos
+    de métricas necesarios para el análisis fuera de línea o externo se encuentran
+    dentro de un archivo.</p>
+<p class="Pp">El formato es estable para permitir el almacenamiento y procesamiento
+    histórico a largo plazo por herramientas cliente de <a href='/man/PMAPI.3.en'>PMAPI(3)</a>. Sin embargo, se soportan
+    algunas variantes de formato con el tiempo, y actualmente se soportan las
+    versiones 2 y 3. El mandato es que PCP proporcionará compatibilidad retroactiva
+    a largo plazo, por lo que un archivo creado en cualquier versión de PCP puede
+    ser leído en esa versión de PCP y en **todas** las versiones posteriores de
+    PCP. La excepción es la versión 1, que se retiró en la versión 2.0 de PCP en
+    mayo de 1998.</p>
+<p class="Pp">La mayoría de las herramientas cliente de PCP pueden leer los archivos
+    utilizando la opción <i>-a/--archive NOMBRE</i>, o volcarlos sin procesar con
+    <a href='/man/pmlogdump.1.en'>pmlogdump(1)</a>. Los archivos son creados principalmente por
+    <a href='/man/pmlogger.1.en'>pmlogger(1)</a>, sin embargo, también pueden ser creados utilizando la interfaz
+    de programación <a href='/man/LOGIMPORT.3.en'>LOGIMPORT(3)</a>.</p>
+<p class="Pp">Los archivos pueden ser fusionados, analizados, modificados y
+    submuestreados utilizando <a href='/man/pmlogreduce.1.en'>pmlogreduce(1)</a>, <a href='/man/pmlogsummary.1.en'>pmlogsummary(1)</a>,
+    <a href='/man/pmlogrewrite.1.en'>pmlogrewrite(1)</a> y <a href='/man/pmlogextract.1.en'>pmlogextract(1)</a>. Además, los archivos
+    de PCP pueden ser examinados en conjuntos o agrupados en "folios de archivo",
+    que son creados y gestionados por las herramientas <a href='/man/mkaf.1.en'>mkaf(1)</a> y <a href='/man/pmafm.1.en'>pmafm(1)</a>.</p>
+<p class="Pp">Un archivo consta de varios archivos físicos que comparten un prefijo
+    común y arbitrario, por ejemplo, <i>miarchivo</i>.</p>
+<dl class="Bl-tag">
+  <dt><i>miarchivo</i>.0, <i>miarchivo</i>.1, ...</dt>
+  <dd>Uno o más volúmenes de datos que contienen los valores de las métricas y
+      cualquier código de error encontrado durante el muestreo de métricas.
+      Típicamente son los archivos más grandes y pueden crecer muy rápidamente,
+      dependiendo de la selección de métricas a registrar por
+      <a href='/man/pmlogger.1.en'>pmlogger(1)</a> y los intervalos de muestreo utilizados.</dd>
+  <dt id="miarchivo"><a class="permalink" href="#miarchivo"><i>miarchivo</i>.meta</a></dt>
+  <dd>Información para las funciones de PMAPI como <a href='/man/pmLookupName.3.en'>pmLookupName(3)</a>,
+      <a href='/man/pmLookupDesc.3.en'>pmLookupDesc(3)</a>, <a href='/man/pmLookupLabels.3.en'>pmLookupLabels(3)</a> y
+      <a href='/man/pmLookupInDom.3.en'>pmLookupInDom(3)</a>. El archivo de metadatos puede crecer esporádicamente
+      a medida que las métricas registradas, los dominios de instancias y las
+      etiquetas varían con el tiempo.</dd>
+  <dt id="miarchivo~2"><a class="permalink" href="#miarchivo~2"><i>miarchivo</i>.index</a></dt>
+  <dd>Un índice temporal, que mapea marcas de tiempo a desplazamientos de bytes en
+      los otros archivos.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CARACTERÍSTICAS_COMUNES'><a class='permalink' href='#CARACTERÍSTICAS_COMUNES'>CARACTERÍSTICAS   COMUNES</a></h1>
+<p class="Pp">Los tres tipos de archivos tienen una estructura de registros similar,
+    una convención de codificación en orden de bytes de red (big-endian) y campos
+    de 32 bits para etiquetar/rellenar esos registros. Las cadenas se almacenan
+    como caracteres de 8 bits sin asumir una codificación específica, por lo que
+    normalmente son ASCII. Ver también los tipos <b>__pmLog*</b> en
+    <i>src/include/pcp/libpcp.h</i>.</p>
+<section class="Ss">
+<h2 class="Ss" id='ENMARCADO_DE_REGISTROS'><a class='permalink' href='#ENMARCADO_DE_REGISTROS'>ENMARCADO   DE REGISTROS</a></h2>
+<p class="Pp">Los archivos de volumen y .meta se dividen en registros autoidentificables.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Longitud</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N, longitud del registro, en bytes, incluido este campo</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">N-8</td>
+    <td>carga útil del registro, que normalmente comienza con una etiqueta de tipo
+      de registro de 32 bits</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">N-4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N, longitud del registro (otra vez)</td>
+  </tr>
+</table>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='ETIQUETA_DE_ARCHIVO'><a class='permalink' href='#ETIQUETA_DE_ARCHIVO'>ETIQUETA   DE ARCHIVO</a></h2>
+<p class="Pp">Los tres tipos de archivos comienzan con una cabecera de "etiqueta de
+    archivo", que identifica el nombre del host, la marca de tiempo de inicio y la
+    información de zona horaria; todo ello refiriéndose al host que fue la fuente
+    de los datos de rendimiento (que puede ser diferente al host donde se estaba
+    ejecutando <a href='/man/pmlogger.1.en'>pmlogger(1)</a>).</p>
+<p class="Pp">El formato de la "etiqueta de archivo" difiere entre las versiones 2
+    y 3, siendo esta última la que proporciona marcas de tiempo mejoradas (codificación
+    de 64 bits para la parte de segundos y precisión de nanosegundos) y algunos
+    campos adicionales.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Versión 2</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: right; border-right-style: solid;">Longitud</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>etiqueta, PM_LOG_MAGIC | PM_LOG_VERS02=0x50052602</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>ID de proceso (PID) del proceso pmlogger que escribió el archivo</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>hora de inicio del archivo, parte de segundos (después de la época UNIX)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>hora de inicio del archivo, parte de microsegundos</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>número de volumen de archivo actual (o -1=.meta, -2=.index)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">64</td>
+    <td>nombre del host de recolección</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">80</td>
+    <td style="text-align: right; border-right-style: solid;">40</td>
+    <td>cadena de zona horaria para el host de recolección (variable de entorno
+      $TZ)</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Versión 3</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: right; border-right-style: solid;">Longitud</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>etiqueta, PM_LOG_MAGIC | PM_LOG_VERS03=0x50052603</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PID del proceso pmlogger que escribió el archivo</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>hora de inicio del archivo, parte de segundos (después de la época UNIX)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>hora de inicio del archivo, parte de nanosegundos</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>número de volumen de archivo actual (o -1=.meta, -2=.index)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>bits de características del archivo</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>reservado para uso futuro</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">32</td>
+    <td style="text-align: right; border-right-style: solid;">256</td>
+    <td>nombre del host de recolección</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">288</td>
+    <td style="text-align: right; border-right-style: solid;">256</td>
+    <td>cadena de zona horaria para el host de recolección (variable de entorno
+      $TZ), por ejemplo, AEDT</td>
+  </tr>
+</table>
+</section>
+</div>
+</section>
+
+            </article>
+            <aside id="content-right">
+                <div class="man-page-nav">
+                    
+                        
+                        
+                        
+                        <p><a href="/man/LOGARCHIVE.5.en">English</a></p>
+                        
+                        
+                        
+                        <p><a href="/man/LOGARCHIVE.5.en.html">English HTML</a></p>
+                        
+                        
+                        
+                        <p><a href="/man/LOGARCHIVE.5.json">JSON</a></p>
+                        
+                        
+                        
+                        <p><a href="/man/LOGARCHIVE.5.txt">Plain Text</a></p>
+                        
+                        
+                        
+                        <p><a href="/man/LOGARCHIVE.5.xml">XML</a></p>
+                        
+                    
+                </div>
+            </aside>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='PMNS_DOMAIN_(.0)_RECORD'><a class='permalink' href='#PMNS_DOMAIN_(.0)_RECORD'>PMNS DOMAIN (.0) RECORD</a></h1>
+<p class="Pp">The Performance Co-Pilot (PCP) archive format defines a set of
+    conventions for storing performance metric data collected from a variety of
+    sources. The archive is composed of multiple files, each representing a
+    different aspect of the collected data.</p>
+<p class="Pp">The first file is the archive label record, which contains general
+    information about the archive. The subsequent files, typically named
+    <code class="Nm">archive.1</code>, <code class="Nm">archive.2</code>, etc.,
+    contain the actual performance metric data, organized into time-stamped
+    records.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Offset</td>
+    <td style="text-align: center; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive magic number (PM_ARCH_MAGIC)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive format version (PM_ARCH_VERSION)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive label length (bytes)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive metadata length (bytes)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive start time (seconds since UNIX epoch)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive end time (seconds since UNIX epoch)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>current archive volume number</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">28</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>hostname length (bytes)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">32</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of archive feature bits</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">36</td>
+    <td style="text-align: right; border-right-style: solid;">A</td>
+    <td>archive label string</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">36+A</td>
+    <td style="text-align: right; border-right-style: solid;">B</td>
+    <td>archive metadata string</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">36+A+B</td>
+    <td style="text-align: right; border-right-style: solid;">C</td>
+    <td>hostname string</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">36+A+B+C</td>
+    <td style="text-align: right; border-right-style: solid;">D</td>
+    <td>archive feature bits</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">36+A+B+C+D</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timezone length (bytes)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">-11</td>
+    <td style="text-align: right; border-right-style: solid;">E</td>
+    <td>timezone zoneinfo string for collection host, e.g.
+      :Australia/Melbourne</td>
+  </tr>
+</table>
+<p class="Pp">The ``archive feature bits'' are intended to encode possible
+    future extensions or differences to the on-disk structure or the the archive
+    semantics. At this stage there are no such features, but if they are
+    introduced at some point in the future, there will be associated
+    PM_LOG_FEATURE_XXX macros added to the <i>&lt;pcp/pmapi.h&gt;</i> header
+    file.</p>
+<p class="Pp">All fields, except for the ``current archive volume number'',
+    match for all files in a single PCP archive.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ARCHIVE_VOLUME_(.0,_.1,_...)_RECORDS'><a class='permalink' href='#ARCHIVE_VOLUME_(.0,_.1,_...)_RECORDS'>ARCHIVE VOLUME (.0, .1, ...) RECORDS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='pmResult'><a class='permalink' href='#pmResult'>pmResult</a></h2>
+<p class="Pp">After the archive label record, an archive volume file contains
+    one or more records, each providing metric values corresponding to the
+    <i>pmResult</i> from one <a href='/man/pmFetch.3.en'>pmFetch(3)</a> operation. The record size may
+    vary according to number of metrics being fetched and the number of
+    instances in the associated instance domains.</p>
+<p class="Pp">For Version 2 the file size is limited to 2GiB, due to storage of
+    32-bit byte offsets within the temporal index. For Version 3 the file size
+    is limited to 8191PiB, due to storage of 62-bit byte offsets within the
+    temporal index.</p>
+<p class="Pp">The <i>pmResult</i> format differs between Version 2 and Version
+    3, with the latter providing enhanced timestamps (64-bit encoding of the
+    seconds part and nanosecond precision).</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Version 2</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Offset</td>
+    <td style="text-align: center; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timestamp, seconds part (past UNIX epoch)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timestamp, microseconds part</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of metrics with data following</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>pmValueSet #0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12+M</td>
+    <td style="text-align: right; border-right-style: solid;">N</td>
+    <td>pmValueSet #1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12+M+N</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">NOP</td>
+    <td style="text-align: right; border-right-style: solid;">X</td>
+    <td>pmValueBlock #0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">NOP+X</td>
+    <td style="text-align: right; border-right-style: solid;">Y</td>
+    <td>pmValueBlock #1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">NOP+X+Y</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Version 3</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Offset</td>
+    <td style="text-align: center; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>timestamp, seconds part (past UNIX epoch)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timestamp, nanoseconds part</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of metrics with data following</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>pmValueSet #0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16+M</td>
+    <td style="text-align: right; border-right-style: solid;">N</td>
+    <td>pmValueSet #1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16+M+N</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">NOP</td>
+    <td style="text-align: right; border-right-style: solid;">X</td>
+    <td>pmValueBlock #0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">NOP+X</td>
+    <td style="text-align: right; border-right-style: solid;">Y</td>
+    <td>pmValueBlock #1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">NOP+X+Y</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+</table>
+<p class="Pp">Records with a ``number of metrics'' equal to zero are ``mark
+    records'', and represent interruptions, missing data, or time
+    discontinuities in logging.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pmValueSet'><a class='permalink' href='#pmValueSet'>pmValueSet</a></h2>
+<p class="Pp">This subrecord represents the values for one metric at one point
+    in time.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Offset</td>
+    <td style="text-align: center; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>Performance Metrics Identifier (PMID)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of values</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>value format, PM_VAL_INSITU=0 or PM_VAL_DPTR=1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>pmValue #0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12+M</td>
+    <td style="text-align: right; border-right-style: solid;">N</td>
+    <td>pmValue #1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12+M+N</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+</table>
+<p class="Pp">The metadata describing metrics is found in the .meta file where
+    the entries are <b>not</b> timestamped, as the metadata is assumed to be
+    unchanging throughout an archive.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pmValue'><a class='permalink' href='#pmValue'>pmValue</a></h2>
+<p class="Pp">This subrecord represents one value for one instance of a metric
+    at one point in time. It is a variant type, depending on the parent
+    <i>pmValueSet</i>'s value format field. This allows small numbers to be
+    encoded compactly, but retain flexibility for larger or variable length data
+    to be stored later in the <i>pmResult</i> record in a <i>pmValueBlock</i>
+    subrecord.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Offset</td>
+    <td style="text-align: center; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>internal instance identifier (or PM_IN_NULL=-1 for singular
+      metrics)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>value (INSITU) <i>or</i></td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;"></td>
+    <td style="text-align: right; border-right-style: solid;"></td>
+    <td>offset in pmResult to our pmValueBlock (DPTR)</td>
+  </tr>
+</table>
+<p class="Pp">The metadata describing the instance domain for metrics is found
+    in the .meta file. Since the numeric mappings may change during the lifetime
+    of the logging session, it is important to match up the timestamp of the
+    measurement record with the corresponding instance domain record. That is,
+    the instance domain corresponding to a measurement at time T is the instance
+    domain observation for the metric's instance domain with largest timestamp
+    T' &lt;= T.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pmValueBlock'><a class='permalink' href='#pmValueBlock'>pmValueBlock</a></h2>
+<p class="Pp">Instances of this subrecord are placed at the end of the
+    <i>pmValueSet</i>, after all the <i>pmValue</i> subrecords. If (and only if)
+    needed, they are padded at the end to the next 32-bit boundary.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Offset</td>
+    <td style="text-align: center; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">1</td>
+    <td>value type (same as <i>pmDesc.type</i>)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">1</td>
+    <td style="text-align: right; border-right-style: solid;">3</td>
+    <td>4 + N, the length of the subrecord</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">N</td>
+    <td>bytes that make up the raw value</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4+N</td>
+    <td style="text-align: right; border-right-style: solid;">0-3</td>
+    <td>padding (not included in the 4+N length field)</td>
+  </tr>
+</table>
+<p class="Pp">Note that for <b>PM_TYPE_STRING</b>, the length includes an
+    explicit NULL terminator byte. For <b>PM_TYPE_EVENT</b>, the value byte
+    string is further structured. Refer to <a href='/man/PMDAEVENTARRAY.3.en'>PMDAEVENTARRAY(3)</a> for more
+    information about how arrays of event records are packed inside a
+    <i>pmResult</i> conta</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METADATA_FILE_(.meta)_RECORDS'><a class='permalink' href='#METADATA_FILE_(.meta)_RECORDS'>ARCHIVO DE METADATOS (.meta) REGISTROS</a></h1>
+<p class="Pp">Después del registro de rango de metadatos, el archivo de metadatos contiene registros intercalados de descripciones de métricas, registros de dominios de instancias con marca de tiempo, registros de etiquetas con marca de tiempo (para contexto, dominio de instancias y etiquetas de métricas) y registros de texto (ayuda) con marca de tiempo. A diferencia de los volúmenes de datos, estos registros no están obligados a la alineación de 32 bits.</p>
+<p class="Pp">Para la versión 2, el tamaño del archivo se limita a 2GiB debido al almacenamiento de desplazamientos de bytes de 32 bits dentro del índice temporal. Para la versión 3, el tamaño del archivo se limita a 8191PiB debido al almacenamiento de desplazamientos de bytes de 62 bits dentro del índice temporal.</p>
+<p class="Pp">Ver también <i>libpcp/src/logmeta.c</i>.</p>
+<section class="Ss">
+<h2 class="Ss" id='Metric_Descriptions'><a class='permalink' href='#Metric_Descriptions'>Descripciones de Métricas</a></h2>
+<p class="Pp">Los registros de instancias de métricas (<i>pmDesc</i>) proporcionan la descripción o metadatos de cada métrica que aparece en el archivo de archivo PCP. Estos metadatos incluyen el PMID de la métrica, el tipo de datos, el significado de los datos, el identificador del dominio de instancias (o <b>PM_INDOM_NULL</b> para métricas singulares con un solo valor) y un conjunto de (1 o más) nombres.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Longitud</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>tag, TYPE_DESC=1</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>tipo de datos (PM_TYPE_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>identificador de dominio de instancias</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>semántica de métrica (PM_SEM_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>unidades: pmUnits, bit-pack</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>número de nombres alternativos para este PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N: número de bytes en este nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">32</td>
+    <td style="text-align: right; border-right-style: solid;">N</td>
+    <td>bytes del nombre, sin terminador nulo ni relleno</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">32+N</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N2: número de bytes en el siguiente nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">36+N</td>
+    <td style="text-align: right; border-right-style: solid;">N2</td>
+    <td>bytes del nombre, sin terminador nulo ni relleno</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+</table>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Instance_Domains'><a class='permalink' href='#Instance_Domains'>Dominios de Instancias</a></h2>
+<p class="Pp">Un registro de métrica con un valor establecido en un dominio de instancias, que consiste en un identificador de dominio de instancias (que ya se mencionó previamente en un registro <i>pmDesc</i>), un número de instancias y una tabla de asociación que define la relación entre los identificadores internos de instancias (números) y los nombres externos de instancias (cadenas).</p>
+<p class="Pp">Dado que los dominios de instancias pueden cambiar con el tiempo, el dominio de instancias también requiere una marca de tiempo, y el mismo dominio de instancias puede aparecer varias veces dentro del archivo .meta. Las marcas de tiempo se utilizan para buscar el dominio de instancias temporalmente correcto al decodificar los registros <i>pmResult</i> de los volúmenes de datos del archivo, o para responder consultas de metadatos contra el dominio de instancias.</p>
+<p class="Pp">El formato del dominio de instancias difiere significativamente entre la Versión 2 y la Versión 3. La Versión 3 proporciona marcas de tiempo mejoradas (codificación de 64 bits de la parte de segundos y precisión de nanosegundos) e introduce un nuevo formato de dominio de instancias llamado "delta" que codifica las diferencias entre la observación previa del dominio de instancias y el estado actual del dominio de instancias.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Dominio de Instancias Completo - Versión 2</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Longitud</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>tag, TYPE_INDOM_V2=2</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>marca de tiempo, parte de segundos (antes del epoch UNIX)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>marca de tiempo, parte de microsegundos</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>número de dominio de instancias</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N: número de instancias en el dominio, normalmente &gt;0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>primer número de instancia</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>segundo número de instancia (si corresponde)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20+4*N</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>primer desplazamiento en la tabla de cadenas (ver abajo)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20+4*N+4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>segundo desplazamiento en la tabla de cadenas (etc.)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20+8*N</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>base de la tabla de cadenas, que contiene</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;"></td>
+    <td style="text-align: right; border-right-style: solid;"></td>
+    <td>nombres de instancia empaquetados, terminados en nulo</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Dominio de Instancias Completo - Versión 3</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Longitud</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>tag, TYPE_INDOM=5</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>marca de tiempo, parte de segundos (antes del epoch UNIX)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>marca de tiempo, parte de nanosegundos</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>número de dominio de instancias</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N: número de instancias en el dominio, normalmente &gt;0</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>primer número de instancia</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>segundo número de instancia (si corresponde)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24+4*N</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>primer desplazamiento en la tabla de cadenas (ver abajo)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24+4*N+4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>segundo desplazamiento en la tabla de cadenas (etc.)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24+8*N</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>base de la tabla de cadenas, que contiene</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;"></td>
+    <td style="text-align: right; border-right-style: solid;"></td>
+    <td>nombres de instancia empaquetados, terminados en nulo</td>
+  </tr>
+</table>
+<p class="Pp">El registro de dominio de instancias "delta" de la versión 3 utiliza la misma estructura física que el registro de dominio de instancias "completo" anterior, con las siguientes diferencias:</p>
+<ul class="Bl-bullet">
+  <li>El tag es TYPE_INDOM_DELTA=6.</li>
+  <li>El campo "número de instancias en el dominio" se convierte en la suma del número de instancias añadidas y el número de instancias eliminadas.</li>
+  <li>Las <b>instancias eliminadas</b> se codifican con el desplazamiento del nombre establecido en -1 y no hay una entrada correspondiente en la tabla de cadenas.</li>
+  <li>Las <b>instancias añadidas</b> se codifican exactamente de la misma manera.</li>
+</ul>
+<p class="Pp">El registro de dominio de instancias "delta" en la versión 3 utiliza la misma estructura física que el registro de dominio de instancias "completo" anterior, con las siguientes diferencias:</p>
+<ul class="Bl-bullet">
+  <li>El tag es TYPE_INDOM_DELTA=6.</li>
+  <li>El campo "número de instancias en el dominio" se convierte en la suma del número de instancias añadidas y el número de instancias eliminadas.</li>
+  <li>Las <b>instancias eliminadas</b> se codifican con el desplazamiento del nombre establecido en -1 y no hay una entrada correspondiente en la tabla de cadenas.</li>
+  <li>Las <b>instancias añadidas</b> se codifican exactamente de la misma manera.</li>
+</ul>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Labels_for_Contexts,_Instance_Domains_and_Metrics'><a class='permalink' href='#Labels_for_Contexts,_Instance_Domains_and_Metrics'>Etiquetas para Contextos, Dominios de Instancia y Métricas</a></h2>
+<p class="Pp">Las instancias de este registro <i></i>(<i>pmLogLabelSet</i>) proporcionan conjuntos de pares nombre-valor asociados con nombres de etiquetas de contexto, dominios de instancia y métricas individuales. Consultar <a href='/man/pmLookupLabels.3.en'>pmLookupLabels(3)</a> para más detalles.</p>
+<p class="Pp">Cualquier identificador de dominio de instancia habrá sido mencionado previamente en un registro <i>pmDesc</i>.</p>
+<p class="Pp">Como nuevas etiquetas pueden aparecer durante una sesión de archivo, estos registros se marcan con una fecha y deben ser buscados cuando se decodifican registros <i>pmResult</i> de volúmenes de datos de archivo. El formato <i>pmLogLabelSet</i> difiere entre la Versión 2 y la Versión 3, siendo la última la que proporciona fechas mejoradas (codificación de 64 bits para la parte de segundos y precisión de nanosegundos).</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Versión 2</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Tamaño</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>etiqueta, TIPO_LABEL_V2=3</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>fecha, parte de segundos (antes de la época UNIX)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>fecha, parte de microsegundos</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>tipo de etiqueta (macro PM_LABEL_*).</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>identificador numérico - dominio, PMID, etc. o PM_IN_NULL=-1 para etiquetas de contexto.</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N: número de conjuntos de etiquetas en este registro, usualmente 1, excepto en el caso de instancias.</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>desplazamiento al inicio del string JSONB de etiquetas.</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28</td>
+    <td style="text-align: right; border-right-style: solid;">L1</td>
+    <td>primer conjunto de etiquetas T{</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28+L1</td>
+    <td style="text-align: right; border-right-style: solid;">LN</td>
+    <td>N-ésimo conjunto de etiquetas T{</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28+L1+...+LN</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>concatenación de strings JSONB para todos los conjuntos de etiquetas.</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Versión 3</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Tamaño</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>etiqueta, TIPO_LABEL=7</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>fecha, parte de segundos (antes de la época UNIX)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>fecha, parte de nanosegundos</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>tipo de etiqueta (macro PM_LABEL_*).</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>identificador numérico - dominio, PMID, etc. o PM_IN_NULL=-1 para etiquetas de contexto.</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N: número de etiquetas en este conjunto de etiquetas, usualmente 1, excepto en el caso de instancias.</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">28</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>desplazamiento al inicio del string JSONB de etiquetas.</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">32</td>
+    <td style="text-align: right; border-right-style: solid;">L1</td>
+    <td>primera entrada del array de etiquetas (ver abajo)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">32+L1</td>
+    <td style="text-align: right; border-right-style: solid;">LN</td>
+    <td>N-ésima entrada del array de etiquetas (ver abajo)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">32+L1+...+LN</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>concatenación de strings JSONB para todos los conjuntos de etiquetas.</td>
+  </tr>
+</table>
+<p class="Pp">Los registros de este tipo <i>reemplazan</i> las etiquetas existentes para un tipo específico de etiqueta: los registros anteriores no se buscan para resolver esa clase de etiqueta en mediciones después de esta marca de tiempo.</p>
+<p class="Pp">Las entradas individuales del array de etiquetas tienen longitud variable, dependiendo del número de etiquetas presentes en ese conjunto. Estas entradas contienen identificadores de instancia (en el caso de tipo <b>PM_LABEL_INSTANCES</b>), longitudes y desplazamientos de cada nombre de etiqueta y valor, así como también cualquier marca de cada etiqueta.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Tamaño</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>identificador de instancia (o PM_IN_NULL=-1)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>longitud del string JSONB de etiquetas</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>N: número de etiquetas en este conjunto de etiquetas</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">2</td>
+    <td>desplazamiento del nombre de la 1ª etiqueta</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">14</td>
+    <td style="text-align: right; border-right-style: solid;">1</td>
+    <td>longitud del nombre de la 1ª etiqueta</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">15</td>
+    <td style="text-align: right; border-right-style: solid;">1</td>
+    <td>marcas de la 1ª etiqueta (ej. opcionalidad)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">2</td>
+    <td>desplazamiento del valor de la 1ª etiqueta</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">18</td>
+    <td style="text-align: right; border-right-style: solid;">2</td>
+    <td>longitud del valor de la 1ª etiqueta</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">2</td>
+    <td>desplazamiento del nombre de la 2ª etiqueta (si aplica)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td style="text-align: right; border-right-style: solid;">...</td>
+    <td>...</td>
+  </tr>
+</table>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Help_Text'><a class='permalink' href='#Help_Text'>Texto de Ayuda</a></h2>
+<p class="Pp">Este registro <i></i>(<i>pmLogText</i>) almacena texto de ayuda asociado a una métrica o un dominio de instancia, tal como lo proporcionan <a href='/man/pmLookupText.3.en'>pmLookupText(3)</a> y <a href='/man/pmLookupInDomText.3.en'>pmLookupInDomText(3)</a>.</p>
+<p class="Pp">El identificador de métrica y el identificador de dominio de instancia habrán sido mencionados previamente en un registro <i>pmDesc</i>.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: center; border-right-style: solid;">Desplazamiento</td>
+    <td style="text-align: center; border-right-style: solid;">Tamaño</td>
+    <td style="text-align: center;">Nombre</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>etiqueta, TIPO_TEXT=4</td>
+  </tr>
+</table>
+</section>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="generator" content="mandoc">
+        <title>LOGARCHIVE 5</title>
+        <link rel="stylesheet" href="/css/style.css">
+    </head>
+    <body>
+        <main>
+            <article>
+                <section class="Sh">
+<h1>NAME</h1>
+<p class="Nd">LOGARCHIVE - Performance Co-Pilot (PCP) archive file format</p>
+</section>
+<section class="Sh">
+<h1>DESCRIPTION</h1>
+<p class="Pp">PCP archives are a collection of files that record performance
+    metrics from a system. The archives are composed of three types of files:</p>
+<p class="Pp">An archive volume file (e.g., <span class="Li">archive.0</span>,
+    <span class="Li">archive.1</span>, ...), which contains the performance metric
+    values.</p>
+<p class="Pp">A metadata file (e.g., <span class="Li">archive.meta</span>), which
+    contains the descriptions, instance domain information, and other metadata
+    associated with the performance metrics.</p>
+<p class="Pp">An optional temporal index file (e.g., <span class="Li">archive.index</span>),
+    which contains mappings from timestamps to byte offsets within the archive
+    volume and metadata files, to speed up random access to data for a specific
+    time.</p>
+<p class="Pp">This document describes the internal format of these archive
+    files.</p>
+</section>
+<section class="Sh">
+<h1 id='COMMON_FEATURES'><a class='permalink' href='#COMMON_FEATURES'>COMMON FEATURES</a></h1>
+<p class="Pp">PCP archive files use a simple record format. All records, except
+    for the temporal index file records (described later), are self-describing
+    and have the following structure:</p>
+<p class="Pp">A 4-byte unsigned integer indicating the length of the payload in
+    bytes.</p>
+<p class="Pp">A 4-byte unsigned integer indicating the type of the record. The
+    valid types are:</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>payload length (bytes)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>record type (PM_METADATA_TYPE_*, PM_TRACE_TYPE_*, PM_PMID_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">variable</td>
+    <td>payload</td>
+  </tr>
+</table>
+<p class="Pp">The payload format depends on the record type. The defined record
+    types are:</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>text and identifier type (PM_TEXT_* macros.)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>numeric identifier - PMID or instance domain</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>help text string, arbitrary text</td>
+  </tr>
+</table>
+</section>
+<section class="Sh">
+<h1 id='ARCHIVE_VOLUME_(.0,_.1,_...)_RECORDS'><a class='permalink' href='#ARCHIVE_VOLUME_(.0,_.1,_...)_RECORDS'>ARCHIVE VOLUME (.0, .1, ...) RECORDS</a></h1>
+<p class="Pp">The archive volume files contain performance metric values. The
+    records within the archive volume files are:</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>record length (bytes)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>record type (PM_LOG_RECORD_V2, PM_LOG_RECORD_V3)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>timestamp (seconds part)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>timestamp (nanoseconds part)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>PMID (Performance Metric Identifier)</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">32</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>instance domain</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">40</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of values</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">44</td>
+    <td style="text-align: right; border-right-style: solid;">variable</td>
+    <td>array of performance metric values</td>
+  </tr>
+</table>
+</section>
+<section class="Sh">
+<h1 id='METADATA_FILE_(.meta)_RECORDS'><a class='permalink' href='#METADATA_FILE_(.meta)_RECORDS'>METADATA FILE (.meta) RECORDS</a></h1>
+<p class="Pp">The metadata file contains descriptions and other information about
+    the performance metrics being logged.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_TEXT</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>text and identifier type (PM_TEXT_* macros.)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>numeric identifier - PMID or instance domain</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>help text string, arbitrary text</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_PMID</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>performance metric type (PM_TYPE_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>performance metric semantics (PM_SEM_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>performance metric units (PM_UNIT_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>performance metric name</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_INDOM</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of instances</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>array of instance descriptions</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_INSTANCES</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of instances</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>array of instance identifiers and names</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_EVENT</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>timestamp (seconds part)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>timestamp (nanoseconds part)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>event type</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>event message</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_ARCHIVE_LABEL</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>version number</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>archive name</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_UNKNOWN</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>unknown record type</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>payload data</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_NAME</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric name</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_DESC</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric description</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_UNITS</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric units</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_INSTANCE</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>instance name</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_INDOM_DESC</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>instance domain description</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_METRIC_SEMANTICS</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>metric semantics</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric semantics description</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_METRIC_TYPE</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>metric type</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric type description</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_METRIC_UNITS</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>metric units</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric units description</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_GRAPH_LABEL</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>graph label identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>graph label text</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_GRAPH_HELP</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>graph label identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>graph help text</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_GRAPH_LEGEND</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>graph label identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>graph legend text</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_TEXT_TYPE_METRIC_CONTEXT</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>metric context information</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_V2_INDOM</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>number of instances</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>array of instance descriptions (PMID, instance, name)</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_V2_METRIC</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>PMID</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>performance metric type (PM_TYPE_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>performance metric semantics (PM_SEM_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>performance metric units (PM_UNIT_*)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">20</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>instance domain identifier</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>performance metric name</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">PM_METADATA_TYPE_V2_TEXT</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td>Description</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>text and identifier type (PM_TEXT_* macros.)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>numeric identifier - PMID or instance domain</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">M</td>
+    <td>help text string, arbitrary text</td>
+  </tr>
+</table>
+</section>
+<section class="Sh">
+<h1 id='INDEX_FILE_(.index)_RECORDS'><a class='permalink' href='#INDEX_FILE_(.index)_RECORDS'>INDEX FILE (.index) RECORDS</a></h1>
+<p class="Pp">After the archive label record, the temporal index file contains a
+    plainly concatenated, unframed group of tuples, which relate timestamps to
+    the byte offsets in the volume and .meta files. These records are fixed
+    size, fixed format, and are <i>not</i> enclosed in the standard
+    length/payload/length wrapper: they take up the entire remainder of the
+    .index file after the archive label record.</p>
+<p class="Pp">The temporal index file provides a rapid way of seeking to a
+    particular point of time within an archive for both the performance metric
+    values and the associated metadata.</p>
+<p class="Pp">See also <i>libpcp/src/logutil.c</i>.</p>
+<p class="Pp">The index format differs between Version 2 and Version 3, with the
+    latter providing enhanced timestamps (64-bit encoding of the seconds part
+    and nanosecond precision) and 64-bit byte offsets.</p>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Version 2</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timestamp, seconds part (past UNIX epoch)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timestamp, microseconds part</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive volume number (0...N)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>byte offset in .meta file</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>byte offset in archive volume file</td>
+  </tr>
+</table>
+<table class="tbl" style="border-style: solid;">
+  <tr style="border-bottom-style: solid;">
+    <td colspan="3" style="text-align: center;">Version 3</td>
+  </tr>
+  <tr style="border-bottom-style: solid;">
+    <td style="text-align: right; border-right-style: solid;">Offset</td>
+    <td style="text-align: right; border-right-style: solid;">Length</td>
+    <td style="text-align: center;">Name</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">0</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>timestamp, seconds part (past UNIX epoch)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>timestamp, nanoseconds part</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">12</td>
+    <td style="text-align: right; border-right-style: solid;">4</td>
+    <td>archive volume number (0...N)</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">16</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>byte offset in .meta file</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; border-right-style: solid;">24</td>
+    <td style="text-align: right; border-right-style: solid;">8</td>
+    <td>byte offset in archive volume file</td>
+  </tr>
+</table>
+<p class="Pp">Since the temporal index is optional, and exists only to speed up
+    time-based random access to metrics and their metadata, the index records
+    are emitted only intermittently. An archive reader program should not
+    presume any particular rate of data flow into the index. However, common
+    events that may trigger a new temporal index record include changes in
+    instance domains, switching over to a new archive volume, and starting or
+    stopping logging. One reliable invariant however is that, for each index
+    entry, there are to be no meta or archive volume records with a timestamp
+    after that in the index, but physically before the associated byte offset in
+    the index.</p>
+</section>
+<section class="Sh">
+<h1 id='FILES'><a class='permalink' href='#FILES'>FILES</a></h1>
+<p class="Pp">Several PCP tools create archives in standard locations:</p>
+<dl class="Bl-tag">
+  <dt><b>$HOME/.pcp/pmlogger</b></dt>
+  <dd>default location for the interactive chart recording mode in
+      <a href='/man/pmchart.1.en'>pmchart(1)</a></dd>
+  <dt><b>$PCP_LOG_DIR/pmlogger</b></dt>
+  <dd>default location for <a href='/man/pmlogger_daily.1.en'>pmlogger_daily(1)</a> and <a href='/man/pmlogger_check.1.en'>pmlogger_check(1)</a>
+      scripts</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE ALSO</a></h1>
+<p class="Pp"><a href='/man/mkaf.1.en'>mkaf(1)</a>, <a href='/man/PCPIntro.1.en'>PCPIntro(1)</a>, <a href='/man/pmafm.1.en'>pmafm(1)</a>,
+    <a href='/man/pmchart.1.en'>pmchart(1)</a>, <a href='/man/pmdaproc.1.en'>pmdaproc(1)</a>, <a href='/man/pmlogdump.1.en'>pmlogdump(1)</a>,
+    <a href='/man/pmlogger.1.en'>pmlogger(1)</a>, <a href='/man/pmlogger_check.1.en'>pmlogger_check(1)</a>, <a href='/man/pmlogger_daily.1.en'>pmlogger_daily(1)</a>,
+    <a href='/man/pmlogreduce.1.en'>pmlogreduce(1)</a>, <a href='/man/pmlogrewrite.1.en'>pmlogrewrite(1)</a>, <a href='/man/pmlogsummary.1.en'>pmlogsummary(1)</a>,
+    <a href='/man/LOGIMPORT.3.en'>LOGIMPORT(3)</a>, <a href='/man/PMAPI.3.en'>PMAPI(3)</a>, <a href='/man/pmLookupDesc.3.en'>pmLookupDesc(3)</a>,
+    <a href='/man/pmLookupInDom.3.en'>pmLookupInDom(3)</a>, <a href='/man/pmLookupInDomText.3.en'>pmLookupInDomText(3)</a>,
+    <a href='/man/pmLookupLabels.3.en'>pmLookupLabels(3)</a>, <a href='/man/pmLookupName.3.en'>pmLookupName(3)</a>, <a href='/man/pmLookupText.3.en'>pmLookupText(3)</a>,
+    <a href='/man/pcp.conf.5.en'>pcp.conf(5)</a> and <a href='/man/pcp.env.5.en'>pcp.env(5)</a>.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date"></td>
+    <td class="foot-os">Performance Co-Pilot</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Package information:</p>
+    <dl>
+        <dt>Package name:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/pcp/">extra/pcp</a></dd>
+        <dt>Version:</dt>
+        <dd>7.0.5-1</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://pcp.io">https://pcp.io</a></dd>
+        <dt>Licenses:</dt>
+        <dd>GPL-2.0-or-later, LGPL-2.1-or-later, CC-BY-3.0</dd>
+        <dt>Manuals:</dt>
+        <dd><a href="/listing/extra/pcp/">/listing/extra/pcp/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Table of contents</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NAME</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+        
+            <li><a href="#COMMON_FEATURES">COMMON FEATURES</a></li>
+        
+            <li><a href="#ARCHIVE_VOLUME_(.0,_.1,_...)_RECORDS">ARCHIVE VOLUME (.0, .1, ...) RECORDS</a></li>
+        
+            <li><a href="#METADATA_FILE_(.meta)_RECORDS">METADATA FILE (.meta) RECORDS</a></li>
+        
+            <li><a href="#INDEX_FILE_(.index)_RECORDS">INDEX FILE (.index) RECORDS</a></li>
+        
+            <li><a href="#FILES">FILES</a></li>
+        
+            <li><a href="#SEE_ALSO">SEE ALSO</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Other formats:
+        
+            <a href="/man/LOGARCHIVE.5.en.txt">txt</a>, 
+        
+            <a href="/man/LOGARCHIVE.5.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>The website is available under the terms of the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               license, except for the contents of the manual pages, which have their own license
+               specified in the corresponding Arch Linux package.
+            </p>
+        </footer>
+    </body>
+</html>

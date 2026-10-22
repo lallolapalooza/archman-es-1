@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Filter::Map(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Filter__Map(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Filter::Map(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">POE::Filter::Map(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Filter::Map - transforma la entrada y/o salida dentro de una
+    pila de filtros</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#!perl
+use POE qw(
+  Wheel::FollowTail
+  Filter::Line Filter::Map Filter::Stackable
+);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      my $parse_input_as_lines = POE::Filter::Line-&gt;new();
+      my $redact_some_lines = POE::Filter::Map-&gt;new(
+        Code =&gt; sub {
+          my $input = shift;
+          $input = &quot;[REDACTED]&quot; unless $input =~ /sudo\[\d+\]/i;
+          return $input;
+        },
+      );
+      my $filter_stack = POE::Filter::Stackable-&gt;new(
+        Filters =&gt; [
+          $parse_input_as_lines, # primero en get, último en put
+          $redact_some_lines, # primero en put, último en get
+        ]
+      );
+      $_[HEAP]{tailor} = POE::Wheel::FollowTail-&gt;new(
+        Filename =&gt; &quot;/var/log/system.log&quot;,
+        InputEvent =&gt; &quot;got_log_line&quot;,
+        Filter =&gt; $filter_stack,
+      );
+    },
+    got_log_line =&gt; sub {
+      print &quot;Log: $_[ARG0]\n&quot;;
+    }
+  }
+);
+POE::Kernel-&gt;run();
+exit;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Filter::Map transforma datos dentro de la pila de filtros.
+    Puede ser usado para transformar la entrada, la salida, o ambas, dependiendo
+    de cómo se construya. Este filtro se llama y modela basándose en la función
+    incorporada <b>map()</b> de Perl.</p>
+<p class="Pp">POE::Filter::Map está diseñado para ser combinado con otros
+    filtros a través de POE::Filter::Stackable. En el ejemplo de la
+    &quot;SINOPSIS&quot;, se crea una pila de filtros para analizar logs como
+    líneas y para redactar todas las entradas que no pertenezcan a un proceso
+    sudo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_FILTER_METHODS'><a class='permalink' href='#PUBLIC_FILTER_METHODS'>MÉTODOS PÚBLICOS DEL FILTRO</a></h1>
+<p class="Pp">Además de los métodos habituales de POE::Filter, POE::Filter::Map
+    también soporta los siguientes.</p>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<p class="Pp"><b>new()</b> construye un nuevo objeto POE::Filter::Map. Debe ser
+    llamado con un único parámetro Code, o con ambos parámetros Put y Get. Los
+    valores para Code, Put y Get son referencias de código que, al ser invocadas,
+    devuelven versiones transformadas de sus únicos parámetros. Una función Code
+    se usará tanto para la entrada como para la salida, mientras que las
+    funciones Get y Put permiten que la entrada y la salida se filtren de
+    diferentes maneras.</p>
+<pre># Descifrar rot13.
+sub decrypt_rot13 {
+  my $encrypted = shift;
+  $encrypted =~ tr[a-zA-Z][n-za-mN-ZA-M];
+  return $encrypted;
+}
+# Cifrar rot13.
+sub encrypt_rot13 {
+  my $plaintext = shift;
+  $plaintext =~ tr[a-zA-Z][n-za-mN-ZA-M];
+  return $plaintext;
+}
+# Descifrar rot13 en la entrada, y cifrarla en la salida.
+my $rot13_transcrypter = POE::Filter::Map-&gt;new(
+  Get =&gt; \&amp;decrypt_rot13,
+  Put =&gt; \&amp;encrypt_rot13,
+);</pre>
+<p class="Pp">Rot13 es simétrico, por lo que el ejemplo anterior puede
+    simplificarse para usar una única función Code.</p>
+<pre>my $rot13_transcrypter = POE::Filter::Map-&gt;new(
+  Code =&gt; sub {
+    local $_ = shift;
+    tr[a-zA-Z][n-za-mN-ZA-M];
+    return $_;
+  }
+);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='modify'><a class='permalink' href='#modify'>modify</a></h2>
+<p class="Pp"><b>modify()</b> cambia el comportamiento de un objeto
+    POE::Filter::Map en tiempo de ejecución. Acepta los mismos parámetros que
+    <b>new()</b> y reemplaza las transformaciones existentes por otras
+    nuevas.</p>
+<pre># Cambiar a cifrado "inverso" para pruebas.
+$rot13_transcrypter-&gt;modify(
+  Code =&gt; sub { return scalar reverse shift }
+);</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">POE::Filter para más información sobre filtros en general.</p>
+<p class="Pp">POE::Filter::Stackable para más detalles sobre cómo apilar
+    filtros.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>ERRORES</a></h1>
+<p class="Pp">Ninguno conocido.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTORES Y COPYRIGHTS</a></h1>
+<p class="Pp">El filtro Map fue aportado por Dieter Pearcey. La documentación es
+    proporcionada por Rocco Caputo.</p>
+<p class="Pp">Por favor, consulte la página del manual de POE para más
+    información sobre autores y colaboradores.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PUBLIC_FILTER_METHODS">MÉTODOS PÚBLICOS DEL FILTRO</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#BUGS">ERRORES</a></li>
+        
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTORES &amp; COPYRIGHTS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/POE::Filter::Map.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/POE::Filter::Map.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Log::Log4perl::Appender::DBI(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Log__Log4perl__Appender__DBI(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Appender::DBI(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por usuarios</td>
+    <td class="head-rtitle">Appender::DBI(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Log::Log4perl::Appender::DBI - implementa la adición a una BD</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>  my $config = q{
+   log4j.category = WARN, DBAppndr
+   log4j.appender.DBAppndr             = Log::Log4perl::Appender::DBI
+   log4j.appender.DBAppndr.datasource  = DBI:CSV:f_dir=t/tmp
+   log4j.appender.DBAppndr.username    = bobjones
+   log4j.appender.DBAppndr.password    = 12345
+   log4j.appender.DBAppndr.sql         = \
+      insert into log4perltest           \
+      (loglevel, custid, category, message, ipaddr) \
+      values (?,?,?,?,?)
+   log4j.appender.DBAppndr.params.1 = %p    
+                                 #2 es custid de la llamada a log()
+   log4j.appender.DBAppndr.params.3 = %c
+                                 #4 es el mensaje de log()
+                                 #5 es ipaddr de log()
+   log4j.appender.DBAppndr.usePreparedStmt = 1
+    #--o--
+   log4j.appender.DBAppndr.bufferSize = 2
+   #simplemente pasa la matriz de elementos de mensaje en la declaración de log
+   log4j.appender.DBAppndr.layout    = Log::Log4perl::Layout::NoopLayout
+   log4j.appender.DBAppndr.warp_message = 0
+   #soporte de atributos del controlador
+   log4j.appender.DBAppndr.attrs.f_encoding = utf8
+  };
+&#x00A0; Log::Log4perl::init ( \$config ) ;                                      
+&#x00A0; my $logger = Log::Log4perl-&gt;get_logger () ;                             
+  $logger-&gt;warn( $custid, '¡gran problema!!', $ip_addr );</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEAT'><a class='permalink' href='#CAVEAT'>ADVERTENCIA</a></h1>
+<p class="Pp">Este es un módulo muy joven y hay muchas variaciones en las configuraciones
+    con diferentes bases de datos y métodos de conexión, ¡así que asegúrate de
+    probar a fondo! ¡Cualquier comentario es bienvenido!</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este es un objeto especializado de Log::Dispatch personalizado para
+    funcionar con log4perl y sus capacidades, originalmente basado en Log::Dispatch::DBI
+    de Tatsuhiko Miyagawa pero con modificaciones importantes.</p>
+<p class="Pp">Es un intento de compromiso entre lo que hacía Log::Dispatch::DBI y
+    lo que hace el JDBCAppender de log4j. Tenga en cuenta que la documentación
+    de log4j dice que el JDBCAppender &quot;es muy probable que sea reemplazado
+    por completo en el futuro&quot;.</p>
+<p class="Pp">El uso más simple es este:</p>
+<pre>log4j.category = WARN, DBAppndr
+log4j.appender.DBAppndr            = Log::Log4perl::Appender::DBI
+log4j.appender.DBAppndr.datasource = DBI:CSV:f_dir=t/tmp
+log4j.appender.DBAppndr.username   = bobjones
+log4j.appender.DBAppndr.password   = 12345
+log4j.appender.DBAppndr.sql        = \
+   INSERT INTO logtbl                \
+      (loglevel, message)            \
+      VALUES ('%c','%m')
+log4j.appender.DBAppndr.layout    = Log::Log4perl::Layout::PatternLayout
+$logger-&gt;fatal('mensaje fatal');
+$logger-&gt;warn('mensaje de advertencia');
+===============================
+|FATAL|mensaje fatal          |
+|WARN |mensaje de advertencia        |
+===============================</pre>
+<p class="Pp">Pero las desventajas de ese uso son:</p>
+<ul class="Bl-bullet">
+  <li>Debes estar muy seguro de que no hay comillas en tu mensaje de log, o
+      tu inserción podría tener consecuencias imprevistas. Esta es una forma
+      muy insegura de manejar inserciones en bases de datos, usar marcadores
+      de posición y enlazar valores es mucho mejor, sigue leyendo. (Tenga en
+      cuenta que la documentación de log4j advierte &quot;¡Tenga cuidado con las
+      comillas en sus mensajes!&quot;) <b>*</b>.</li>
+  <li>No es muy eficiente, se crea y ejecuta una sentencia por cada llamada a
+      log.</li>
+  <li>El único parámetro en tiempo de ejecución que obtienes es el mensaje
+      <span class="Li">%m</span>, en realidad probablemente quieras registrar
+      datos específicos en columnas de tabla específicas.</li>
+</ul>
+<p class="Pp">Así que intentemos usar marcadores de posición y decirle al registrador
+    que cree un manejador de sentencia preparada al principio y simplemente lo
+    reutilice (tal como lo hace Log::Dispatch::DBI)</p>
+<pre>log4j.appender.DBAppndr.sql = \
+   INSERT INTO logtbl \
+      (custid, loglevel, message) \
+      VALUES (?,?,?)
+#---------------------------------------------------
+#ahora los valores de enlace:
+                              #1 es el custid
+log4j.appender.DBAppndr.params.2 = %p    
+                              #3 es el mensaje
+#---------------------------------------------------
+log4j.appender.DBAppndr.layout    = Log::Log4perl::Layout::NoopLayout
+log4j.appender.DBAppndr.warp_message = 0
+
+log4j.appender.DBAppndr.usePreparedStmt = 1
+
+
+$logger-&gt;warn( 1234, 'mensaje de advertencia' );</pre>
+<p class="Pp">¿Ahora ves cómo estamos usando los marcadores de posición '?'
+    en nuestra sentencia? Esto significa que no tenemos que preocuparnos por
+    mensajes que se parezcan a</p>
+<pre>entrada no válida: 1234';drop table custid;</pre>
+<p class="Pp">¡estropeando nuestra base de datos!</p>
+<p class="Pp">Normalmente, una lista de cosas en la sentencia de log se concatena
+    en una sola cadena, pero establecer <span class="Li">&quot;warp_message&quot;</span>
+    en 0 y usar NoopLayout significa que en</p>
+<pre>$logger-&gt;warn( 1234, 'mensaje de advertencia', 'bgates' );</pre>
+<p class="Pp">los valores individuales de la lista seguirán estando disponibles
+    para el appender DBI más adelante. (Si <span class="Li">&quot;warp_message&quot;</span>
+    no está establecido en 0, el comportamiento predeterminado es unir los elementos
+    de la lista en una sola cadena. Si se utilizan PatternLayout o SimpleLayout,
+    su intento de <span class="Li">render()</span> tu diseño resultará en algo
+    como &quot;ARRAY(0x841d8dc)&quot; en tus logs. Más información sobre
+    <span class="Li">&quot;warp_message&quot;</span> está en
+    Log::Log4perl::Appender.)</p>
+<p class="Pp">En tu SQL de inserción puedes mezclar marcadores de posición '?'
+    con especificadores de conversión (%c, <span class="Li">%p</span>, etc)
+    como mejor te parezca: el registrador emparejará los signos de interrogación
+    con los parámetros que hayas definido en el archivo de configuración y poblará
+    el resto con valores de tu lista. Si hay más marcadores de posición '?'
+    que valores en tu mensaje, usará undef para los restantes. Por ejemplo,</p>
+<pre>log4j.appender.DBAppndr.sql =                 \
+   insert into log4perltest                   \
+   (loglevel, message, datestr, subpoena_id)\
+   values (?,?,?,?)
+log4j.appender.DBAppndr.params.1 = %p
+log4j.appender.DBAppndr.params.3 = %d
+log4j.appender.DBAppndr.warp_message=0
+$logger-&gt;info('¡detenlo!', $subpoena_id);</pre>
+<p class="Pp">resulta en que el primer marcador de posición '?' se enlaza a
+    <span class="Li">%p</span>, el segundo a &quot;¡detenlo!&quot;, el tercero
+    a la fecha de &quot;%d&quot;, y el cuarto a tu
+    <span class="Li">$subpoenaid</span>. Si olvidas el
+    <span class="Li">$subpoena_id</span> y simplemente registras</p>
+<pre>$logger-&gt;info('¡detenlo!');</pre>
+<p class="Pp">entonces obtienes undef en la cuarta columna.</p>
+<p class="Pp">Si la sentencia del registrador también está siendo manejada por
+    otros appenders que no son DBI, simplemente unirán la lista en una cadena,
+    unida con <span class="Li">$Log::Log4perl::JOIN_MSG_ARRAY_CHAR</span> (el
+    valor predeterminado es una cadena vacía).</p>
+<p class="Pp">¿Y ves <span class="Li">&quot;usePreparedStmt&quot;</span>? Crea un
+    manejador de sentencia cuando se crea el objeto registrador y simplemente
+    lo reutiliza. Sin embargo, eso puede ser problemático para procesos de larga
+    duración como servidores web, en cuyo caso puedes usar este parámetro en
+    su lugar</p>
+<pre>log4j.appender.DBAppndr.bufferSize=2</pre>
+<p class="Pp">Esto copia el comportamiento del JDBCAppender de log4j, guarda hasta
+    ese número de sentencias de log y las escribe todas a la vez. Si tu sentencia
+    INSERT usa solo marcadores de posición ? y ningún especificador de conversión
+    <span class="Li">%x</span>, debería ser bastante eficiente porque el registrador
+    puede reutilizar el mismo manejador de sentencia para las inserciones.</p>
+<p class="Pp">Si el programa termina mientras el búfer está solo parcialmente lleno,
+    el bloque DESTROY debería vaciar las sentencias restantes, si el bloque DESTROY
+    se ejecuta, por supuesto.</p>
+<p class="Pp">* <i>Mientras escribía esto, Danko Mannhaupt estaba sacando su</i>
+    <i>JDBCAppender mejorado de log4j
+    (<a href='http://www.mannhaupt.com/danko/projects/'>http://www.mannhaupt.com/danko/projects/</a>)</i>
+    <i>que supera muchas de las desventajas del JDBCAppender original.</i></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION_2'><a class='permalink' href='#DESCRIPTION_2'>DESCRIPCIÓN   2</a></h1>
+<p class="Pp">O otra forma de decir lo mismo:</p>
+<p class="Pp">La idea es que si estás registrando en una tabla de base de datos,
+    probablemente quieras partes específicas de tu información de log en columnas
+    determinadas. Para ello, pasas una lista a la sentencia de log, como</p>
+<pre>$logger-&gt;warn('¡gran problema!!',$userid,$subpoena_nr,$ip_addr);</pre>
+<p class="Pp">y los miembros de la matriz caen en las posiciones definidas por los
+    marcadores de posición en tu sentencia SQL. También puedes definir información
+    en el archivo de configuración como</p>
+<pre>log4j.appender.DBAppndr.params.2 = %p</pre>
+<p class="Pp">en cuyo caso esos marcadores de posición numerados se rellenarán con
+    los valores especificados, y el resto de los marcadores de posición se rellenarán
+    con los valores de la matriz de tu sentencia de log.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MISC_PARAMETERS'><a class='permalink' href='#MISC_PARAMETERS'>PARÁMETROS   VARIOS</a></h1>
+<dl class="Bl-tag">
+  <dt id="usePreparedStmt"><a class="permalink" href="#usePreparedStmt">usePreparedStmt</a></dt>
+  <dd>Ver arriba.</dd>
+  <dt id="warp_message"><a class="permalink" href="#warp_message">warp_message</a></dt>
+  <dd>ver Log::Log4perl::Appender</dd>
+  <dt id="max_col_size"><a class="permalink" href="#max_col_size">max_col_size</a></dt>
+  <dd>Permite especificar un tamaño máximo para columnas de texto. Si el registro
+      es más largo que el tamaño especificado, se trunca. Nota: esto solo se
+      aplicará si el tamaño de la columna en la base de datos es menor que
+      el tamaño especificado aquí, o si el código está configurado para truncar
+      siempre.</dd>
+</dl>
+</section>
+</div>
+</section>
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="max_col_size">max_col_size</h1>
+<dl class="namevalue">
+  <dt class="name"><code>max_col_size</code></dt>
+  <dd>Si estás acostumbrado a simplemente lanzar mensajes de depuración como
+      enormes trazas de pila en tu logger, algunas bases de datos (¡DBD de Sybase!)
+      pueden sorprenderte al fallar debido a limitaciones de tamaño de datos.
+      Normalmente, los datos simplemente se truncarían para caber en la columna,
+      pero resulta que el DBD de Sybase tiene un máximo de 255 caracteres. Usa
+      este parámetro en tal situación para truncar mensajes largos antes de que
+      lleguen a la sentencia INSERT.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="CHANGING_DBH_CONNECTIONS_(POOLING)">CAMBIO DE CONEXIONES DBH (POOLING)</h1>
+<p class="Pp">Si quieres obtener tu dbh de algún lugar en particular, como
+    tal vez un pool, haz una subclase y sobrescribe <b>_init()</b> y/o
+    <b>create_statement()</b>, por ejemplo:</p>
+<pre>sub _init {
+    ; # no-op, sin pooling en este nivel
+}
+sub create_statement {
+    my ($self, $stmt) = @_;
+
+    $stmt || croak &quot;Log4perl: sql not set in &quot;.__PACKAGE__;
+
+    return My::Connections-&gt;getConnection-&gt;prepare($stmt)
+        || croak &quot;Log4perl: DBI-&gt;prepare failed $DBI::errstr\n$stmt&quot;;
+}</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="LIFE_OF_CONNECTIONS">VIDA DE LAS CONEXIONES</h1>
+<p class="Pp">Si estás usando
+    <span class="Li">&quot;log4j.appender.DBAppndr.usePreparedStmt&quot;</span>
+    este módulo crea un sth cuando arranca y lo mantiene durante la vida del
+    programa. Para procesos de larga duración (por ejemplo, mod_perl), las
+    conexiones pueden volverse obsoletas, pero si
+    <span class="Li">&quot;Log::Log4perl::Appender::DBI&quot;</span> intenta
+    escribir un mensaje y se da cuenta de que la conexión a la base de datos ya
+    no funciona (usando el método ping de DBI), se reconectará.</p>
+<p class="Pp">El proceso de reconexión puede ser controlado por dos parámetros,
+    <span class="Li">&quot;reconnect_attempts&quot;</span> y
+    <span class="Li">&quot;reconnect_sleep&quot;</span>.
+    <span class="Li">&quot;reconnect_attempts&quot;</span> especifica el número
+    de intentos de reconexión que realiza el appender DBI hasta que se rinde y
+    muere. <span class="Li">&quot;reconnect_sleep&quot;</span> es el tiempo entre
+    los intentos de reconexión, medido en segundos.
+    <span class="Li">&quot;reconnect_attempts&quot;</span> tiene un valor por
+    defecto de 1, <span class="Li">&quot;reconnect_sleep&quot;</span> de 0.</p>
+<p class="Pp">Alternativamente, usa <span class="Li">&quot;Apache::DBI&quot;</span>
+    o <span class="Li">&quot;Apache::DBI::Cache&quot;</span> y lee CAMBIO DE
+    CONEXIONES DB arriba.</p>
+<p class="Pp">Ten en cuenta que
+    <span class="Li">&quot;Log::Log4perl::Appender::DBI&quot;</span> mantiene una
+    conexión abierta por cada appender, lo cual podría ser demasiado.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO">VER TAMBIÉN</h1>
+<p class="Pp">Log::Dispatch::DBI</p>
+<p class="Pp">Log::Log4perl::JavaMap::JDBCAppender</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="LICENSE">LICENCIA</h1>
+<p class="Pp">Copyright 2002-2013 by Mike Schilli &lt;m@perlmeister.com&gt; y
+    Kevin Goess &lt;cpan@goess.org&gt;.</p>
+<p class="Pp">Esta biblioteca es software libre; puedes redistribuirla y/o
+    modificarla bajo los mismos términos que Perl.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHOR">AUTOR</h1>
+<p class="Pp">Por favor, contribuye con parches al proyecto en Github:</p>
+<a href='http://github.com/mschilli/log4perl'>http://github.com/mschilli/log4perl</a>
+<p class="Pp">Envía informes de errores o solicitudes de mejoras a los autores a
+    través de nuestra</p>
+<p class="Pp">LISTA DE CORREO (preguntas, informes de errores, sugerencias/parches):
+    log4perl-devel@lists.sourceforge.net</p>
+<p class="Pp">Autores (por favor contáctalos a través de la lista anterior, no
+    directamente): Mike Schilli &lt;m@perlmeister.com&gt;, Kevin Goess
+    &lt;cpan@goess.org&gt;</p>
+<p class="Pp">Contribuyentes (en orden alfabético): Ateeq Altaf, Cory Bennett,
+    Jens Berthold, Jeremy Bopp, Hutton Davidson, Chris R. Donnelly, Matisse
+    Enzer, Hugh Esco, Anthony Foiani, James FitzGibbon, Carl Franks, Dennis
+    Gregorovic, Andy Grundman, Paul Harrington, Alexander Hartmaier David Hull,
+    Robert Jacobson, Jason Kohles, Jeff Macdonald, Markus Peter, Brett Rann,
+    Peter Rabbitson, Erik Selberg, Aaron Straup Cope, Lars Thegler, David Viner,
+    Mac Yang.</p>
+</section>

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Perl::Critic::DEVELOPER(3pm) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Perl__Critic__DEVELOPER(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-perl-critic/">perl-perl-critic</a></p>
+<p class="lic">Licencias: PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Perl::Critic::DEVELOPER(3pm)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Perl::Critic::DEVELOPER(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Perl::Critic::DEVELOPER - Cómo crear nuevos módulos Perl::Critic::Policy.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Para los desarrolladores que desean crear estándares de codificación
+    personalizados, lo siguiente explica cómo crear un módulo de Política para
+    Perl::Critic. Aunque la distribución de Perl::Critic ya incluye varias
+    Políticas basadas en el libro de Damian Conway <i>Perl Best Practices</i>
+    (que se referirá como &quot;<i>PBP</i>&quot; a partir de ahora), Perl::Critic
+    no se limita a sus directrices y puede usarse para aplicar cualquier práctica,
+    preferencia o estilo que desee seguir. Incluso puede escribir Políticas para
+    aplicar directrices contradictorias. Todo lo que necesita hacer es escribir
+    una sub-clase Perl::Critic::Policy correspondiente, que puede requerir tan
+    poco como 10 líneas de código.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='ANTECEDENTES'><a class='permalink' href='#ANTECEDENTES'>ANTECEDENTES</a></h1>
+<p class="Pp">El corazón de Perl::Critic es PPI, un analizador y lexer para Perl.
+    PPI transforma el código fuente de Perl en un Modelo de Objeto de Documento
+    (DOM). Cada token en el documento se representa mediante una clase PPI, como
+    PPI::Token::Operator o PPI::Token::Word, y luego se organiza en clases de
+    estructura, como PPI::Statement::Expression y PPI::Structure::Subroutine.
+    El nodo raíz de la jerarquía es PPI::Document.</p>
+<p class="Pp">El motor de Perl::Critic recorre cada nodo en el árbol de
+    PPI::Document e invoca a cada una de las sub-clases de Perl::Critic::Policy
+    en el nodo apropiado. La Política puede inspeccionar el nodo, mirar los nodos
+    circundantes y hacer lo que quiera. Si la Política decide que se ha violado
+    un estándar de codificación, devuelve uno o más objetos Perl::Critic::Violation.
+    Si no hay violaciones, entonces la Política no devuelve nada.</p>
+<p class="Pp">Las políticas suelen escribirse basándose en políticas existentes,
+    así que veamos una para ver cómo funciona. La política
+    <i>RequireBlockGrep.pm</i> es relativamente simple y demuestra la mayoría de
+    los problemas importantes. El objetivo de esta Política es asegurar que cada
+    llamada a <span class="Li">&quot;grep&quot;</span> utilice un bloque como
+    primer argumento y no una expresión. Las razones de esta Política se discuten
+    en detalle en <i>PBP</i>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLO_DE_POLÍTICA'><a class='permalink' href='#EJEMPLO_DE_POLÍTICA'>EJEMPLO DE POLÍTICA</a></h1>
+<p class="Pp">Primero, el módulo de Política necesita tener un nombre. Perl::Critic
+    usa Module::Pluggable para descubrir automáticamente todos los módulos en el
+    espacio de nombres <span class="Li">&quot;Perl::Critic::Policy&quot;</span>.
+    Además, hemos adoptado la convención de agrupar las Políticas en directorios
+    según los capítulos de <i>PBP</i>. Dado que el objetivo de esta Política es
+    asegurar el uso de argumentos de bloque para <span class="Li">&quot;grep&quot;</span>
+    y proviene del capítulo &quot;Funciones Incorporadas&quot; de <i>PBP</i>, la
+    llamamos
+    <span class="Li">&quot;Perl::Critic::Policy::BuiltinFunctions::RequireBlockGrep&quot;</span>.</p>
+<pre>package Perl::Critic::Policy::BuiltinFunctions::RequireBlockGrep;</pre>
+<p class="Pp">A continuación, establecemos algunas pragmas y cargamos los módulos
+    que necesitaremos. Todas las políticas de módulos heredan de la clase
+    Perl::Critic::Policy, que proporciona implementaciones que no hacen nada de
+    los métodos básicos. Nuestro trabajo es anular estos métodos para que hagan
+    algo útil.</p>
+<p class="Pp">Técnicamente, <span class="Li">&quot;use strict&quot;</span> y
+    <span class="Li">&quot;use warnings&quot;</span> son opcionales, pero no queremos
+    que Perl::Critic sea un hipócrita, ¿verdad?</p>
+<pre>use strict;
+use warnings;
+use Readonly;
+use Perl::Critic::Utils qw{ :severities :classification :ppi };
+use parent 'Perl::Critic::Policy';
+our $VERSION = '1.05';</pre>
+<p class="Pp">A continuación, declararemos una descripción y una explicación para
+    esta Política. La descripción es siempre solo una cadena que básicamente dice
+    &quot;esto es lo que está mal&quot;. La explicación puede ser una cadena con
+    detalles adicionales, o una referencia a una matriz de enteros que corresponden
+    a números de página en <i>PBP</i>. Las hacemos de solo lectura porque nunca
+    cambian. (Ver Perl::Critic::Policy::ValuesAndExpressions::ProhibitConstantPragma
+    para saber por qué no usamos <span class="Li">&quot;use constant&quot;</span>).
+</p>
+<pre>Readonly::Scalar my $DESC =&gt; q{Forma de expresión de &quot;grep&quot;};
+Readonly::Scalar my $EXPL =&gt; [ 169 ];</pre>
+<p class="Pp">La mayoría de las políticas no necesitan anular el método
+    <span class="Li">initialize_if_enabled()</span> proporcionado por
+    Perl::Critic::Policy. Sin embargo, si su Política es configurable a través de
+    <i>.perlcriticrc</i>, debe implementar un método
+    <span class="Li">supported_parameters()</span> y necesita implementar
+    <span class="Li">initialize_if_enabled()</span> para examinar los valores
+    de <span class="Li">$config</span>. Dado que esta Política no es configurable,
+    la declararemos proporcionando una implementación de
+    <span class="Li">supported_parameters()</span> que devuelve una lista vacía.</p>
+<pre>sub supported_parameters { return ()                  }</pre>
+<p class="Pp">A continuación, definimos el método <span class="Li">default_severity()</span>,
+    que debe devolver un entero que indique la gravedad de la violación de esta
+    Política. Los valores de gravedad van de 1 a 5, donde 5 es el &quot;más grave&quot;.
+    En general, el nivel 5 está reservado para cosas que se usan mal con frecuencia
+    y/o causan errores. El nivel 1 es para cosas que son muy subjetivas o puramente
+    estéticas. El paquete Perl::Critic::Utils exporta varias constantes de
+    gravedad que puede usar aquí a través de la etiqueta
+    <span class="Li">&quot;:severities&quot;</span>.</p>
+<pre>sub default_severity     { return $SEVERITY_HIGH      }</pre>
+<p class="Pp">Del mismo modo, el método <span class="Li">default_themes()</span>
+    devuelve una lista de nombres de temas. Los temas están destinados a ser grupos
+    nombrados de Políticas. Todas las Políticas que se distribuyen con Perl::Critic
+    tienen un tema <span class="Li">&quot;core&quot;</span>. Dado que el uso de
+    <span class="Li">&quot;grep&quot;</span> sin bloques a menudo conduce a errores,
+    incluimos un tema <span class="Li">&quot;bugs&quot;</span>. Y dado que esta
+    Política proviene directamente de <i>PBP</i>, esta Política debe ser miembro
+    del tema <span class="Li">&quot;pbp&quot;</span>.</p>
+<pre>sub default_themes       { return qw( core bugs pbp ) }</pre>
+<p class="Pp">Como autor de una Política, puede asignar los temas que desee a la
+    Política. Si está publicando una suite de Políticas personalizadas, le
+    sugerimos que cree un tema único que cubra todas las Políticas de la
+    distribución. De esa manera, los usuarios pueden habilitar o deshabilitar
+    fácilmente todas sus políticas a la vez. Por ejemplo, las Políticas en la
+    distribución Perl::Critic::More tienen todas un tema
+    <span class="Li">&quot;more&quot;</span>.</p>
+<p class="Pp">A continuación, indicamos qué elementos del código analizará esta
+    Política, como sentencias, variables, condicionales o POD. Estos elementos
+    se especifican como clases PPI, como PPI::Statement, PPI::Token::Symbol,
+    PPI::Structure::Conditional o PPI::Token::Pod respectivamente. El método
+    <span class="Li">applies_to()</span> devuelve una lista de nombres de paquetes
+    PPI. (Puede obtener esa lista de nombres de paquetes disponibles a través de
+    <span class="Li">&quot;perldoc PPI&quot;</span>.) A medida que Perl::Critic
+    recorre el documento, llamará al método <span class="Li">violates()</span>
+    de este módulo siempre que encuentre uno de los tipos PPI que se dan aquí. En
+    este caso, solo queremos probar las llamadas a
+    <span class="Li">&quot;grep&quot;</span>. Dado que el token &quot;grep&quot;
+    es un PPI::Token::Word, devolvemos ese nombre de paquete desde el método
+    <span class="Li">applies_to()</span>.</p>
+<pre>sub applies_to           { return 'PPI::Token::Word'  }</pre>
+<p class="Pp">Si su Política necesita analizar varios tipos diferentes de
+    elementos, el método <span class="Li">&quot;applies_to&quot;</span> puede
+    devolver el nombre de varios paquetes PPI. Si su Política necesita examinar el
+    archivo en su totalidad, entonces el método
+    <span class="Li">&quot;applies_to&quot;</span> debería devolver PPI::Document.
+    Dado que solo hay un elemento PPI::Document, su Política solo se invocaría
+    una vez por archivo.</p>
+<p class="Pp">Ahora viene la parte interesante. El método <span class="Li">violates()</span>
+    hace todo el trabajo. Siempre se llama con 2 argumentos: una referencia al
+    elemento PPI actual que Perl::Critic está recorriendo, y una referencia al
+    documento PPI completo. [Y dado que este es un método de objeto, habrá un
+    argumento adicional que es una referencia a este objeto (<span class="Li">$self</span>),
+    ¡pero usted ya sabía eso!] Dado que esta Política no necesita acceso al
+    documento en su totalidad, ignoramos el último parámetro asignándolo a
+    <span class="Li">&quot;undef&quot;</span>.</p>
+<pre>sub violates {
+    my ( $self, $elem, undef ) = @_;</pre>
+<p class="Pp">El método <span class="Li">violates()</span> a menudo realiza
+    algunas pruebas para asegurarse de que tenemos el tipo correcto de elemento.
+    En nuestro ejemplo, sabemos que el elemento será un PPI::Token::Word porque
+    eso es lo que declaramos en el método <span class="Li">applies_to()</span>.
+    Sin embargo, no especificamos exactamente qué &quot;palabra&quot; estábamos
+    buscando. Evaluar un elemento PPI en un contexto de cadena devuelve la forma
+    literal del código. (También puede usar el método
+    <span class="Li">content()</span>.) Así que</p>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id='SAMPLE_POLICY_IMPLEMENTATION'><a class='permalink' href='#SAMPLE_POLICY_IMPLEMENTATION'>SAMPLE   POLICY IMPLEMENTATION</a></h1>
+<p class="Pp">Here's a sample Policy that implements the functionality to ensure
+    that all uses of the built-in <span class="Li">grep</span> function use the
+    block form. (The expression form uses code that is awkward and hard to
+    read.)</p>
+<pre>package Perl::Critic::Policy::BuiltinFunctions::RequireBlockGrep;
+
+use strict;
+use warnings;
+
+use PPI;
+use Perl::Critic::Policy;
+use Perl::Critic::Violation;
+use Perl::Critic::Utils qw{ :classification :ppi :booleans };
+
+#-----------------------------------------------------------------------------
+# The Policy Class
+#-----------------------------------------------------------------------------
+
+sub TIE_VIOLATIONS { return 'Perl::Critic::Policy'; }
+
+my $DESC = 'Use the block form of grep().';
+my $EXPL = 'The expression form of grep() is awkward and hard to read. Use the block form instead.';
+
+sub violates {
+    my $self = shift;
+    my $elem = shift;
+
+    # We only care about calls to the built-in `grep` function.
+    return if !$elem-&gt;isa('PPI::Token::Word');
+    return if $elem-&gt;word ne 'grep';
+
+    # The `PPI::Token::Word` class is also used for barewords and methods called
+    # on object references. It is possible for someone to declare a bareword hash
+    # key as "%hash = ( grep =&gt; 'foo')". We don't want to test those types of
+    # elements because they don't represent function calls to `grep`. So we use
+    # one of handy utility functions from Perl::Critic::Utils to make sure that
+    # this `grep` is actually in the right context. (The `is_function_call()`
+    # subroutine is brought in via the `:classification` tag.)
+
+    return if ! is_function_call($elem);
+
+    # Now that we know this element is a call to the `grep` function, we can
+    # look at the nearby elements to see what kind of arguments are being passed
+    # to it. In the following paragraphs, we discuss how to do this manually in
+    # order to explore PPI; after that, we'll show how this Policy actually uses
+    # facilities provided by Perl::Critic::Utils to get this done.
+
+    # Every PPI element is linked to its siblings, parent, and children (if it
+    # has any). Since those siblings could just be whitespace, we use the
+    # `snext_sibling()` to get the next code-sibling (the "s" in
+    # `snext_sibling()` stands for "significant").
+
+    my $sib = $elem-&gt;snext_sibling() or return;
+
+    # In Perl, the parenthesis around argument lists are usually optional, and PPI
+    # packs the elements into a PPI::Structure::List object when parentheses are
+    # used. So if the sibling is a "PPI::Structure::List", we pull out the first
+    # (significant) child of that list. This child will be the first argument to
+    # `grep`. If parentheses were not used, then the sibling itself is the first
+    # argument.
+
+    my $arg = $sib-&gt;isa('PPI::Structure::List') ? $sib-&gt;schild(0) : $sib;
+
+    # In actuality, this sort of function argument lookup is common, so there is
+    # a "first_arg" in Perl::Critic::Utils subroutine available via the `:ppi`
+    # tag. So we use that instead.
+
+    my $arg = first_arg($elem);
+
+    # Finally, we now have a reference to the first argument to `grep`. If that
+    # argument is a block (i.e. something in curly braces), then it will be a
+    # PPI::Structure::Block, in which case our Policy is satisfied and we just
+    # return nothing.
+
+    return if !$arg;
+    return if $arg-&gt;isa('PPI::Structure::Block');
+
+    # But if it is not a PPI::Structure::Block, then we know that this call to
+    # `grep` must be using the expression form, and that violates our Policy. So
+    # we create and return a new Perl::Critic::Violation object via the
+    # `violation()` in Perl::Critic::Policy method, passing in the description,
+    # explanation, and a reference to the PPI element that caused the violation.
+    # And that's all there is to it!
+
+    return $self-&gt;violation( $DESC, $EXPL, $elem );
+}
+1;</pre>
+<p class="Pp">One last thing -- people are going to need to understand what is
+    wrong with the code when your Policy finds a problem. It isn't reasonable to
+    include all the details in your violation description or explanation. So
+    please include a DESCRIPTION section in the POD for your Policy. It should
+    succinctly describe the behavior and motivation for your Policy and include
+    a few examples of both good and bad code. Here's an example:</p>
+<pre>=pod
+=head1 NAME
+Perl::Critic::Policy::BuiltinFunctions::RequireBlockGrep
+=head1 DESCRIPTION
+The expression forms of C&lt;grep&gt; and C&lt;map&gt; are awkward and hard to read.
+Use the block forms instead.
+    @matches = grep  /pattern/,    @list;        #not ok
+    @matches = grep { /pattern/ }  @list;        #ok
+    @mapped = map  transform($_),    @list;      #not ok
+    @mapped = map { transform($_) }  @list;      #ok
+=cut</pre>
+<p class="Pp">When your policy has a section like this, users can invoke
+    perlcritic with a <span class="Li">"--verbose"</span> parameter of
+    <span class="Li">10</span> or <span class="Li">11</span> or with a
+    &quot;%d&quot; escape to see it along with the rest of the output for
+    violations of your policy.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MAKING_YOUR_POLICY_CONFIGURABLE'><a class='permalink' href='#MAKING_YOUR_POLICY_CONFIGURABLE'>MAKING   YOUR POLICY CONFIGURABLE</a></h1>
+<p class="Pp">Perl::Critic takes care of gathering configuration information for
+    your Policy, from whatever source the user specifies. (See
+    &quot;CONFIGURATION&quot; in Perl::Critic for the details of how a user
+    specifies the values you're going to receive.) What your Policy ends up
+    receiving for the value of a parameter is a string with leading and trailing
+    whitespace removed. By default, you will need to handle conversion of that
+    string to a useful form yourself. However, if you provide some metadata
+    about your parameters, the parameter handling will be taken care of for you.
+    (Additionally, tools that deal with Policies themselves can use this
+    information to enhance their functionality. See the perlcritic
+    <span class="Li">"--profile-proto"</span> option for an
+  example.)</p>
+<p class="Pp">You can look at
+    Perl::Critic::Policy::ControlStructures::ProhibitCascadingIfElse for a
+    simple example of a configurable Policy and
+    Perl::Critic::Policy::Documentation::RequirePodSections for a more complex
+    one.</p>
+<section class="Ss">
+<h2 class="Ss" id='Do_It_All_Yourself'><a class='permalink' href='#Do_It_All_Yourself'>Do   It All Yourself</a></h2>
+<p class="Pp">The <span class="Li">initialize_if_enabled()</span> method for a
+    Policy receives one argument: an instance of Perl::Critic::PolicyConfig.
+    This method is only called if the user's configuration has enabled the
+    policy. It returns a boolean stating whether the Policy should continue to
+    be enabled. Generally, the only reason to return
+    <span class="Li">$FALSE</span> is when some external requirement is missing.
+    For example, Perl::Critic::Policy::CodeLayout::RequireTidyCode used to
+    disable itself if Perl::Tidy was not installed (that is until we made it no
+    longer optional for the Perl-Critic distribution).</p>
+<p class="Pp">A basic, do-nothing implementation of
+    <span class="Li">initialize_if_enabled()</span> would be:</p>
+<pre>use Perl::Critic::Utils qw&lt; :booleans &gt;;
+...
+sub initialize_if_enabled {
+    my ( $self, $config ) = @_;
+    return $TRUE;
+}</pre>
+<p class="Pp">As stated above, what you get in <span class="Li">$config</span>
+    are trimmed strings. For example, if the user's <i>.perlcritic</i>
+  contains</p>
+<pre>[Your::Policy]
+foo          = bar baz
+factor   =     5.52
+selections =   2 78 92</pre>
+<p class="Pp">then <span class="Li">$config</span> will contain the equivalent
+    of</p>
+<pre>my $config = {
+    foo        =&gt; 'bar baz',
+    factor     =&gt; '5.52',
+    selections =&gt; '2 78 92',
+};</pre>
+<p class="Pp">To make this available to the <span class="Li">violates()</span>
+    method, the values are usually put into <span class="Li">$self</span> under
+    the name of the configuration item prefixed with an underscore. E.g.</p>
+<pre>sub initialize_if_enabled {
+    my ( $self, $config ) = @_;
+    $self-&gt;{_foo} = $config-&gt;get{foo};
+    $self-&gt;{_factor} = $config-&gt;get{factor};
+    $self-&gt;{_selections} = $config-&gt;get{selections};
+    return $TRUE;
+}</pre>
+<p class="Pp">Often, you'll want to convert the configuration values into
+    something more useful. In this example,
+    <span class="Li">"selections"</span> is supposed to be a list of
+    integers. Perl::Critic::Utils contains a number of functions that can help
+    you with this. Assuming that <span class="Li">violates()</span> wants to
+    have <span class="Li">"selections"</span> as an array, you'll want
+    to have something like this:</p>
+<pre>use Perl::Critic::Utils qw{ :booleans :characters :data_conversion };
+sub initialize_if_enabled {
+    my ( $self, $config ) = @_;
+    $self-&gt;{_foo} = $config-&gt;get{foo};
+    $self-&gt;{_factor} = $config-&gt;get{factor};
+    my $selections = $config-&gt;get{selections} // $EMPTY_STRING;
+    $self-&gt;{_selections} = [ words_from_string($selections) ];
+    return $TRUE;
+}</pre>
+<p class="Pp">Since <span class="Li">"selections"</span> contains
+    numbers, it may be desirable to change the assignment to look like</p>
+<pre>$self-&gt;{_selections} = [ map { $_ + 0 } words_from_string($selections) ];</pre>
+<p class="Pp">If <span class="Li">violates()</span> needs to quickly determine
+    whether a particular value is in
+    <span class="Li">"selections"</span>, you would want to use a hash
+    instead of an array, like this:</p>
+<pre>$self-&gt;{_selections} = { hashify( words_from_string($selections) ) };</pre>
+<p class="Pp">For an example of a Policy that has some simple, but non-standard
+    configuration handling, see
+    Perl::Critic::Policy::CodeLayout::RequireTidyCode.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Note_On_Constructors'><a class='permalink' href='#Note_On_Constructors'>Note   On Constructors</a></h2>
+<p class="Pp">It used to be the case that Policies handled configuration by
+    implementing a constructor. However, there was no requirement to call the
+    base constructor; as long as the Policy ended up being a blessed hash
+    reference, everything was fine. Unfortunately, this meant that Policies
+    would be loaded and their prerequisites would be
+    <span class="Li">"use"</span>d, even if the Policy wasn't enabled,
+    slowing things down. Also, this severely restricted the core of
+    Perl::Critic's ability to enhance things. Use of constructors is deprecated
+    and is incompatible with <span class="Li">supported_parameters()</span>
+    metadata below. Kindly use <span class="Li">initialize_if_enabled()</span>,
+    instead, to do any sort of set up that you need.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Providing_Basic_Configuration_Information_Via_supported_parameters()'><a class='permalink' href='#Providing_Basic_Configuration_Information_Via_supported_parameters()'>Providing   Basic Configuration Information Via supported_parameters()</a></h2>
+<p class="Pp">As minimum for a well behaved Policy, you should implement
+    <span class="Li">supported_parameters()</span> in order to tell the rest of
+    <span class="Li">"Perl::Critic"</span> what configuration values
+    the Policy looks for, even if it is only to say that the Policy is not
+    configurable. In the simple form, this function returns a list of the names
+    of the parameters the Policy supports. So, for a non-configurable Policy, as
+    in the <span class="Li">"RequireBlockGrep"</span> example above,
+    this looked like</p>
+<pre>sub supported_parameters { return ()                  }</pre>
+<p class="Pp">For the example being used in the
+    <span class="Li">initialize_if_enabled()</span> section above, this would
+  be</p>
+<pre>sub supported_parameters { return qw&lt; foo factor selections &gt;; }</pre>
+<p class="Pp">Given this information,
+    <span class="Li">"Perl::Critic"</span> can tell the user when they
+    have specified a parameter for a Policy which isn't valid, e.g. when they've
+    misspelled the name of the parameter</p>
+</section>
+{
+  "title": "Policy Parameters",
+  "sections": [
+    {
+      "title": "Parameters",
+      "content": "<p>As of Perl::Critic version 1.004, Policies can now be configured via parameters.  This means that the behavior of a Policy can be modified by the user without having to subclass the Policy.  This is done by adding a <code>supported_parameters()</code> method to your Policy class.  This method should return a reference to an array of hash references, where each hash reference describes a parameter that the Policy supports.</p>\n<p>The easiest way to specify a parameter is to provide a list of strings. The first string is the name of the parameter, and the second string is its default value. For example,</p>\n<pre>sub supported_parameters {\n    return (\n        'severity',\n        'high',\n    );\n}</pre>\n<p>This policy supports a parameter named <code c='-1'>severity</code>, which defaults to <code c='-1'>high</code>. The actual value of the parameter can be retrieved by the Policy's methods via <code c='-1'>$self-&gt;{_severity}</code>.</p>\n<p>The values for parameters can be supplied in a Perl::Critic configuration file, e.g., <i><span class=\"file\">.perlcriticrc</span></i>.  The configuration file specifies the values in a hash reference, where the keys are the names of the policies and the values are hash references of parameter names and values. For example,</p>\n<pre>{\n    selected_policies =&gt; [qw{ My::Own::Policy }],\n    My::Own::Policy   =&gt; {\n        severity =&gt; 'medium',\n    },\n}</pre>\n<p>Note that the parameter name is not prefixed with an underscore in the configuration file.</p>\n<p>This can also be done on the command line via the <code>--policy-param</code> option.  For example,</p>\n<pre>perlcritic --policy-param My::Own::Policy::severity=high SomeFile.pm</pre>\n<p>and can emit the parameter as part of a <i><span class=\"file\">.perlcriticrc</span></i> prototype.</p>"
+    },
+    {
+      "title": "Parameters",
+      "content": "<p>You can provide even more information about your Policy's configuration by giving each parameter a description and a string representation of the default value for the parameter. You do this by having the values in the list returned by <code>supported_parameters()</code> be hash references instead of strings, with keys of <code c='-1'>name</code>, <code c='-1'>description</code>, and <code c='-1'>default_string</code>. For example,</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name           =&gt; 'allowed_values',\n            description    =&gt;\n                'Individual and ranges of values to allow, and/or \"all_integers\".',\n            default_string =&gt; '0 1 2',\n        },\n        {\n            name           =&gt; 'allowed_types',\n            description    =&gt; 'Kind of literals to allow.',\n            default_string =&gt; 'Float',\n        },\n    );\n}</pre>\n<p>Note that use of constructors is incompatible with specifying parameters in this way.</p>"
+    },
+    {
+      "title": "Using supported_parameters() to Get It Done For You",
+      "content": "<p>The <code>supported_parameters()</code> discussion above showed how you could help others with your Policy, but didn't do anything to make your life as a Policy author easier; you still need to implement <code>initialize_if_enabled()</code> to access any configuration that the user has specified. To have the configuration automatically handled for you, you need to declare how your parameters act by specifying a value for their <code c='-1'>behavior</code>. For example, the following declares that a parameter allows the user to choose from five specific values and that the user can select any combination of them:</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name               =&gt; 'allowed_types',\n            description        =&gt; 'Kind of literals to allow.',\n            default_string     =&gt; 'Float',\n            behavior           =&gt; 'enumeration',\n            enumeration_values =&gt; [ qw{ Binary Exp Float Hex Octal } ],\n            enumeration_allow_multiple_values =&gt; 1,\n        },\n    );\n}</pre>\n<p>When you specify a behavior, parsing and validation of the user-specified and default values is done for you and your <code>violates()</code> method can retrieve the value under the key of the parameter name prefixed with an underscore, e.g., for the above declaration, the parsed and validated value can be accessed via <code c='-1'>$self-&gt;{_allowed_types}</code>.</p>\n<p>The behaviors provide additional functionality to <span class=\"package\">Perl::Critic</span>; for more on this, see Perl::Critic::PolicyParameter and Perl::Critic::PolicyParameter::Behavior.</p>\n<p>The following discusses each of the supported behaviors and the options they support. For the full details of a behavior, see the documentation for the implementing class.</p>\n<p><i>\"string\"</i></p>\n<p>Implemented in Perl::Critic::PolicyParameter::Behavior::String.</p>\n<p>The most basic of behaviors, the value of the parameter will be stored in the Policy as a string.</p>\n<p>This behavior is not configurable.</p>\n<p><code>supported_parameters()</code> example</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name           =&gt; 'a_string',\n            description    =&gt; 'An example string.',\n            default_string =&gt; 'blah blah blah',\n            behavior       =&gt; 'string',\n        },\n    );\n}</pre>\n<p>Access example</p>\n<pre>sub violates {\n    my ($self, $element, $document) = @_;\n    ...\n    my $string = $self-&gt;{_a_string};\n    ...\n}</pre>\n<p><i>\"boolean\"</i></p>\n<p>Implemented in Perl::Critic::PolicyParameter::Behavior::Boolean.</p>\n<p>The value of the parameter will be either <code c='-1'>$TRUE</code> or <code c='-1'>$FALSE</code>.</p>\n<p>This behavior is not configurable.</p>\n<p><code>supported_parameters()</code> example</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name           =&gt; 'a_boolean',\n            description    =&gt; 'An example boolean.',\n            default_string =&gt; '1',\n            behavior       =&gt; 'boolean',\n        },\n    );\n}</pre>\n<p>Access example</p>\n<pre>sub violates {\n    my ($self, $element, $document) = @_;\n    ...\n    my $is_whatever = $self-&gt;{_a_boolean};\n    if ($is_whatever) {\n        ...\n    }\n    ...\n}</pre>\n<p><i>\"integer\"</i></p>\n<p>Implemented in Perl::Critic::PolicyParameter::Behavior::Integer.</p>\n<p>The value is validated against <code c='-1'>m/ \A [-+]? [1-9] [\d_]* \z /xms</code> (with a special check for \"0\"). Notice that this means that underscores are allowed in input values as with Perl numeric literals.</p>\n<p>This takes two options, <code c='-1'>integer_minimum</code> and <code c='-1'>integer_maximum</code>, which specify endpoints of an inclusive range to restrict the value to. Either, neither, or both may be specified.</p>\n<p><code>supported_parameters()</code> example</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name            =&gt; 'an_integer',\n            description     =&gt; 'An example integer.',\n            default_string  =&gt; '5',\n            behavior        =&gt; 'integer',\n            integer_minimum =&gt; 0,\n            integer_maximum =&gt; 10,\n        },\n    );\n}</pre>\n<p>Access example</p>\n<pre>sub violates {\n    my ($self, $element, $document) = @_;\n    ...\n    my $integer = $self-&gt;{_an_integer};\n    if ($integer &gt; $TURNING_POINT) {\n        ...\n    }\n    ...\n}</pre>\n<p><i>\"string list\"</i></p>\n<p>Implemented in Perl::Critic::PolicyParameter::Behavior::StringList.</p>\n<p>The values will be derived by splitting the input string on blanks. (See \"words_from_string\" in Perl::Critic::Utils.) The parameter will be stored as a reference to a hash, with the values being the keys.</p>\n<p>This takes one optional option, <code c='-1'>list_always_present_values</code>, of a reference to an array of strings that will always be included in the parameter value, e.g. if the value of this option is <code c='-1'>[ qw{ a b c } ]</code> and the user specifies a value of <code c='-1'>'c d e'</code>, then the value of the parameter will contain <code c='-1'>'a'</code>, <code c='-1'>'b'</code>, <code c='-1'>'c'</code>, <code c='-1'>'d'</code>, and <code c='-1'>'e'</code>.</p>\n<p><code>supported_parameters()</code> example</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name                  =&gt; 'a_string_list',\n            description           =&gt; 'An example list.',\n            default_string        =&gt; 'red pink blue',\n            behavior              =&gt; 'string list',\n            list_always_present_values =&gt; [ qw{ green purple} ],\n        },\n    );\n}</pre>\n<p>Access example</p>\n<pre>sub violates {\n    my ($self, $element, $document) = @_;\n    ...\n    my $list = $self-&gt;{_a_string_list};\n    my @list = keys %{$list};\n    ...\n    return unless $list-&gt;{ $element-&gt;content() };\n    ...\n}</pre>\n<p><i>\"enumeration\"</i></p>\n<p>Implemented in Perl::Critic::PolicyParameter::Behavior::Enumeration.</p>\n<p>The values will be derived by splitting the input string on blanks. (See \"words_from_string\" in Perl::Critic::Utils.) Depending upon the value of the <code c='-1'>enumeration_allow_multiple_values</code> option, the parameter will be stored as a string or a reference to a hash, with the values being the keys.</p>\n<p>This behavior takes one required option and one optional one. A value for <code c='-1'>enumeration_values</code> of a reference to an array of valid strings is required. A true value can be specified for <code c='-1'>enumeration_allow_multiple_values</code> to allow the user to pick more than one value, but this defaults to false.</p>\n<p><code>supported_parameters()</code> example</p>\n<pre>use Perl::Critic::Utils qw{ :characters };\nsub supported_parameters {\n    return (\n        {\n            name               =&gt; 'a_single_valued_enumeration',\n            description        =&gt;\n                'An example enumeration that can only have a single value.',\n            default_string     =&gt; $EMPTY,\n            behavior           =&gt; 'enumeration',\n            enumeration_values =&gt; [ qw{ block statement pod operator } ],\n            enumeration_allow_multiple_values =&gt; 0,\n        },\n        {\n            name               =&gt; 'a_multi_valued_enumeration',\n            description        =&gt;\n                'An example enumeration that can have multiple values.',\n            default_string     =&gt; 'fe',\n            behavior           =&gt; 'enumeration',\n            enumeration_values =&gt; [ qw{ fe fi fo fum } ],\n            enumeration_allow_multiple_values =&gt; 1,\n        },\n    );\n}</pre>\n<p>Access example</p>\n<pre>sub violates {\n    my ($self, $element, $document) = @_;\n    ...\n    my $single_value = $self-&gt;{_a_single_valued_enumeration};\n    ...\n    my $multi_value = $self-&gt;{_a_multi_valued_enumeration};\n    if ( $multi_value-&gt;{fum} ) {\n        ...\n    }\n    ...\n}</pre>"
+    },
+    {
+      "title": "Using a Custom Parser",
+      "content": "<p>If none of the behaviors does exactly what you want it to, you can provide your own parser for a parameter. The reason for doing this as opposed to using an implementation of <code>initialize_if_enabled()</code> is that it allows you to use a behavior to provide its extra functionality and it provides a means for a <span class=\"package\">Perl::Critic</span> configuration program, e.g. an IDE that integrates <span class=\"package\">Perl::Critic</span>, to validate your parameter as the user modifies its value.</p>\n<p>The way you declare that you have a custom parser is to include a reference to it in the parameter specification with the <code c='-1'>parser</code> key. For example:</p>\n<pre>sub supported_parameters {\n    return (\n        {\n            name           =&gt; 'file_name',\n            description    =&gt; 'A file for to read a list of values from.',\n            default_string =&gt; undef,\n            behavior       =&gt; 'string',\n            parser         =&gt; \&amp;_parse_file_name,\n        },\n    );\n}</pre>\n<p>A parser is a method on a subclass of Perl::Critic::Policy that takes two parameters: the Perl::Critic::PolicyParameter that is being specified and the value string provided by the user. The method is responsible for dealing with any default value and for saving the parsed value for later use by the <span c>"
+    }
+  ]
+}
+<section class="Sh">
+<h1 class="Sh" id="POLICIES_WITH_CONFIGURATION_PARAMETERS"><a class='permalink' href='#POLICIES_WITH_CONFIGURATION_PARAMETERS'>POLICIES   WITH CONFIGURATION PARAMETERS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="supported_parameters()"><a class='permalink' href='#supported_parameters()'>supported_parameters()</a></h2>
+<p class="Pp">Policies can be made configurable through the use of the
+    <span class="Li">supported_parameters()</span> method. This method should
+    return a reference to an array of hashrefs, where each hashref describes a
+    single parameter that the policy can accept.</p>
+<p class="Pp">The following example shows a policy that accepts a single
+    parameter named <code class="Nm">filename</code>. This parameter must be a
+    string, and it must be readable.</p>
+<pre>use strict;
+use warnings;
+use Path::Tiny;
+use Perl::Critic::Exception::Configuration::Option::Policy::ParameterValue
+    qw{ throw_policy_value };
+use base 'Perl::Critic::Policy';
+sub supported_parameters {
+    return [
+        {
+            name        =&gt; 'filename',
+            description =&gt; 'The name of the file to read.',
+            behavior    =&gt; 'string',
+            parser      =&gt; sub {
+                my ($self, $parameter, $config_string) = @_;
+                if (not -r $config_string) {
+                    throw_policy_value(
+                        policy       =&gt; $self-&gt;get_short_name(),
+                        option_name  =&gt; $parameter-&gt;get_name(),
+                        option_value =&gt; $config_string,
+                        message_suffix =&gt; 'is not readable.',
+                    );
+                }
+                return $config_string;
+            },
+        },
+    ];
+}
+sub _load_file {
+    my ($self, $filename) = @_;
+    return path($filename)-&gt;slurp;
+}
+# ...rest of policy...</pre>
+<p class="Pp">When a policy is configured in a <code class="Nm">.perlcriticrc</code>
+    file, <span class="Li">Perl::Critic</span> will take care of validating the
+    user-supplied values for the parameters that the policy declares via
+    <span class="Li">supported_parameters()</span>. If the value is not valid,
+    the parameter's parser will be called. If the parser finds that the value
+    is invalid, it should throw an exception. Note that if the parser is not
+    supplied, a default parser is used that relies on the value specified for
+    the <code class="Nm">behavior</code> key.</p>
+<p class="Pp">The custom parser shown in the example above is called with the
+    policy object, the parameter object, and the value that the user supplied
+    for the parameter. The parser should return the canonicalized value for the
+    parameter, or it should die (preferably by throwing an exception) if the
+    value is invalid.</p>
+<p class="Pp">Values supplied by the user will be available via the
+    <code class="Nm">$parameter-&gt;value()</code> method.</p>
+<p class="Pp">An example parser (without enough error handling) for the above
+    example declaration:</p>
+<pre>use Path::Tiny;
+use Perl::Critic::Exception::Configuration::Option::Policy::ParameterValue
+    qw{ throw_policy_value };
+sub _parse_file_name {
+    my ($self, $parameter, $config_string) = @_;
+    my @thingies;
+    if ($config_string) {
+        if (not -r $config_string) {
+            throw_policy_value
+                policy         =&gt; $self-&gt;get_short_name(),
+                option_name    =&gt; $parameter-&gt;get_name(),
+                option_value   =&gt; $config_string,
+                message_suffix =&gt; 'is not readable.';
+        }
+        @thingies = path($config_string)-&gt;slurp;
+    }
+    $self-&gt;{_thingies} = \@thingies;
+    return;
+}</pre>
+<p class="Pp">Note that, if the value for the parameter is not valid, an
+    instance of
+    Perl::Critic::Exception::Configuration::Option::Policy::ParameterValue is
+    thrown. This allows <span class="Li">&quot;Perl::Critic&quot;</span> to
+    include that problem along with any other problems found with the user's
+    configuration in a single error message.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Using_Both_supported_parameters()_and_initialize_if_enabled()"><a class='permalink' href='#Using_Both_supported_parameters()_and_initialize_if_enabled()'>Using   Both supported_parameters() and initialize_if_enabled()</a></h2>
+<p class="Pp">There are cases where a Policy needs additional initialization
+    beyond configuration or where the way it acts depends upon the combination
+    of multiple parameters. In such situations, you will need to create an
+    implementation of <span class="Li">initialize_if_enabled()</span>. If you
+    want to take advantage of the supplied parameter handling from within
+    implementation of <span class="Li">initialize_if_enabled()</span>, note that
+    the information from <span class="Li">supported_parameters()</span> will
+    already have been used, with user-supplied parameter values validated and
+    placed into the Policy by the time
+    <span class="Li">initialize_if_enabled()</span> has been called. It is
+    likely that you will not need to refer the contents of the
+    <span class="Li">$config</span> parameter; just pull the information you
+    need out of <span class="Li">$self</span>. In fact, any value for the
+    parameter values will be gone.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Summary_of_permitted_hash_keys_in_supported_parameters()."><a class='permalink' href='#Summary_of_permitted_hash_keys_in_supported_parameters().'>Summary   of permitted hash keys in supported_parameters().</a></h2>
+<p class="Pp"><i>All types</i></p>
+<dl class="Bl-tag">
+  <dt>- &quot;name&quot; (mandatory)</dt>
+  <dd></dd>
+  <dt>- &quot;description&quot; (optional)</dt>
+  <dd></dd>
+  <dt>- &quot;behavior&quot; (optional)</dt>
+  <dd>Currently, one of:</dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt>&quot;boolean&quot;</dt>
+  <dd></dd>
+  <dt>&quot;enumeration&quot;</dt>
+  <dd></dd>
+  <dt>&quot;integer&quot;</dt>
+  <dd></dd>
+  <dt>&quot;string&quot;</dt>
+  <dd></dd>
+  <dt>&quot;string list&quot;</dt>
+  <dd></dd>
+</dl>
+</div>
+<dl class="Bl-tag">
+  <dt>- &quot;default_string&quot; (optional)</dt>
+  <dd>A string representation of the default value of the parameter.</dd>
+  <dt>- &quot;parser&quot; (optional)</dt>
+  <dd>A code ref to a custom parser for the parameter.</dd>
+</dl>
+<p class="Pp"><i>Enumerations</i></p>
+<dl class="Bl-tag">
+  <dt>- &quot;enumeration_values&quot; (mandatory)</dt>
+  <dd>A mandatory reference to an array of strings.</dd>
+  <dt>- &quot;enumeration_allow_multiple_values&quot; (optional)</dt>
+  <dd>Boolean indicating whether or not the user is restricted to a single
+      value.</dd>
+</dl>
+<p class="Pp"><i>Integers</i></p>
+<dl class="Bl-tag">
+  <dt>- &quot;integer_minimum&quot; (optional)</dt>
+  <dd>Minimum allowed value, inclusive.</dd>
+  <dt>- &quot;integer_maximum&quot; (optional)</dt>
+  <dd>Maximum allowed value, inclusive.</dd>
+</dl>
+<p class="Pp"><i>String lists</i></p>
+<dl class="Bl-tag">
+  <dt>- &quot;list_always_present_values&quot; (optional)</dt>
+  <dd>A reference to an array of values that should always be included in the
+      value of the parameter.</dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="ADDITIONAL_FEATURES"><a class='permalink' href='#ADDITIONAL_FEATURES'>ADDITIONAL   FEATURES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="default_maximum_violations_per_document()"><a class='permalink' href='#default_maximum_violations_per_document()'>default_maximum_violations_per_document()</a></h2>
+<p class="Pp">Certain problems that a Policy detects can be endemic to a
+    particular file; if there's one violation, there's likely to be many. A good
+    example of this is
+    Perl::Critic::Policy::TestingAndDebugging::RequireUseStrict; if there's one
+    line before <span class="Li">&quot;use strict&quot;</span>, there's a good
+    chance that the entire file is missing <span class="Li">&quot;use
+    strict&quot;</span>. In such cases, it's not much help to the user to report
+    every single violation. If you've got such a policy, you should override
+    <b>default_maximum_violations_per_document()</b> method to provide a limit.
+    The user can override this value with a value for
+    &quot;maximum_violations_per_document&quot; in their
+  <i>.perlcriticrc</i>.</p>
+<p class="Pp">See the source code for
+    Perl::Critic::Policy::ValuesAndExpressions::ProhibitMagicNumbers and
+    Perl::Critic::Policy::TestingAndDebugging::RequireUseWarnings for
+  examples.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="is_safe()"><a class='permalink' href='#is_safe()'>is_safe()</a></h2>
+<p class="Pp">Most Perl::Critic Policies are purely <i>static</i>. In other
+    words, they never compile or execute any of the source code that they
+    analyze. However it is possible to write <i>dynamic</i> Policies that do
+    compile or execute code, which may result in unsafe operations (see
+    Perl::Critic::Dynamic for an example). So the
+    <span class="Li">is_safe()</span> method is used to indicate whether a
+    Policy can be trusted to not cause mischief. By default,
+    <span class="Li">is_safe()</span> returns true. But if you are writing a
+    Policy that will compile or execute any of the source code that it analyzes,
+    then you should override the <span class="Li">is_safe()</span> method to
+    return false.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DISTRIBUTING_YOUR_POLICIES"><a class='permalink' href='#DISTRIBUTING_YOUR_POLICIES'>DISTRIBUTING   YOUR POLICIES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="Create_a_Distribution"><a class='permalink' href='#Create_a_Distribution'>Create   a Distribution</a></h2>
+<p class="Pp">You need to come up with a name for your set of policies. Sets of
+    add-on policies are generally named
+    <span class="Li">&quot;Perl::Critic::</span><span class="Li"><i>something</i></span><span class="Li">&quot;</span>,
+    e.g. Perl::Critic::More.</p>
+<p class="Pp">The module representing the distribution will not actually have
+    any functionality; it's just documentation and a name for users to use when
+    installing via CPAN/CPANPLUS. The important part is that this will include a
+    list of the included policies, with descriptions of each.</p>
+<p class="Pp">A typical implementation will look like:</p>
+<pre>package Perl::Critic::Example;
+use strict;
+use warnings;
+our $VERSION = '1.000000';
+1; # Magic true value required at end of module
+__END__
+=head1 NAME
+Perl::Critic::Example - Policies for Perl::Critic that act as an example.
+=head1 AFFILIATION
+This module has no functionality, but instead contains documentation
+for this distribution and acts as a means of pulling other modules
+into a bundle.  All of the Policy modules contained herein will have
+an &quot;AFFILIATION&quot; section announcing their participation in this
+grouping.
+=head1 SYNOPSIS
+Some L&lt;Perl::Critic|Perl::Critic&gt; policies that will help you keep your
+code nice and compliant.
+=head1 DESCRIPTION
+The included policies are:
+=over
+=item L&lt;Perl::Critic::Policy::Documentation::Example|Perl::Critic::Policy::Documentation::Example&gt;
+Complains about some example documentation issues.  [Default severity: 3]
+=item L&lt;Perl::Critic::Policy::Variables::Example|Perl::Critic::Policy::Variables::Example&gt;
+All modules must have at least one variable.  [Default severity: 3]
+=back
+=head1 CONFIGURATION AND ENVIRONMENT
+All policies included are in the &quot;example&quot; theme.  See the
+L&lt;Perl::Critic|Perl::Critic&gt; documentation for how to make use of this.</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Themes"><a class='permalink' href='#Themes'>Themes</a></h2>
+<p class="Pp">Users can choose which policies to enable using themes. You should
+    implement <span class="Li">default_themes()</span> so that users can take
+    advantage of this. In particular, you should use a theme named after your
+    distribution in all your policies; this should match the value listed in the
+    <span class="Li">&quot;CONFIGURATION AND ENVIRONMENT&quot;</span> POD
+    section as shown above.</p>
+<pre>default_themes { return qw&lt; example math &gt; }</pre>
+<p class="Pp">If you're looking for ideas of what themes to use, have a look at
+    the output of <span class="Li">&quot;perlcritic
+  --list-themes&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Documentation"><a class='permalink' href='#Documentation'>Documentation</a></h2>
+<p class="Pp"><i>AFFILIATION</i></p>
+<p class="Pp">Since all policies have to go somewhere under the
+    <span class="Li">&quot;Perl::Critic::Policy::&quot;</span> namespace, it
+    isn't always clear what distribution a policy came from when browsing
+    through their documentation. For this reason, you should include an
+    <span class="Li">&quot;AFFILIATION&quot;</span> section in the POD for all
+    of your policies that state where the policy comes from. For example:</p>
+<pre>=head1 AFFILIATION
+This policy is part of L&lt;Perl::Critic::Example|Perl::Critic::Example&gt;.</pre>
+<p class="Pp"><i>CONFIGURATION</i></p>
+<p class="Pp">In order to make it clear what can be done with a policy, you
+    should always include a <span class="Li">&quot;CONFIGURATION&quot;</span>
+    section in your POD, even if it's only to say:</p>
+<pre>=head1 CONFIGURATION
+This Policy is not configurable except for the standard options.</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="TESTING_YOUR_POLICY"><a class='permalink' href='#TESTING_YOUR_POLICY'>TESTING   YOUR POLICY</a></h1>
+<p class="Pp">The Perl::Critic distribution also contains a framework for
+    testing your Policy. See Perl::Critic::TestUtils for the details.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="HINT"><a class='permalink' href='#HINT'>HINT</a></h1>
+<p class="Pp">When you're trying to figure out what PPI is going to hand you for
+    a chunk of code, there is a <i>tools/ppidump</i> program in the Perl::Critic
+    distribution that will help you. For example, when developing the above
+    RequireBlockGrep example, you might want to try</p>
+<pre>tools/ppidump '@matches = grep /pattern/, @list;'</pre>
+<p class="Pp">and</p>
+<pre>tools/ppidump '@matches = grep { /pattern/ } @list;'</pre>
+<p class="Pp">to see the differences between the two cases.</p>
+<p class="Pp">Alternatively, see the
+    <span class="Li">&quot;ppi_dumper&quot;</span> documentation at
+    <a href='http://search.cpan.org/dist/App-PPI-Dumper/script/ppi_dumper'>http://search.cpan.org/dist/App-PPI-Dumper/script/ppi_dumper</a> and the
+    <span class="Li">&quot;PPI::Tester&quot;</span> documentation at
+    <a href='http://search.cpan.org/dist/PPI-Tester/lib/PPI/Tester.pm'>http://search.cpan.org/dist/PPI-Tester/lib/PPI/Tester.pm</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="VERSION"><a class='permalink' href='#VERSION'>VERSION</a></h1>
+<p class="Pp">The following is the value of the <code class="Nm">$VERSION</code>
+    globally visible variable for this module.</p>
+<pre>1.125</pre>
+</section>
+<div class="section">
+  <h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+  <p class="Pp">Esta es parte de Perl::Critic versión 1.116.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+  <p class="Pp">Chas. Owens tiene una entrada de blog sobre cómo añadir políticas de casa a Perl::Critic en <a href='http://svok.blogspot.com/2009/09/adding-house-policies-to-perlcritic.html'>http://svok.blogspot.com/2009/09/adding-house-policies-to-perlcritic.html</a>.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+  <p class="Pp">Jeffrey Ryan Thalhammer &lt;jeff@imaginative-software.com&gt;</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+  <p class="Pp">Copyright (c) 2005-2011 Imaginative Software Systems. Todos los derechos reservados.</p>
+  <p class="Pp">Este programa es software libre; puede redistribuirlo y/o modificarlo bajo los mismos términos que Perl en sí.</p>
+</div>
+<div class="section">
+  <h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+</div>
+<div class="section">
+  <h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+</div>
+<div class="section">
+  <h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+</div>
+<div class="section">
+  <h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>COPYRIGHT</a></h1>
+</div>
+<div class="table-of-contents">
+  <table class="foot">
+    <tr>
+      <td class="foot-date">2025-07-14</td>
+      <td class="foot-os">perl v5.42.0</td>
+    </tr>
+  </table>
+</div>
+</div>
+<aside id="sidebar">
+  <section class="search">
+    <form action="/search" class="search direct-search" role="search">
+      <input type="search" placeholder="Buscar manual de página" name="q" value="" />
+      <input type="submit" name="go" value="Ir" />
+    </form>
+  </section>
+  <section class="package-info">
+    <p>Información de paquete:</p>
+    <dl>
+      <dt>Nombre del paquete:</dt>
+      <dd><a href="https://www.archlinux.org/packages/extra/any/perl-perl-critic/">extra/perl-perl-critic</a></dd>
+      <dt>Version:</dt>
+      <dd>1.156-2</dd>
+      <dt>Upstream:</dt>
+      <dd><a href="https://metacpan.org/release/Perl-Critic">https://metacpan.org/release/Perl-Critic</a></dd>
+      <dt>Licencias:</dt>
+      <dd>PerlArtistic</dd>
+      <dt>Manuales:</dt>
+      <dd><a href="/listing/extra/perl-perl-critic/">/listing/extra/perl-perl-critic/</a></dd>
+    </dl>
+  </section>
+  <details>
+    <summary>Índice de contenido</summary>
+    <nav class="toc">
+      <ul>
+        <li><a href="#NAME">NOMBRE</a></li>
+        <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        <li><a href="#BACKGROUND">ANTECEDENTES</a></li>
+        <li><a href="#EXAMPLE_POLICY">EJEMPLO DE POLÍTICA</a></li>
+        <li><a href="#MAKING_YOUR_POLICY_CONFIGURABLE">HACIENDO SU POLÍTICA CONFIGURABLE</a></li>
+        <li><a href="#ADDITIONAL_FEATURES">CARACTERÍSTICAS ADICIONALES</a></li>
+        <li><a href="#DISTRIBUTING_YOUR_POLICIES">DISTRIBUCIÓN DE SUS POLÍTICAS</a></li>
+        <li><a href="#TESTING_YOUR_POLICY">PRUEBA DE SU POLÍTICA</a></li>
+        <li><a href="#HINT">PISTA</a></li>
+        <li><a href="#VERSION">VERSIÓN</a></li>
+        <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        <li><a href="#AUTHOR">AUTOR</a></li>
+        <li><a href="#COPYRIGHT">COPYRIGHT</a></li>
+      </ul>
+    </nav>
+  </details>
+  <nav class="other-formats">
+    <p>Otras formas de formato:
+        
+      <a href="/man/Perl::Critic::DEVELOPER.3pm.es.txt">txt</a>, 
+        
+      <a href="/man/Perl::Critic::DEVELOPER.3pm.es.raw">raw</a>
+        
+    </p>
+  </nav>
+</aside>
+</main>
+<footer>
+  
+  <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>, excepto para el contenido de las páginas de manuales, que tienen su propia licencia especificada en el correspondiente paquete de Arch Linux.</p>
+</footer>

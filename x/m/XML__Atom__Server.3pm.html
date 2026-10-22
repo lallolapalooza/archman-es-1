@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>XML::Atom::Server(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">XML__Atom__Server(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-xml-atom/">perl-xml-atom</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">XML::Atom::Server(3pm)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">XML::Atom::Server(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NOMBRE</a></h1>
+<p class="Pp">XML::Atom::Server - Un servidor para la API de Atom</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SINOPSIS</a></h1>
+<pre>package My::Server;
+use base qw( XML::Atom::Server );
+sub handle_request {
+    my $server = shift;
+    $server-&gt;authenticate or return;
+    my $method = $server-&gt;request_method;
+    if ($method eq 'POST') {
+        return $server-&gt;new_post;
+    }
+    ...
+}
+my %Passwords;
+sub password_for_user {
+    my $server = shift;
+    my($username) = @_;
+    $Passwords{$username};
+}
+sub new_post {
+    my $server = shift;
+    my $entry = $server-&gt;atom_body or return;
+    ## $entry es un objeto XML::Atom::Entry.
+    ## ... Guarda la nueva entrada ...
+}
+package main;
+my $server = My::Server-&gt;new;
+$server-&gt;run;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPCIÓN</a></h1>
+<p class="Pp"><i>XML::Atom::Server</i> proporciona una clase base para servidores
+    de la API de Atom. Maneja todo el procesamiento central del servidor, tanto
+    los formatos SOAP como REST del protocolo, y la autenticación WSSE. También
+    puede ejecutarse como un manejador de mod_perl o como parte de un programa
+    CGI.</p>
+<p class="Pp">No proporciona funciones específicas para ninguna
+    implementación particular, como la publicación de una entrada, la
+    recuperación de una lista de entradas, la eliminación de una entrada, etc.
+    Las implementaciones deben heredar de
+    <i>XML::Atom::Server</i>, sobrescribiendo el método
+    <i>handle_request</i>, y manejar todas las funciones como estas ellas
+    mismas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SUBCLASSING"><a class="permalink" href="#SUBCLASSING">SUBCLASES</a></h1>
+<section class="Ss">
+<h2 class="Ss" id="Request_Handling"><a class="permalink" href="#Request_Handling">Manejo de Solicitudes</a></h2>
+<p class="Pp">Las subclases de <i>XML::Atom::Server</i> deben sobrescribir el
+    método <i>handle_request</i> para realizar todo el procesamiento de
+    solicitudes. La implementación debe establecer todas las cabeceras de
+    respuesta, incluido el código de respuesta y cualquier cabecera HTTP
+    relevante, y debe devolver un escalar que represente el cuerpo de la
+    respuesta que se enviará de vuelta al cliente.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>sub handle_request {
+    my $server = shift;
+    my $method = $server-&gt;request_method;
+    if ($method eq 'POST') {
+        return $server-&gt;new_post;
+    }
+    ## ... manejar GET, PUT, etc
+}
+
+sub new_post {
+    my $server = shift;
+    my $entry = $server-&gt;atom_body or return;
+    my $id = save_this_entry($entry);  ## Específico de la implementación
+    $server-&gt;response_header(Location =&gt; $server-&gt;uri . '/entry_id=' . $id);
+    $server-&gt;response_code(201);
+    $server-&gt;response_content_type('application/x.atom+xml');
+    return serialize_entry($entry);    ## Específico de la implementación
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Authentication"><a class="permalink" href="#Authentication">Autenticación</a></h2>
+<p class="Pp">Los servidores que requieren autenticación para publicar o
+    recuperar entradas o feeds deben sobrescribir el método
+    <i>password_for_user</i>. Dado un nombre de usuario (de la cabecera WSSE),
+    <i>password_for_user</i> debe devolver la contraseña de ese usuario en texto
+    claro. Esto se combinará con el nonce y la hora de creación para generar el
+    resumen, que se comparará con el resumen enviado en la cabecera WSSE. Si el
+    nombre de usuario proporcionado no existe en tu base de datos de usuarios o
+    similar, simplemente devuelve <span class="Li">&quot;undef&quot;</span>.</p>
+<p class="Pp">Por ejemplo:</p>
+<pre>my %Passwords = ( foo =&gt; 'bar' );   ## La contraseña para &quot;foo&quot; es &quot;bar&quot;.
+sub password_for_user {
+    my $server = shift;
+    my($username) = @_;
+    $Passwords{$username};
+}</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="METHODS"><a class="permalink" href="#METHODS">MÉTODOS</a></h1>
+<p class="Pp"><i>XML::Atom::Server</i> proporciona una variedad de métodos para
+    ser utilizados por las subclases para recuperar cabeceras, contenido y otra
+    información de la solicitud, y para establecer lo mismo en la respuesta.</p>
+<section class="Ss">
+<h2 class="Ss" id="Client_Request_Parameters"><a class="permalink" href="#Client_Request_Parameters">Parámetros de Solicitud del Cliente</a></h2>
+<ul class="Bl-bullet">
+  <li><span class="Li">$server</span>-&gt;uri
+    <p class="Pp">Devuelve la URI de la implementación del servidor Atom.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;request_method
+    <p class="Pp">Devuelve el nombre del método de solicitud enviado al servidor
+        desde el cliente (por ejemplo, <span class="Li">&quot;GET&quot;</span>,
+        <span class="Li">&quot;POST&quot;</span>, etc.). Ten en cuenta que si el
+        cliente envió la solicitud en un sobre SOAP, el método se obtiene de la
+        cabecera HTTP <i>SOAPAction</i>.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;request_header($header)
+    <p class="Pp">Recupera el valor de la cabecera de solicitud HTTP
+        <span class="Li"><i>$header</i></span><i></i>.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;request_content
+    <p class="Pp">Devuelve un escalar que contiene el contenido de una solicitud
+        POST o PUT del cliente.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;request_param($param)
+    <p class="Pp"><i>XML::Atom::Server</i> analiza automáticamente PATH_INFO
+        enviado en la solicitud y lo divide en pares clave-valor. Esto se puede
+        utilizar para pasar parámetros. Por ejemplo, en la URI</p>
+        <a href='http://localhost/atom-server/entry_id=1'>http://localhost/atom-server/entry_id=1</a>
+    <p class="Pp">el parámetro <i>entry_id</i> se establecería en
+        <span class="Li">1</span>.</p>
+    <p class="Pp"><i>request_param</i> devuelve el valor del parámetro
+        <span class="Li"><i>$param</i></span><i></i>.</p>
+  </li>
+</ul>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Setting_up_the_Response"><a class="permalink" href="#Setting_up_the_Response">Configuración de la Respuesta</a></h2>
+<ul class="Bl-bullet">
+  <li><span class="Li">$server</span>-&gt;response_header($header,
+      <span class="Li">$value</span>)
+    <p class="Pp">Establece el valor de la cabecera de respuesta HTTP
+        <span class="Li"><i>$header</i></span><i></i> a
+        <i></i><span class="Li"><i>$value</i></span><i></i>.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;response_code([
+      <span class="Li">$code</span> ])
+    <p class="Pp">Devuelve el código de respuesta actual que se enviará de vuelta
+        al cliente, y si se proporciona <span class="Li"><i>$code</i></span><i></i>,
+        establece el código de respuesta.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;response_content_type([
+      <span class="Li">$type</span> ])
+    <p class="Pp">Devuelve la cabecera <i>Content-Type</i> actual que se enviará
+        de vuelta al cliente, y si se proporciona <span class="Li"><i>$type</i></span><i></i>,
+        establece el valor para esa cabecera.</p>
+  </li>
+</ul>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="Processing_the_Request"><a class="permalink" href="#Processing_the_Request">Procesamiento de la Solicitud</a></h2>
+<ul class="Bl-bullet">
+  <li><span class="Li">$server</span>-&gt;authenticate
+    <p class="Pp">Intenta autenticar la solicitud basándose en la información de
+        autenticación presente en la solicitud (actualmente solo WSSE). Esto
+        llamará al método <i>password_for_user</i> en la subclase para obtener
+        la contraseña en texto claro del nombre de usuario proporcionado en la
+        solicitud.</p>
+  </li>
+  <li><span class="Li">$server</span>-&gt;atom_body
+    <p class="Pp">Devuelve un objeto <i>XML::Atom::Entry</i> que contiene la
+        entrada enviada en la solicitud.</p>
+  </li>
+</ul>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="USAGE"><a class="permalink" href="#USAGE">USO</a></h1>
+<p class="Pp">Una vez que hayas definido tu subclase de servidor, puedes
+    configurarla como un programa CGI o como un manejador de mod_perl.</p>
+<p class="Pp">Un programa CGI simple se vería algo así:</p>
+<pre>#!/usr/bin/perl -w
+use strict;
+use My::Server;
+my $server = My::Server-&gt;new;
+$server-&gt;run;</pre>
+<p class="Pp">Una configuración simple de manejador de mod_perl se vería algo
+    así:</p>
+<pre>PerlModule My::Server
+&lt;Location /atom-server&gt;
+    SetHandler perl-script
+    PerlHandler My::Server
+&lt;/Location&gt;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="ERROR_HANDLING"><a class="permalink" href="#ERROR_HANDLING">MANEJO DE ERRORES</a></h1>
+<p class="Pp">Si deseas devolver un error desde <i>handle_request</i>, puedes
+    utilizar el método incorporado <i>error</i>:</p>
+<pre>sub handle_request {
+    my $server = shift;
+    ...
+    return $server-&gt;error(500, &quot;Algo salió mal&quot;);
+}</pre>
+<p class="Pp">Esto se devolverá al cliente con un código de respuesta de 500 y
+    una cadena de error de <span class="Li">&quot;Algo salió
+    mal&quot;</span>. Los errores se serializan automáticamente en fallos SOAP si
+    la solicitud entrante está encerrada en un sobre SOAP.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHOR_&amp;amp;_COPYRIGHT"><a class="permalink" href="#AUTHOR_&amp;amp;_COPYRIGHT">AUTOR Y COPYRIGHT</a></h1>
+<p class="Pp">Por favor, consulta la página del manual de <i>XML::Atom</i> para
+    obtener información sobre el autor, derechos de autor y licencia.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" na</form>
+</section>
+                
+<nav id="toc">
+    <h2>Contenido</h2>
+    <ol class="toc-list">
+        <li><a href="#NAME">NOMBRE</a></li>
+        <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        <li><a href="#SUBCLASSING">SUBCLASES</a>
+            <ol class="toc-list">
+                <li><a href="#Request_Handling">Manejo de Solicitudes</a></li>
+                <li><a href="#Authentication">Autenticación</a></li>
+            </ol>
+        </li>
+        <li><a href="#METHODS">MÉTODOS</a>
+            <ol class="toc-list">
+                <li><a href="#Client_Request_Parameters">Parámetros de Solicitud del Cliente</a></li>
+                <li><a href="#Setting_up_the_Response">Configuración de la Respuesta</a></li>
+                <li><a href="#Processing_the_Request">Procesamiento de la Solicitud</a></li>
+            </ol>
+        </li>
+        <li><a href="#USAGE">USO</a></li>
+        <li><a href="#ERROR_HANDLING">MANEJO DE ERRORES</a></li>
+        <li><a href="#AUTHOR_&amp;amp;_COPYRIGHT">AUTOR Y COPYRIGHT</a></li>
+    </ol>
+</nav>
+
+            </aside>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>XML::Atom::Server(3pm) - Arch Linux Packages</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="Arch Linux packages documentation">
+        <link rel="stylesheet" href="/assets/css/style.css">
+        <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16x16.png">
+    </head>
+    <body>
+        
+        <main class="container">
+            <aside class="sidebar">
+                <section class="search-box">
+                    <form action="/search/" method="get">
+                        <input type="text" name="q" value=""
+                        />
+                        <input type="submit" name="go" value="Go" />
+                    </form>
+
+                </section>
+
+                <section class="package-info">
+                    <p>Información del paquete:</p>
+                    <dl>
+                        <dt>Nombre del paquete:</dt>
+                        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-xml-atom/">extra/perl-xml-atom</a></dd>
+                        <dt>Versión:</dt>
+                        <dd>0.43-2</dd>
+                        <dt>Upstream:</dt>
+                        <dd><a href="https://search.cpan.org/dist/XML-Atom">https://search.cpan.org/dist/XML-Atom</a></dd>
+                        <dt>Licencias:</dt>
+                        <dd>GPL, PerlArtistic</dd>
+                        <dt>Manuales:</dt>
+                        <dd><a href="/listing/extra/perl-xml-atom/">/listing/extra/perl-xml-atom/</a></dd>
+                    </dl>
+                </section>
+
+                <details>
+                    <summary>Tabla de contenido</summary>
+                    <nav class="toc">
+                        <ul>
+                            
+                            <li><a href="#NAME">NAME</a></li>
+                            
+                            <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+                            
+                            <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+                            
+                            <li><a href="#SUBCLASSING">SUBCLASSING</a></li>
+                            
+                            <li><a href="#METHODS">METHODS</a></li>
+                            
+                            <li><a href="#USAGE">USAGE</a></li>
+                            
+                            <li><a href="#ERROR_HANDLING">ERROR HANDLING</a></li>
+                            
+                            <li><a href="#AUTHOR_&amp;amp;_COPYRIGHT">AUTHOR &amp; COPYRIGHT</a></li>
+                            
+                        </ul>
+                    </nav>
+                </details>
+
+                <nav class="other-formats">
+                    <p>Otros formatos:
+                        
+                        <a href="/man/XML::Atom::Server.3pm.en.txt">txt</a>, 
+                        
+                        <a href="/man/XML::Atom::Server.3pm.en.raw">raw</a>
+                        
+                    </p>
+                </nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

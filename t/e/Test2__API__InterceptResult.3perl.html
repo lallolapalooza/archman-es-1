@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Test2::API::InterceptResult(3perl) — Arch manual pages</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Test2__API__InterceptResult.3perl</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Test2::API::InterceptResult(3perl)</td>
+    <td class="head-vol">Perl Programmers Reference Guide</td>
+    <td class="head-rtitle">Test2::API::InterceptResult(3perl)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Test2::API::InterceptResult - Representación de una lista de
+  eventos.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Esta clase representa una lista de eventos, normalmente obtenida usando
+    <span class="Li">intercept()</span> de Test2::API.</p>
+<p class="Pp">Esta clase está pensada para personas que desean verificar los
+    resultados de las herramientas de prueba que escriben.</p>
+<p class="Pp">Esta clase proporciona métodos para normalizar, resumir o mapear
+    la lista de eventos. La salida de estas operaciones hace que verificar sus
+    herramientas de prueba y los eventos que generan sea significativamente más
+    fácil. En la mayoría de los casos, esto le evita la necesidad de una comprensión
+    profunda del modelo de eventos/facetas.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Normalmente, obtienes una instancia de esta clase cuando usas
+    <span class="Li">intercept()</span> de Test2::API.</p>
+<pre>use Test2::V0;
+use Test2::API qw/intercept/;
+my $events = intercept {
+    ok(1, &quot;pass&quot;);
+    ok(0, &quot;fail&quot;);
+    todo &quot;broken&quot; =&gt; sub { ok(0, &quot;fixme&quot;) };
+    plan 3;
+};
+# Este es típicamente el constructo más útil
+# squash_info() fusiona aserciones y diagnósticos que están asociados
+#   (y devuelve una nueva instancia con las modificaciones)
+# flatten() condensa los datos de las facetas en los detalles clave para cada evento
+#   (y devuelve esas estructuras en un arrayref)
+is(
+    $events-&gt;squash_info-&gt;flatten(),
+    [
+        {
+            causes_failure =&gt; 0,
+            name =&gt; 'pass',
+            pass =&gt; 1,
+            trace_file =&gt; 'xxx.t',
+            trace_line =&gt; 5,
+        },
+        {
+            causes_failure =&gt; 1,
+            name =&gt; 'fail',
+            pass =&gt; 0,
+            trace_file =&gt; 'xxx.t',
+            trace_line =&gt; 6,
+            # Puede haber más de un mensaje de diagnóstico, por lo que este
+            # es siempre un array cuando está presente.
+            diag =&gt; [&quot;Failed test 'fail'\nat xxx.t line 6.&quot;],
+        },
+        {
+            causes_failure =&gt; 0,
+            name =&gt; 'fixme',
+            pass =&gt; 0,
+            trace_file =&gt; 'xxx.t',
+            trace_line =&gt; 7,
+            # Puede haber más de un mensaje de diagnóstico o razón de 'todo',
+            # por lo que estos son siempre un array cuando están presentes.
+            todo =&gt; ['broken'],
+            # El mensaje de diagnóstico se convirtió en una nota ya que la aserción estaba
+            # TODO
+            note =&gt; [&quot;Failed test 'fixme'\nat xxx.t line 7.&quot;],
+        },
+        {
+            causes_failure =&gt; 0,
+            plan =&gt; 3,
+            trace_file =&gt; 'xxx.t',
+            trace_line =&gt; 8,
+        },
+    ],
+    &quot;Los eventos aplanados se ven como esperamos&quot;
+);</pre>
+<p class="Pp">Ver Test2::API::InterceptResult::Event para una descripción completa
+    de lo que <span class="Li">flatten()</span> proporciona para cada evento.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="METHODS"><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<p class="Pp">Tenga en cuenta que ningún método modifica la instancia original
+    a menos que se le solicite que lo haga.</p>
+<section class="Ss">
+<h2 class="Ss" id="CONSTRUCTION"><a class='permalink' href='#CONSTRUCTION'>CONSTRUCCIÓN</a></h2>
+<dl class="Bl-tag">
+  <dt>$events = Test2::API::InterceptResult-&gt;new(@EVENTS)</dt>
+  <dd></dd>
+  <dt>$events = Test2::API::InterceptResult-&gt;new_from_ref(\@EVENTS)</dt>
+  <dd>Estos crean una nueva instancia de Test2::API::InterceptResult a partir de los
+      eventos dados.
+    <p class="Pp">En la primera forma se devuelve un nuevo arrayref "bendecido". En
+        la forma 'new_from_ref', la referencia que usted pasa es directamente "bendecida".</p>
+    <p class=" Pp">Ambos lanzarán una excepción si se llaman en contexto nulo. Esto es
+        principalmente importante para los métodos de "filtrado" que se enumeran a
+        continuación, que normalmente devuelven una nueva instancia; lanzan una
+        excepción en tales casos, ya que probablemente significa que alguien tenía la
+        intención de filtrar el original en el lugar.</p>
+  </dd>
+  <dt>$clone = $events-&gt;<b>clone()</b></dt>
+  <dd>Haz una copia de los eventos originales. Tenga en cuenta que esta es una copia
+      profunda, toda la estructura se duplica. Esto utiliza
+      <span class="Li">&quot;dclone&quot;</span> de Storable para lograr la copia
+      profunda.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="NORMALIZATION"><a class='permalink' href='#NORMALIZATION'>NORMALIZACIÓN</a></h2>
+<dl class="Bl-tag">
+  <dt>@events = $events-&gt;event_list</dt>
+  <dd>Esto devuelve todos los eventos en forma de lista.</dd>
+  <dt>$hub = $events-&gt;hub</dt>
+  <dd>Esto devuelve un nuevo objeto Test2::Hub que ha procesado todos los eventos
+      contenidos en la instancia. Esto le da una forma sencilla de inspeccionar
+      los cambios de estado que causan sus eventos.</dd>
+  <dt>$state = $events-&gt;state</dt>
+  <dd>Esto devuelve un resumen del estado de un hub después de procesar todos los
+      eventos.
+        <pre>{
+    count        =&gt; 2,      # Número de aserciones realizadas
+    failed       =&gt; 1,      # Número de fallos de prueba vistos
+    is_passing   =&gt; 0,      # Booleano, verdadero si la prueba estaría pasando
+                            # después de procesar los eventos.
+    plan         =&gt; 2,      # Plan, ya sea un número, undef, 'SKIP', o 'NO PLAN'
+    follows_plan =&gt; 1,      # Verdadero si hay un plan y se siguió.
+                            # Falso si el plan y las aserciones no
+                            # coincidieron, undef si no había plan en la
+                            # lista de eventos.
+    bailed_out   =&gt; undef,  # undef a menos que haya habido un 'bail-out' en los
+                            # eventos en cuyo caso esta será una cadena
+                            # explicando por qué hubo un 'bail-out', si no
+                            # se dio razón, simplemente se establecerá a
+                            # verdadero (1).
+    skip_reason  =&gt; undef,  # Si hubo un 'skip_all', esto dará la
+                            # razón.
+}
+</pre>
+  </dd>
+  <dt>$new = $events-&gt;upgrade</dt>
+  <dd></dd>
+  <dt>$events-&gt;upgrade(in_place =&gt; $BOOL)</dt>
+  <dd><b>Nota:</b> Normalmente devuelve una nueva instancia, dejando la original
+      sin cambios. Si la llama en contexto nulo, lanzará una excepción. Si desea
+      modificar la original, debe pasar la opción
+      <span class="Li">&quot;in_place =&gt; 1&quot;</span>. Puede llamar a esto
+      en contexto nulo cuando solicite modificarla en el lugar. La forma en el
+      lugar devuelve la instancia que fue modificada para que pueda encadenar
+      métodos.
+    <p class="Pp">Esto creará una copia de la lista donde todos los eventos se han
+        convertido en instancias de Test2::API::InterceptResult::Event. Esto es
+        extremadamente útil ya que Test2::API::InterceptResult::Event proporciona
+        una interfaz mucho mejor para trabajar con eventos. Esto le permite evitar
+        pensar en tipos de eventos heredados.</p>
+    <p class="Pp">Esto también significa que sus pruebas contra la lista no son frágiles
+        si la herramienta que está probando cambia aleatoriamente el tipo de eventos
+        que genera (es decir, cambiar de Test2::Event::Ok a Test2::Event::Pass,
+        ambos realizan aserciones y ambos se normalizarán a instancias de
+        Test2::API::InterceptResult::Event idénticas (o lo suficientemente
+        cercanas)).</p>
+    <p class="Pp">Realmente casi siempre querrá esto, la única razón por la que no se hace
+        automáticamente es para asegurarse de que la herramienta
+        <span class="Li">intercept()</span> sea retrocompatible.</p>
+  </dd>
+  <dt>$new = $events-&gt;squash_info</dt>
+  <dd></dd>
+  <dt>$events-&gt;squash_info(in_place =&gt; $BOOL)</dt>
+  <dd><b>Nota:</b> Normalmente devuelve una nueva instancia, dejando la original
+      sin cambios. Si la llama en contexto nulo, lanzará una excepción. Si desea
+      modificar la original, debe pasar la opción
+      <span class="Li">&quot;in_place =&gt; 1&quot;</span>. Puede llamar a esto
+      en contexto nulo cuando solicite modificarla en el lugar. La forma en el
+      lugar devuelve la instancia que fue modificada para que pueda encadenar
+      métodos.
+    <p class="Pp"><b>Nota:</b> Todos los eventos en la nueva instancia o modificada
+        serán convertidos a instancias de Test2::API::InterceptResult::Event. No
+        hay forma de evitar esto, la operación de aplastamiento requiere la clase
+        de evento mejorada.</p>
+    <p class="Pp">Test::More y muchas otras herramientas heredadas enviarían notas,
+        diagnósticos y aserciones como eventos separados. Un subtest en Test::More
+        enviaría una nota con el nombre del subtest, la aserción del subtest y,
+        finalmente, un evento de diagnóstico si el subtest fallaba. Este método
+        normalizará las cosas aplastando la nota y el diagnóstico en el mismo
+        evento que el subtest (esto es diferente de ponerlos dentro del subtest,
+        que no es lo que sucede).</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="FILTERING"><a class='permalink' href='#FILTERING'>FILTRADO</a></h2>
+<p class="Pp"><b>Nota:</b> Normalmente devuelven nuevas instancias, dejando las
+    originales sin cambios. Si las llama en contexto nulo, lanzarán excepciones.
+    Si desea modificar las originales, debe pasar la opción
+    <span class="Li">&quot;in_place =&gt; 1&quot;</span>. Puede llamar a estas en
+    contexto nulo cuando solicite modificarlas en el lugar. Las formas en el lugar
+    devuelven la instancia que fue modificada para que pueda encadenar métodos.</p>
+<p class="Pp"><span class="Li"><i>%PARAMS</i></span><i></i></p>
+<p class="Pp">Todos estos aceptan los mismos 2 parámetros opcionales:</p>
+<dl class="Bl-tag">
+  <dt id="in_place"><a cla
+</section>
+<div class="manual-text">
+</div>
+</section>
+</article>
+            
+        
+        </main>
+        
+        
+    </body>
+</html>
+<section class="Sh">
+<h1 class="Sh" id="NOMBRE"><a class="permalink" href="#NOMBRE">NOMBRE</a></h1>
+<p class="Pp">Test2::API::InterceptResult - Un envoltorio para una lista de eventos</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPCIÓN"><a class="permalink" href="#DESCRIPCIÓN">DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo es un envoltorio para una lista de eventos de Test2.
+    No se supone que este módulo sea usado directamente. Más bien, los métodos
+    que se exponen aquí son para ser usados por Test2::API::Intercept.</p>
+<p class="Pp">En este contexto, los métodos expuestos aquí son para acceder
+    a los eventos que han sido interceptados.</p>
+<dl class="Bl-tag">
+  <dt id="in_place"><a class="permalink" href="#in_place">in_place => $BOOL</a></dt>
+  <dd>Cuando es verdadero, el método modificará la instancia en el lugar en lugar
+      de devolver una nueva instancia.</dd>
+  <dt id="args"><a class="permalink" href="#args">args => \@ARGS</a></dt>
+  <dd>Si deseas pasar parámetros al método de evento que se está utilizando para
+      el filtrado, puedes hacerlo aquí.</dd>
+</dl>
+<p class="Pp"><i>MÉTODOS</i></p>
+<dl class="Bl-tag">
+  <dt>$events-&gt;grep($CALL, %PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>Test2::API::InterceptResult-&gt;new(
+    grep { $_-&gt;$CALL( @{$PARAMS{args}} ) } $self-&gt;event_list,
+);
+</pre>
+    <p class="Pp"><b>Nota:</b> que <span class="Li">$CALL</span> se llama en
+        una versión mejorada del evento, aunque los eventos devueltos serán los
+        originales, no los mejorados.</p>
+    <p class="Pp"><span class="Li">$CALL</span> puede ser el nombre de un
+        método en Test2::API::InterceptResult::Event, o un coderef.</dd>
+  <dt>$events-&gt;asserts(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>$events-&gt;grep(has_assert =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        realizaron aserciones.</dd>
+  <dt>$events-&gt;subtests(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>$events-&gt;grep(has_subtest =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        tienen subpruebas.</dd>
+  <dt>$events-&gt;diags(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>$events-&gt;grep(has_diags =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        tienen diagnósticos.</dd>
+  <dt>$events-&gt;notes(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>$events-&gt;grep(has_notes =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        tienen notas.</dd>
+  <dt>$events-&gt;errors(%PARAMS)</dt>
+  <dd><b>Nota:</b> Los errores NO son aserciones fallidas. Las aserciones
+      fallidas son algo diferente.
+    <p class="Pp">Esto es esencialmente:</p>
+        <pre>$events-&gt;grep(has_errors =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        tienen errores.</dd>
+  <dt>$events-&gt;plans(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>$events-&gt;grep(has_plan =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        establecieron el plan.</dd>
+  <dt>$events-&gt;causes_fail(%PARAMS)</dt>
+  <dd></dd>
+  <dt>$events-&gt;causes_failure(%PARAMS)</dt>
+  <dd>Estos son esencialmente:
+        <pre>$events-&gt;grep(causes_fail    =&gt; @{$PARAMS{args}})
+$events-&gt;grep(causes_failure =&gt; @{$PARAMS{args}})
+</pre>
+    <p class="Pp"><b>Nota:</b> <span class="Li">causes_fail()</span> y
+        <span class="Li">causes_failure()</span> son alias mutuos en los eventos,
+        por lo que estos métodos son efectivamente alias aquí también.</p>
+    <p class="Pp">Devuelve una nueva instancia que contiene solo los eventos que
+        causan fallo.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h2 class="Sh" id="MAPEO"><a class="permalink" href="#MAPEO">MAPEO</a></h2>
+<p class="Pp">Estos métodos **SIEMPRE** devuelven un arrayref.</p>
+<p class="Pp"><b>Nota:</b> Ningún método en Test2::API::InterceptResult::Event
+    modifica el evento de ninguna manera.</p>
+<p class="Pp"><b>Notas importantes sobre eventos</b>:</p>
+<p class="Pp">Test2::API::InterceptResult::Event se diseñó a medida para ser
+    utilizado en listas de eventos. La mayoría de los métodos que no son
+    aplicables a un evento dado devolverán una lista vacía, por lo que normalmente
+    no necesita preocuparse por valores <span class="Li">&quot;undef&quot;</span>
+    no deseados o excepciones que se lancen. Mapear sobre métodos de eventos es
+    un uso previsto, por lo que funciona bien para producir listas.</p>
+<p class="Pp"><b>Excepciones a la regla:</b></p>
+<p class="Pp">Algunos métodos como
+    <span class="Li">&quot;causes_fail&quot;</span> siempre devuelven un booleano
+    verdadero o falso para todos los eventos. Cualquier método prefijado con
+    <span class="Li">&quot;the_&quot;</span> transmite la intención de que el
+    evento debe tener exactamente 1 de algo, por lo que lanzarán una excepción
+    cuando esa condición no se cumpla.</p>
+<dl class="Bl-tag">
+  <dt>$arrayref = $events-&gt;map($CALL, %PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;$CALL(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp"><span class="Li">$CALL</span> puede ser el nombre de un
+        método en Test2::API::InterceptResult::Event, o un coderef.</dd>
+  <dt>$arrayref = $events-&gt;flatten(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;flatten(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de estructuras aplanadas.</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">flatten()</span>.</dd>
+  <dt>$arrayref = $events-&gt;briefs(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;briefs(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de resúmenes de eventos.</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">brief()</span>.</dd>
+  <dt>$arrayref = $events-&gt;summaries(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;summaries(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de resúmenes de eventos.</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">summary()</span>.</dd>
+  <dt>$arrayref = $events-&gt;subtest_results(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;subtest_result(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de resúmenes de eventos.</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">subtest_result()</span>.</dd>
+  <dt>$arrayref = $events-&gt;diag_messages(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;diag_messages(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de mensajes de diagnóstico
+        (cadenas).</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">diag_messages()</span>.</dd>
+  <dt>$arrayref = $events-&gt;note_messages(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;note_messages(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de mensajes de notificación
+        (cadenas).</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">note_messages()</span>.</dd>
+  <dt>$arrayref = $events-&gt;error_messages(%PARAMS)</dt>
+  <dd>Esto es esencialmente:
+        <pre>[ map { $_-&gt;error_messages(@{ $PARAMS{args} }) } $events-&gt;upgrade-&gt;event_list ];
+</pre>
+    <p class="Pp">Devuelve una nueva lista de mensajes de error (cadenas).</p>
+    <p class="Pp">Consulte Test2::API::InterceptResult::Event para obtener
+        detalles sobre lo que devuelve <span class="Li">error_messages()</span>.</dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="FUENTE"><a class="permalink" href="#FUENTE">FUENTE</a></h1>
+<p class="Pp">El repositorio de código fuente para Test2 se puede encontrar en
+    <a href="https://github.com/Test-More/test-more/">https://github.com/Test-More/test-more/</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="MANTENEDORES"><a class="permalink" href="#MANTENEDORES">MANTENEDORES</a></h1>
+<dl class="Bl-tag">
+  <dt id="Chad"><a class="permalink" href="#Chad">Chad Granum
+    &lt;exodist@cpan.org&gt;</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTORES"><a class="permalink" href="#AUTORES">AUTORES</a></h1>
+<dl class="Bl-tag">
+  <dt id="Chad~2"><a class="permalink" href="#Chad~2">Chad Granum
+    &lt;exodist@cpan.org&gt;</a></dt>
+  <dd></dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="COPYRIGHT"><a class="permalink" href="#COPYRIGHT">COPYRIGHT</a></h1>
+<p class="Pp">Copyright Chad Granum &lt;exodist@cpan.org&gt;.</p>
+<p class="Pp">Este programa es software libre; puede redistribuirlo y/o modificarlo
+    bajo los mismos términos que Perl.</p>
+<p class="Pp">Consulte <a href="https://dev.perl.org/licenses/">https://dev.perl.org/licenses/</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>

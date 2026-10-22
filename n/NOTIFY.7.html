@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>NOTIFY(7) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">NOTIFY(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/postgresql/">postgresql</a></p>
+<p class="lic">Licencias: PostgreSQL</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">NOTIFY(7)</td>
+    <td class="head-vol">Documentación de PostgreSQL 18.1</td>
+    <td class="head-rtitle">NOTIFY(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">NOTIFY - generar una notificación</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>NOTIFY <i>canal</i> [ , <i>carga_util</i> ]</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">El comando <b>NOTIFY</b> envía un evento de notificación junto con
+    una cadena opcional de "carga útil" (payload) a cada aplicación cliente que
+    haya ejecutado previamente <b>LISTEN </b><b></b><i>canal</i> para el
+    canal especificado en la base de datos actual. Las notificaciones son visibles
+    para todos los usuarios.</p>
+<p class="Pp"><b>NOTIFY</b> proporciona un mecanismo simple de comunicación
+    entre procesos para una colección de procesos que acceden a la misma base de
+    datos PostgreSQL. Se puede enviar una cadena de carga útil junto con la
+    notificación, y se pueden crear mecanismos de nivel superior para pasar datos
+    estructurados utilizando tablas en la base de datos para pasar datos
+    adicionales del emisor a el/los oyente/s.</p>
+<p class="Pp">La información que se pasa al cliente para un evento de notificación
+    incluye el nombre del canal de notificación, el PID del proceso del servidor
+    de la sesión que notifica y la cadena de carga útil, que es una cadena vacía
+    si no se especificó.</p>
+<p class="Pp">Depende del diseñador de la base de datos definir los nombres de
+    canal que se utilizarán en una base de datos determinada y lo que significa
+    cada uno. Comúnmente, el nombre del canal es el mismo que el nombre de alguna
+    tabla en la base de datos, y el evento de notificación esencialmente significa
+    "Cambié esta tabla, échale un vistazo para ver qué hay de nuevo". Pero ninguna
+    asociación de este tipo es impuesta por los comandos <b>NOTIFY</b> y
+    <b>LISTEN</b>. Por ejemplo, un diseñador de base de datos podría usar varios
+    nombres de canal diferentes para señalar diferentes tipos de cambios en una
+    única tabla. Alternativamente, la cadena de carga útil podría usarse para
+    diferenciar varios casos.</p>
+<p class="Pp">Cuando se utiliza <b>NOTIFY</b> para señalar la ocurrencia de
+    cambios en una tabla particular, una técnica de programación útil es colocar
+    el <b>NOTIFY</b> en un disparador (trigger) de sentencia que se active por
+    actualizaciones de tabla. De esta manera, la notificación ocurre
+    automáticamente cuando la tabla se modifica, y el programador de la
+    aplicación no puede olvidar hacerlo accidentalmente.</p>
+<p class="Pp"><b>NOTIFY</b> interactúa con las transacciones SQL de maneras
+    importantes. En primer lugar, si se ejecuta un <b>NOTIFY</b> dentro de una
+    transacción, los eventos de notificación no se entregan hasta que la
+    transacción se confirma y solo si se confirma. Esto es apropiado, ya que si
+    la transacción se aborta, todos los comandos dentro de ella no han tenido
+    efecto, incluido <b>NOTIFY</b>. Pero puede ser desconcertante si se esperan
+    los eventos de notificación se entreguen de inmediato. En segundo lugar, si una
+    sesión que escucha recibe una señal de notificación mientras está dentro de
+    una transacción, el evento de notificación no se entregará a su cliente
+    conectado hasta justo después de que la transacción se complete (ya sea
+    confirmada o abortada). Nuevamente, la razón es que si una notificación se
+    entregara dentro de una transacción que luego se abortara, uno querría que la
+    notificación se deshiciera de alguna manera; pero el servidor no puede
+    "retirar" una notificación una vez que la ha enviado al cliente. Por lo tanto,
+    los eventos de notificación solo se entregan entre transacciones. El resultado
+    de esto es que las aplicaciones que usan <b>NOTIFY</b> para señalización en
+    tiempo real deben intentar mantener sus transacciones cortas.</p>
+<p class="Pp">Si el mismo nombre de canal se señala varias veces con cadenas de
+    carga útil idénticas dentro de la misma transacción, solo se entrega una
+    instancia del evento de notificación a los oyentes. Por otro lado, las
+    notificaciones con cadenas de carga útil distintas siempre se entregarán como
+    notificaciones distintas. Del mismo modo, las notificaciones de diferentes
+    transacciones nunca se fusionarán en una sola notificación. Excepto por omitir
+    instancias posteriores de notificaciones duplicadas, <b>NOTIFY</b> garantiza
+    que las notificaciones de la misma transacción se entreguen en el orden en que
+    se enviaron. También se garantiza que los mensajes de diferentes
+    transacciones se entreguen en el orden en que se confirmaron las
+    transacciones.</p>
+<p class="Pp">Es común que un cliente que ejecuta <b>NOTIFY</b> también esté
+    escuchando en el mismo canal de notificación. En ese caso, recibirá un evento
+    de notificación, al igual que todas las demás sesiones que escuchan.
+    Dependiendo de la lógica de la aplicación, esto podría resultar en un trabajo
+    inútil, por ejemplo, leer una tabla de base de datos para encontrar las mismas
+    actualizaciones que esa sesión acaba de escribir. Es posible evitar dicho
+    trabajo adicional al notar si el PID del proceso del servidor de la sesión
+    que notifica (suministrado en el mensaje del evento de notificación) es el
+    mismo que el PID de la propia sesión (disponible desde libpq). Cuando son los
+    mismos, el evento de notificación es el propio trabajo que rebota y puede
+    ignorarse.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PARÁMETROS'><a class='permalink' href='#PARÁMETROS'>PARÁMETROS</a></h1>
+<p class="Pp"><i>canal</i></p>
+<div class="Bd-indent">Nombre del canal de notificación a ser señalado (cualquier
+  identificador).</div>
+<p class="Pp"><i>carga_util</i></p>
+<div class="Bd-indent">La cadena de "carga útil" a comunicar junto con la
+  notificación. Debe especificarse como un literal de cadena simple. En la
+  configuración predeterminada, debe tener menos de 8000 bytes. (Si se necesitan
+  comunicar datos binarios o grandes cantidades de información, es mejor
+  colocarlos en una tabla de base de datos y enviar la clave del registro.)</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='NOTAS'><a class='permalink' href='#NOTAS'>NOTAS</a></h1>
+<p class="Pp">Existe una cola que retiene las notificaciones que se han enviado
+    pero que aún no han sido procesadas por todas las sesiones que escuchan. Si
+    esta cola se llena, las transacciones que llaman a <b>NOTIFY</b> fallarán al
+    confirmar. La cola es bastante grande (8 GB en una instalación estándar) y
+    debería ser suficiente para casi todos los casos de uso. Sin embargo, no se
+    puede realizar ninguna limpieza si una sesión ejecuta <b>LISTEN</b> y luego
+    entra en una transacción durante mucho tiempo. Una vez que la cola está medio
+    llena, verá advertencias en el archivo de registro que le indicarán la sesión
+    que está impidiendo la limpieza. En este caso, debe asegurarse de que esta
+    sesión finalice su transacción actual para que la limpieza pueda continuar.</p>
+<p class="Pp">La función <b>pg_notification_queue_usage</b> devuelve la fracción
+    de la cola que está actualmente ocupada por notificaciones pendientes. Consulte
+    la Sección 9.27 para obtener más información.</p>
+<p class="Pp">Una transacción que ha ejecutado <b>NOTIFY</b> no puede prepararse
+    para el commit en dos fases.</p>
+<section class="Ss">
+<h2 class="Ss" id='pg_notify'><a class='permalink' href='#pg_notify'>pg_notify</a></h2>
+<p class="Pp">Para enviar una notificación, también puede utilizar la función
+    <b>pg_notify</b>(texto, texto). La función toma el nombre del canal como
+    primer argumento y la carga útil como segundo. La función es mucho más fácil
+    de usar que el comando <b>NOTIFY</b> si necesita trabajar con nombres de
+    canal y cargas útiles no constantes.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EJEMPLOS'><a class='permalink' href='#EJEMPLOS'>EJEMPLOS</a></h1>
+<p class="Pp">Configure y ejecute una secuencia de listen/notify desde psql:</p>
+<div class="Bd-indent">
+<pre>LISTEN virtual;
+NOTIFY virtual;
+Notificación asíncrona &quot;virtual&quot; recibida del proceso del servidor con PID 8448.
+NOTIFY virtual, 'Esta es la carga útil';
+Notificación asíncrona &quot;virtual&quot; con carga útil &quot;Esta es la carga útil&quot; recibida del proceso del servidor con PID 8448.
+LISTEN foo;
+SELECT pg_notify('fo' || 'o', 'pay' || 'load');
+Notificación asíncrona &quot;foo&quot; con carga útil &quot;payload&quot; recibida del proceso del servidor con PID 14728.</pre>
+</div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COMPATIBILIDAD'><a class='permalink' href='#COMPATIBILIDAD'>COMPATIBILIDAD</a></h1>
+<p class="Pp">No existe una sentencia <b>NOTIFY</b> en el estándar SQL.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIÉN'><a class='permalink' href='#VER_TAMBIÉN'>VER TAMBIÉN</a></h1>
+<p class="Pp"><a href='/man/LISTEN.7.en'>LISTEN(7)</a>, <a href='/man/UNLISTEN.7.en'>UNLISTEN(7)</a>, max_notify_queue_pages</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025</td>
+    <td class="foot-os">PostgreSQL 18.1</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/postgresql/">extra/postgresql</a></dd>
+        <dt>Versión:</dt>
+        <dd>18.1-1</dd>
+        <dt>Principal:</dt>
+        <dd><a href="https://www.postgresql.org/">https://www.postgresql.org/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PostgreSQL</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/postgresql/">/listing/extra/postgresql/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+      
+        </ul>
+    </nav>
+</details>
+
+            </aside>
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+ 
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PARÁMETROS">PARÁMETROS</a></li>
+        
+            <li><a href="#NOTAS">NOTAS</a></li>
+        
+            <li><a href="#EJEMPLOS">EJEMPLOS</a></li>
+        
+            <li><a href="#COMPATIBILIDAD">COMPATIBILIDAD</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/NOTIFY.7.en.txt">txt</a>, 
+        
+            <a href="/man/NOTIFY.7.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

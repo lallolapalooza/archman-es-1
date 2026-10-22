@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sub::Override(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Sub__Override(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Sub::Override(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Sub::Override(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Sub::Override - Extensión de Perl para sobrescribir fácilmente subrutinas</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">0.12</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use Sub::Override;
+sub foo { 'subrutina original' };
+print foo(); # imprime 'subrutina original'
+my $override = Sub::Override-&gt;new( foo =&gt; sub { 'subrutina sobrescrita' } );
+print foo(); # imprime 'subrutina sobrescrita'
+$override-&gt;restore;
+print foo(); # imprime 'subrutina original'</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='The_Problem'><a class='permalink' href='#The_Problem'>El problema</a></h2>
+<p class="Pp">A veces las subrutinas necesitan ser sobrescritas. De hecho, tu autor
+    hace esto frecuentemente para pruebas. Particularmente al probar, usar un Objeto Mock
+    puede ser excesivo cuando todo lo que quieres hacer es sobrescribir una pequeña y minúscula
+    función.</p>
+<p class="Pp">Sobrescribir una subrutina a menudo se hace con una sintaxis similar a la siguiente.</p>
+<pre>{
+  local *Some::sub = sub {'un cierto comportamiento'};
+  # haz algo
+}
+# comportamiento original de la subrutina restaurado</pre>
+<p class="Pp">Esto tiene algunos problemas.</p>
+<pre>{
+  local *Get::some_feild = { 'un cierto comportamiento' };
+  # haz algo
+}</pre>
+<p class="Pp">En el ejemplo anterior, no solo hemos escrito mal el nombre de la
+    subrutina, sino que incluso si hubiera habido una subrutina con ese nombre, no la hemos sobrescrito.
+    Estos dos errores pueden ser sutiles de detectar.</p>
+<p class="Pp">Además, si estamos intentando localizar el efecto colocando este código
+    en un bloque, todo el constructo es engorroso.</p>
+<p class="Pp">Hook::LexWrap también nos permite sobrescribir el comportamiento de las subrutinas,
+    pero nunca recuerdo la sintaxis exacta.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='An_easier_way_to_replace_subroutines'><a class='permalink' href='#An_easier_way_to_replace_subroutines'>Una forma más fácil de reemplazar subrutinas</a></h2>
+<p class="Pp">En su lugar, <span class="Li">&quot;Sub::Override&quot;</span> permite al programador simplemente nombrar la subrutina a reemplazar y proporcionar una subrutina para reemplazarla.</p>
+<pre>my $override = Sub::Override-&gt;new('Some::sub', sub {'nuevos datos'});
+# lo cual es equivalente a:
+my $override = Sub::Override-&gt;new;
+$override-&gt;replace('Some::sub', sub { 'nuevos datos' });</pre>
+<p class="Pp">Puedes reemplazar múltiples subrutinas, si es necesario:</p>
+<pre>$override-&gt;replace('Some::sub1', sub { 'nuevos datos1' });
+$override-&gt;replace('Some::sub2', sub { 'nuevos datos2' });
+$override-&gt;replace('Some::sub3', sub { 'nuevos datos3' });</pre>
+<p class="Pp">Si el reemplazo de la subrutina tiene éxito, se devuelve el objeto. Esto permite al programador encadenar las llamadas, si se prefiere este estilo de programación:</p>
+<pre>$override-&gt;replace('Some::sub1', sub { 'nuevos datos1' })
+         -&gt;replace('Some::sub2', sub { 'nuevos datos2' })
+         -&gt;replace('Some::sub3', sub { 'nuevos datos3' });</pre>
+<p class="Pp">Si la subrutina tiene un prototipo, la nueva subrutina debe declararse con el mismo prototipo que la original:</p>
+<pre>$override-&gt;replace('Some::sub_with_proto', sub ($$) { ($_[0], $_ [1]) });</pre>
+<p class="Pp">Una subrutina puede ser reemplazada tantas veces como se desee. Esto es muy útil cuando se prueba cómo se comporta el código con múltiples condiciones.</p>
+<pre>$override-&gt;replace('Some::thing', sub { 0 });
+is($object-&gt;foo, 'wibble', 'se devuelve wibble si Some::thing es falso');
+$override-&gt;replace('Some::thing', sub { 1 });
+is($object-&gt;foo, 'puppies', 'se devuelven puppies si Some::thing es verdadero');</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Injecting_a_subroutine'><a class='permalink' href='#Injecting_a_subroutine'>Inyectando una subrutina</a></h2>
+<p class="Pp">Si quieres inyectar una subrutina en un paquete, puedes usar el método
+    <span class="Li">inject()</span>. Esto es idéntico a
+    <span class="Li">replace()</span>, excepto que requiere que la
+    subrutina no exista:</p>
+<pre>$override-&gt;inject('Some::sub', sub {'nuevos datos'});</pre>
+<p class="Pp">Esto es útil si quieres añadir una subrutina a un paquete que aún no la tiene.</p>
+<p class="Pp">Si intentas inyectar una subrutina que ya existe, se lanzará una excepción.</p>
+<pre>$override-&gt;inject('Some::sub', sub {'nuevos datos'}); # funciona
+$override-&gt;inject('Some::sub', sub {'nuevos datos'}); # lanza una excepción</pre>
+<p class="Pp">Llamar a <span class="Li">restore()</span> o permitir que
+    <span class="Li">$override</span> salga del alcance eliminará la
+    subrutina inyectada.</p>
+<pre>$override-&gt;inject('Some::sub', sub {'nuevos datos'});
+$override-&gt;restore('Some::sub'); # elimina la subrutina inyectada</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Inheriting_a_subroutine'><a class='permalink' href='#Inheriting_a_subroutine'>Heredando una subrutina</a></h2>
+<p class="Pp">Similar a 'inject', 'inherit' solo te permitirá crear una nueva subrutina en un objeto hijo que herede la rutina del padre, y que no exista en el hijo:</p>
+<pre>package Parent;
+sub foo {}
+sub bar {}
+package Child;
+use parent 'Parent';
+sub foo {}</pre>
+<p class="Pp">'Inherit' te permitirá configurar una nueva subrutina 'Child::bar' ya que se hereda de Parent. Intentar 'inherit' 'Child::foo' lanzará una excepción ya que 'foo' ya existe en Child.
+    De manera similar, intentar 'inherit' una nueva subrutina 'something' en Child también lanzará una excepción ya que no existe en Parent y no será heredada por Child.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Wrapping_a_subroutine'><a class='permalink' href='#Wrapping_a_subroutine'>Envolviendo una subrutina</a></h2>
+<p class="Pp">Puede haber ocasiones en las que quieras reemplazar 'condicionalmente' una
+    subrutina - por ejemplo, para sobrescribir la subrutina original solo si se pasan ciertos argumentos.
+    Para esto puedes especificar
+    <span class="Li">&quot;wrap&quot;</span> en lugar de
+    <span class="Li">&quot;replace&quot;</span>.
+    <span class="Li">&quot;wrap&quot;</span> es idéntico a
+    <span class="Li">&quot;replace&quot;</span>, excepto que la subrutina original
+    se pasa como el primer argumento a tu nueva subrutina. Puedes llamar a la sub original a través de 'shift-&gt;(@_)':</p>
+<pre>$override-&gt;wrap('Some::sub',
+  sub {
+    my ($old_sub, @args) = @_;
+    return 1 if $args[0];
+    return $old_sub-&gt;(@args);
+  }
+);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Restoring_subroutines'><a class='permalink' href='#Restoring_subroutines'>Restaurando subrutinas</a></h2>
+<p class="Pp">Si el objeto sale del alcance, las subrutinas originales se restauran.
+    Sin embargo, si necesitas restaurar una subrutina temprano, simplemente usa el método
+    <span class="Li">restore()</span>:</p>
+<pre>my $override = Sub::Override-&gt;new('Some::sub', sub {'nuevos datos'});
+# haz cosas
+$override-&gt;restore;</pre>
+<p class="Pp">Lo cual es algo equivalente a:</p>
+<pre>{
+  my $override = Sub::Override-&gt;new('Some::sub', sub {'nuevos datos'});
+  # haz cosas
+}</pre>
+<p class="Pp">Si has sobrescrito más de una subrutina con un objeto override, tendrás que nombrar explícitamente la subrutina que deseas restaurar:</p>
+<pre>$override-&gt;restore('This::sub');</pre>
+<p class="Pp">Nota que <span class="Li">restore()</span> siempre restaurará el
+    comportamiento original de la subrutina sin importar cuántas veces la hayas
+    sobrescrito.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Which_package_is_the_subroutine_in?'><a class='permalink' href='#Which_package_is_the_subroutine_in?'>¿En qué paquete está la subrutina?</a></h2>
+<p class="Pp">Normalmente, quieres calificar completamente la subrutina incluyendo el nombre del paquete. Sin embargo, no calificar completamente el nombre de la subrutina asumirá el paquete actual.</p>
+<pre>package Foo;
+use Sub::Override;
+sub foo { 23 };
+my $override = Sub::Override-&gt;new( foo =&gt; sub { 42 } ); # asume Foo::foo
+print foo(); # imprime 42
+$override-&gt;restore;
+print foo(); # imprime 23</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<pre>my $sub = Sub::Override-&gt;new;
+my $sub = Sub::Override-&gt;new($sub_name, $sub_ref);</pre>
+<p class="Pp">Crea una nueva instancia de <span class="Li">&quot;Sub::Override&quot;</span>. Opcionalmente, puedes sobrescribir una subrutina mientras creas un nuevo objeto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='replace'><a class='permalink' href='#replace'>replace</a></h2>
+<pre>$sub-&gt;replace($sub_name, $sub_body);</pre>
+<p class="Pp">Reemplaza temporalmente una subrutina con otra subrutina. Devuelve la instancia, por lo que se permiten encadenar métodos:</p>
+<pre>$sub-&gt;replace($sub_name, $sub_body)
+    -&gt;replace($another_sub, $another_body);</pre>
+<p class="Pp">Este método hará <span class="Li">&quot;croak&quot;</span> si la
+    subrutina a reemplazar no existe.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='override'><a class='permalink' href='#override'>override</a></h2>
+<pre>my $sub = Sub::Override-&gt;new;
+$sub-&gt;override($sub_name, $sub_body);</pre>
+<p class="Pp"><span class="Li">&quot;override&quot;</span> es un nombre alternativo para
+    <span class="Li">&quot;replace&quot;</span>. Son el mismo método.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='inject'><a cl
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NAME</a></h1>
+<p class="Pp">Sub::Override - Override subroutines, temporarily or permanently</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSION</a></h1>
+<p class="Pp">0.12</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SYNOPSIS</a></h1>
+<pre> use Sub::Override;
+
+ # To override a sub:
+ my $sub = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'hello' } );
+
+ # To replace it with a different sub:
+ $sub-&gt;replace( 'Foo::bar' =&gt; sub { 'world' } );
+
+ # To temporarily inject a sub:
+ my $original_sub = Sub::Override-&gt;new;
+ $original_sub-&gt;inject( 'Foo::bar' =&gt; sub { 'test' } );
+
+ # To inherit a sub from a parent class:
+ my $sub_inherit = Sub::Override-&gt;new;
+ $sub_inherit-&gt;inherit( 'Foo::bar' =&gt; sub { 'inherited' } );
+
+ # To wrap a sub:
+ my $sub_wrap = Sub::Override-&gt;new;
+ $sub_wrap-&gt;wrap( 'Foo::bar' =&gt; sub {
+    my $orig = shift;
+    my $result = $orig-&gt;(@_);
+    return "wrapped $result";
+ });
+
+ # Restore the original sub (or automatically when $sub goes out of scope)
+ $sub-&gt;restore;
+</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPTION</a></h1>
+<p class="Pp">This module allows you to override subroutines in any package.
+    This is useful for testing, for changing behavior on the fly, and for
+    overriding methods in modules you don't want to modify.</p>
+<p class="Pp">You can also inherit subs from parent classes, wrap subs, and
+    inject subs.</p>
+<p class="Pp">The overridden subroutine is automatically restored when the
+    <span class="Li">&quot;Sub::Override&quot;</span> object falls out of scope,
+    or you can manually restore it using the <a href='#restore'>restore</a>
+    method.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>METHODS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<pre>my $sub = Sub::Override-&gt;new(
+    'Package::Name::sub_name' =&gt; $subref_or_coderef,
+    'Another::Package::sub_name' =&gt; $subref_or_coderef,
+    ...
+);</pre>
+<p class="Pp">Creates a new <span class="Li">&quot;Sub::Override&quot;</span> object.
+    Takes a hash of subroutine names to subroutine references (or coderefs).</p>
+<pre>my $sub = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'hello' } );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='replace'><a class='permalink' href='#replace'>replace</a></h2>
+<pre>$sub-&gt;replace($sub_name, $sub_body);</pre>
+<p class="Pp">Replaces the current subroutine override with a new one. This is
+    useful if you need to change the behavior of an already overridden
+    subroutine.</p>
+<pre>my $sub = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'first' } );
+# ... later ...
+$sub-&gt;replace( 'Foo::bar' =&gt; sub { 'second' } );</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='inject'><a class='permalink' href='#inject'>inject</a></h2>
+<pre>$sub-&gt;inject($sub_name, $sub_body);</pre>
+<p class="Pp">Temporarily injects a subroutine into a package. Returns the
+    instance, so chaining the method is allowed:</p>
+<pre>$sub-&gt;inject($sub_name, $sub_body)
+    -&gt;inject($another_sub, $another_body);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='inherit'><a class='permalink' href='#inherit'>inherit</a></h2>
+<pre>$sub-&gt;inherit($sub_name, $sub_body);</pre>
+<p class="Pp">Checks that the subroutine exists in a parent class, but not in
+    the current class, and injects it into the current class to inherit the
+    parent's version.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='restore'><a class='permalink' href='#restore'>restore</a></h2>
+<pre>$sub-&gt;restore($sub_name);</pre>
+<p class="Pp">Restores the previous behavior of the subroutine. This will happen
+    automatically if the <span class="Li">&quot;Sub::Override&quot;</span>
+    object falls out of scope.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='wrap'><a class='permalink' href='#wrap'>wrap</a></h2>
+<pre>$sub-&gt;wrap($sub_name, $sub_body);</pre>
+<p class="Pp">Temporarily wraps a subroutine with another subroutine. The
+    original subroutine is passed as the first arg to the new subroutine.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='EXPORT'><a class='permalink' href='#EXPORT'>EXPORT</a></h1>
+<p class="Pp">None by default.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CAVEATS'><a class='permalink' href='#CAVEATS'>CAVEATS</a></h1>
+<p class="Pp">If you need to override the same sub several times do not create a
+    new <span class="Li">&quot;Sub::Override&quot;</span> object, but instead
+    always reuse the existing one and call
+    <span class="Li">&quot;replace&quot;</span> on it. Creating a new object to
+    override the same sub will result in weird behavior.</p>
+<pre># Do not do this!
+my $sub_first = Sub::Override-&gt;new( 'Foo:bar' =&gt; sub { 'first' } );
+my $sub_second = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'second' } );
+# Do not do this either!
+my $sub = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'first' } );
+$sub = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'second' } );</pre>
+<p class="Pp">Both of those usages could result in of your subs being lost,
+    depending on the order in which you restore them.</p>
+<p class="Pp">Instead, call <span class="Li">&quot;replace&quot;</span> on the
+    existing <span class="Li">$sub</span>.</p>
+<pre>my $sub = Sub::Override-&gt;new( 'Foo::bar' =&gt; sub { 'first' } );
+$sub-&gt;replace( 'Foo::bar' =&gt; sub { 'second' } );</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>BUGS</a></h1>
+<p class="Pp">Probably. Tell me about 'em.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>SEE   ALSO</a></h1>
+<ul class="Bl-bullet">
+  <li>Hook::LexWrap -- can also override subs, but with different
+    capabilities</li>
+  <li>Test::MockObject -- use this if you need to alter an entire class</li>
+</ul>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MAINTAINER'><a class='permalink' href='#MAINTAINER'>MAINTAINER</a></h1>
+<p class="Pp">Robin Murray (mvsjesjes2 on github)</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTHOR</a></h1>
+<p class="Pp">Curtis &quot;Ovid&quot; Poe, <span class="Li">&quot;&lt;ovid [at]
+    cpan [dot] org&gt;&quot;</span></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>COPYRIGHT   AND LICENSE</a></h1>
+<p class="Pp">Copyright (C) 2004-2013 by Curtis &quot;Ovid&quot; Poe</p>
+<p class="Pp">This library is free software; you can redistribute it and/or
+    modify it under the same terms as Perl itself, either Perl version 5.8.2 or,
+    at your option, any later version of Perl 5 you may have available.</p>
+</section>

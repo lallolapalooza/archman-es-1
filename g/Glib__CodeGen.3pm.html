@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Glib::CodeGen(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Glib__CodeGen(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/glib-perl/">glib-perl</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Glib::CodeGen(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">Glib::CodeGen(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Glib::CodeGen - utilidades de generación de código para enlaces basados en Glib.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SINOPSIS'><a class='permalink' href='#SINOPSIS'>SINOPSIS</a></h1>
+<pre># usualmente en Makefile.PL
+use Glib::CodeGen;
+# lo más común, usa todos los valores predeterminados
+Glib::CodeGen-&gt;parse_maps ('mi-prefijo');
+Glib::CodeGen-&gt;write_boot;
+# más exótico, cambia todo
+Glib::CodeGen-&gt;parse_maps ('foo',
+                           input =&gt; 'foo.maps',
+                           header =&gt; 'foo-autogen.h',
+                           typemap =&gt; 'foo.typemap',
+                           register =&gt; 'register-foo.xsh');
+Glib::CodeGen-&gt;write_boot (filename =&gt; 'bootfoo.xsh',
+                           glob =&gt; 'Foo*.xs',
+                           ignore =&gt; '^(Foo|Foo::Bar)$');
+# añade un manejador de tipos personalizado (raramente necesario)
+Glib::CodeGen-&gt;add_type_handler (FooType =&gt; \&amp;gen_foo_stuff);
+# (ver la sección EXTENDING TYPE SUPPORT para más información.)</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este módulo empaqueta parte del código repetitivo necesario para
+    realizar la generación de código típicamente utilizada por los enlaces de Perl
+    para bibliotecas basadas en gobject, usando el módulo Glib como base.</p>
+<p class="Pp">Los nombres de archivo de salida predeterminados están en el
+    subdirectorio 'build', que generalmente estará presente si estás usando
+    ExtUtils::Depends (como probablemente deberían hacerlo la mayoría de las
+    extensiones basadas en Glib).</p>
+<section class="Ss">
+<h2 class="Ss" id='MÉTODOS'><a class='permalink' href='#MÉTODOS'>MÉTODOS</a></h2>
+<dl class="Bl-tag">
+  <dt id="Glib::CodeGen"><a class="permalink" href="#Glib::CodeGen">Glib::CodeGen-&gt;write_boot;</a></dt>
+  <dd></dd>
+  <dt id="Glib::CodeGen~2"><a class="permalink" href="#Glib::CodeGen~2">Glib::CodeGen-&gt;write_boot
+    (KEY =&gt; VAL, ...)</a></dt>
+  <dd>Muchas bibliotecas basadas en GObject a enlazar con Perl serán demasiado
+      grandes para ponerlas en un único archivo XS; sin embargo, un único archivo
+      PM típicamente solo inicia el código de un archivo XS. <span
+      class="Li">&quot;write_boot&quot;</span> genera un archivo XSH para ser
+      incluido desde la sección BOOT de ese único módulo iniciado, llamando al
+      código de arranque de todos los demás archivos XS del proyecto.
+    <p class="Pp">Las opciones se pasan a la función en un conjunto de pares
+        clave/valor, y todas las opciones pueden tener valores predeterminados.</p>
+        <pre>filename     el nombre del archivo de salida a crear.
+             el valor predeterminado es 'build/boot.xsh'.
+glob         un patrón glob que especifica los nombres de
+             los archivos xs a escanear en busca de líneas
+             MODULE.
+             el valor predeterminado es 'xs/*.xs'.
+xs_files     usa esto para proporcionar una lista explícita
+             de nombres de archivo (como una referencia a
+             un array) para usar en lugar de un patrón
+             glob. el valor predeterminado es usar el
+             patrón glob.
+ignore       expresión regular que coincide con cualquier
+             y todos los nombres de módulo que deben ser
+             ignorados, es decir, NO incluidos en la lista
+             de símbolos a iniciar.
+             este parámetro es extremadamente importante
+             para evitar bucles infinitos al inicio; ver la
+             discusión para una explicación y justificación.
+             el valor predeterminado es '^[^:]+$', o, cualquier
+             nombre que no contenga dos puntos, es decir,
+             cualquier nombre de paquete de nivel superior.
+</pre>
+    <p class="Pp">Esta función realiza un glob (usando el operador glob
+        incorporado de Perl) en el patrón especificado por la opción 'glob' para
+        obtener una lista de nombres de archivo. Luego escanea cada archivo de
+        esa lista en busca de líneas que coincidan con el patrón &quot;^MODULE&quot;
+        -- es decir, la directiva MODULE en un archivo XS. Se extrae el nombre
+        del módulo y se compara con la expresión regular especificada por el
+        parámetro ignore. Si este módulo no debe ser ignorado, verificamos si el
+        nombre ya ha sido visto. Si no, el nombre se convertirá en un símbolo de
+        arranque (básicamente, s/:/_/ y prefijo &quot;boot_&quot;) y este
+        símbolo se agregará a una llamada a GPERL_CALL_BOOT en el archivo
+        generado; luego se marca como visto para que no lo llamemos de nuevo.</p>
+    <p class="Pp">¿De qué trata todo esto, preguntas? Para enlazar una XSub con
+        Perl, la función C debe registrarse en el intérprete. Esta es la función
+        del código &quot;boot&quot;, que típicamente se llama en el proceso de
+        arranque. Sin embargo, cuando se usan múltiples archivos XS con un solo
+        archivo PM, algún otro mecanismo debe llamar al código de arranque de cada
+        archivo XS antes de que cualquiera de las funciones contenidas en él esté
+        disponible.</p>
+    <p class="Pp">Una configuración típica para un módulo con múltiples XS y un
+        solo PM será llamar a los diversos fragmentos de código de arranque desde
+        la sección BOOT: del archivo XS del módulo principal.</p>
+    <p class="Pp">Tomando Gtk2 como ejemplo, cuando haces 'use Gtk2', Gtk2.pm
+        llama a bootstrap en Gtk2, lo que llama a la función C boot_Gtk2. Esta
+        función llama a los símbolos de arranque de todos los demás archivos xs
+        del módulo. La distinción es que el módulo principal, Gtk2, no tiene
+        dos puntos en su nombre.</p>
+    <p class="Pp"><span class="Li">&quot;xsubpp&quot;</span> genera el nombre de
+        la función de arranque reemplazando los dos puntos en el nombre del
+        MODULE con guiones bajos y anteponiendo &quot;boot_&quot;. Debemos tener
+        cuidado de no incluir el código de arranque del módulo iniciado (digamos
+        Toplevel, o Gtk2, o lo que sea), porque el código de arranque en
+        Toplevel.pm llamará a boot_Toplevel cuando se cargue, y boot_Toplevel
+        debería incluir el archivo que estamos creando aquí.</p>
+    <p class="Pp">El valor predeterminado para el parámetro ignore ignora
+        cualquier nombre que no contenga dos puntos, porque se asume que será un
+        módulo principal, y cualquier otro paquete/módulo que inicie estará
+        *debajo* de este espacio de nombres, es decir, contendrá dos puntos. Esta
+        suposición se cumple para Gtk2 y Gnome2, pero obviamente falla para algo
+        como Gnome2::Canvas. Para iniciar ese módulo correctamente, debes usar
+        una expresión regular como &quot;^Gnome2::Canvas$&quot;.</p>
+    <p class="Pp">Ten en cuenta que, por supuesto, puedes coincidir con más de
+        un nombre, por ejemplo, &quot;^(Foo|Foo::Bar)$&quot;, si quisieras que
+        Foo::Bar se incluyera en el mismo objeto cargado dinámicamente pero solo
+        se iniciara cuando fuera absolutamente necesario. (Si logras que eso
+        funcione, tienes todo mi respeto.)</p>
+    <p class="Pp">Además, dado que este código busca ^MODULE, debes comentar la
+        sección MODULE con marcas de comentarios iniciales si quieres ocultarla de
+        <span class="Li">&quot;write_boot&quot;</span>.</p>
+  </dd>
+  <dt id="Glib::CodeGen~3"><a class="permalink" href="#Glib::CodeGen~3">Glib::CodeGen-&gt;parse_maps
+    (PREFIJO, [KEY =&gt; VAL, ...])</a></dt>
+  <dd>La convención dentro de Glib/Gtk2 y similares es usar macros de
+      preprocesador al estilo de SvMyType y newSVMyType para obtener valores
+      dentro y fuera de Perl, y usar esas mismas macros tanto desde código escrito
+      a mano como desde los typemaps. Sin embargo, si tienes muchos tipos en tu
+      biblioteca (como los casi 200 tipos en Gtk+ 2.x), escribir esas macros se
+      vuelve increíblemente tedioso, especialmente si se tienen en cuenta todas
+      las variantes y demás.
+    <p class="Pp">Por lo tanto, esta función puede convertir un archivo plano
+        que contiene descripciones concisas de los tipos en una cabecera que
+        contiene todas las macros de cast, un archivo typemap que las utiliza y
+        un archivo XSH que contiene el código adecuado para registrar cada uno de
+        esos tipos (para ser incluido por el código BOOT de tu módulo).</p>
+    <p class="Pp">El <i>PREFIJO</i> es obligatorio y se utiliza en algunos de
+        los nombres de archivo resultantes. También puedes anular los valores
+        predeterminados proporcionando pares clave=&gt;valor:</p>
+        <pre>input    nombre del archivo de entrada. valor predeterminado
+         es 'maps'. si el valor de esta clave es una
+         referencia a un array, se escanearán todos los
+         nombres de archivo del array.
+header   nombre del archivo de cabecera a crear,
+         predeterminado es build/$prefijo-autogen.h
+typemap  nombre del archivo typemap a crear,
+         predeterminado es build/$prefijo.typemap
+register nombre del archivo xsh para contener todos los
+         registros de tipos, predeterminado es
+         build/register.xsh
+</pre>
+    <p class="Pp">El archivo maps es una tabla de descripciones de tipos, una
+        por línea, con campos separados por espacios en blanco. los campos
+        deberían ser:</p>
+        <pre>TYPE macro    ej., GTK_TYPE_WIDGET
+nombre clase    ej. GtkWidget, nombre del tipo C
+tipo base       uno de GObject, GBoxed, GEnum, GFlags.
+              para soportar otros tipos base, ver
+              EXTENDING TYPE SUPPORT para info sobre
+              cómo añadir un manejador de tipos personalizado.
+package       nombre del paquete perl al que este
+              nombre de clase debería mapearse, ej.,
+              Gtk2::Widget
+</pre>
+    <p class="Pp">Como caso especial, también puedes usar este mismo formato
+        para registrar dominios de error; en este caso, dos de las cuatro
+        columnas adquieren significados ligeramente diferentes:</p>
+        <pre>macro dominio     ej., GDK_PIXBUF_ERROR
+macro tipo enum  ej., GDK_TYPE_PIXBUF_ERROR
+tipo base        GError
+package          nombre del paquete Perl al que esta
+                 nombre de clase debería mapearse, ej.,
+                 Gtk2::Gdk::Pixbuf::Error.
+</pre>
+  </dd>
+</dl>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SOPORTE_EXTENDIDO_DE_TIPOS'><a class='permalink' href='#SOPORTE_EXTENDIDO_DE_TIPOS'>SOPORTE EXTENDIDO DE TIPOS</a></h1>
+<p class="Pp"><span class="Li">&quot;parse_maps&quot;</span> usa la entrada
+    tipo base en cada registro de mapas para decidir cómo generar</p>
+</div>
+</section>
+
+            </article>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+salida para ese tipo. En el módulo base, el soporte de tipos está incluido para los tipos base proporcionados por Glib. Es fácil añadir soporte para tus propios tipos, simplemente añadiendo un manejador de tipos. Este manejador de tipos llamará a funciones de utilidad para añadir mapas de tipos, líneas BOOT y líneas de </p>cabecera.
+<dl class="Bl-tag">
+  <dt id="Glib::CodeGen~4"><a class="permalink" href="#Glib::CodeGen~4">Glib::CodeGen-&gt;add_type_handler
+    ($base_type =&gt; </a></dt>$handler)
+  <dd></dd>
+</dl>
+<div class="Bd-indent">
+<dl class="Bl-tag">
+  <dt>$base_type (cadena de texto) Nombre C del tipo base a </dt>manejar.
+  <dd></dd>
+  <dt>$handler (subrutina) Callback usado para manejar este </dt>tipo.
+  <dd></dd>
+</dl>
+</div>
+<div class="Bd-indent">
+<p class="Pp">Usa <span class="Li"><i>$handler</i></span><i></i> para generar
+    salida para registros cuyo tipo base es
+    <i></i><span class="Li"><i>$base_type</i></span><i></i>.
+    <i></i><span class="Li"><i>$base_type</i></span><i></i> es el nombre del tipo C
+    tal como se encuentra en la tercera columna de una entrada de un archivo de </p>mapas.
+<p class="Pp"><span class="Li"><i>$handler</i></span><i></i> será llamado con
+    el contenido (posiblemente preprocesado) del registro actual del archivo de mapas, y
+    debe llamar a las funciones <span class="Li">"add_typem</span>ap",
+    <span class="Li">"add_register",</span> y
+    <span class="Li">"add_header" </span>para configurar el
+    pegamento C/XS necesario para ese </p>tipo.
+<p class="Pp">Por </p>ejemplo:
+<pre>Glib::CodeGen-&gt;add_type_handler (CoolThing =&gt; sub {
+    my ($typemacro, $classname, $base, $package) = @_;
+
+    # $typemacro es la macro de tipo C, como COOL_TYPE_THING.
+    # $classname es el nombre real del tipo C, como CoolFooThing.
+    # $base es el nombre C del tipo base. Si CoolFooThing
+    #     isa CoolThing, $base será CoolThing. Este
+    #     parámetro es útil cuando se usa el mismo manejador de tipos
+    #     para múltiples tipos base.
+    # $package es el nombre del paquete que corresponde a
+    #     $classname, como se especifica en el archivo de mapas.
+
+    ...
+}</pre>)</div>;
+<dl class="Bl-tag">
+  <dt id="add_typemap"><a class="permalink" href="#add_typemap">add_typemap
+    $type, $typemap [, $input, </a></dt>$output]
+  <dd>Añade una entrada de mapa de tipos para <span class="Li">$type,</span> nombrada
+      <span class="Li">$typemap.</span> Si
+      <span class="Li"><i>$input</i></span><i></i> y/o
+      <i></i><span class="Li"><i>$output</i></span><i></i> están definidos, su
+      texto se usará como las implementaciones de mapa de tipos <span class="Li">"INPUT" </span>y/o
+      <span class="Li">"OUTPUT"
+</span>      (respectivamente) para <i></i><span class="Li"><i>$typemap</i></span><i></i>.
+      Ten en cuenta que en general, usarás
+      <span class="Li">"T_GPERL_GENERIC_WRAPPER" </span>u otro
+      mapa de tipos existente para
+      <i></i><span class="Li"><i>$typemap</i></span><i></i>, así que
+      <i></i><span class="Li"><i>$input</i></span><i></i> y
+      <i></i><span class="Li"><i>$output</i></span><i></i> se usan muy raramente.
+    <p class="Pp">Ejem</p>plo:
+        <pre># mapea punteros $classname y todas sus variantes al mapa de tipos
+# de envoltura genérico.
+add_typemap "$classname *", "T_GPERL_GENERIC_WRAPPER";
+add_typemap "const $classname *", "T_GPERL_GENERIC_WRAPPER";
+add_typemap "$classname\_or</pre>null *", "T_GPERL_GENERIC_WRAPPER";
+add_typemap "const $classname\_ornull *", "T_GPERL_GENERIC_WRAPPER";
+add_typemap "$classname\_own *", "T_GPERL_GENERIC_WRAPPER";
+add_typemap "$classname\_copy *", "T_GPERL_GENERIC_WRAPPER";
+add_typem</dd>ap "$classname\_own_ornull *", "T_GPERL_GENERIC_WRAPPER";
+# código personalizado para un enum tipo int:
+add_typemap $class =&gt; T_FOO,
+            "\$var = foo_unwrap (\$arg);", # entrada
+            "\$arg = foo_wrap (\$var);"; # salida
+  <dt id="add_register"><a class="permalink" href="#add_register">add_register
+    </a></dt>$text
+  <dd>Añade <span class="Li"><i>$text</i></span><i></i> al
+      <span class="Li">"register.xsh" </span>generado. Esto se usa generalmente para
+      registrar tipos con los bindings, por ejemplo:
+        <pre>add_register "#ifdef $typemacro\n"
+       . </pre>"gperl_register_object ($typemacro, \"$packag</dd>e\");\n"
+       . "#endif /* $typemacro */";
+  <dt id="add_header"><a class="permalink" href="#add_header">add_header
+    </a></dt>$text
+  <dd>Añade <span class="Li"><i>$text</i></span><i></i> a la cabecera C
+      generada. Ponerás typedefs de variantes y macros wrap/unwrap en la cabecera, y
+      generalmente querrás envolver las declaraciones en <span class="Li">"#ifdef
+</span>      $t</dd>ypemacro</dl>" por se</section>guridad.
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>ERRORE</a></h1>S
+<p class="Pp">Los GInterfaces son en su mayoría </p>ignorados.
+<p class="Pp">El cód</p>igo e</section>s feo.
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTO</a></h1>R
+<p class="Pp">muppet &lt;sco</p>tt at asofy</section>et dot org&gt;
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT'><a class='permalink' href='#COPYRIGHT'>DERECHOS DE </a></h1>AUTOR
+<p class="Pp">Copyright (C) 2003-2005, 2013 by the gtk2-perl team (see the file
+    AUTHORS for the full </p>list)
+<p class="Pp">Esta biblioteca es software libre; puedes redistribuirla y/o
+    modificarla bajo los términos de la GNU Library General Public License como
+    publicada por la Free Software Foundation; ya sea la versión 2.1 de la
+    Licencia, o (a tu elección) cualquier versión </p>posterior.
+<p class="Pp">Esta biblioteca se distribuye con la esperanza de que sea útil,
+    pero SIN NINGUNA GARANTÍA; sin siquiera la garantía implícita de
+    COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulta la GNU Library
+    General Public License para más </p>detalles.
+<p class="Pp">Deberías haber recibido una copia de la GNU Library Gene</p>ral Public
+    License junto con esta biblioteca; si no,</section> escribe a la Free Software
+    Foundation, Inc., 51 Fran</div>klin Street, Fifth Floor, Boston, MA 02110-1301
+    USA.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07</td>-13
+    <td class="foot-os">pe</td>rl</tr> v</table>5.</section>42</article>.0
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/glib-perl/">extra/gli</a></dd>b-perl
+        <dt>Vers</dt>ión:
+        <dd>1.</dd>329.4-3
+        <dt>Upst</dt>ream:
+        <dd><a href="http://gtk2-perl.sourceforge.net/">http://gtk2-perl.sourceforge.</a></dd>net/
+        <dt>Licen</dt>cias:
+        <dd>L</dd>GPL
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/glib-perl/">/listi</a></dd>ng/ext</dl>ra/glib</section>-perl/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">N</a></li>OMBRE
+        
+            <li><a href="#SYNOPSIS">SI</a></li>NOPSIS
+        
+            <li><a href="#DESCRIPTION">DESC</a></li>RIPCIÓN
+        
+            <li><a href="#EXTENDING_TYPE_SUPPORT">EXTENSIÓN DEL </a></li>SOPORTE DE TIPOS
+        
+            <li><a href="#BUGS">E</a></li>RRORES
+        
+            <li><a href="#AUTHOR">A</a></li>UTOR
+        
+            <li><a href="#COPYRIGHT">DER</a></li>ECHO</ul>S D</nav>E AU</details>TOR
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Glib::CodeGen.3pm.en.txt">t</a>xt, 
+        
+            <a href="/man/Glib::CodeGen.3pm.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto para el contenido de </p>las páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> de Arch Linux correspondiente.

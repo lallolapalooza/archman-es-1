@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Wheel(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Wheel(3pm)</h1>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Wheel(3)</td>
+    <td class="head-vol">Documentación Perl Contribuida por Usuarios</td>
+    <td class="head-rtitle">POE::Wheel(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Wheel - mixins orientados a eventos para POE::Session</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<p class="Pp">Esta clase base no tiene sinopsis. Por favor, consulte una de las
+    subclases en su lugar.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Un objeto POE::Wheel encapsula un conjunto de manejadores de
+    eventos que realizan una tarea específica. También gestiona los observadores
+    de eventos que activan dichos manejadores.</p>
+<p class="Pp">La vida útil del objeto es muy importante para las ruedas POE. En el
+    momento de la creación, la mayoría de las ruedas añadirán manejadores de
+    eventos anónimos a la sesión activa actual. En otras palabras, la sesión que
+    creó la rueda se modifica para manejar nuevos eventos. También se pueden
+    inicializar observadores de eventos según sea necesario para activar los
+    nuevos manejadores. Estos observadores de eventos también son propiedad de la
+    sesión que creó la rueda.</p>
+<p class="Pp">Las sesiones no deben exponer sus ruedas a otras sesiones. Hacerlo
+    probablemente cause problemas ya que las ruedas están estrechamente
+    integradas con las sesiones que las crearon. Por ejemplo, llamar a
+    <b>put()</b> en una instancia de POE::Wheel::ReadWrite puede habilitar un
+    observador de escritura-permitida. El manejador para este observador ya está
+    definido en el propietario de la rueda. Llamar a <b>put()</b> fuera de esa
+    sesión habilitará el observador de escritura-permitida en la sesión
+    incorrecta, y el evento nunca será manejado.</p>
+<p class="Pp">Del mismo modo, las ruedas deben destruirse desde dentro de sus
+    sesiones creadoras. De lo contrario, ocurrirán fallos cuando los métodos
+    DESTROY de las ruedas intenten desregistrar manejadores y observadores de
+    eventos de las sesiones incorrectas. Para simplificar las cosas, se
+    recomienda almacenar instancias de POE::Wheel en los heaps de las sesiones
+    que las crearon.</p>
+<p class="Pp">Por ejemplo, crear un objeto POE::Wheel::FollowTail registrará un
+    manejador de eventos que sondea periódicamente un archivo en busca de nueva
+    información. También iniciará el temporizador que activa el sondeo
+    periódico.</p>
+<pre>use POE;
+use POE::Wheel::FollowTail;
+my @files_to_tail = qw( messages maillog security );
+foreach my $filename (@files_to_tail) {
+  POE::Session-&gt;create(
+    inline_states =&gt; {
+      _start =&gt; sub {
+        push @{$_[HEAP]{messages}}, POE::Wheel::FollowTail-&gt;new(
+          Filename   =&gt; &quot;/var/log/$filename&quot;,
+          InputEvent =&gt; &quot;got_input&quot;,
+        );
+      },
+      got_input =&gt; sub {
+        print &quot;$filename: $_[ARG0]\n&quot;;
+      },
+    }
+  );
+}
+POE::Kernel-&gt;run();
+exit;</pre>
+<p class="Pp">Como se ilustra en el ejemplo anterior, es posible —a veces
+    recomendable— crear más de una POE::Wheel de un tipo particular en la misma
+    sesión. Una sesión con múltiples ruedas puede escalar mejor que sesiones
+    separadas con una rueda cada una. En caso de duda, haga benchmarking.</p>
+<p class="Pp">A diferencia de los componentes (o el queso), las ruedas no son
+    autónomas. Cada rueda debe ser creada por una sesión para registrar
+    observadores y manejadores de eventos dentro de esa sesión. Las ruedas están
+    así estrechamente acopladas a sus sesiones creadoras y no pueden ser
+    pasadas a otras sesiones.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='FILTERS,_AND_DRIVERS'><a class='permalink' href='#FILTERS,_AND_DRIVERS'>FILTROS,   Y CONTROLADORES</a></h1>
+<p class="Pp">Muchas ruedas realizan operaciones de transferencia de datos en
+    filehandles (que, como probablemente sepa, incluyen sockets, pipes y casi
+    cualquier otra cosa que pueda almacenar o transferir datos).</p>
+<p class="Pp">Para evitar el infierno de subclases, los objetos POE::Wheel pueden
+    ser personalizados en el momento de la creación incluyendo otros objetos de
+    los espacios de nombres POE::Filter y POE::Driver.</p>
+<section class="Ss">
+<h2 class="Ss" id='Filters'><a class='permalink' href='#Filters'>Filtros</a></h2>
+<p class="Pp">Los &quot;filtros&quot; de POE implementan analizadores y serializadores
+    de datos. Por ejemplo, POE::Filter::Line analiza flujos en registros
+    separados por alguna cadena (la tradicional nueva línea de red por defecto).
+    El filtro Line también añade separadores de registro a los datos que se
+    envían.</p>
+<p class="Pp">POE::Filter::HTTPD es un ejemplo más complejo. Implementa un subconjunto
+    del lado del servidor del protocolo HTTP. Los flujos de entrada se analizan
+    en solicitudes HTTP y se envuelven en objetos HTTP::Request. El código del
+    servidor envía objetos HTTP::Response al cliente, que se serializan para poder
+    enviarlos a un socket.</p>
+<p class="Pp">La mayoría de las ruedas utilizan POE::Filter::Line por defecto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Drivers'><a class='permalink' href='#Drivers'>Controladores</a></h2>
+<p class="Pp">Los &quot;controladores&quot; de POE implementan estrategias para
+    enviar datos a un filehandle y recibirlos de él. Una única clase POE::Wheel
+    puede interactuar con archivos, pipes, sockets o dispositivos utilizando el
+    controlador apropiado.</p>
+<p class="Pp">POE::Driver::SysRW es el único controlador que viene con POE.
+    <b>sysread()</b> y <b>syswrite()</b> pueden manejar casi cualquier tipo de
+    interacción de flujo, por lo que no ha habido mucha demanda para otro tipo de
+    controlador.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='METHODS'><a class='permalink' href='#METHODS'>MÉTODOS</a></h1>
+<p class="Pp">POE::Wheel define una interfaz común que la mayoría de las
+    subclases utilizan. Las subclases pueden implementar otros métodos, especialmente
+    para ayudar a realizar sus tareas únicas. Si algo útil no está documentado aquí,
+    consulte la subclase antes de implementar una característica.</p>
+<section class="Ss">
+<h2 class="Ss" id='Required_Methods'><a class='permalink' href='#Required_Methods'>Métodos   Requeridos</a></h2>
+<p class="Pp">Estos métodos son requeridos por todas las subclases.</p>
+<p class="Pp"><i>new LOTS_OF_STUFF</i></p>
+<p class="Pp"><b>new()</b> instancia e inicializa un nuevo objeto wheel y lo
+    devuelve. La nueva rueda continuará funcionando mientras exista, aunque otros
+    métodos pueden alterar la forma en que funciona.</p>
+<p class="Pp">Parte de la construcción de cualquier rueda es el registro de
+    manejadores de eventos anónimos para realizar tareas específicas de la
+    rueda. También se inician observadores de eventos para activar los manejadores
+    cuando ocurre actividad relevante.</p>
+<p class="Pp">Cada rueda tiene un propósito diferente y requiere diferentes
+    parámetros de constructor, por lo que LOTS_OF_STUFF está documentado en cada
+    subclase particular.</p>
+<p class="Pp"><i>DESTROY</i></p>
+<p class="Pp">DESTROY es el Viejo Destructor de Objetos Perl. Cuando la última
+    referencia fuerte de la rueda se libera, DESTROY activa la limpieza de la
+    rueda. El objeto se elimina a sí mismo de la sesión que lo creó: Los
+    observadores de eventos activos se detienen y los manejadores de eventos
+    anónimos se desregistran.</p>
+<p class="Pp"><i>event TIPO_DE_EVENTO, NOMBRE_DE_EVENTO [, TIPO_DE_EVENTO,
+    NOMBRE_DE_EVENTO, ....]</i></p>
+<p class="Pp"><b>event()</b> cambia los eventos que emitirá una rueda. Sus
+    parámetros son uno o más pares de TIPO_DE_EVENTO y NOMBRE_DE_EVENTO a emitir
+    cuando ocurra cada tipo de evento. Si un NOMBRE_DE_EVENTO es indefinido,
+    entonces la rueda dejará de emitir ese tipo de evento. O la rueda puede
+    lanzar un error si el tipo de evento es requerido.</p>
+<p class="Pp">Los TIPO_DE_EVENTO difieren para cada rueda y corresponden a los
+    parámetros del constructor que coinciden con /.*Event$/. Por ejemplo,
+    POE::Wheel::ReadWrite puede emitir hasta cinco tipos diferentes de evento:
+    InputEvent, ErrorEvent, FlushedEvent, HighEvent, LowEvent. El nombre de cada
+    evento emitido puede cambiarse en tiempo de ejecución.</p>
+<p class="Pp">Este ejemplo cambia los eventos a emitir en nueva entrada y cuando
+    se vacía la salida. Detiene la emisión de eventos por parte de la rueda cuando
+    ocurren errores.</p>
+<pre>$wheel-&gt;event(
+  InputEvent   =&gt; 'new_input_event',
+  ErrorEvent   =&gt; undef,
+  FlushedEvent =&gt; 'new_flushed_event',
+);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='I/O_Methods'><a class='permalink' href='#I/O_Methods'>Métodos   de E/S</a></h2>
+<p class="Pp">Las ruedas que realizan entrada y salida pueden implementar algunos
+    o todos estos métodos. El método <b>put()</b> es una omisión común. Las ruedas
+    que no realizan salida no tienen métodos <b>put()</b>.</p>
+<p class="Pp"><i>put REGISTRO [, REGISTRO [, ....]]</i></p>
+<p class="Pp"><b>put()</b> envía uno o más REGISTROS a la rueda para su
+    transmisión. Cada REGISTRO es serializado por el POE::Filter asociado de la
+    rueda para que esté listo para transmitir. El flujo serializado puede ser
+    transmitido inmediatamente por el objeto POE::Driver de la rueda, o puede
+    ser almacenado en búfer en el POE::Driver hasta que pueda ser vaciado al
+    filehandle de salida.</p>
+<p class="Pp">La mayoría de las ruedas utilizan POE::Filter::Line y POE::Driver::SysRW
+    por defecto, por lo que no es necesario especificarlos en la mayoría de los
+    casos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Class_Static_Functions'><a class='permalink' href='#Class_Static_Functions'>Funciones   Estáticas de Clase</a></h2>
+<p class="Pp">Estas funciones exponen información común a todas las ruedas. No
+    son métodos, por lo que **no** deben ser llamadas como métodos.</p>
+<pre>my $new_wheel_id = POE::Wheel::allocate_wheel_id();
+POE::Wheel::free_wheel_id($new_wheel_id);</pre>
+<p class="Pp"><i>allocate_wheel_id</i></p>
+<p class="Pp">**No es un método de clase.**</p>
+<p class="Pp">Cada rueda tiene un ID único. <b>allocate_wheel_id()</b> devuelve
+    el siguiente ID de rueda único disponible. Los constructores de ruedas lo
+    usan para establecer sus IDs internamente.</p>
+<pre>package POE::Wheel::Example;
+use base qw(POE::Wheel);
+sub new {
+  # ... entre otras cosas ...
+  $self-&gt;[MY_WHEEL_ID] = POE::Wheel::allocate_wheel_id();
+  return $self;
+}</pre>
+<p class="Pp">Los IDs de rueda se utilizan para distinguir los eventos de</p>
+</div>
+</section>
+                
+            </article>
+            
+        </main>
+        <footer>
+        </footer>
+    </body>
+</html>
+<article class="man-page">
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+<p class="Pp">POE::Wheel - A base class for objects that handle I/O and other
+    long-running tasks.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+<pre>  package POE::Wheel::MyWheel;
+  use base qw(POE::Wheel);
+  # ... wheel-specific methods ...
+  sub new {
+    my ($class, %args) = @_;
+    my $self = $class-&gt;SUPER::new(%args);
+    # ... initialize wheel ...
+    return $self;
+  }</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+<p class="Pp">POE::Wheel is a base class for objects that handle I/O and other
+    long-running tasks. Wheels are POE's primary mechanism for dealing with
+    things that cannot be handled by simple event callbacks.</p>
+<p class="Pp">Wheels are designed to be subclassed. The base POE::Wheel class
+    provides the core functionality for managing wheel IDs and basic event
+    dispatch. Subclasses will typically implement methods to interact with
+    specific I/O sources, such as files, sockets, or external processes.</p>
+<p class="Pp">When an event is generated by a wheel, it is sent to the POE
+    kernel. The kernel then dispatches the event to the appropriate session.
+    The event will contain a reference to the wheel that generated it, allowing
+    the session to handle the event accordingly.</p>
+<p class="Pp">Wheels can be thought of as persistent objects that encapsulate
+    resources and provide an interface for interacting with them in a
+    non-blocking manner. They are essential for building complex POE
+    applications that require interaction with the outside world.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="FILTERS,_AND_DRIVERS"><a class="permalink" href="#FILTERS,_AND_DRIVERS">FILTERS, AND DRIVERS</a></h1>
+<p class="Pp">Wheels often use POE::Filter and POE::Driver objects to handle
+    data parsing and low-level I/O, respectively. This separation of concerns
+    allows wheels to focus on managing the lifecycle of the I/O resource, while
+    filters and drivers handle the specifics of data transformation and
+    communication.</p>
+<p class="Pp">For example, a POE::Wheel::ReadWrite might use a POE::Filter::Line
+    to parse incoming data into lines, and a POE::Driver::Socket to handle the
+    actual network communication.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="METHODS"><a class="permalink" href="#METHODS">METHODS</a></h1>
+<p class="Pp">POE::Wheel provides several methods for managing wheel IDs and
+    state.</p>
+<p class="Pp"><i>wheel_id</i></p>
+<p class="Pp"><b>This is a class method.</b></p>
+<p class="Pp"><b>wheel_id()</b> returns the next available wheel ID. This ID is
+    guaranteed to be unique among all currently active wheels. It is often used
+    to tag events generated by the wheel, allowing receiving sessions to identify
+    the source of the event.</p>
+<pre>  package POE::Wheel::Example;
+  use base qw(POE::Wheel);
+  sub _create {
+    my ($class, %args) = @_;
+    my $wheel_id = $class-&gt;wheel_id;
+    # ... use $wheel_id to store state ...
+    return $wheel_id;
+  }</pre>
+<p class="Pp">Wheel IDs are automatically allocated when a new wheel is created
+    and automatically freed when the wheel is destroyed. However, if a wheel
+    object is manually destroyed or its state is otherwise discarded, its ID
+    must be explicitly freed using <b>free_wheel_id()</b> to prevent memory
+    leaks and ID collisions.</p>
+<p class="Pp">Wheel IDs are often used to store wheel-local state in a session's
+    heap.</p>
+<pre>sub handle_error {
+  my $wheel_id = $_[ARG3];
+  print &quot;Wheel $wheel_id caught an error.  Shutting it down.\n&quot;;
+  delete $_[HEAP]{wheels}{$wheel_id};
+}</pre>
+<p class="Pp">It is vital for wheels to free their allocated IDs when they are
+    destroyed. POE::Wheel class keeps track of allocated wheel IDs to avoid
+    collisions, and they will remain in memory until freed. See
+    <b>free_wheel_id()</b>.</p>
+<p class="Pp"><i>free_wheel_id WHEEL_ID</i></p>
+<p class="Pp"><b>This is not a class method.</b></p>
+<p class="Pp"><b>free_wheel_id()</b> deallocates a wheel's ID so that it stops
+    consuming memory and may be reused later. This is often called from a
+    wheel's destructor.</p>
+<pre>package POE::Wheel::Example;
+use base qw(POE::Wheel);
+sub DESTROY {
+  my $self = shift;
+  # ... among other things ...
+  POE::Wheel::free_wheel_id($self-&gt;[MY_WHEEL_ID]);
+}</pre>
+<p class="Pp">Wheel IDs may be reused, although it has never been reported. Two
+    active wheels will never share the same ID, however.</p>
+<p class="Pp"><i>ID</i></p>
+<p class="Pp"><b>This is usually implemented in the subclass!</b></p>
+<p class="Pp">The <b>ID()</b> method returns a wheel's unique ID. It is commonly
+    used to match events with the wheels which generated them.</p>
+<p class="Pp">Again, this method is not implemented in this class! If it's
+    missing from the subclass, please go pester that module author---thanks!</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE ALSO</a></h1>
+<p class="Pp">The SEE ALSO section in POE contains a table of contents covering
+    the entire POE distribution.</p>
+<p class="Pp">POE::Driver - A base class for file access drivers that POE::Wheel
+    may use.</p>
+<p class="Pp">POE::Filter - A base class for data parsers and marshalers that
+    POE::Wheel may use.</p>
+<p class="Pp">POE::Wheel::Curses - Non-blocking input for Curses.</p>
+<p class="Pp">POE::Wheel::FollowTail - Non-blocking file and FIFO
+    monitoring.</p>
+<p class="Pp">POE::Wheel::ListenAccept - Non-blocking server for existing
+    sockets.</p>
+<p class="Pp">POE::Wheel::ReadLine - Non-blocking console input, with full
+    readline support.</p>
+<p class="Pp">POE::Wheel::ReadWrite - Non-blocking stream I/O.</p>
+<p class="Pp">POE::Wheel::Run - Non-blocking process creation and
+    management.</p>
+<p class="Pp">POE::Wheel::SocketFactory - Non-blocking socket creation,
+    supporting most protocols and modes.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="BUGS"><a class="permalink" href="#BUGS">BUGS</a></h1>
+<p class="Pp">It would be nice if wheels were more like proper Unix streams.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="AUTHORS_&amp;amp;_COPYRIGHTS"><a class="permalink" href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTHORS   &amp; COPYRIGHTS</a></h1>
+<p class="Pp">Please see POE for more information about authors, contributors,
+    and POE;s licensing.</p>
+</section>
+</article>

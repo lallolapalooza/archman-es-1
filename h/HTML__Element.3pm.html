@@ -1,0 +1,1686 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>HTML::Element(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">HTML__Element(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-html-tree/">perl-html-tree</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">HTML::Element(3pm)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">HTML::Element(3pm)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">HTML::Element - Clase para objetos que representan elementos HTML</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">Este documento describe la versión 5.07 de HTML::Element, publicada el
+    31 de agosto de 2017 como parte de HTML-Tree.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>use HTML::Element;
+$a = HTML::Element-&gt;new('a', href =&gt; 'http://www.perl.com/');
+$a-&gt;push_content("The Perl Homepage");
+$tag = $a-&gt;tag;
+print "$tag starts out as:",  $a-&gt;starttag, "\n";
+print "$tag ends as:",  $a-&gt;endtag, "\n";
+print "$tag\'s href attribute is: ", $a-&gt;attr('href'), "\n";
+$links_r = $a-&gt;extract_links();
+print "Hey, I found ", scalar(@$links_r), " links.\n";
+print "And that, as HTML, is: ", $a-&gt;as_HTML, "\n";
+$a = $a-&gt;delete;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">(Esta clase es parte de la distribución HTML::Tree.)</p>
+<p class="Pp">Los objetos de la clase HTML::Element pueden usarse para representar
+    elementos de árboles de documentos HTML. Estos objetos tienen atributos,
+    notablemente atributos que designan el padre de cada elemento y su
+    contenido. El contenido es una lista de segmentos de texto y otros objetos
+    HTML::Element. Un árbol con objetos HTML::Element como nodos puede
+    representar el árbol de sintaxis de un documento HTML.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='HOW_WE_REPRESENT_TREES'><a class='permalink' href='#HOW_WE_REPRESENT_TREES'>CÓMO   REPRESENTAMOS LOS ÁRBOLES</a></h1>
+<p class="Pp">Considere este documento HTML:</p>
+<pre>&lt;html lang='en-US'&gt;
+  &lt;head&gt;
+    &lt;title&gt;Stuff&lt;/title&gt;
+    &lt;meta name='author' content='Jojo'&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+   &lt;h1&gt;I like potatoes!&lt;/h1&gt;
+  &lt;/body&gt;
+&lt;/html&gt;</pre>
+<p class="Pp">Construir un árbol de sintaxis a partir de él crea una estructura de
+    árbol en memoria que podría diagramarse así:</p>
+<pre>              html (lang='en-US')
+               / \
+             /     \
+           /         \
+         head        body
+        /\               \
+      /    \               \
+    /        \               \
+  title     meta              h1
+   |       (name='author',     |
+"Stuff"    content='Jojo')    "I like potatoes"</pre>
+<p class="Pp">Esta es la forma tradicional de diagramar un árbol, con la "raíz"
+    en la parte superior, y es este tipo de diagrama que la gente tiene en
+    mente cuando dicen, por ejemplo, que "el elemento meta está debajo del
+    elemento head en lugar de debajo del elemento body". (Lo mismo se dice
+    con "dentro" en lugar de "debajo" -- el uso de
+    "dentro" tiene más sentido cuando estás mirando el código fuente
+  HTML.)</p>
+<p class="Pp">Otra forma de representar el árbol anterior es con sangría:</p>
+<pre>html (attributes: lang='en-US')
+  head
+    title
+      "Stuff"
+    meta (attributes: name='author' content='Jojo')
+  body
+    h1
+      "I like potatoes"</pre>
+<p class="Pp">Por cierto, el diagramado con sangría funciona mucho mejor para
+    árboles muy grandes, y es más fácil de generar para un programa. El
+    <span class="Li">"$tree-&gt;dump"</span> método usa sangría
+    exactamente de esa manera.</p>
+<p class="Pp">Sin importar cómo diagrames el árbol, se almacena igual en memoria --
+    es una red de objetos, cada uno de los cuales tiene atributos así:</p>
+<pre>element #1:  _tag: 'html'
+             _parent: none
+             _content: [element #2, element #5]
+             lang: 'en-US'
+element #2:  _tag: 'head'
+             _parent: element #1
+             _content: [element #3, element #4]
+element #3:  _tag: 'title'
+             _parent: element #2
+             _content: [text segment "Stuff"]
+element #4   _tag: 'meta'
+             _parent: element #2
+             _content: none
+             name: author
+             content: Jojo
+element #5   _tag: 'body'
+             _parent: element #1
+             _content: [element #6]
+element #6   _tag: 'h1'
+             _parent: element #5
+             _content: [text segment "I like potatoes"]</pre>
+<p class="Pp">La "arborescencia" de la estructura de árbol que estos elementos
+    componen no es un aspecto de ningún objeto particular, sino que surge de
+    los atributos de relación (_parent y _content) de estos objetos-elemento y
+    de cómo los usas para ir de un elemento a otro.</p>
+<p class="Pp">Aunque podrías acceder al contenido de un árbol escribiendo código
+    que diga "accede al atributo 'src' del <i>primer</i> hijo de la raíz,
+    <i>séptimo</i> hijo de ese, <i>tercer</i> hijo", es más probable que
+    tengas que escanear el contenido de un árbol, buscando los nodos, o tipos
+    de nodos, con los que quieras hacer algo. La forma más directa de
+    recorrer un árbol es "recorrerlo"; se proporciona un método de
+    HTML::Element (<span class="Li">"$h-&gt;traverse"</span>) para este
+    propósito; y varios otros métodos de HTML::Element se basan en él.</p>
+<p class="Pp">(Para todo lo que siempre quisiste saber sobre árboles, y más,
+    consulta
+    Algoritmos + Estructuras de Datos = Programas <i>de Niklaus Wirth</i> o
+    El Arte de la Programación de Computadoras, Volumen 1 <i>de
+    Donald Knuth</i>.)</p>
+<section class="Ss">
+<h2 class="Ss" id='Weak_References'><a class='permalink' href='#Weak_References'>Referencias   Débiles</a></h2>
+<p class="Pp">Resumen TL;DR:
+    <span class="Li">"use HTML::TreeBuilder 5 -weak;"</span>
+    y olvídate del <span class="Li">"delete"</span> método
+    (excepto para podar un nodo de un árbol).</p>
+<p class="Pp">Debido a que HTML::Element almacena una referencia al elemento padre,
+    el recolector de basura por conteo de referencias de Perl no funciona
+    correctamente con árboles HTML::Element. A partir de la versión 5.00,
+    HTML::Element usa referencias débiles (si están disponibles) para prevenir
+    ese problema. Las referencias débiles se introdujeron en Perl 5.6.0, pero
+    también necesitas una versión de Scalar::Util que proporcione la <span class="Li">"weaken"</span> función.</p>
+<p class="Pp">Las referencias débiles están habilitadas por defecto. Si quieres
+    estar seguro de que se están usando, puedes decir
+    <span class="Li">"use HTML::Element 5 -weak;"</span>.
+    Debes incluir el número de versión; las versiones anteriores de
+    HTML::Element ignoraban por completo la lista de importación.</p>
+<p class="Pp">Para deshabilitar las referencias débiles, puedes decir
+    <span class="Li">"use HTML::Element -noweak;"</span>.
+    Esta es una configuración global. <b>Esta característica está obsoleta</b> y se proporciona
+    solo como una solución rápida para código roto. Si tu código no funciona
+    correctamente con referencias débiles, deberías arreglarlo inmediatamente,
+    ya que las referencias débiles pueden volverse obligatorias en una versión
+    futura. Generalmente, todo lo que necesitas hacer es mantener una
+    referencia a la raíz del árbol hasta que termines de trabajar con él.</p>
+<p class="Pp">Debido a que HTML::TreeBuilder es una subclase de HTML::Element, también
+    puedes importar <span class="Li">"-weak"</span> o
+    <span class="Li">"-noweak"</span> desde HTML::TreeBuilder: por ejemplo
+    <span class="Li">"use HTML::TreeBuilder: 5 -weak;"</span>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BASIC_METHODS'><a class='permalink' href='#BASIC_METHODS'>MÉTODOS   BÁSICOS</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<pre>$h = HTML::Element-&gt;new('tag', 'attrname' =&gt; 'value', ... );</pre>
+<p class="Pp">Este método constructor devuelve un nuevo objeto HTML::Element. El
+    nombre de la etiqueta es un argumento obligatorio; se forzará a minúsculas.
+    Opcionalmente, puedes especificar otros atributos iniciales al momento de
+    crear el objeto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='attr'><a class='permalink' href='#attr'>attr</a></h2>
+<pre>$value = $h-&gt;attr('attr');
+$old_value = $h-&gt;attr('attr', $new_value);</pre>
+<p class="Pp">Devuelve (opcionalmente establece) el valor del atributo dado de
+    <span class="Li">$h</span>. El nombre del atributo (pero no el valor, si
+    se proporciona) se fuerza a minúsculas. Si intentas leer el valor de un
+    atributo que no está presente para este elemento, el valor de retorno es
+    undef. Si estableces un nuevo valor, se devuelve el valor antiguo de ese
+    atributo.</p>
+<p class="Pp">Si se proporcionan métodos para acceder a un atributo (como
+    <span class="Li">"$h-&gt;tag"</span> para "_tag",
+    <span class="Li">"$h-&gt;content_list"</span>, etc. más abajo), usa
+    esos en lugar de llamar a attr
+    <span class="Li">"$h-&gt;attr"</span>, ya sea para leer o
+    establecer.</p>
+<p class="Pp">Ten en cuenta que establecer un atributo a
+    <span class="Li">"undef"</span> (a diferencia de "", la
+    cadena vacía) realmente borra el atributo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='tag'><a class='permalink' href='#tag'>tag</a></h2>
+<pre>$tagname = $h-&gt;tag();
+$h-&gt;tag('tagname');</pre>
+<p class="Pp">Devuelve (opcionalmente establece) el nombre de la etiqueta (también
+    conocido como identificador genérico) para el elemento <span class="Li">$h</span>. Al establecerlo, el nombre de la
+    etiqueta siempre se convierte a minúsculas.</p>
+<p class="Pp">Hay cuatro tipos de "pseudo-elementos" que aparecen
+    como objetos HTML::Element:</p>
+<dl class="Bl-tag">
+  <dt id="Comment"><a class="permalink" href="#Comment">Pseudocomentarioo-elementos</a></dt>
+  <dd>Estos son objetos de elemento con un
+      <span class="Li">"$h-&gt;tag"</span> valor de
+      "~comment", y el contenido del comentario se almacena en el
+      atributo "text"
+      (<span class="Li">"$h-&gt;attr("text")"</span>). Por
+      ejemplo, al analizar este código con HTML::TreeBuilder...
+        <pre>&lt;!-- I like Pie.
+   Pie is good
+--&gt;
+</pre>
+    <p class="Pp">produce un objeto HTML::Element con estos atributos:</p>
+        <pre>"_tag",
+"~comment",
+"text",
+" I like Pie.\n     Pie is good\n  "
+</pre>
+  </dd>
+  <dt id="Declaration"><a class="permalink" href="#Declaration">Pseudo-elementos de
+    declaración</a></dt>
+  <dd>Las declaraciones (rara vez se encuentran) se representan como objetos HTML::Element
+      con un nombre de etiqueta de "~declaration", y el contenido en el
+      atributo "text". Por ejemplo, esto:
+        <pre>&lt;!DOCTYPE foo&gt;
+</pre>
+    <p class="Pp">produce un elemento cuyos atributos incluyen:</p>
+        <pre>"_tag", "~declaration", "text", "DOCTYPE foo"
+</pre>
+  </dd>
+  <dt id="Processing"><a class="permalink" href="#Processing">Pseudo-elementos de
+    instrucción de procesamiento</a></dt>
+  <dd>Las PI (rara vez se encuentran) se representan como objetos HTML::Element con un
+      nombre de etiqueta de "~pi", y el contenido en el atributo
+      "text". Por ejemplo, esto:
+        <pre>&lt;?stuff foo?&gt;
+</pre>
+    <p class="Pp">produce un elemento cuyos atributos incluyen:</p>
+        <pre>"_tag", "~pi", "text", "stuff foo?"
+</pre>
+    <p class="Pp">(asumiendo una versión reciente de HTML::Parser)</p>
+  </dd>
+  <dt>Pseudo-elementos ~literal</dt>
+  <dd>Estos objetos no son producidos actualmente por HTML::TreeBuilder, pero pueden ser
+      usados para representar un "super-literal" -- es decir, un literal que quieres
+      que sea inmune al escapado. (Sí, acabo de inventar ese término.)
+    <p class="Pp">Es decir, esto es útil si quieres insertar código en un árbol
+        que planeas volcar con
+        <span class="Li">"as_HTML"</span>, donde quieres, por alguna
+        razón, suprimir <span class="Li">"as_HTML"</span>'s comportamiento normal de escapar con ampersand los segmentos de texto.</p>
+    <p class="Pp">Por ejemplo, esto:</p>
+        <pre>my $literal = HTML::Element-&gt;new('~literal',
+  'text' =&gt; 'x &lt; 4 &amp; y &gt; 7'
+);
+my $span = HTML::Element-&gt;new('span');
+$span-&gt;push_content($literal);
+print $span-&gt;as_HTML;
+</pre>
+    <p class="Pp">imprime esto:</p>
+        <pre>&lt;span&gt;x &lt; 4 &amp; y &gt; 7&lt;/span&gt;
+</pre>
+    <p class="Pp">Mientras que esto:</p>
+        <pre>my $span = HTML::Element-&gt;new('span');
+$span-&gt;push_content('x &lt; 4 &amp; y &gt; 7');
+  # normal text segment
+print $span-&gt;as_HTML;
+</pre>
+    <p class="Pp">imprime esto:</p>
+        <pre>&lt;span&gt;x & 4 & y & 7&lt;/span&gt;
+</pre>
+    <p class="Pp">A menos que estés insertando mucho código pre-cocinado en árboles
+        existentes, y volcándolos de nuevo, no es probable que encuentres
+        <span class="Li">"~literal"</span> pseudo-elementos útiles.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='parent'><a class='permalink' href='#parent'>parent</a></h2>
+<pre>$parent = $h-&gt;parent();
+$h-&gt;parent($new_parent);</pre>
+<p class="Pp">Devuelve (opcionalmente establece) el padre (alias "contenedor")
+    de este elemento. El padre debe ser undef, o debe ser otro
+    elemento.</p>
+<p class="Pp">Tú <b>no debes</b> usar esto para establecer directamente el padre de un
+    elemento. En su lugar usa cualquiera de los otros métodos bajo
+    "Métodos de Modificación de Estructura", más abajo.</p>
+<p class="Pp">Ten en cuenta que <span class="Li">not($h-&gt;parent)</span> es una prueba simple de si <span class="Li">$h</span> es la raíz de su subárbol.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='content_list'><a class='permalink' href='#content_list'>content_list</a></h2>
+<pre>@content = $h-&gt;content_list();
+$num_children = $h-&gt;content_list();</pre>
+<p class="Pp">Devuelve una lista de los nodos hijos de este elemento -- es decir, qué
+    nodos (elementos o segmentos de texto) están dentro/debajo de este elemento. (Ten en cuenta que
+    esta puede ser una lista vacía.)</p>
+<p class="Pp">En un contexto escalar, devuelve el número de elementos, como
+    podrías esperar.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='content'><a class='permalink' href='#content'>content</a></h2>
+<pre>$content_array_ref = $h-&gt;content(); # may return undef</pre>
+<p class="Pp">Este método algo obsoleto devuelve el contenido de este
+    elemento; pero a diferencia de content_list, devuelve o bien undef (que
+    debes entender que significa sin contenido), o una <i>referencia al arreglo</i> de
+    elementos de contenido, cada uno de los cuales es o bien un segmento de texto ( una cadena, es decir, un
+    valor escalar definido no-referencia), o un objeto HTML::Element. Ten en cuenta que
+    incluso si se devuelve un arrayref, puede ser una referencia a un arreglo
+  vacío.</p>
+<p class="Pp">Aunque el código antiguo puede continuar usándolo libremente
+    <span class="Li">"$h-&gt;content"</span>, el código nuevo debería usar
+    <span class="Li">"$h-&gt;content_list"</span> en casi todos los
+    casos concebibles. Es mi experiencia que en la mayoría de los casos esto conduce a
+    código más simple de todos modos, ya que significa que se puede decir:</p>
+<pre>@children = $h-&gt;content_list;</pre>
+<p class="Pp">en lugar del inelegante:</p>
+<pre>@children = @{$h-&gt;content || []};</pre>
+<p class="Pp">Si usas <span class="Li">"$h-&gt;content"</span>
+    (o <span class="Li">"$h-&gt;content_array_ref"</span>), no
+    debes usar la referencia que devuelve (asumiendo que devolvió una
+    referencia, y no undef) para establecer o cambiar directamente el contenido de un
+    elemento o segmento de texto! En su lugar usa content_refs_list o cualquiera de los otros
+    métodos bajo "Métodos de Modificación de Estructura", más abajo.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='content_array_ref'><a class='permalink' href='#content_array_ref'>content_array_ref</a></h2>
+<pre>$content_array_ref = $h-&gt;content_array_ref(); # never undef</pre>
+<p class="Pp">Esto es como <span class="Li">"content"</span> (con todas
+    sus advertencias y obsolescencia) excepto que está garantizado devolver una
+    referencia a un arreglo. Es decir, si el nodo dado no tiene
+    <span class="Li">"_content"</span> atributo, el
+    <span class="Li">"content"</span> método devolvería ese undef,
+    pero <span class="Li">"content_array_ref"</span> establecería el
+    valor de "_content" <span class="Li">del nodo dado</span> a
+    <span class="Li">"[]"</span> (una referencia a un nuevo arreglo vacío),
+    y lo devolvería.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='content_refs_list'><a class='permalink' href='#content_refs_list'>content_refs_list</a></h2>
+<pre>@content_refs = $h-&gt;content_refs_list;</pre>
+<p class="Pp">Devuelve una lista de referencias escalares a cada elemento de la
+    <span class="Li">lista de contenido de $h</span>. Esto es útil en caso de que quieras
+    editar in-situ algún segmento de texto grande sin tener que obtener una copia del
+    valor actual de ese segmento, modificar esa copia, y luego usar
+    <span class="Li">"splice_content"</span> para reemplazar el viejo con el
+    nuevo. En su lugar, aquí puedes editar in-situ:</p>
+<pre>foreach my $item_r ($h-&gt;content_refs_list) {
+    next if ref $$item_r;
+    $$item_r =~ s/honour/honor/g;
+}</pre>
+<p class="Pp">Tú <i>podrías</i> lograr actualmente el mismo efecto con:</p>
+<pre>foreach my $item (@{ $h-&gt;content_array_ref }) {
+    # deprecated!
+    next if ref $item;
+    $item =~ s/honour/honor/g;
+}</pre>
+<p class="Pp">...excepto que usar el valor de retorno de
+    <span class="Li">"$h-&gt;content"</span> o
+    <span class="Li">"$h-&gt;content_array_ref"</span> para hacer eso está
+    obsoleto, y podría dejar de funcionar en el futuro.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='implicit'><a class='permalink' href='#implicit'>implicit</a></h2>
+<pre>$is_implicit = $h-&gt;implicit();
+$h-&gt;implicit($make_implicit);</pre>
+<p class="Pp">Devuelve (opcionalmente establece) el atributo "_implicit".
+    Este atributo es un indicador que se usa para señalar que el elemento no estaba
+    originalmente presente en la fuente, sino que fue añadido al árbol de análisis (por
+    HTML::TreeBuilder, por ejemplo) para cumplir con las reglas de la estructura de HTML.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pos'><a class='permalink' href='#pos'>pos</a></h2>
+<pre>$pos = $h-&gt;pos();
+$h-&gt;pos($element);</pre>
+<p class="Pp">Devuelve (y opcionalmente establece) el puntero "_pos" (por
+    "posición actual" <i>pos</i>) de <span class="Li">$h</span>.
+    Este atributo es un puntero usado durante algunas operaciones de análisis, cuyo valor
+    es el elemento HTML::Element que en o bajo <span class="Li">$h</span> está
+    actualmente "abierto", donde
+    <span class="Li">"$h-&gt;insert_element(NEW)"</span> insertará realmente
+    un nuevo elemento.</p>
+<p class="Pp">(Esto no tiene nada que ver con la función de Perl llamada
+    <span class="Li">"pos"</span>, para controlar dónde comienza el emparejamiento de expresiones regulares.)</p>
+<p class="Pp">Si estableces
+    <span class="Li">"$h-&gt;pos($element)"</span>, asegúrate de que
+    <span class="Li">$element</span> es o bien <span class="Li">$h</span>, o un
+    elemento bajo <span class="Li">$h</span>.</p>
+<p class="Pp">Si has estado modificando el árbol bajo <span class="Li">$h</span>
+    y ya no estás seguro de si <span class="Li">"$h-&gt;pos"</span> es
+    válido, puedes hacer cumplir la validez con:</p>
+<pre>$h-&gt;pos(undef) unless $h-&gt;pos-&gt;is_inside($h);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='all_attr'><a class='permalink' href='#all_attr'>all_attr</a></h2>
+<pre>%attr = $h-&gt;all_attr();</pre>
+<p class="Pp">Devuelve todos los atributos y valores de este elemento, como pares
+    clave-valor. Esto incluirá cualquier atributo "interno" (es decir, los que no
+    estaban presentes en el elemento original, y que no serán representados si/llamas a <span class="Li">"$h-&gt;as_HTML"</span>). Los atributos internos se distinguen por el hecho de que el primer carácter de su
+    clave (¡no valor! ¡clave!) es un guion bajo ("_").</p>
+<p class="Pp">Ejemplo de salida de
+    <span class="Li">"$h-&gt;all_attr()"</span> :
+    <span class="Li">"'_parent',
+    "</span><i>[object_value]</i><span class="Li">" , '_tag', 'em',
+    'lang', 'en-US',</span> <span class="Li">'_content',
+    "</span><i>[array-ref value]</i>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='all_attr_names'><a class='permalink' href='#all_attr_names'>all_attr_names</a></h2>
+<pre>@names = $h-&gt;all_attr_names();
+$num_attrs = $h-&gt;all_attr_names();</pre>
+<p class="Pp">Como <span class="Li">"all_attr"</span>, pero solo
+    devuelve los nombres de los atributos. En contexto escalar, devuelve el número
+    de atributos.</p>
+<p class="Pp">Ejemplo de salida de
+    <span class="Li">"$h-&gt;all_attr_names()"</span> :
+    <span class="Li">"'_parent', '_tag', 'lang', '_content',
+  "</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='all_external_attr'><a class='permalink' href='#all_external_attr'>all_external_attr</a></h2>
+<pre>%attr = $h-&gt;all_external_attr();</pre>
+<p class="Pp">Como <span class="Li">"all_attr"</span>, excepto que
+    los atributos internos no están presentes.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='all_external_attr_names'><a class='permalink' href='#all_external_attr_names'>all_external_attr_names</a></h2>
+<pre>@names = $h-&gt;all_external_attr_names();
+$num_attrs = $h-&gt;all_external_attr_names();</pre>
+<p class="Pp">Como <span class="Li">"all_attr_names" , except
+   </span> that internal attrib</p>utes' names are not </section>present (or counted).
+<section class="Ss">
+<h2 class="Ss" id='id'><a class='permalink' href='#id'>id $id = $h-&gt;id();
+$h-&gt;id($string); Returns </a></h2>(optionally sets to
+<pre>$string ) the
+    "id" attribute. "$h-&gt;id(undef)</pre>"
+<p class="Pp">deletes the
+    "id" attribute. <span class="Li">"$h-&gt;id(.</span>..)" is basically
+    equivalent to
+    <span class="Li">"$h-&gt;</span>attr('id', ...)</p>"
+<p class="Pp"><span class="Li">,
+    except that when setting the attribute,</span> this method returns the new value,
+    not the old value. idf $id = $h-&gt;idf();
+$h-&gt;idf($string); <span class="Li">Jus</span>t l</p>ike </section>the
+<section class="Ss">
+<h2 class="Ss" id='idf'><a class='permalink' href='#idf'>"id" method,
+    except that if you call </a></h2>"$h-&gt;idf()"
+<pre>and
+    no "id" attribute is defined for this element, then it's set to a
+    likely-to-be-unique value, and returned. (The "f" is for
+    "force".</pre>)
+<p class="Pp">MÉTODOS QUE MODIFICAN LA ESTRUCTURA <span class="Li">Estos métodos </span>se proporcionan para modificar el contenido de los árboles
+    añadiendo o cambiando nodos como padres o hijos de otros nodos. <span class="Li">push_content $h-&gt;p</span>ush_content($eleme</p>nt_or_text, ...); </section>Añade los elemento</section>s especificados al
+<section class="Sh">
+<h1 class="Sh" id='STRUCTURE-MODIFYING_METHODS'><a class='permalink' href='#STRUCTURE-MODIFYING_METHODS'>fina</a></h1>l
+<p class="Pp">de la lista de contenido del
+    </p>elemento
+<section class="Ss">
+<h2 class="Ss" id='push_content'><a class='permalink' href='#push_content'>$</a></h2>h
+<pre>. Los elementos de contenido que se añadirán
+    deben ser cada uno un segmento de texto (una cadena), un objeto HTML::Element, o
+    una referencia a array. Las referencias a array se procesan a través </pre>de
+<p class="Pp">"$h-&gt;new_from_lol(that_arrayref)" <i>para
+ </i>   convertirlas en elementos, antes de ser añadidas a la lista de contenido de <span class="Li">$</span>h
+    <span class="Li">. Esto significa </span>que puedes decir cosas concisas
+    como:
+    <span class="Li">$body-&gt;</span>push_content(
+  ['br'],
+  ['ul',
+    map ['li', $_], qw(Peaches Apples Pears Mangos)
+  ]
+</p>);
+<pre>Consulta la documentación del método "new_from_lol", más
+    abajo, para más </pre>explicación.
+<p class="Pp">Devuelve </p>$h
+<p class="Pp">(el elemento en sí mismo). <span class="Li">El método </span>push_content intentará consolidar los segmentos de texto adyacentes
+    mientras añade a la lista de contenido. Es decir,</p> si
+<p class="Pp">$h 's
+    <span class="Li">"content_list" es ('foo bar ', </span>$some_node, 'baz!') y llamas a $h-&gt;push_content('quack?'); entonces la lista de contenido resultante será esta:
+    <span class="Li">('foo bar ', $some_node, 'baz!quack?')</span> y no </p>esta:
+<pre>('foo bar ', $some_node, 'baz!', 'quack?</pre>')
+<p class="Pp">Si esto último es lo que quieres, tendrás que anular la
+    función de consolidar texto usando splice_content,</p> así:
+<pre>$h-&gt;splice_content(scalar($h-&gt;content_list),0,'quack?</pre>');
+<p class="Pp">De manera similar, si quisieras añadir 'Skronk' al principio de la
+    lista de contenido, llamando a esto: $h-&gt;unshift_content('Skronk')</p>;
+<pre>entonces la lista de contenido resultante será </pre>esta:
+<p class="Pp">('Skronkfoo bar ', $some_node, 'baz!</p>')
+<pre>y no </pre>esta:
+<p class="Pp">('Skronk', 'foo bar ', $some_node, 'baz!</p>')
+<pre>Lo que tendrías que hacer para obtener lo último es: $h-&gt;splice_content(0,0,'Skronk'); unshift_content $h-&gt;unshift_content($element_or_text, ...) Igual </pre>que
+<p class="Pp">"push_content" , pero
+    añade al principio de la
+    lista de contenido </p>del
+<pre>$</pre>h
+<p class="Pp">elemento</p>.
+<pre>Los elementos de contenido que se añadirán deben ser cada uno un segmento
+    de texto (una cadena), un objeto HTML::Element, o una referencia a array (que se procesa
+    a través </pre>de
+<p class="Pp">"new_from_lol" )</p>.
+<pre>El método unshift_content intentará consolidar los segmentos de texto adyacentes
+    mientras añade a la lista de contenido. Consulta arriba para una discusión de
+    esto. Devuelve $h (el elemento en sí mismo). splice_content @removed = $h-&gt;splice_content($offset, $length,
+                              $element_or_text,</pre> ...);
+<p class="Pp">Desconecta los elementos de la
+    lista de nodos de contenido </p>de
+<pre>$</pre></section>h
+<section class="Ss">
+<h2 class="Ss" id='unshift_content'><a class='permalink' href='#unshift_content'>, empezando en </a></h2>$offset
+<pre>y continuando
+    durante </pre>$length
+<p class="Pp">elementos, reemplazándolos con los elementos
+    de la lista siguiente, si los hay. Devuelve los elementos (si los hay) eliminados de
+    la lista de contenido. Si <span class="Li">$of</span>fset <i>es negativo, entonces
+    empieza esa distancia desde el </i>final del array, igual que la función normal
+    "splice" <span class="Li">de </span>Perl. </p>Si
+<p class="Pp">$length <span class="Li">y la lista siguiente se omiten, elimina
+    </span>todo </p>desde
+<p class="Pp">$offset en </p>adelante.
+<p class="Pp">Los elementos de contenido que se añadirán (si los hay) deben ser cada uno un
+    segmento de texto (una cadena), una referencia a array (que se procesa a través de
+    "new_from_lol"), o un objeto HTML::Element que no sea ya un
+    hijo de <span class="Li"></span>$</p>h</section>
+<section class="Ss">
+<h2 class="Ss" id='splice_content'><a class='permalink' href='#splice_content'>. detach $old_parent = $h-&gt;detach(); Esto </a></h2>desvincula
+<pre>$</pre>h
+<p class="Pp">de su padre, al
+    establecer su atributo 'parent' a undef, y al eliminarlo de la lista de contenido de
+    su padre (si tenía uno). El valor de retorno es el padre del que fue desconectado
+    (o undef, si <span class="Li">$</span>h <span class="Li">no tenía </span>padre al
+    principio). Ten en cuenta que ni <span class="Li">$h </span>ni su padre son
+    destruidos explícitamente. detach_content <span class="Li">@old_content </span>= $h-&gt;detach_content();
+    <span class="Li">Esto desvincula </span>todos los hijos de $h
+    <span class="Li">de </span>$h <span class="Li">, y los devuelve. Ten en cuenta que estos no son
+</span>    destruidos explícitamente; para eso, puedes usar </p>simplemente
+<p class="Pp">"$h-&gt;delete_content" . replace_with $h-&gt;replace_with( $element_or_text, ... ) <span class="Li">Esto</span> re</p>emp</section>laza
+<section class="Ss">
+<h2 class="Ss" id='detach'><a class='permalink' href='#detach'>$</a></h2>h
+<pre>en la lista de contenido de su padre con los nodos especificados. El </pre>elemento
+<p class="Pp">$h <span class="Li">(que
+</span>    para entonces puede no tener padre) es devuelto. Esto causa un error fatal si <span class="Li">$</span>h <span class="Li">no tiene padre. </span>La lista de nodo</p>s a insertar pu</section>ede
+    contener
+<section class="Ss">
+<h2 class="Ss" id='detach_content'><a class='permalink' href='#detach_content'>$</a></h2>h
+<pre>, pero como máximo una vez. Aparte de esa
+    posible excepción, los nodos a insertar no deberían ser ya hijos del padre </pre>de
+<p class="Pp">$h . <span class="Li">También,</span> ten en cuenta que este método no destruye $h
+    <span class="Li">si </span>las referencias débiles están desactivadas -- usa
+    <span class="Li">"$h-&gt;rep</span>lace_wit</p>h(...)-</section>&gt;delete"
+<section class="Ss">
+<h2 class="Ss" id='replace_with'><a class='permalink' href='#replace_with'>si
+    necesitas eso. preinsert $h-&gt;preinsert($element_or_text.</a></h2>..);
+<pre>Inserta los nodos dados justo ANTES </pre>de
+<p class="Pp">$h <span class="Li">en
+</span>    la lista de contenido del padre de <span class="Li">$h </span>. Esto causa un error fatal si $h
+    <span class="Li">no </span>tiene padre. Ninguno de los nodos dados
+    debería ser <span class="Li">$</span>h
+    <span class="Li">u </span>otros hijos </p>de
+<p class="Pp">$h
+    <span class="Li">.</span> Devuelve
+    <span class="Li">$</span>h</p> </section>.
+<section class="Ss">
+<h2 class="Ss" id='preinsert'><a class='permalink' href='#preinsert'>postinser</a></h2>t
+<pre>$h-&gt;postinsert($element_or_text...</pre>)
+<p class="Pp">Inserta los nodos dados justo DESPUÉS de <span class="Li">$</span>h
+    <span class="Li">en
+</span>    la lista de contenido del padre de <span class="Li">$</span>h <span class="Li">. </span>Esto causa un error fatal si
+    <span class="Li">$</span>h <span class="Li">no tiene padre. Ninguno </span>de los nodos </p>dados
+   </section> debería ser
+<section class="Ss">
+<h2 class="Ss" id='postinsert'><a class='permalink' href='#postinsert'>$h u otros hijos </a></h2>de
+<pre>$h . Devuelve $h </pre>.
+<p class="Pp">replace_with_content <span class="Li">$h-&gt;</span>replace_with_content();
+    <span class="Li">Esto </span>reemplaza $h <span class="Li">en </span>la lista de contenido de su padre con su propio contenido. El elemento <span class="Li">$</span>h
+    <span class="Li">(que para
+    </span>entonces no tiene ni padre ni contenido propio) es devuelto. Esto causa un error
+    fatal si <span class="Li"></span>$</p>h</section>
+<section class="Ss">
+<h2 class="Ss" id='replace_with_content'><a class='permalink' href='#replace_with_content'>no tiene padre. También, ten en cuenta que esto no
+    </a></h2>destruye
+<pre>$</pre>h
+<p class="Pp">si las referencias débiles están desactivadas --
+    usa <span class="Li">"$h-&gt;</span>replace_with_content-&gt;delete" <span class="Li">si </span>necesitas eso. <span class="Li">d</span>elete_content <span class="Li">$h-&gt;</span>delete_content();
+$h-&gt;destroy_content(); # alias
+    <span class="Li">Limpia</span> el c</p>onten</section>ido de
+<section class="Ss">
+<h2 class="Ss" id='delete_content'><a class='permalink' href='#delete_content'>$h , llamando </a></h2>a
+<pre>"$h-&gt;</pre>delete"
+<p class="Pp">para cada elemento de contenido.
+    Compara con <span class="Li">"$h-&gt;</span>detach_content"
+    <span class="Li">. </span>Devuelve $h . <span class="Li">"destroy_conten</span>t</p>"
+<p class="Pp">es un alias
+    para este método. <span class="Li">del</span>e</p>te
+<p class="Pp"><span class="Li">$h-&gt;delet</span>e();
+$h-&gt;</p>destroy()</section>; # alias
+<section class="Ss">
+<h2 class="Ss" id='delete'><a class='permalink' href='#delete'>Desconecta este elemento de su padre (si tiene uno) y
+    destruye explícitamente el elemento y todos sus descendientes. El valor de retorno </a></h2>es
+    la lista vacía (o
+<pre>"undef</pre>"
+<p class="Pp">en contexto
+    escalar). <span class="Li">Antes de la </span>versión 5.00 de HTML::Element, tenías que llamar </p>a
+<p class="Pp">"delete"
+    <span class="Li">cuando terminaras con el
+    árbol, o tu pr</span>ograma filtraría memoria. Esto ya no es nec</p>esario si las
+    referencias débiles están</section> activadas, consulta "Referencias Débiles".
+<section class="Ss">
+<h2 class="Ss" id='destroy'><a class='permalink' href='#destroy'>destro</a></h2>y
+<p class="Pp">Un alias</p> para "</section>delete".
+<section class="Ss">
+<h2 class="Ss" id='destroy_content'><a class='permalink' href='#destroy_content'>destroy_conten</a></h2>t
+<p class="Pp">Un alias para "delete_content</p>"</section>.
+<section class="Ss">
+<h2 class="Ss" id='clone'><a class='permalink' href='#clone'>clon</a></h2>e
+<pre>$copy = $h-&gt;clone()</pre>;
+<p class="Pp">Devuelve una copia del elemento (cuyos hijos son copias
+    (recursivas) de los hijos del original, si los hay)</p>.
+<p class="Pp">El elemento devuelto no tiene padre. Cualquier atributo '_pos' presente
+    en el elemento/árbol de origen estará ausente en la copia. Por eso y otras
+    razones, la copia de un objeto HTML::TreeBuilder que está a mitad de análisis (es
+    decir, la cabeza de un árbol que HTML::TreeBuilder está elaborando) no puede (actualmente)
+    usarse para continuar el </p>análisis.
+<p class="Pp">Eres libre de clonar árboles HTML::TreeBuilder, siempre que: 1)
+    hayan terminado de ser analizados, o 2) no esperes reanudar el análisis en la
+    copia. (Puedes continuar analizando en el original; nunca se ve afectado.)/p&gt;
+</section>
+<section class="Ss">
+<h2 class="Ss" id='clone_list'><a class='permalink' href='#clone_list'>clone_list</a></h2>
+<pre>@copies = HTML::Element-&gt;clone_list(...nodes...);</pre>
+<p class="Pp">Devuelve una lista que consiste en una copia de cada nodo dado. Los
+    segmentos de texto se copian simplemente; los elementos se clonan llamando a
+    <span class="Li">"$it-&gt;clone"</span> en cada uno de ellos.</p>
+<p class="Pp">Ten en cuenta que esto debe llamarse como método de clase, no como
+    método de instancia. <span class="Li">"clone_list"</span> generará un error fatal (croak)
+    si se llama como método de instancia. También puedes llamarlo así:</p>
+<pre>ref($h)-&gt;clone_list(...nodes...)</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='normalize_content'><a class='permalink' href='#normalize_content'>normalize_content</a></h2>
+<pre>$h-&gt;normalize_content</pre>
+<p class="Pp">Normaliza el contenido de <span class="Li">$h</span> -- es decir,
+    concatena cualquier segmento de texto adyacente. (Cualquier segmento de texto
+    indefinido se convierte en cadena vacía.) Ten en cuenta que esto no recursa
+    en los descendientes de
+    <span class="Li">$h</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='delete_ignorable_whitespace'><a class='permalink' href='#delete_ignorable_whitespace'>delete_ignorable_whitespace</a></h2>
+<pre>$h-&gt;delete_ignorable_whitespace()</pre>
+<p class="Pp">Esto recorre por debajo de <span class="Li">$h</span> y elimina cualquier
+    segmento de texto que sea espacio en blanco ignorables. No debes usar esto si
+    <span class="Li">$h</span> está bajo un
+    <span class="Li">"&lt;pre&gt;"</span> elemento.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='insert_element'><a class='permalink' href='#insert_element'>insert_element</a></h2>
+<pre>$h-&gt;insert_element($element, $implicit);</pre>
+<p class="Pp">Inserta (vía push_content) un nuevo elemento bajo el elemento en
+    <span class="Li">"$h-&gt;pos()"</span>. Luego actualiza
+    <span class="Li">"$h-&gt;pos()"</span> para que apunte al elemento
+    insertado, a menos que <span class="Li">$element</span> sea un elemento prototípicamente vacío
+    como <span class="Li">"&lt;br&gt;"</span>,
+    <span class="Li">"&lt;hr&gt;"</span>,
+    <span class="Li">"&lt;img&gt;"</span>, etc. El nuevo
+    <span class="Li">"$h-&gt;pos()"</span> es devuelto. Este método es
+    útil solo si tu tarea particular del árbol implica establecer
+    <span class="Li">"$h-&gt;pos()"</span>.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DUMPING_METHODS'><a class='permalink' href='#DUMPING_METHODS'>MÉTODOS DE VOLCADO</a></h1>
+<section class="Ss">
+<h2 class="Ss" id='dump'><a class='permalink' href='#dump'>dump</a></h2>
+<pre>$h-&gt;dump()
+$h-&gt;dump(*FH)  ; # o *FH{IO} o $fh_obj</pre>
+<p class="Pp">Imprime el elemento y todos sus hijos en STDOUT (o en un
+    identificador de archivo especificado), en un formato útil solo para depurar. La estructura
+    del documento se muestra mediante sangría (sin etiquetas de cierre).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_HTML'><a class='permalink' href='#as_HTML'>as_HTML</a></h2>
+<pre>$s = $h-&gt;as_HTML();
+$s = $h-&gt;as_HTML($entities);
+$s = $h-&gt;as_HTML($entities, $indent_char);
+$s = $h-&gt;as_HTML($entities, $indent_char, \%optional_end_tags);</pre>
+<p class="Pp">Devuelve una cadena que representa en HTML el elemento y sus
+    descendientes. El argumento opcional <span class="Li">$entities</span>
+    especifica una cadena de las entidades a codificar. Para compatibilidad con
+    versiones anteriores, especifica <span class="Li">'&lt;&gt;&amp;'</span> aquí. Si
+    se omite o es undef, <i>todos</i> los caracteres no seguros se codifican como entidades HTML.
+    Ver HTML::Entities para detalles. Si se pasa una cadena vacía, no se codifica
+    ninguna entidad.</p>
+<p class="Pp">Si <span class="Li">$indent_char</span> se especifica y está definido,
+    el HTML a ser emitido se sangra, usando la cadena que especifiques (a la que
+    probablemente deberías establecer como "\t", o algún número de espacios, si
+    la especificas).</p>
+<p class="Pp">Si <span class="Li">"\%optional_end_tags"</span> se
+    especifica y está definido, debería ser una referencia a un hash que contenga un valor
+    verdadero para cada nombre de etiqueta cuya etiqueta de cierre es
+    opcional. Por defecto es
+    <span class="Li">"\%HTML::Element::optionalEndTag"</span>, que
+    es un alias de <span class="Li">%HTML::Tagset::optionalEndTag</span>, que,
+    al momento de escribir esto, contiene valores verdaderos para <span class="Li">"p, li,
+    dt, dd"</span>. Un valor útil para pasar es un hashref vacío,
+    <span class="Li">"{}"</span>, lo que significa que ninguna etiqueta de cierre es
+    opcional para este volcado. De lo contrario, considera posiblemente copiar
+    <span class="Li">%HTML::Tagset::optionalEndTag</span> a un hash propio,
+    agregando o eliminando valores como desees, y pasando una referencia a ese
+  hash.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_text'><a class='permalink' href='#as_text'>as_text</a></h2>
+<pre>$s = $h-&gt;as_text();
+$s = $h-&gt;as_text(skip_dels =&gt; 1);</pre>
+<p class="Pp">Devuelve una cadena que consiste solo en las partes de texto de los
+    descendientes del elemento. Cualquier espacio en blanco dentro del elemento se incluye
+    sin cambios, pero el espacio en blanco que no está en el árbol nunca se agrega. Pero recuerda que
+    el espacio en blanco puede ser ignorado o compactado por HTML::TreeBuilder durante el análisis
+    (dependiendo del valor de los atributos
+    <span class="Li">"ignore_ignorable_whitespace"</span> y
+    <span class="Li">"no_space_compacting"</span> ). También,
+    dado que el espacio en blanco nunca se agrega durante el análisis,</p>
+<pre>HTML::TreeBuilder-&gt;new_from_content("&lt;p&gt;a&lt;/p&gt;&lt;p&gt;b&lt;/p&gt;")
+                 -&gt;as_text;</pre>
+<p class="Pp">devuelve <span class="Li">"ab"</span>, no
+    <span class="Li">"a b"</span> o
+    <span class="Li">"a\nb"</span>.</p>
+<p class="Pp">El texto bajo <span class="Li">"&lt;script&gt;"</span> o
+    <span class="Li">"&lt;style&gt;"</span> elementos nunca se incluye
+    en lo que se devuelve. Si <span class="Li">"skip_dels"</span> es
+    verdadero, entonces el contenido de texto bajo
+    <span class="Li">"&lt;del&gt;"</span> nodos no se incluye en
+    lo que se devuelve.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_trimmed_text'><a class='permalink' href='#as_trimmed_text'>as_trimmed_text</a></h2>
+<pre>$s = $h-&gt;as_trimmed_text(...);
+$s = $h-&gt;as_trimmed_text(extra_chars =&gt; '\xA0'); # eliminar &
+$s = $h-&gt;as_text_trimmed(...); # alias</pre>
+<p class="Pp">Esto es igual que <span class="Li">as_text(...)</span> excepto que
+    el espacio en blanco inicial y final se elimina, y cualquier espacio en blanco interno se
+    colapsa.</p>
+<p class="Pp">Esto no eliminará espacios no separadores, espacios Unicode, ni ningún
+    otro espacio en blanco no ASCII a menos que proporciones los caracteres extra como
+    un argumento de cadena (por ejemplo,
+    <span class="Li">"$h-&gt;as_trimmed_text(extra_chars =&gt;
+    '\xA0')"</span>). <span class="Li">"extra_chars"</span> puede
+    ser cualquier cadena que pueda aparecer dentro de una clase de caracteres, incluyendo rangos
+    como <span class="Li">"a-z"</span>, clases de caracteres POSIX como
+    <span class="Li">"[:alpha:]"</span>, y escapes de clases de caracteres
+    como <span class="Li">"\p{Zs}"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_XML'><a class='permalink' href='#as_XML'>as_XML</a></h2>
+<pre>$s = $h-&gt;as_XML()</pre>
+<p class="Pp">Devuelve una cadena que representa en XML el elemento y sus
+    descendientes.</p>
+<p class="Pp">El XML no está sangrado.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='as_Lisp_form'><a class='permalink' href='#as_Lisp_form'>as_Lisp_form</a></h2>
+<pre>$s = $h-&gt;as_Lisp_form();</pre>
+<p class="Pp">Devuelve una cadena que representa el elemento y sus descendientes como una
+    forma Lisp. Los caracteres no seguros se codifican como escapes octales.</p>
+<p class="Pp">La forma Lisp está sangrada, y contiene atributos externos
+    ("href", etc.) así como atributos internos ("_tag",
+    "_content", "_implicit", etc.), excepto
+    "_parent", que se omite.</p>
+<p class="Pp">Ejemplo de salida actual para un elemento dado:</p>
+<pre>("_tag" "img" "border" "0" "src" "pie.png" "usemap" "#main.map")</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='format'><a class='permalink' href='#format'>format</a></h2>
+<pre>$s = $h-&gt;format; # usar HTML::FormatText
+$s = $h-&gt;format($formatter);</pre>
+<p class="Pp">Da formato a la salida de texto. Por defecto es HTML::FormatText.</p>
+<p class="Pp">Toma un segundo argumento que es una referencia a un formateador.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='starttag'><a class='permalink' href='#starttag'>starttag</a></h2>
+<pre>$start = $h-&gt;starttag();
+$start = $h-&gt;starttag($entities);</pre>
+<p class="Pp">Devuelve una cadena que representa la etiqueta de apertura completa para el
+    elemento. Es decir, "&lt;" inicial, nombre de la etiqueta, atributos, y
+    "&gt;" final. Todos los valores están rodeados por comillas dobles, y
+    los caracteres apropiados se codifican. Si <span class="Li">$entities</span> se omite o es undef, <i>todos</i> los caracteres no seguros se codifican como entidades HTML.
+    Ver HTML::Entities para detalles. Si especificas algún valor para
+    <span class="Li">$entities</span>, recuerda incluir el carácter de comilla doble
+    en él. (Las versiones anteriores de este módulo se comportaban básicamente como
+    si <span class="Li">'&amp;"&gt;'</span> fuera especificado para
+    <span class="Li">$entities</span>.) Si <span class="Li">$entities</span> es
+    una cadena vacía, no se escapa ninguna entidad.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='starttag_XML'><a class='permalink' href='#starttag_XML'>starttag_XML</a></h2>
+<pre>$start = $h-&gt;starttag_XML();</pre>
+<p class="Pp">Devuelve una cadena que representa la etiqueta de apertura completa para el
+    elemento.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='endtag'><a class='permalink' href='#endtag'>endtag</a></h2>
+<pre>$end = $h-&gt;endtag();</pre>
+<p class="Pp">Devuelve una cadena que representa la etiqueta de cierre completa para este
+    elemento. Es decir, "&lt;/", nombre de la etiqueta, y "&gt;".</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='endtag_XML'><a class='permalink' href='#endtag_XML'>endtag_XML</a></h2>
+<pre>$end = $h-&gt;endtag_XML();</pre>
+<p class="Pp">Devuelve una cadena que representa la etiqueta de cierre completa para este
+    elemento. Es decir, "&lt;/", nombre de la etiqueta, y "&gt;".</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SECONDARY_STRUCTURAL_METHODS'><a class='permalink' href='#SECONDARY_STRUCTURAL_METHODS'>MÉTODOS ESTRUCTURALES SECUNDARIOS</a></h1>
+<p class="Pp">Todos estos métodos involucran algún aspecto estructural del árbol;
+    ya sea que reportan algún aspecto de la estructura del árbol, o involucran
+    un recorrido hacia abajo del árbol, o un caminado hacia arriba del árbol.</p>
+<section class="Ss">
+<h2 class="Ss" id='is_inside'><a class='permalink' href='#is_inside'>is_inside</a></h2>
+<pre>$inside = $h-&gt;is_inside('tag', $element, ...);</pre>
+<p class="Pp">Devuelve verdadero si el <span class="Li">$h</span> elemento está, o está
+    contenido en algún lugar dentro de un elemento que sea cualquiera de los listados, o
+    cuyo nombre de etiqueta sea cualquiera de los nombres de etiqueta listados. Puedes usar cualquier mezcla de
+    elementos y nombres de etiqueta.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='is_empty'><a class='permalink' href='#is_empty'>is_empty</a></h2>
+<pre>$empty = $h-&gt;is_empty();</pre>
+<p class="Pp">Devuelve verdadero si <span class="Li">$h</span> no tiene contenido, es decir,
+    no tiene elementos ni segmentos de texto bajo él. En otras palabras, esto devuelve verdadero
+    si <span class="Li">$h</span> es un nodo hoja, también conocido como nodo terminal. No confundas
+    este sentido de "vacío" con otro sentido que puede tener
+    en la terminología SGML/HTML/XML, que significa que el elemento en cuestión es de
+    el tipo (como el de HTML ="Li"&gt;"&lt;hr&gt;"</span>,
+    <span class="Li">"&lt;br&gt;"</span>,
+    <span class="Li">"&lt;img&gt;"</span>, etc.) que <i>no pueden</i>
+    tener ningún contenido.</p>
+<p class="Pp">Es decir, un elemento
+    <span class="Li">"&lt;p&gt;"</span> en particular puede no tener
+    contenido, de modo que <span class="Li">$that_p_element</span>-&gt;is_empty será
+    verdadero -- aunque el elemento
+    <span class="Li">"&lt;p&gt;"</span> prototípico no esté
+    "vacío" (no en el sentido en que lo está el elemento
+    <span class="Li">"&lt;hr&gt;"</span> prototípico).</p>
+<p class="Pp">Si crees que esto podría dar lugar a código potencialmente confuso,
+    considera simplemente usar el equivalente exacto y más claro:
+    <span class="Li">not($h-&gt;content_list)</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pindex'><a class='permalink' href='#pindex'>pindex</a></h2>
+<pre>$index = $h-&gt;pindex();</pre>
+<p class="Pp">Devuelve el índice del elemento en el arreglo de contenidos de su padre, de modo que <span class="Li">$h</span> sería igual a</p>
+<pre>$h-&gt;parent-&gt;content-&gt;[$h-&gt;pindex]
+# o
+($h-&gt;parent-&gt;content_list)[$h-&gt;pindex]</pre>
+<p class="Pp">asumiendo que <span class="Li">$h</span> no es la raíz. Si el elemento
+    <span class="Li">$h</span> es la raíz, entonces
+    <span class="Li">"$h-&gt;pindex"</span> devuelve
+    <span class="Li">"undef"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='left'><a class='permalink' href='#left'>left</a></h2>
+<pre>$element = $h-&gt;left();
+@elements = $h-&gt;left();</pre>
+<p class="Pp">En contexto escalar: devuelve el nodo que es el hermano izquierdo inmediato de <span class="Li">$h</span>. Si <span class="Li">$h</span> es el hijo más a la izquierda (o el único) de su padre (o no tiene padre), entonces esto devuelve
+    undef.</p>
+<p class="Pp">En contexto de lista: devuelve todos los nodos que son hermanos izquierdos
+    de <span class="Li">$h</span> (empezando por el más a la izquierda). Si
+    <span class="Li">$h</span> es el hijo más a la izquierda (o el único) de su padre (o
+    no tiene padre), entonces esto devuelve una lista vacía.</p>
+<p class="Pp">(Ver también
+    <span class="Li">"$h-&gt;preinsert(LIST)"</span>.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='right'><a class='permalink' href='#right'>right</a></h2>
+<pre>$element = $h-&gt;right();
+@elements = $h-&gt;right();</pre>
+<p class="Pp">En contexto escalar: devuelve el nodo que es el hermano derecho inmediato de <span class="Li">$h</span>. Si <span class="Li">$h</span> es el hijo más a la derecha (o el único) de su padre (o no tiene padre), entonces esto
+    devuelve <span class="Li">"undef"</span>.</p>
+<p class="Pp">En contexto de lista: devuelve todos los nodos que son hermanos derechos
+    de <span class="Li">$h</span>, empezando por el más a la izquierda. Si
+    <span class="Li">$h</span> es el hijo más a la derecha (o el único) de su padre
+    (o no tiene padre), entonces esto devuelve una lista vacía.</p>
+<p class="Pp">(Ver también
+    <span class="Li">"$h-&gt;postinsert(LIST)"</span>.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='address'><a class='permalink' href='#address'>address</a></h2>
+<pre>$address = $h-&gt;address();
+$element_or_text = $h-&gt;address($address);</pre>
+<p class="Pp">La primera forma (sin parámetro) devuelve una cadena que representa
+    la ubicación de <span class="Li">$h</span> en el árbol del cual es miembro.
+    La dirección consiste en números unidos por un '.', comenzando con '0', y
+    seguido por los pindexes de los nodos en el árbol que son ancestros de
+    <span class="Li">$h</span>, empezando desde la parte superior.</p>
+<p class="Pp">Así que si la manera de llegar a un nodo empezando en la raíz es ir al
+    hijo 2 de la raíz, luego al hijo 10 de ese, y luego al hijo 0 de ese, y
+    entonces has llegado -- entonces la dirección de ese nodo es "0.2.10.0".</p>
+<p class="Pp">Como un caso un tanto especial, la dirección de la raíz es simplemente
+    "0".</p>
+<p class="Pp">Preveo que esto se usará principalmente para depuración, pero puedes encontrar
+    tus propios usos para ello.</p>
+<pre>$element_or_text = $h-&gt;address($address);</pre>
+<p class="Pp">Esta forma devuelve el nodo (ya sea elemento o segmento de texto) en
+    la dirección dada en el árbol del cual <span class="Li">$h</span> es parte.
+    (Es decir, la dirección se resuelve empezando desde
+    <span class="Li">"$h-&gt;root"</span>.)</p>
+<p class="Pp">Si no hay ningún nodo en la dirección dada, esto devuelve
+    <span class="Li">"undef"</span>.</p>
+<p class="Pp">Puedes especificar "direccionamiento relativo" (es decir, que
+    el indexado debe empezar desde <span class="Li">$h</span> y no desde
+    <span class="Li">"$h-&gt;root"</span>) haciendo que la dirección empiece
+    con un punto -- por ejemplo,
+    <span class="Li">"$h-&gt;address(".3.2")"</span> mirará
+    al hijo 3 de <span class="Li">$h</span>, y al hijo 2 de ese.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='depth'><a class='permalink' href='#depth'>depth</a></h2>
+<pre>$depth = $h-&gt;depth();</pre>
+<p class="Pp">Devuelve un número que expresa la <span class="Li">profundidad de $h</span>dentro de su árbol, es decir, cuántos pasos está de la raíz. Si
+    <span class="Li">$h</span> no tiene padre (es decir, es la raíz), su profundidad es
+  0.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='root'><a class='permalink' href='#root'>root</a></h2>
+<pre>$root = $h-&gt;root();</pre>
+<p class="Pp">Devuelve el elemento que es la parte superior del <span class="Li">árbol de $h</span>. Si <span class="Li">$h</span> es la raíz, esto simplemente devuelve
+    <span class="Li">$h</span>. (Si quieres probar si
+    <span class="Li">$h</span> <i>es</i> la raíz, en lugar de preguntar cuál es su
+    raíz, simplemente prueba <span class="Li">not($h-&gt;parent)</span>.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='lineage'><a class='permalink' href='#lineage'>lineage</a></h2>
+<pre>@lineage = $h-&gt;lineage();</pre>
+<p class="Pp">Devuelve la lista de <span class="Li">ancestros de $h</span>,
+    empezando con su padre, y luego el padre de ese padre, y así sucesivamente, hasta
+    la raíz. Si <span class="Li">$h</span> es la raíz, esto devuelve una lista
+  vacía.</p>
+<p class="Pp">Si simplemente quieres un conteo del número de elementos en el
+    <span class="Li">linaje de $h</span>, usa
+    <span class="Li">"$h-&gt;depth"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='lineage_tag_names'><a class='permalink' href='#lineage_tag_names'>lineage_tag_names</a></h2>
+<pre>@names = $h-&gt;lineage_tag_names();</pre>
+<p class="Pp">Devuelve la lista de los nombres de etiqueta de los <span class="Li">ancestros de $h</span>,
+    empezando con su padre, y el padre de ese padre, y así sucesivamente, hasta
+    la raíz. Si <span class="Li">$h</span> es la raíz, esto devuelve una lista
+    vacía. Ejemplo de salida: <span class="Li">"('em', 'td', 'tr', 'table',
+    'body', 'html')"</span></p>
+<p class="Pp">Equivalente a:</p>
+<pre>map { $_-&gt;tag } $h-&gt;lineage;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='descendants'><a class='permalink' href='#descendants'>descendants</a></h2>
+<pre>@descendants = $h-&gt;descendants();</pre>
+<p class="Pp">En contexto de lista, devuelve la lista de todos los
+    <span class="Li">elementos descendientes de $h</span>, listados en pre-orden (es decir,
+    un elemento aparece antes que sus elementos-contenido). Los segmentos de texto NO aparecen
+    en la lista. En contexto escalar, devuelve un conteo de todos esos elementos.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='descendents'><a class='permalink' href='#descendents'>descendents</a></h2>
+<p class="Pp">Esto es simplemente un alias al método
+    <span class="Li">"descendants"</span> , para la gente que no sabe
+    deletrear.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='find_by_tag_name'><a class='permalink' href='#find_by_tag_name'>find_by_tag_name</a></h2>
+<pre>@elements = $h-&gt;find_by_tag_name('tag', ...);
+$first_match = $h-&gt;find_by_tag_name('tag', ...);</pre>
+<p class="Pp">En contexto de lista, devuelve una lista de elementos en o bajo
+    <span class="Li">$h</span> que tienen cualquiera de los nombres de etiqueta especificados. En
+    contexto escalar, devuelve el primer elemento (en el recorrido en pre-orden del árbol)
+    encontrado, o undef si no hay ninguno.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='find'><a class='permalink' href='#find'>find</a></h2>
+<p class="Pp">Esto es simplemente un alias a
+    <span class="Li">"find_by_tag_name"</span>. (Hubo una vez la intención de
+    crear toda una familia de métodos find_*, pero entonces
+    <span class="Li">"look_down"</span> llenó ese nicho, así que
+    resultó que no había mucha razón para la verbosidad del nombre
+    "find_by_tag_name".)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='find_by_attribute'><a class='permalink' href='#find_by_attribute'>find_by_attribute</a></h2>
+<pre>@elements = $h-&gt;find_by_attribute('attribute', 'value');
+$first_match = $h-&gt;find_by_attribute('attribute', 'value');</pre>
+<p class="Pp">En un contexto de lista, devuelve una lista de elementos en o bajo
+    <span class="Li">$h</span> que tienen el atributo especificado, y tienen el
+    valor dado para ese atributo. En un contexto escalar, devuelve el primer elemento
+    (en el recorrido en pre-orden del árbol) encontrado, o undef si no hay ninguno.</p>
+<p class="Pp">Este método está <b>obsoleto</b> en favor del método más expresivo
+    <span class="Li">"look_down"</span> , que el código nuevo debería
+    usar en su lugar.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='look_down'><a class='permalink' href='#look_down'>look_down</a></h2>
+<pre>@elements = $h-&gt;look_down( ...criterios... );
+$first_match = $h-&gt;look_down( ...criterios... );</pre>
+<p class="Pp">Esto empieza en <span class="Li">$h</span> y busca a través de sus
+    descendientes elementos (en pre-orden), buscando elementos que coincidan con los
+    criterios que especifiques. En contexto de lista, devuelve todos los elementos que coinciden con todos
+    los criterios dados; en contexto escalar, devuelve el primer elemento así (o
+    undef, si nada coincidió).</p>
+<p class="Pp">Hay tres tipos de criterios que puedes especificar:</p>
+<dl class="Bl-tag">
+  <dt>(nombre_attr, valor_attr)</dt>
+  <dd>Esto significa que estás buscando un elemento con ese valor para ese
+      atributo. Ejemplo: <span class="Li">"alt",
+      "pix!"</span>. Considera que puedes buscar en valores de atributos internos también: <span class="Li">"_tag",
+      "p"</span>.</dd>
+  <dt>(nombre_attr, qr/.../)</dt>
+  <dd>Esto significa que estás buscando un elemento cuyo valor para ese atributo
+      coincida con el objeto Regexp especificado.</dd>
+  <dt id="a"><a class="permalink" href="#a">un coderef</a></dt>
+  <dd>Esto significa que estás buscando elementos donde coderef-&gt;(cada_elemento)
+      devuelve verdadero. Ejemplo:
+        <pre>my @wide_pix_images = $h-&gt;look_down(
+  _tag =&gt; "img",
+  alt  =&gt; "pix!",
+  sub { $_[0]-&gt;attr('width') &gt; 350 }
+);
+</pre>
+  </dd>
+</dl>
+<p class="Pp">Ten en cuenta que <span class="Li">"(nombre_attr,
+    valor_attr)"</span> y <span class="Li">"(nombre_attr,
+    qr/.../)"</span> los criterios son casi siempre más rápidos que los criterios coderef,
+    así que deberían ponerse antes que ellos en tu lista de criterios.
+    Es decir, en el ejemplo de arriba, la sub ref se llama solo para elementos que
+    ya han pasado el criterio de tener un atributo "_tag" con
+    valor "img", y un atributo "alt" con valor
+    "pix!". Si el coderef estuviera primero, se llamaría en cada
+    elemento, y <i>entonces</i> los elementos que pasen ese criterio (es decir, elementos
+    para los cuales el coderef devolvió verdadero) serían verificados para sus
+    atributos "_tag" y "alt".</p>
+<p class="Pp">Ten en cuenta que la comparación de valores de atributos de cadena contra la cadena
+    valor en <span class="Li">"(nombre_attr, valor_attr)"</span> ¡es
+    INsensible a mayúsculas! Un criterio de <span class="Li">"('align',
+    'right')"</span> <i>coincidirá</i> con un elemento cuyo valor de "align" es "RIGHT", o "right" o "rIGhT",
+  etc.</p>
+<p class="Pp">Nótese también que <span class="Li">"look_down"</span>
+    considera que "" (cadena vacía) y undef son cosas diferentes, en
+    los valores de los atributos. Así que esto:</p>
+<pre>$h-&gt;look_down("alt", "")</pre>
+<p class="Pp">encontrará elementos <i>con</i> un atributo "alt", pero
+    donde el valor del atributo "alt" es "". Pero
+  esto:</p>
+<pre>$h-&gt;look_down("alt", undef)</pre>
+<p class="Pp">es lo mismo que:</p>
+<pre>$h-&gt;look_down(sub { !defined($_[0]-&gt;attr('alt')) } )</pre>
+<p class="Pp">Es decir, encuentra elementos que no tienen un atributo "alt"
+    en absoluto (o que sí tienen un atributo "alt", pero con un
+    valor de undef -- lo cual normalmente no es posible).</p>
+<p class="Pp">Nótese que cuando se dan varios criterios, esto significa
+    que se buscan elementos que coinciden con <i>todos</i> sus criterios, no solo con
+    <i>alguno</i> de ellos. En otras palabras, hay un "y" implícito,
+    no un "o". Así que si quisieras expresar que quieres encontrar
+    elementos con un atributo "name" con el valor "foo"
+    <i>o</i> con un atributo "id" con el valor "baz",
+    tendrías que hacerlo así:</p>
+<pre>@them = $h-&gt;look_down(
+  sub {
+    # los lc son para ignorar mayúsculas/minúsculas
+    lc($_[0]-&gt;attr('name')) eq 'foo'
+    or lc($_[0]-&gt;attr('id')) eq 'baz'
+  }
+);</pre>
+<p class="Pp">Los criterios de referencia a subrutina (coderef) son más expresivos que los criterios
+    <span class="Li">"(attr_name, attr_value)"</span> y
+    <span class="Li">"(attr_name, qr/.../)"</span> , y todos los criterios
+    <span class="Li">"(attr_name, attr_value)"</span> y
+    <span class="Li">"(attr_name, qr/.../)"</span> podrían expresarse
+    en términos de referencias a subrutina. Sin embargo, <span class="Li">"(attr_name,
+    attr_value)"</span> y <span class="Li">"(attr_name,
+    qr/.../)"</span> son una abreviatura conveniente. (De hecho,
+    <span class="Li">"look_down"</span> en sí mismo es básicamente
+    una "abreviatura" también, ya que cualquier cosa que puedas hacer con
+    <span class="Li">"look_down"</span> podrías hacerla recorriendo el
+    árbol, ya sea con el <span class="Li">método "traverse"</span> o
+    con una rutina propia. Sin embargo,
+    <span class="Li">"look_down"</span> a menudo permite un código muy conciso
+    y claro.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='look_up'><a class='permalink' href='#look_up'>look_up</a></h2>
+<pre>@elements = $h-&gt;look_up( ...criterios... );
+$first_match = $h-&gt;look_up( ...criterios... );</pre>
+<p class="Pp">Esto es idéntico a
+    <span class="Li">"$h-&gt;look_down"</span>, excepto que mientras que
+    <span class="Li">"$h-&gt;look_down"</span> básicamente recorre
+    la lista:</p>
+<pre>($h, $h-&gt;descendants)</pre>
+<p class="Pp"><span class="Li">"$h-&gt;look_up"</span> en cambio recorre
+    la lista</p>
+<pre>($h, $h-&gt;lineage)</pre>
+<p class="Pp">Así que, por ejemplo, esto devuelve todos los ancestros de
+    <span class="Li">$h</span> (posiblemente incluyendo <span class="Li">$h</span>
+    mismo) que son <span class="Li">elementos "&lt;td&gt;"</span> con un atributo "align" con un valor de "right" (o
+    "RIGHT", etc.):</p>
+<pre>$h-&gt;look_up("_tag", "td", "align", "right");</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='traverse'><a class='permalink' href='#traverse'>traverse</a></h2>
+<pre>$h-&gt;traverse(...opciones...)</pre>
+<p class="Pp">La extensa discusión sobre el método innecesario y confuso de HTML::Element
+    <span class="Li">"traverse"</span> se ha movido a un
+    archivo separado: HTML::Element::traverse</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='attr_get_i'><a class='permalink' href='#attr_get_i'>attr_get_i</a></h2>
+<pre>@values = $h-&gt;attr_get_i('atributo');
+$first_value = $h-&gt;attr_get_i('atributo');</pre>
+<p class="Pp">En contexto de lista, devuelve una lista que consiste en los valores del
+    atributo dado para <span class="Li">$h</span> y para todos sus ancestros
+    empezando desde <span class="Li">$h</span> y subiendo. Los nodos sin
+    dicho atributo se omiten. ("attr_get_i" significa
+    "obtener atributo, con herencia".) En contexto escalar, devuelve el
+    primer valor, o undef si no hay ninguno.</p>
+<p class="Pp">Considere un documento que consiste en:</p>
+<pre>&lt;html lang='i-klingon'&gt;
+  &lt;head&gt;&lt;title&gt;Pati Pata&lt;/title&gt;&lt;/head&gt;
+  &lt;body&gt;
+    &lt;h1 lang='la'&gt;Stuff&lt;/h1&gt;
+    &lt;p lang='es-MX' align='center'&gt;
+      Foo bar baz &lt;cite&gt;Quux&lt;/cite&gt;.
+    &lt;/p&gt;
+    &lt;p&gt;Hooboy.&lt;/p&gt;
+  &lt;/body&gt;
+&lt;/html&gt;</pre>
+<p class="Pp">Si <span class="Li">$h</span> es el
+    <span class="Li">elemento "&lt;cite&gt;"</span> ,
+    <span class="Li">"$h-&gt;attr_get_i("lang")"</span> en
+    contexto de lista devolverá la lista <span class="Li">"('es-MX',
+    'i-klingon')"</span>. En contexto escalar, devolverá el valor
+    <span class="Li">'es-MX'</span>.</p>
+<p class="Pp">Si llamas con múltiples nombres de atributo...</p>
+<pre>@values = $h-&gt;attr_get_i('a1', 'a2', 'a3');
+$first_value = $h-&gt;attr_get_i('a1', 'a2', 'a3');</pre>
+<p class="Pp">...en contexto de lista, esto devolverá una lista que consiste en los
+    valores de estos atributos que existen en <span class="Li">$h</span> y sus
+    ancestros. En contexto escalar, esto devuelve el primer valor (es decir, el valor
+    del primer atributo existente del primer elemento que tenga cualquiera de los
+    atributos listados). Así que, en el ejemplo de arriba,</p>
+<pre>$h-&gt;attr_get_i('lang', 'align');</pre>
+<p class="Pp">devolverá:</p>
+<pre> ('es-MX', 'center', 'i-klingon') # en contexto de lista
+o
+ 'es-MX' # en contexto escalar.</pre>
+<p class="Pp">Pero nótese que esto:</p>
+<pre>$h-&gt;attr_get_i('align', 'lang');</pre>
+<p class="Pp">devolverá:</p>
+<pre> ('center', 'es-MX', 'i-klingon') # en contexto de lista
+o
+ 'center' # en contexto escalar.</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='tagname_map'><a class='permalink' href='#tagname_map'>tagname_map</a></h2>
+<pre>$hash_ref = $h-&gt;tagname_map();</pre>
+<p class="Pp">Recorre <span class="Li">$h</span> y todos sus descendientes,
+    y crea un hash (del que se devuelve una referencia) donde cada entrada
+    consiste en una clave que es un nombre de etiqueta, y un valor que es una
+    referencia a una lista de todos los elementos que tienen ese nombre de etiqueta. Es decir, este método devuelve:</p>
+<pre>{
+  # A través de $h y todos los descendientes...
+  'a'   =&gt; [ ...lista de todos los elementos &lt;a&gt;   ... ],
+  'em'  =&gt; [ ...lista de todos los elementos &lt;em&gt;  ... ],
+  'img' =&gt; [ ...lista de todos los elementos &lt;img&gt; ... ],
+}</pre>
+<p class="Pp">(Hay entradas en el hash solo para aquellos nombres de etiqueta que ocurren
+    en/debajo de <span class="Li">$h</span> -- así que si no hay
+    <span class="Li">elementos "&lt;img&gt;"</span> ,
+    no habrá ninguna entrada "img" en la referencia al hash devuelta.)</p>
+<p class="Pp">Ejemplo de uso:</p>
+<pre>my $map_r = $h-&gt;tagname_map();
+my @heading_tags = sort grep m/^h\d$/s, keys %$map_r;
+if(@heading_tags) {
+  print "Heading levels used: @heading_tags\n";
+} else {
+  print "No headings.\n"
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='extract_links'><a class='permalink' href='#extract_links'>extract_links</a></h2>
+<pre>$links_array_ref = $h-&gt;extract_links();
+$links_array_ref = $h-&gt;extract_links(@tiposDeseados);</pre>
+<p class="Pp">Devuelve los enlaces encontrados al recorrer el elemento y todos sus
+    hijos y buscar atributos (como "href" en un
+    <span class="Li">elemento "&lt;a&gt;"</span> , o "src" en
+    un <span class="Li">elemento "&lt;img&gt;"</span> ) cuyos valores
+    representan enlaces. El valor de retorno es una <i>referencia</i> a un array. Cada
+    elemento del array es una referencia a un array con <i>cuatro</i> elementos: el
+    valor del enlace, el elemento que tiene el atributo con ese valor de enlace, y el
+    nombre de ese atributo, y el nombre de etiqueta de ese elemento. (Ejemplo:
+    <span class="Li">"['<a href='http://www.suck.com/'>http://www.suck.com/</a>',"</span>
+    <span class="Li"><i>$elem_obj</i></span><i></i> <span class="Li">",
+    'href', 'a']"</span>.) Puede que uses o no el elemento
+    en sí mismo -- para algunos propósitos, puedes usar solo el valor del enlace.</p>
+<p class="Pp">Puedes especificar que quieres extraer enlaces solo de algunos
+    tipos de elementos (en lugar del valor por defecto, que es extraer enlaces de
+    <i>todos</i> los tipos de elementos conocidos que tienen atributos cuyos valores
+    representan enlaces). Por ejemplo, si quieres extraer enlaces solo de
+    <span class="Li">elementos "&lt;a&gt;"</span> y
+    <span class="Li">elementos "&lt;img&gt;"</span> , podrías codificarlo
+    así:</p>
+<pre>for (@{  $e-&gt;extract_links('a', 'img')  }) {
+    my($link, $element, $attr, $tag) = @$_;
+    print
+      "Hey, there's a $tag that links to ",
+      $link, ", in its $attr attribute, at ",
+      $element-&gt;address(), ".\n";
+}</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='simplify_pres'><a class='permalink' href='#simplify_pres'>simplify_pres</a></h2>
+<pre>$h-&gt;simplify_pres();</pre>
+<p class="Pp">En los fragmentos de texto bajo elementos PRE que están en/debajo de
+    <span class="Li">$h</span>, esta rutina normaliza todos los saltos de línea, y expande
+    todas las tabulaciones.</p>
+<p class="Pp">Es decir, si lees un archivo con líneas delimitadas por
+    <span class="Li">"\cm\cj"</span>, el texto bajo las áreas PRE tendrá <span class="Li">"\cm\cj"</span>en lugar de
+    <span class="Li">"\n"</span>. Llamar a
+    <span class="Li">"$h-&gt;simplify_pres"</span> en un árbol así convertirá <span class="Li">"\cm\cj"</span>en
+    <span class="Li">"\n"</span>.</p>
+<p class="Pp">Las tabulaciones se expanden al número de espacios necesario para llegar a la
+    siguiente columna 8 -- la forma habitual de expandirlas.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='same_as'><a class='permalink' href='#same_as'>same_as</a></h2>
+<pre>$equal = $h-&gt;same_as($i)</pre>
+<p class="Pp">Devuelve verdadero si <span class="Li">$h</span> y
+    <span class="Li">$i</span> son ambos elementos que representan el mismo árbol de
+    elementos, cada uno con el mismo nombre de etiqueta, con los mismos atributos
+    explícitos (es decir, sin contar atributos cuyos nombres empiezan con "_"), y
+    con el mismo contenido (texto, comentarios, etc.).</p>
+<p class="Pp">La igualdad de los elementos descendientes se prueba, recursivamente, con
+    <span class="Li">"$child1-&gt;same_as($child_2)"</span>, y
+    la igualdad de los segmentos de texto se prueba con <span class="Li">"$segment1 eq
+    $segment2"</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='new_from_lol'><a class='permalink' href='#new_from_lol'>new_from_lol</a></h2>
+<pre>$h = HTML::Element-&gt;new_from_lol($array_ref);
+@elements = HTML::Element-&gt;new_from_lol($array_ref, ...);</pre>
+<p class="Pp">Construye recursivamente un árbol de nodos, basado en la estructura de datos
+    (no cíclica) representada por cada <span class="Li">$array_ref</span>, donde
+    esto es una referencia a un array de arrays (de arrays (de arrays
+  (etc.)).</p>
+<p class="Pp">En cada referencia a array en esa estructura, los diferentes tipos de valores se
+    tratan de la siguiente manera:</p>
+<ul class="Bl-bullet">
+  <li>Referencias a array
+    <p class="Pp">Las referencias a array se consideran que designan un subárbol que representa
+        los hijos del nodo construido a partir de la referencia a array actual.</p>
+  </li>
+  <li>Referencias a hash
+    <p class="Pp">Las referencias a hash se consideran que contienen pares atributo-valor a
+        añadir al elemento que se va a<section class="Sh">
+<h1 class="Sh" id="NEW_FROM_LOL">new_from_lol</h1>
+<pre>HTML::Element-&gt;new_from_lol( ARGF [, $arg2, ... ] )</pre>
+<p class="Pp">Creates and returns a new element, possibly the root of a treelet
+    of elements, from the specified structure. This structure must be a
+    reference to an array, and its first element must be a string (the tag
+    name), and all other elements must be either strings, array references, or
+    hash references.</p>
+<p class="Pp">Here's how the structure is interpreted:</p>
+<ul>
+
+  <li>The first element of the array reference MUST be a string, and will be
+      taken as the tag name of the element to be constructed.</p>
+  </li>
+  <li>If any element after the first is a hash reference, it will be treated
+      as the attributes of the element to be constructed. Any subsequent hash
+      references will be ignored. If there are multiple hash references, only
+      the first will be used.</p>
+  </li>
+  <li>Text segments
+    <p class="Pp">Text segments at the start of any arrayref will be considered
+        to specify the name of the element to be constructed from the current
+        arrayref; all other text segments will be considered to specify text
+        segments as children for the current arrayref.</p>
+  </li>
+  <li>Elements
+    <p class="Pp">Existing element objects are either inserted into the treelet
+        constructed, or clones of them are. That is, when the lol-tree is being
+        traversed and elements constructed based what's in it, if an existing
+        element object is found, if it has no parent, then it is added directly
+        to the treelet constructed; but if it has a parent, then
+        <span class="Li">&quot;$that_node-&gt;clone&quot;</span> is added to the
+        treelet at the appropriate place.</p>
+  </li>
+</ul>
+<p class="Pp">An example will hopefully make this more obvious:</p>
+<pre>my $h = HTML::Element-&gt;new_from_lol(
+  ['html',
+    ['head',
+      [ 'title', 'I like stuff!' ],
+    ],
+    ['body',
+      {'lang', 'en-JP', _implicit =&gt; 1},
+      'stuff',
+      ['p', 'um, p &lt; 4!', {'class' =&gt; 'par123'}],
+      ['div', {foo =&gt; 'bar'}, '123'],
+    ]
+  ]
+);
+$h-&gt;dump;</pre>
+<p class="Pp">Will print this:</p>
+<pre>&lt;html&gt; @0
+  &lt;head&gt; @0.0
+    &lt;title&gt; @0.0.0
+      &quot;I like stuff!&quot;
+  &lt;body lang=&quot;en-JP&quot;&gt; @0.1 (IMPLICIT)
+    &quot;stuff&quot;
+    &lt;p class=&quot;par123&quot;&gt; @0.1.1
+      &quot;um, p &lt; 4!&quot;
+    &lt;div foo=&quot;bar&quot;&gt; @0.1.2
+      &quot;123&quot;</pre>
+<p class="Pp">And printing <span class="Li">$h</span>-&gt;as_HTML will give
+    something like:</p>
+<pre>&lt;html&gt;&lt;head&gt;&lt;title&gt;I like stuff!&lt;/title&gt;&lt;/head&gt;
+&lt;body lang=&quot;en-JP&quot;&gt;stuff&lt;p class=&quot;par123&quot;&gt;um, p &amp;lt; 4!
+&lt;div foo=&quot;bar&quot;&gt;123&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;</pre>
+<p class="Pp">You can even do fancy things with
+    <span class="Li">&quot;map&quot;</span>:</p>
+<pre>$body-&gt;push_content(
+  # push_content implicitly calls new_from_lol on arrayrefs...
+  ['br'],
+  ['blockquote',
+    ['h2', 'Pictures!'],
+    map ['p', $_],
+    $body2-&gt;look_down(&quot;_tag&quot;, &quot;img&quot;),
+      # images, to be copied from that other tree.
+  ],
+  # and more stuff:
+  ['ul',
+    map ['li', ['a', {'href'=&gt;&quot;$_.png&quot;}, $_ ] ],
+    qw(Peaches Apples Pears Mangos)
+  ],
+);</pre>
+<p class="Pp">In scalar context, you must supply exactly one arrayref. In list
+    context, you can pass a list of arrayrefs, and new_from_lol will return a
+    list of elements, one for each arrayref.</p>
+<pre>@elements = HTML::Element-&gt;new_from_lol(
+  ['hr'],
+  ['p', 'And there, on the door, was a hook!'],
+);
+ # constructs two elements.</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="objectify_text">objectify_text</h2>
+<pre>$h-&gt;objectify_text();</pre>
+<p class="Pp">This turns any text nodes under <span class="Li">$h</span> from
+    mere text segments (strings) into real objects, pseudo-elements with a
+    tag-name of &quot;~text&quot;, and the actual text content in an attribute
+    called &quot;text&quot;. (For a discussion of pseudo-elements, see the
+    &quot;tag&quot; method, far above.) This method is provided because, for
+    some purposes, it is convenient or necessary to be able, for a given text
+    node, to ask what element is its parent; and clearly this is not possible if
+    a node is just a text string.</p>
+<p class="Pp">Note that these &quot;~text&quot; objects are not recognized as
+    text nodes by methods like &quot;as_text&quot;. Presumably you will want to
+    call <span class="Li">&quot;$h-&gt;objectify_text&quot;</span>, perform
+    whatever task that you needed that for, and then call
+    <span class="Li">&quot;$h-&gt;deobjectify_text&quot;</span> before calling
+    anything like <span class="Li">&quot;$h-&gt;as_text&quot;</span>.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="deobjectify_text">deobjectify_text</h2>
+<pre>$h-&gt;deobjectify_text();</pre>
+<p class="Pp">This undoes the effect of
+    <span class="Li">&quot;$h-&gt;objectify_text&quot;</span>. That is, it takes
+    any &quot;~text&quot; pseudo-elements in the tree at/under
+    <span class="Li">$h</span>, and deletes each one, replacing each with the
+    content of its &quot;text&quot; attribute.</p>
+<p class="Pp">Note that if <span class="Li">$h</span> itself is a
+    &quot;~text&quot; pseudo-element, it will be destroyed -- a condition you
+    may need to treat specially in your calling code (since it means you can't
+    very well do anything with <span class="Li">$h</span> after that). So that
+    you can detect that condition, if <span class="Li">$h</span> is itself a
+    &quot;~text&quot; pseudo-element, then this method returns the value of the
+    &quot;text&quot; attribute, which should be a defined value; in all other
+    cases, it returns undef.</p>
+<p class="Pp">(This method assumes that no &quot;~text&quot; pseudo-element has
+    any children.)</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="number_lists">number_lists</h2>
+<pre>$h-&gt;number_lists();</pre>
+<p class="Pp">For every UL, OL, DIR, and MENU element at/under
+    <span class="Li">$h</span>, this sets a &quot;_bullet&quot; attribute for
+    every child LI element. For LI children of an OL, the &quot;_bullet&quot;
+    attribute's value will be something like &quot;4.&quot;, &quot;d.&quot;,
+    &quot;D.&quot;, &quot;IV.&quot;, or &quot;iv.&quot;, depending on the OL
+    element's &quot;type&quot; attribute. LI children of a UL, DIR, or MENU get
+    their &quot;_bullet&quot; attribute set to &quot;*&quot;. There should be no
+    other LIs (i.e., except as children of OL, UL, DIR, or MENU elements), and
+    if there are, they are unaffected.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="has_insane_linkage">has_insane_linkage</h2>
+<pre>$h-&gt;has_insane_linkage</pre>
+<p class="Pp">This method is for testing whether this element or the elements
+    under it have linkage attributes (_parent and _content) whose values are
+    deeply aberrant: if there are undefs in a content list; if an element
+    appears in the content lists of more than one element; if the _parent
+    attribute of an element doesn't match its actual parent; or if an element
+    appears as its own descendant (i.e., if there is a cyclicity in the
+  tree).</p>
+<p class="Pp">This returns empty list (or false, in scalar context) if the
+    subtree's linkage methods are sane; otherwise it returns two items (or true,
+    in scalar context): the element where the error occurred, and a string
+    describing the error.</p>
+<p class="Pp">This method is provided is mainly for debugging and
+    troubleshooting -- it should be <i>quite impossible</i> for any document
+    constructed via HTML::TreeBuilder to parse into a non-sane tree (since it's
+    not the content of the tree per se that's in question, but whether the tree
+    in memory was properly constructed); and it <i>should</i> be impossible for
+    you to produce an insane tree just thru reasonable use of normal documented
+    structure-modifying methods. But if you're constructing your own trees, and
+    your program is going into infinite loops as during calls to
+    <b>traverse()</b> or any of the secondary structural methods, as part of
+    debugging, consider calling
+    <span class="Li">&quot;has_insane_linkage&quot;</span> on the tree.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="element_class">element_class</h2>
+<pre>$classname = $h-&gt;element_class();</pre>
+<p class="Pp">This method returns the class which will be used for new elements.
+    It defaults to HTML::Element, but can be overridden by subclassing or
+    esoteric means best left to those will will read the source and then not
+    complain when those esoteric means change. (Just subclass.)</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="CLASS_METHODS">MÉTODOS DE CLASE</h1>
+<section class="Ss">
+<h2 class="Ss" id="Use_Weak_Refs">Use_Weak_Refs</h2>
+<pre>$enabled = HTML::Element-&gt;Use_Weak_Refs;
+HTML::Element-&gt;Use_Weak_Refs( $enabled );</pre>
+<p class="Pp">This method allows you to check whether weak reference support is
+    enabled, and to enable or disable it. For details, see &quot;Weak
+    References&quot;. <span class="Li">$enabled</span> is true if weak
+    references are enabled.</p>
+<p class="Pp">You should not switch this in the middle of your program, and you
+    probably shouldn't use it at all. Existing trees are not affected by this
+    method (until you start modifying nodes in them).</p>
+<p class="Pp">Throws an exception if you attempt to enable weak references and
+    your Perl or Scalar::Util does not support them.</p>
+<p class="Pp">Disabling weak reference support is deprecated.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SUBROUTINES">SUBRUTINAS</h1>
+<section class="Ss">
+<h2 class="Ss" id="Version">Version</h2>
+<p class="Pp">This subroutine is deprecated. Please use the standard VERSION
+    method (e.g. <span class="Li">&quot;HTML::Element-&gt;VERSION&quot;</span>)
+    instead.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id="ABORT_OK_PRUNE_PRUNE_SOFTLY_PRUNE_UP">ABORT OK PRUNE PRUNE_SOFTLY PRUNE_UP</h2>
+<p class="Pp">Constants for signalling back to the traverser</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="BUGS">BUGS</h1>
+<p class="Pp">* If you want to free the memory associated with a tree built of
+    HTML::Element nodes, and you have disabled weak references, then you will
+    have to delete it explicitly using the &quot;delete&quot; method. See
+    &quot;Weak References&quot;.</p>
+<p class="Pp">* There's almost nothing to stop you from making a
+    &quot;tree&quot; with cyclicities (loops) in it, which could, for example,
+    make the traverse method go into an infinite loop. So don't make
+    cyclicities! (If all you're doing is parsing HTML files, and looking at the
+    resulting trees, this will never be a problem for you.)</p>
+<p class="Pp">* There's no way to represent comments or processing directives in
+    a tree with HTML::Elements. Not yet, at least.</p>
+<p class="Pp">* There's (currently) nothing to stop you from using an undefined
+    value as a text segment. If you're running under <span class="Li">&quot;perl
+    -w&quot;</span>, however, this may make HTML::Element's code produce a slew
+    of warnings.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="NOTES_ON_SUBCLASSING">NOTAS SOBRE SUBCLASES</h1>
+<p class="Pp">You are welcome to derive subclasses from HTML::Element, but you
+    should be aware that the code in HTML::Element makes certain assumptions
+    about elements (and I'm using &quot;element&quot; to mean ONLY an object of
+    class HTML::Element, or of a subclass of HTML::Element):</p>
+<p class="Pp">* The value of an element's _parent attribute must either be undef
+    or otherwise false, or must be an element.</p>
+<p class="Pp">* The value of an element's _content attribute must either be
+    undef or otherwise false, or a reference to an (unblessed) array. The array
+    may be empty; but if it has items, they must ALL be either mere strings
+    (text segments), or elements.</p>
+<p class="Pp">* The value of an element's _tag attribute should, at least, be a
+    string of printable characters.</p>
+</section>
+</p>
+<p class="Pp">Además, ten en cuenta estas reglas:</p>
+<p class="Pp">* No rompas la encapsulación de los objetos. Es decir, accede a su
+    contenido solo a través de <span class="Li">$obj</span>-&gt;attr o métodos más
+    específicos.</p>
+<p class="Pp">* Deberías pensar dos veces antes de sobrescribir completamente alguno
+    de los métodos que proporciona HTML::Element. (Sobrescribir con un método que
+    llama al método de la superclase no está tan mal, sin embargo).</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VER_TAMBIEN'><a class='permalink' href='#VER_TAMBIEN'>VER   TAMBIÉN</a></h1>
+<p class="Pp">HTML::Tree; HTML::TreeBuilder; HTML::AsSubs; HTML::Tagset; y,
+    para los curiosos morbosos, HTML::Element::traverse.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AGRADECIMIENTOS'><a class='permalink' href='#AGRADECIMIENTOS'>AGRADECIMIENTOS</a></h1>
+<p class="Pp">Gracias a Mark-Jason Dominus por una sugerencia de POD.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTOR'><a class='permalink' href='#AUTOR'>AUTOR</a></h1>
+<p class="Pp">Mantenedores actuales:</p>
+<ul class="Bl-bullet">
+  <li>Christopher J. Madsen
+      <span class="Li">&quot;&lt;perl&#x00A0;AT&#x00A0;cjmweb.net&gt;&quot;</span></li>
+  <li>Jeff Fearn
+      <span class="Li">&quot;&lt;jfearn&#x00A0;AT&#x00A0;cpan.org&gt;&quot;</span></li>
+</ul>
+<p class="Pp">Autor original de HTML-Tree:</p>
+<dl class="Bl-tag">
+  <dt>&#x2022;</dt>
+  <dd>Gisle Aas</dd>
+</dl>
+<p class="Pp">Mantenedores anteriores:</p>
+<ul class="Bl-bullet">
+  <li>Sean M. Burke</li>
+  <li>Andy Lester</li>
+  <li>Pete Krawczyk
+      <span class="Li">&quot;&lt;petek&#x00A0;AT&#x00A0;cpan.org&gt;&quot;</span></li>
+</ul>
+<p class="Pp">Puedes seguir o contribuir al desarrollo de HTML-Tree en
+    <a href='https://github.com/kentfredric/HTML-Tree'>https://github.com/kentfredric/HTML-Tree</a>.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DERECHOS_DE_AUTOR_Y_LICENCIA'><a class='permalink' href='#DERECHOS_DE_AUTOR_Y_LICENCIA'>DERECHOS DE AUTOR   Y LICENCIA</a></h1>
+<p class="Pp">Copyright 1995-1998 Gisle Aas, 1999-2004 Sean M. Burke, 2005 Andy
+    Lester, 2006 Pete Krawczyk, 2010 Jeff Fearn, 2012 Christopher J. Madsen.</p>
+<p class="Pp">Esta biblioteca es software libre; puedes redistribuirla y/o
+    modificarla bajo los mismos términos que Perl.</p>
+<p class="Pp">Los programas de esta biblioteca se distribuyen con la esperanza de
+    que sean útiles, pero sin ninguna garantía; sin siquiera la garantía implícita
+    de comerciabilidad o idoneidad para un propósito particular.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página de manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-html-tree/">extra/perl-html-tree</a></dd>
+        <dt>Versión:</dt>
+        <dd>5.07-4</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/HTML-Tree">https://search.cpan.org/dist/HTML-Tree</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-html-tree/">/listing/extra/perl-html-tree/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#VERSIÓN">VERSIÓN</a></li>
+        
+            <li><a href="#SINOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#CÓMO_REPRESENTAMOS_LOS_ÁRBOLES">CÓMO REPRESENTAMOS LOS ÁRBOLES</a></li>
+        
+            <li><a href="#MÉTODOS_BÁSICOS">MÉTODOS BÁSICOS</a></li>
+        
+            <li><a href="#MÉTODOS_DE_MODIFICACIÓN_DE_ESTRUCTURA">MÉTODOS DE MODIFICACIÓN DE ESTRUCTURA</a></li>
+        
+            <li><a href="#MÉTODOS_DE_VOLCADO">MÉTODOS DE VOLCADO</a></li>
+        
+            <li><a href="#MÉTODOS_ESTRUCTURALES_SECUNDARIOS">MÉTODOS ESTRUCTURALES SECUNDARIOS</a></li>
+        
+            <li><a href="#MÉTODOS_DE_CLASE">MÉTODOS DE CLASE</a></li>
+        
+            <li><a href="#SUBRUTINAS">SUBRUTINAS</a></li>
+        
+            <li><a href="#ERRORES">ERRORES</a></li>
+        
+            <li><a href="#NOTAS_SOBRE_SUBC aquesta">NOTAS SOBRE SUBC aquesta</a></li>
+        
+            <li><a href="#VER_TAMBIÉN">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AGRADECIMIENTOS">AGRADECIMIENTOS</a></li>
+        
+            <li><a href="#AUTOR">AUTOR</a></li>
+        
+            <li><a href="#DERECHOS_DE_AUTOR_Y_LICENCIA">DERECHOS DE AUTOR Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/HTML::Element.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/HTML::Element.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,726 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Alien::Build::Manual::AlienAuthor(3pm) — Páginas man del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Alien__Build__Manual__AlienAuthor(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-alien-build/">perl-alien-build</a></p>
+<p class="lic">Licencias: PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Alien::Build::Manual::AlienAuthor(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">Alien::Build::Manual::AlienAuthor(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">Alien::Build::Manual::AlienAuthor - Documentación para autores de Alien</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='VERSION'><a class='permalink' href='#VERSION'>VERSIÓN</a></h1>
+<p class="Pp">versión 2.84</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>perldoc Alien::Build::Manual::AlienAuthor</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp"><b>Nota</b>: Por favor, lea el documento completo antes de comenzar a escribir su propio alienfile. ¡La sección sobre bibliotecas dinámicas frente a estáticas probablemente le ahorrará muchos problemas si la lee ahora!</p>
+<p class="Pp">Este documento está destinado a enseñar a los autores de Alien cómo construir su propia distribución Alien utilizando Alien::Build y Alien::Base. Tal distribución Alien consta de tres partes esenciales:</p>
+<dl class="Bl-tag">
+  <dt id="An"><a class="permalink" href="#An">Un alienfile</a></dt>
+  <dd>Esta es una receta para cómo 1) detectar una versión ya instalada de la biblioteca o herramienta que está convirtiendo en alien, 2) descargar y construir la biblioteca o herramienta que está convirtiendo en alien y 3) recopilar los ajustes de configuración necesarios para el uso de esa biblioteca o herramienta.</dd>
+  <dt id="An~2"><a class="permalink" href="#An~2">Un instalador "Makefile.PL" o "Build.PL" o un "dist.ini" si está utilizando Dist::Zilla</a></dt>
+  <dd>Esta es una capa delgada entre su receta alienfile y el instalador de Perl (ya sea ExtUtils::MakeMaker o Module::Build).</dd>
+  <dt id="A"><a class="permalink" href="#A">Una clase de Perl (archivo .pm) que hereda de Alien::Base</a></dt>
+  <dd>Para la mayoría de los Aliens, esto no necesita ser personalizado en absoluto, ya que Alien::Base generalmente hace lo que necesita.</dd>
+</dl>
+<p class="Pp">Por ejemplo, si estuviera convirtiendo en alien una biblioteca llamada libfoo, podría tener estos archivos:</p>
+<pre>Alien-Libfoo-1.00/Makefile.PL
+Alien-Libfoo-1.00/alienfile
+Alien-Libfoo-1.00/lib/Alien/Libfoo.pm</pre>
+<p class="Pp">Este documento se centrará principalmente en instruirle sobre cómo construir un alienfile, pero también cubriremos brevemente cómo hacer un simple
+    <span class="Li">"Makefile.PL"</span> o
+    <span class="Li">"dist.ini"</span> para acompañarlo. También abordaremos cuándo podría querer extender su subclase para agregar funcionalidad no estándar.</p>
+<section class="Ss">
+<h2 class="Ss" id='Using_commands'><a class='permalink' href='#Using_commands'>Uso de comandos</a></h2>
+<p class="Pp">La mayoría de las bibliotecas y herramientas de software vendrán con instrucciones sobre cómo instalarlas en forma de comandos que usted está destinado a escribir manualmente en un shell. La forma más fácil de automatizar esas instrucciones es simplemente poner los comandos en su alienfile. Por ejemplo, supongamos que libfoo se construye utilizando autoconf y proporciona un
+    <span class="Li">"pkg-config"</span>
+    <span class="Li">".pc"</span> archivo.</p>
+<p class="Pp">También discutiremos más adelante los complementos. Para sistemas de construcción comunes como autoconf o CMake, generalmente es mejor usar el complemento apropiado porque manejarán los casos especiales mejor que un simple conjunto de comandos. Vamos a echar un vistazo a los comandos primero porque es más fácil entender las diferentes fases con comandos.</p>
+<p class="Pp">(Aparte, autoconf es una serie de herramientas y macros utilizadas para configurar (generalmente) una biblioteca o herramienta de C o C++ generando cualquier número de Makefiles. Es el equivalente en C a ExtUtils::MakeMaker, si se quiere. Básicamente, si las instrucciones de su biblioteca o herramienta comienzan con './configure', es muy probable que sea una biblioteca o herramienta basada en autoconf).</p>
+<p class="Pp">(Aparte2, <span class="Li">"pkg-config"</span> es una forma más o menos estándar de proporcionar los indicadores de compilación y enlace necesarios para compilar y enlazar contra la biblioteca. Si su herramienta instala un
+    <span class="Li">".pc"</span> archivo, generalmente en
+    <span class="Li">"$PREFIX/lib/pkgconfig"</span> entonces, su herramienta usa <span class="Li">"pkg-config"</span>).</p>
+<p class="Pp">Aquí está el alienfile que podría tener:</p>
+<pre>use alienfile;
+
+probe [ 'pkg-config --exists libfoo' ];
+
+share {
+
+  start_url 'http://www.libfoo.org/src/libfoo-1.00.tar.gz';
+
+  download [ 'wget %{.meta.start_url}' ];
+
+  extract [ 'tar zxf %{.install.download}' ];
+
+  build [
+    [ './configure --prefix=%{.install.prefix} --disable-shared' ],
+    [ '%{make}' ],
+    [ '%{make} install' ],
+  ];
+
+};
+
+gather [
+  [ 'pkg-config --modversion libfoo', \'%{.runtime.version}' ],
+  [ 'pkg-config --cflags     libfoo', \'%{.runtime.cflags}'  ],
+  [ 'pkg-config --libs       libfoo', \'%{.runtime.libs}'    ],
+];</pre>
+<p class="Pp">Hay mucho ocurriendo aquí, así que vamos a decodificarlo un poco. Un alienfile es solo algo de Perl con algo de azúcar específico de alien. La primera línea</p>
+<pre>use alienfile;</pre>
+<p class="Pp">importa el azúcar en el alienfile. También es un indicador para el lector de que esto es un alienfile y no algún otro tipo de script de Perl.</p>
+<p class="Pp">La segunda línea es la directiva probe:</p>
+<pre>probe [ 'pkg-config --exists libfoo' ];</pre>
+<p class="Pp">se utiliza para ver si la biblioteca ya está instalada en el sistema de destino. Si <span class="Li">"pkg-config"</span> está en el path, y si libfoo está instalado, esto debería salir con un éxito (0) y decirle a Alien::Build que use la biblioteca del sistema. Si
+    <span class="Li">"pkg-config"</span> no está en el PATH, o si libfoo no está instalado, entonces saldrá con un no éxito (!= 0) y le dirá a Alien::Build que descargue y construya desde el código fuente.</p>
+<p class="Pp">Puede proporcionar tantas directivas probe como quiera. Esto es útil si hay diferentes formas de sondear el sistema. Alien::Build se detendrá en la primera biblioteca del sistema encontrada con éxito. Digamos que nuestra biblioteca libfoo viene con un <span class="Li">".pc"</span> archivo para usar con <span class="Li">"pkg-config"</span> y también proporciona un
+    <span class="Li">"foo-config"</span> programa para encontrar los mismos valores. Podría especificar esto en su alienfile</p>
+<pre>probe [ 'pkg-config --exists libfoo' ];
+probe [ 'foo-config --version' ];</pre>
+<p class="Pp">Otras directivas pueden especificarse varias veces si hay diferentes métodos que se pueden intentar para los varios pasos.</p>
+<p class="Pp">A veces es más fácil sondear una biblioteca desde Perl en lugar de con un comando. Para eso puede usar una referencia de código. Por ejemplo, otra forma de llamar a <span class="Li">"pkg-config"</span> sería desde Perl:</p>
+<pre>probe sub {
+  my($build) = @_;  # $build es la instancia de Alien::Build.
+  system 'pkg-config --exists libfoo';
+  $? == 0 ? 'system' : 'share';
+};</pre>
+<p class="Pp">El código de Perl debería devolver 'system' si la biblioteca está instalada, y 'share' si no lo está. (Otras directivas deberían devolver un valor verdadero en éxito, y un valor falso en fallo). También puede lanzar una excepción con
+    <span class="Li">"die"</span> para indicar un fallo.</p>
+<p class="Pp">La siguiente parte del alienfile es el bloque
+    <span class="Li">"share"</span> que se utiliza para agrupar las directivas que se usan para descargar e instalar la biblioteca o herramienta en el caso de que no esté ya instalada.</p>
+<pre>share {
+  start_url 'http://www.libfoo.org/src/libfoo-1.00.tar.gz';
+  download [ 'wget %{.meta.start_url}' ];
+  extract [ 'tar zxf %{.install.download}' ];
+  build [
+    [ './configure --prefix=%{.install.prefix} --disable-shared' ],
+    [ '%{make}' ],
+    [ '%{make} install' ],
+  ];
+};</pre>
+<p class="Pp">El start_url especifica dónde encontrar el paquete que está convirtiendo en alien. Debería ser ya sea un tarball (o archivo zip, o lo que sea) o un índice HTML. La directiva download como puede imaginar especifica cómo descargar la biblioteca o herramienta. La directiva extract especifica cómo extraer el archivo una vez que se ha descargado. En el paso de extracción, puede usar la variable <span class="Li">"%{.install.download}"</span> como un marcador de posición para el archivo que se descargó en el paso de descarga. Esto también es accesible si usa una referencia de código desde la instancia de Alien::Build:</p>
+<pre>share {
+  ...
+  requires 'Archive::Extract';
+  extract sub {
+    my($build) = @_;
+    my $tarball = $build-&gt;install_prop-&gt;{download};
+    my $ae = Archive::Extract-&gt;new( archive =&gt; $tarball );
+    $ae-&gt;extract;
+    1;
+  }
+  ...
+};</pre>
+<p class="Pp">La directiva build especifica cómo construir la biblioteca o herramienta una vez que se ha descargado y extraído. Note que la variable especial
+    <span class="Li">"%{.install.prefix}"</span> es la ubicación donde la biblioteca debería ser instalada. <span class="Li">"%{make}"</span>
+    es un asistente que será reemplazado por el
+    <span class="Li">"make"</span>apropiado, que puede llamarse de manera diferente en algunas plataformas (en Windows por ejemplo, frecuentemente puede llamarse <span class="Li">"nmake"</span> o
+    <span class="Li">"dmake"</span>).</p>
+<p class="Pp">La parte final del alienfile tiene una directiva gather que especifica cómo obtener los detalles sobre cómo compilar y enlazar contra la biblioteca. Para esto, una vez más usamos el comando
+    <span class="Li">"pkg-config"</span> :</p>
+<pre>gather [
+  [ 'pkg-config --modversion libfoo', \'%{.runtime.version}' ],
+  [ 'pkg-config --cflags     libfoo', \'%{.runtime.cflags}'  ],
+  [ 'pkg-config --libs       libfoo', \'%{.runtime.libs}'    ],
+];</pre>
+<p class="Pp">La referencia escalar como último elemento de la lista de comandos le indica a
+    Alien::Build que la salida del comando debe almacenarse en la variable
+    dada. Las variables de ejecución (runtime) son las que estarán disponibles en
+    <span class="Li">"Alien::Libfoo"</span> una vez que esté instalado.
+    (Las propiedades de instalación, que son las que hemos visto hasta ahora, se
+    descartan una vez que la distribución Alien está instalada.</p>
+<p class="Pp">También puedes proporcionar un <span class="Li">"sys"</span>
+    bloque para las directivas que deben usarse cuando se detecta una instalación del sistema.
+    Normalmente solo necesitas hacer esto si el paso de recopilación (gather) es diferente entre las
+    instalaciones compartidas (share) y del sistema. Por ejemplo, lo anterior es equivalente a:</p>
+<pre>build {
+  ...
+  gather [
+    [ 'pkg-config --modversion libfoo', \'%{.runtime.version}' ],
+    [ 'pkg-config --cflags     libfoo', \'%{.runtime.cflags}'  ],
+    [ 'pkg-config --libs       libfoo', \'%{.runtime.libs}'    ],
+  ];
+};
+
+sys {
+  gather [
+    [ 'pkg-config --modversion libfoo', \'%{.runtime.version}' ],
+    [ 'pkg-config --cflags     libfoo', \'%{.runtime.cflags}'  ],
+    [ 'pkg-config --libs       libfoo', \'%{.runtime.libs}'    ],
+  ];
+};</pre>
+<p class="Pp">(A propósito, la razón por la que se llama
+    <span class="Li">"sys"</span> y no
+    <span class="Li">"system"</span> es para que no entre en conflicto
+    con la función incorporada <span class="Li">"system"</span> )!</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Using_plugins'><a class='permalink' href='#Using_plugins'>Uso de   plugins</a></h2>
+<p class="Pp">El primer ejemplo es una buena manera de mostrar el camino manual completo
+    que puedes elegir, pero hay mucha repetición si estás haciendo muchos
+    Aliens que usan autoconf y <span class="Li">"pkg-config"</span>
+    (lo cual es bastante común). alienfile te permite usar plugins. Ver
+    Alien::Build::Plugin para una lista de algunas de las categorías de plugins.</p>
+<p class="Pp">Por ahora, solo te mostraré cómo escribir el alienfile para
+    libfoo de arriba usando Alien::Build::Plugin::Build::Autoconf,
+    Alien::Build::Plugin::PkgConfig::Negotiate,
+    Alien::Build::Plugin::Download::Negotiate, y
+    Alien::Build::Plugin::Extract::Negotiate</p>
+<pre>use alienfile;
+
+plugin 'PkgConfig' =&gt; (
+  pkg_name =&gt; 'libfoo',
+);
+
+share {
+  start_url 'http://www.libfoo.org/src';
+  plugin 'Download' =&gt; (
+    filter =&gt; qr/^libfoo-[0-9\.]+\.tar\.gz$/,
+    version =&gt; qr/^libfoo-([0-9\.]+)\.tar\.gz$/,
+  );
+  plugin 'Extract' =&gt; 'tar.gz';
+  plugin 'Build::Autoconf';
+  build [
+    '%{configure} --disable-shared',
+    '%{make}',
+    '%{make} install',
+  ];
+};</pre>
+<p class="Pp">El primer plugin que usamos es el
+    <span class="Li">"pkg-config"</span> plugin de negociación. Un
+    plugin de negociación es uno que no hace el trabajo real, sino que selecciona el
+    mejor de un conjunto de plugins dependiendo de tu plataforma y entorno.
+    (En el caso de Alien::Build::Plugin::PkgConfig::Negotiate, puede optar por
+    usar herramientas de línea de comandos, una implementación pura en Perl (PkgConfig), o
+    libpkgconf, dependiendo de lo que esté disponible). Al usar plugins de negociación puedes omitir el <span class="Li">"::Negotiate"</span> sufijo. Así que
+    como puedes ver, usar el plugin aquí es una ventaja porque es más
+    confiable que simplemente especificar un comando que puede no estar instalado.</p>
+<p class="Pp">A continuación usamos el plugin de negociación de descarga. Esto también es mejor
+    que la versión de arriba, porque de nuevo,
+    <span class="Li">"wget"</span> puede no estar instalado en el sistema
+    de destino. Además, puedes especificar una URL que será escaneada en busca de enlaces, y usar
+    la versión más reciente.</p>
+<p class="Pp">Usamos el plugin de negociación de extracción (Extract) para usar herramientas de línea de
+    comandos, o bibliotecas de Perl para extraer del archivo una vez que se ha
+  descargado.</p>
+<p class="Pp">Finalmente usamos el plugin de Autoconf
+    (Alien::Build::Plugin::Build::Autoconf). Esto es mucho más sofisticado
+    y confiable que en el ejemplo anterior, por varias razones. Esta
+    versión incluso funcionará en Windows asumiendo que la biblioteca o herramienta que estás
+    alienizando soporta esa plataforma.</p>
+<p class="Pp">Estrictamente hablando, la directiva build no es necesaria, porque
+    el plugin de autoconf proporciona un valor predeterminado que es razonable. La única razón
+    por la que querrías incluirla es si necesitas proporcionar banderas adicionales
+    al paso de configuración.</p>
+<pre>share {
+  ...
+  build [
+    '%{configure} --enable-bar --enable-baz --disable-shared',
+    '%{make}',
+    '%{make} install',
+  ];
+};</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Multiple_.pc_files'><a class='permalink' href='#Multiple_.pc_files'>Múltiples   archivos .pc</a></h2>
+<p class="Pp">Algunos paquetes vienen con múltiples bibliotecas emparejadas con múltiples
+    <span class="Li">".pc"</span> archivos. En este caso, quieres
+    proporcionar a Alien::Build::Plugin::PkgConfig::Negotiate una referencia de
+    array de nombres de paquetes.</p>
+<pre>plugin 'PkgConfig' =&gt; (
+  pkg_name =&gt; [ 'foo', 'bar', 'baz' ],
+);</pre>
+<p class="Pp">Todos los paquetes deben ser encontrados para que la instalación
+    <span class="Li">"system"</span> tenga éxito. Una vez
+    instalado, el primer <span class="Li">"pkg_name"</span> será
+    usado por defecto (en este ejemplo <span class="Li">"foo"</span>),
+    y puedes recuperar cualquier otro <span class="Li">"pkg_name"</span>
+    usando el método alt de Alien::Base.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='A_note_about_dynamic_vs._static_libraries'><a class='permalink' href='#A_note_about_dynamic_vs._static_libraries'>Una   nota sobre bibliotecas dinámicas vs. estáticas</a></h2>
+<p class="Pp">Si estás usando tu Alien para construir un módulo XS, es importante
+    que uses bibliotecas estáticas si es posible. Si tienes un paquete que
+    se niega a construir una biblioteca estática, entonces puedes usar Alien::Role::Dino.</p>
+<p class="Pp">En realidad, déjame retroceder un minuto. Para una
+    <span class="Li">"share"</span> instalación, es mejor usar bibliotecas
+    estáticas para construir tu extensión XS. Esto se debe a que si tu Alien es
+    actualizado alguna vez a una nueva versión, puede romper tus módulos XS existentes. Para una
+    <span class="Li">"system"</span> instalación, las bibliotecas compartidas son
+    generalmente las mejores porque a menudo puedes obtener parches de seguridad sin tener que
+    reconstruir nada en el mundo de perl.</p>
+<p class="Pp">Si miraste de cerca las secciones "Usando comandos" y
+    "Usando plugins" de arriba, puedes notar que nos esforzamos donde
+    fue posible por decirle a Autotools que construya solo bibliotecas estáticas
+    usando el <span class="Li">"--disable-shared"</span> comando. El
+    plugin de Autoconf también hace esto por defecto.</p>
+<p class="Pp">Sin embargo, a veces tendrás un paquete que construye ambos, o
+    tal vez <i>quieras</i> que tanto las bibliotecas estáticas como las dinámicas funcionen con XS y
+    FFI. Para ese caso, está el
+    plugin Alien::Build::Plugin::Gather::IsolateDynamic.</p>
+<pre>use alienfile;
+...
+plugin 'Gather::IsolateDynamic';</pre>
+<p class="Pp">Lo que hace es que mueve las bibliotecas dinámicas (usualmente .so
+    en Unix y .DLL en Windows) a un lugar donde puedan ser encontradas por FFI, y
+    donde no serán usadas por el compilador para construir XS. Generalmente no hace
+    ningún daño incluir este plugin, así que si estás empezando, podrías
+    querer agregarlo de todos modos. Se puede argumentar que debería haber sido el comportamiento
+    predeterminado desde el principio.</p>
+<p class="Pp">Si ya has publicado un Alien que no aísla sus
+    bibliotecas dinámicas, entonces podrías obtener algunos fallos de aliens antiguos actualizados
+    porque el directorio share no se limpia por defecto (esto es quizás un
+    error de diseño en la forma en que funcionan los directorios share, pero es una característica
+    de larga data). Una solución para esto es usar la
+    <span class="Li">"clean_install"</span> propiedad en
+    Alien::Build::MM, que limpiará el directorio share en la actualización, y
+    posiblemente te ahorre mucha angustia.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Verifying_and_debugging_your_alienfile'><a class='permalink' href='#Verifying_and_debugging_your_alienfile'>Verificando   y depurando tu alienfile</a></h2>
+<p class="Pp">Podrías alimentar tu alienfile directamente a Alien::Build, o
+    Alien::Build::MM, pero a veces es útil probar tu alienfile usando el <span class="Li">"af"</span> comando (no viene con
+    Alien::Build, necesitas instalar App::af). Por defecto
+    <span class="Li">"af"</span> usará el
+    <span class="Li">"alienfile"</span> en el directorio actual (igual que <span class="Li">"make"</span> usa el
+    <span class="Li">"Makefile"</span> en el directorio actual; igual que <span class="Li">"make"</span> puedes usar la
+    <span class="Li">"-f"</span> opción para especificar un alienfile diferente).</p>
+<p class="Pp">Puedes probar tu alienfile en modo de ejecución simulada (dry run):</p>
+<pre>% af install --dry-run
+Alien::Build::Plugin::Core::Legacy&gt; adding legacy hash to config
+Alien::Build::Plugin::Core::Gather&gt; mkdir -p /tmp/I2YXRyxb0r/_alien
+---
+cflags: ''
+cflags_static: ''
+install_type: system
+legacy:
+  finished_installing: 1
+  install_type: system
+  name: libfoo
+  original_prefix: /tmp/7RtAusykNN
+  version: 1.2.3
+libs: '-lfoo '
+libs_static: '-lfoo '
+prefix: /tmp/7RtAusykNN
+version: 1.2.3</pre>
+<p class="Pp">Puedes usar la <span class="Li">"--type"</span> opción
+    para forzar una instalación compartida (descargar y construir desde el código fuente):</p>
+<pre>% af install --type=share --dry-run
+Alien::Build::Plugin::Core::Download&gt; decoding html
+Alien::Build::Plugin::Core::Download&gt; candidate *https://www.libfoo.org/download/libfoo-1.2.4.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.2.3.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.2.2.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.2.1.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.2.0.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.1.9.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.1.8.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  https://www.libfoo.org/download/libfoo-1.1.7.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidate  ...
+Alien::Build::Plugin::Core::Download&gt; setting version based on archive to 1.2.4
+Alien::Build::Plugin::Core::Download&gt; downloaded libfoo-1.2.4.tar.gz
+Alien::Build::CommandSequence&gt; + ./configure --prefix=/tmp/P22WEXj80r --with-pic --disable-shared
+... snip ...
+Alien::Build::Plugin::Core::Gather&gt; mkdir -p /tmp/WsoLAQ889w/_alien
+---
+cflags: ''
+cflags_static: ''
+install_type: share
+legacy:
+  finished_installing: 1
+  install_type: share
+  original_prefix: /tmp/P22WEXj80r
+  version: 1.2.4
+libs: '-L/tmp/P22WEXj80r/lib -lfoo '
+libs_static: '-L/tmp/P22WEXj80r/lib -lfoo '
+prefix: /tmp/P22WEXj80r
+version: 1.2.4</pre>
+<p class="Pp">También puedes usar las <span class="Li">"--before"</span>
+    y <span class="Li">"--after"</span> opciones para echar un vistazo a
+    cómo se ve el entorno de construcción en diferentes etapas también, lo que a veces puede
+    ser útil:</p>
+<pre>% af install --dry-run --type=share --before build bash
+Alien::Build::Plugin::Core::Download&gt; decoding html
+Alien::Build::Plugin::Core::Download&gt; candidate *https://www.libfoo.org/download/libfoo-1.2.4.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.2.3.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.2.2.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.2.1.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.2.0.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.1.9.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.1.8.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  https://www.libfoo.org/download/libfoo-1.1.7.tar.gz
+Alien::Build::Plugin::Core::Download&gt; candidato  ...
+Alien::Build::Plugin::Core::Download&gt; estableciendo versión basada en el archivo a 1.2.4
+Alien::Build::Plugin::Core::Download&gt; descargado libfoo-1.2.4.tar.gz
+App::af::install&gt;  [ antes de la compilación ] + bash
+/tmp/fbVPu4LRTs/build_5AVn/libfoo-1.2.4$ ls
+CHANGES Makefile autoconf.ac lib
+/tmp/fbVPu4LRTs/build_5AVn/libfoo-1.2.4$</pre>
+<p class="Pp">Hay muchas otras cosas útiles que puedes hacer con el
+    <span class="Li">"af"</span> comando. Consulta af para más detalles.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Integrating_with_MakeMaker'><a class='permalink' href='#Integrating_with_MakeMaker'>Integración   con MakeMaker</a></h2>
+<p class="Pp">Una vez que tengas un alienfile que funcione, puedes escribir tu
+    <span class="Li">"Makefile.PL"</span>.</p>
+<pre>use ExtUtils::MakeMaker;
+use Alien::Build::MM;
+
+my $abmm = Alien::Build::MM-&gt;new;
+
+WriteMakefile($abmm-&gt;mm_args(
+  ABSTRACT           =&gt; 'Discover or download and install libfoo',
+  DISTNAME           =&gt; 'Alien-Libfoo',
+  NAME               =&gt; 'Alien::Libfoo',
+  VERSION_FROM       =&gt; 'lib/Alien/Libfoo.pm',
+  CONFIGURE_REQUIRES =&gt; {
+    'Alien::Build::MM' =&gt; 0,
+  },
+  BUILD_REQUIRES =&gt; {
+    'Alien::Build::MM' =&gt; 0,
+  },
+  PREREQ_PM =&gt; {
+    'Alien::Base' =&gt; 0,
+  },
+  # If you are going to write the recommended
+  # tests you will will want these:
+  TEST_REQUIRES =&gt; {
+    'Test::Alien' =&gt; 0,
+    'Test2::V0'   =&gt; 0,
+  },
+));
+
+sub MY::postamble {
+  $abmm-&gt;mm_postamble;
+}</pre>
+<p class="Pp">El <span class="Li">"lib/Alien/Libfoo.pm"</span> que
+    lo acompaña es muy simple:</p>
+<pre>package Alien::Libfoo;
+
+use strict;
+use warnings;
+use parent qw( Alien::Base );
+
+1;</pre>
+<p class="Pp">¡Ya has terminado y puedes instalarlo normalmente!:</p>
+<pre>% perl Makefile.PL
+% make
+% make test
+% make install</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Integrating_with_Module::Build'><a class='permalink' href='#Integrating_with_Module::Build'>Integración   con Module::Build</a></h2>
+<p class="Pp">¡Por favor, no lo hagas! Vale, si tienes que hacerlo, existe Alien::Build::MB.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Non_standard_configuration'><a class='permalink' href='#Non_standard_configuration'>Configuración   no estándar</a></h2>
+<p class="Pp">Alien::Base soporta la mayoría de las cosas que tu Alien necesitará,
+    como flags de compilación (cflags), flags de enlace (libs) y directorio de binarios
+    (bin_dir). Tu biblioteca u herramienta puede tener otros elementos de configuración que no
+    son soportados por defecto. Puedes almacenar los valores en el alienfile dentro de las
+    propiedades de tiempo de ejecución (runtime):</p>
+<pre>gather [
+  # estándar:
+  [ 'foo-config --version libfoo', \'%{.runtime.version}' ],
+  [ 'foo-config --cflags  libfoo', \'%{.runtime.cflags}'  ],
+  [ 'foo-config --libs    libfoo', \'%{.runtime.libs}'    ],
+  # no estándar
+  [ 'foo-config --bar-baz libfoo', \'%{.runtime.bar_baz}' ],
+];</pre>
+<p class="Pp">luego puedes exponerlos en tu subclase de Alien::Base:</p>
+<pre>package Alien::Libfoo;
+
+use strict;
+use warnings;
+use parent qw( Alien::Base );
+
+sub bar_baz {
+  my($self) = @_;
+  $self-&gt;runtime_prop-&gt;{bar_baz},
+};
+
+1;</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Testing'><a class='permalink' href='#Testing'>Pruebas</a></h2>
+<p class="Pp">(opcional, pero muy recomendado)</p>
+<p class="Pp">Deberías escribir una prueba usando Test::Alien para asegurarte de que tu
+    alien funcionará con cualquier módulo XS que vaya a usarlo:</p>
+<pre>use Test2::V0;
+use Test::Alien;
+use Alien::Libfoo;
+
+alien_ok 'Alien::Libfoo';
+
+xs_ok do { local $/; &lt;DATA&gt; }, with_subtest {
+  is Foo::something(), 1, 'Foo::something() returns 1';
+};
+
+done_testing;
+
+__DATA__
+#include "EXTERN.h"
+#include "perl.h"
+#include "XSUB.h"
+#include &lt;foo.h&gt;
+
+MODULE = Foo PACKAGE = Foo
+
+int something()</pre>
+<p class="Pp">También puedes usar Test::Alien para probar herramientas en lugar de
+  bibliotecas:</p>
+<pre>use Test2::V0;
+use Test::Alien;
+use Alien::Libfoo;
+
+alien_ok 'Alien::Libfoo';
+run_ok(['foo', '--version'])
+  -&gt;exit_is(0);
+
+done_testing;</pre>
+<p class="Pp">También puedes escribir pruebas específicas para FFI::Platypus, si tu
+    alien va a ser usado para escribir bindings de FFI. (la prueba de abajo es el equivalente en FFI
+    al ejemplo XS de arriba).</p>
+<pre>use Test2::V0;
+use Test::Alien;
+use Alien::Libfoo;
+
+alien_ok 'Alien::Libfoo';
+ffi_ok { symbols =&gt; [ 'something' ] }, with_subtest {
+  # $ffi es una instancia de FFI::Platypus con la lib
+  # configurada apropiadamente.
+  my($ffi) = @_;
+  my $something = $ffi-&gt;function( something =&gt; [] =&gt; 'int' );
+  is $something-&gt;call(), 1, 'Foo::something() returns 1';
+};</pre>
+<p class="Pp">Si usas <span class="Li">"ffi_ok"</span> quieres
+    asegurarte de que tu alien produzca bibliotecas dinámicas de manera fiable. Si no
+    es consistente (si por ejemplo algunas plataformas tienden a no proporcionar o compilar
+    bibliotecas dinámicas), puedes verificar que
+    <span class="Li">"dynamic_libs"</span> no devuelva una lista
+    vacía.</p>
+<pre>...
+alien_ok 'Alien::Libfoo';
+SKIP: {
+  skip "This test requires a dynamic library"
+    unless Alien::Libfoo-&gt;dynamic_libs;
+  ffi_ok { symbols [ 'something' ] }, with_subtest {
+    ...
+  };
+}</pre>
+<p class="Pp">Puedes encontrar más detalles sobre las pruebas de módulos Alien en la
+    documentación de Test::Alien.</p>
+<p class="Pp">También puedes ejecutar las pruebas que vienen con el paquete que estás
+    alienizando, usando un bloque <span class="Li">"test"</span> en
+    tu alienfile. Ten en cuenta que algunos paquetes usan herramientas de prueba u otros
+    prerrequisitos que no estarán disponibles en las máquinas de tus usuarios cuando
+    intenten instalar tu alien. Así que no quieres añadir ciegamente un bloque de prueba
+    sin verificar cuáles son los prerrequisitos. Para paquetes al estilo de Autoconf típicamente
+    pruebas un paquete usando el comando <span class="Li">"make
+    check"</span> :</p>
+<pre>use alienfile;
+
+plugin 'PkgConfig' =&gt; 'libfoo';
+
+share {
+  ... # pasos de compilación estándar.
+  test [ '%{make} check' ];
+};</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Dist::Zilla'><a class='permalink' href='#Dist::Zilla'>Dist::Zilla</a></h2>
+<p class="Pp">(opcional, recomendado moderadamente)</p>
+<p class="Pp">También puedes usar el plugin de Dist::Zilla de Alien::Build
+    Dist::Zilla::Plugin::AlienBuild:</p>
+<pre>name    = Alien-Libfoo
+author  = E. Xavier Ample &lt;example@cpan.org&gt;
+license = Perl_5
+copyright_holder = E. Xavier Ample &lt;example@cpan.org&gt;
+copyright_year   = 2017
+version = 0.01
+
+[@Basic]
+[AlienBuild]</pre>
+<p class="Pp">El plugin se encarga de muchos detalles como asegurarse de que
+    se usen las versiones mínimas correctas de Alien::Build y Alien::Base. Consulta la
+    documentación del plugin para detalles adicionales.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='Using_your_Alien'><a class='permalink' href='#Using_your_Alien'>Usando   tu Alien</a></h2>
+<p class="Pp">Una vez que lo hayas instalado puedes usar tu Alien. Consulta
+    Alien::Build::Manual::AlienUser para orientación sobre eso.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER   TAMBIÉN</a></h1>
+<dl class="Bl-tag">
+  <dt id="Alien::Build::Manual"><a class="permalink" href="#Alien::Build::Manual">Alien::Build::Manual</a></dt>
+  <dd>Otros manuales de Alien::Build.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">Autor: Graham Ollis &lt;plicease@cpan.org&gt;</p>
+<p class="Pp">Colaboradores:</p>
+<p class="Pp">Diab Jerius (DJERIUS)</p>
+<p class="Pp">Roy Storey (KIWIROY)</p>
+<p class="Pp">Ilya Pavlov</p>
+<p class="Pp">David Mertens (run4flat)</p>
+<p class="Pp">Mark Nunberg (mordy, mnunberg)</p>
+<p class="Pp">Christian Walde (Mithaldu)</p>
+<p class="Pp">Brian Wightman (MidLifeXis)</p>
+<p class="Pp">Zaki Mughal (zmughal)</p>
+<p class="Pp">mohawk (mohawk2, ETJ)</p>
+<p class="Pp">Vikas N Kumar (vikasnkumar)</p>
+<p class="Pp">Flavio Poletti (polettix)</p>
+<p class="Pp">Salvador Fandiño (salva)</p>
+<p class="Pp">Gianni Ceccarelli (dakkar)</p>
+<p class="Pp">Pavel Shaydo (zwon, trinitum)</p>
+<p class="Pp">Kang-min Liu (劉康民, gugod)</p>
+<p class="Pp">Nicholas Shipp (nshp)</p>
+<p class="Pp">Juan Julián Merelo Guervós (JJ)</p>
+<p class="Pp">Joel Berger (JBERGER)</p>
+<p class="Pp">Petr Písař (ppisar)</p>
+<p class="Pp">Lance Wicks (LANCEW)</p>
+<p class="Pp">Ahmad Fatoum (a3f, ATHREEF)</p>
+<p class="Pp">José Joaquín Atria (JJATRIA)</p>
+<p class="Pp">Duke Leto (LETO)</p>
+<p class="Pp">Shoichi Kaji (SKAJI)</p>
+<p class="Pp">Shawn Laffan (SLAFFAN)</p>
+<p class="Pp">Paul Evans (leonerd, PEVANS)</p>
+<p class="Pp">Håkon Hægland (hakonhagland, HAKONH)</p>
+<p class="Pp">nick nauwelaerts (INPHOBIA)</p>
+<p class="Pp">Florian Weimer</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>DERECHOS   DE AUTOR Y LICENCIA</a></h1>
+<p class="Pp">Este software tiene copyright (c) 2011-2022 de Graham Ollis.</p>
+<p class="Pp">Este es software libre; puedes redistribuirlo y/o modificarlo
+    bajo los mismos términos que el propio sistema de lenguaje de programación Perl 5.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-alien-build/">extra/perl-alien-build</a></dd>
+        <dt>Versión:</dt>
+        <dd>2.84-3</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://metacpan.org/release/Alien-Build">https://metacpan.org/release/Alien-Build</a></dd>
+        <dt>Licencias:</dt>
+        <dd>PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-alien-build/">/listing/extra/perl-alien-build/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#VERSION">VERSIÓN</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">DERECHOS DE AUTOR Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Alien::Build::Manual::AlienAuthor.3pm.en.txt">txt</a>, 
+        
+            ienAuthor.3pm.en.raw"&gt;raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               licencia, excepto por el contenido de las páginas de manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

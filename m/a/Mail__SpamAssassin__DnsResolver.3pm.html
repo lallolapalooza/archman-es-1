@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Mail::SpamAssassin::DnsResolver(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">Mail__SpamAssassin__DnsResolver(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/spamassassin/">spamassassin</a></p>
+<p class="lic">Licencias: APACHE</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">Mail::SpamAssassin::DnsResolver(3)</td>
+    <td class="head-vol">Documentación contribuida por el usuario de Perl</td>
+    <td class="head-rtitle">Mail::SpamAssassin::DnsResolver(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NOMBRE'><a class='permalink' href='#NOMBRE'>NOMBRE</a></h1>
+<p class="Pp">Mail::SpamAssassin::DnsResolver - motor de resolución DNS</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPCIÓN'><a class='permalink' href='#DESCRIPCIÓN'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este es un motor de resolución DNS para SpamAssassin, implementado
+    con el fin de reducir el uso de descriptores de archivo por parte de Net::DNS
+    y evitar un error de colisión de respuesta en dicho módulo.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='MÉTODOS'><a class='permalink' href='#MÉTODOS'>MÉTODOS</a></h1>
+<dl class="Bl-tag">
+  <dt>$res-&gt;<b>load_resolver()</b></dt>
+  <dd>Carga el objeto <span class="Li">&quot;Net::DNS::Resolver&quot;</span>.
+      Devuelve 0 si Net::DNS no se puede utilizar, 1 si está disponible.</dd>
+  <dt>$resolver = $res-&gt;<b>get_resolver()</b></dt>
+  <dd>Devuelve el objeto <span class="Li">&quot;Net::DNS::Resolver&quot;</span>.</dd>
+  <dt>$res-&gt;<b>configured_nameservers()</b></dt>
+  <dd>Obtiene una lista de servidores de nombres tal como se configuran mediante
+      directivas dns_server o tal como los proporciona Net::DNS, típicamente
+      desde /etc/resolv.conf</dd>
+  <dt>$res-&gt;<b>available_nameservers()</b></dt>
+  <dd>Obtiene o establece una lista de servidores de nombres actualmente
+      disponibles, que típicamente es un subconjunto de servidores de nombres
+      configurados y que se sabe que funcionan.</dd>
+  <dt>$res-&gt;<b>connect_sock()</b></dt>
+  <dd>Reconecta al primer servidor de nombres listado en
+      <span class="Li">&quot;/etc/resolv.conf&quot;</span> o una fuente similar
+      dependiente de la plataforma, tal como la proporciona
+      <span class="Li">&quot;Net::DNS&quot;</span>.</dd>
+  <dt>$res-&gt;<b>get_sock()</b></dt>
+  <dd>Devuelve el objeto <span class="Li">&quot;IO::Socket::INET&quot;</span>
+      utilizado para comunicarse con el servidor de nombres.</dd>
+  <dt>$packet = new_dns_packet ($domain, $type, $class)</dt>
+  <dd>Un envoltorio para <span class="Li">Net::DNS::Packet::new()</span> que
+      atrapa una llamada a die lanzada por él.
+    <p class="Pp">Para usar esto, cambie las llamadas a
+        <span class="Li">&quot;Net::DNS::Resolver::bgsend&quot;</span> de:</p>
+        <pre>$res-&gt;bgsend($domain, $type);
+</pre>
+    <p class="Pp">a:</p>
+        <pre>$res-&gt;bgsend(Mail::SpamAssassin::DnsResolver::new_dns_packet($domain, $type, $class));
+</pre>
+  </dd>
+  <dt>$id = $res-&gt;bgsend($domain, $type, $class, $cb)</dt>
+  <dd>SU USO DIRECTO NO ES RECOMENDABLE, utilice bgsend_and_start_lookup en
+      plugins.
+    <p class="Pp">Bastante similar a
+        <span class="Li">&quot;Net::DNS::Resolver::bgsend&quot;</span>, excepto
+        que cuando un paquete de respuesta llega eventualmente, y se llama a
+        <span class="Li">&quot;poll_responses&quot;</span>, se llamará a la
+        subrutina de referencia de callback <span class="Li">$cb</span>.</p>
+    <p class="Pp">Tenga en cuenta que <span class="Li">$type</span> y
+        <span class="Li">$class</span> pueden ser
+        <span class="Li">&quot;undef&quot;</span>, en cuyo caso se establecerán
+        por defecto a <span class="Li">&quot;A&quot;</span> y
+        <span class="Li">&quot;IN&quot;</span>, respectivamente.</p>
+    <p class="Pp">La subrutina de callback se llamará con tres argumentos: el
+        paquete que fue entregado, y una cadena de ID que identifica el paquete
+        de consulta y la respuesta esperada. El tercer argumento es una marca de
+        tiempo (hora Unix, punto flotante), capturada en el momento en que se
+        recogió el paquete. Se espera que se utilice un closure de callback, así:</p>
+        <pre>my $id = $self-&gt;{resolver}-&gt;bgsend($domain, $type, undef, sub {
+      my ($reply, $reply_id, $timestamp) = @_;
+      $self-&gt;got_a_reply($reply, $reply_id);
+    });
+</pre>
+    <p class="Pp">El callback puede ignorar la respuesta como un paquete
+        inválido enviado al puerto de escucha si el ID de respuesta no coincide
+        con el valor devuelto por bgsend.</p>
+  </dd>
+  <dt>$id = $res-&gt;<b>bgread()</b></dt>
+  <dd>Similar a <span class="Li">&quot;Net::DNS::Resolver::bgread&quot;</span>.
+      Lee un paquete DNS de un socket proporcionado, lo decodifica y devuelve un
+      objeto Net::DNS::Packet si tiene éxito. Muere en caso de error.</dd>
+  <dt>$nfound = $res-&gt;<b>poll_responses()</b></dt>
+  <dd>Comprueba si hay paquetes de respuesta
+      <span class="Li">&quot;bgsend&quot;</span> listos, y devuelve el número de
+      dichos paquetes entregados a sus callbacks.</dd>
+  <dt>$res-&gt;<b>bgabort()</b></dt>
+  <dd>Llame a esto para liberar las solicitudes pendientes de la memoria, al
+      abortar solicitudes en segundo plano o cuando el escaneo esté completo.
+      <span class="Li">&quot;Mail::SpamAssassin::PerMsgStatus::check&quot;</span>
+      llama a esto antes de devolver.</dd>
+  <dt>$packet = $res-&gt;send($name, $type, $class)</dt>
+  <dd>Emula <span class="Li">Net::DNS::Resolver::send()</span>.
+    <p class="Pp">Esta subrutina es una simple reliquia síncrona de la
+        versión 3.3 de SpamAssassin y no participa en el almacenamiento en caché
+        de consultas de paquetes y la agrupación de callbacks tal como se
+        implementa en
+        <b>AsyncLoop::bgsend_and_start_lookup()</b>. Como tal, debe evitarse
+        para el uso general. Actualmente utilizado a través de Mail::SPF::Server
+        por el plugin SPF.</p>
+  </dd>
+  <dt>$res-&gt;<b>errorstring()</b></dt>
+  <dd>Poco más que un stub para los llamadores que esperan esto de
+      <span class="Li">&quot;Net::DNS::Resolver&quot;</span>.
+    <p class="Pp">Si se llama inmediatamente después de una llamada a
+        <span class="Li">$res</span>-&gt;send, devolverá
+        <span class="Li">&quot;query timed out&quot;</span> si la consulta DNS
+        de <span class="Li">$res</span>-&gt;send expiró. De lo contrario, se
+        devolverá
+        <span class="Li">&quot;unknown error or no error&quot;</span>.</p>
+    <p class="Pp">No se informan otros errores.</p>
+  </dd>
+  <dt>$res-&gt;<b>finish_socket()</b></dt>
+  <dd>Restablece el socket cuando se termina de usar.</dd>
+  <dt>$res-&gt;<b>finish()</b></dt>
+  <dd>Limpia para la destrucción.</dd>
+</dl>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-14</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/spamassassin/">extra/spamassassin</a></dd>
+        <dt>Versión:</dt>
+        <dd>4.0.1-5</dd>
+        <dt>Principal:</dt>
+        <dd><a href="https://spamassassin.apache.org">https://spamassassin.apache.org</a></dd>
+        <dt>Licencias:</dt>
+        <dd>APACHE</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/spamassassin/">/listing/extra/spamassassin/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenido</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NOMBRE">NOMBRE</a></li>
+        
+            <li><a href="#DESCRIPCIÓN">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#MÉTODOS">MÉTODOS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/Mail::SpamAssassin::DnsResolver.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/Mail::SpamAssassin::DnsResolver.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>,
+               excepto el contenido de las páginas del manual, que tienen su propia licencia
+               especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

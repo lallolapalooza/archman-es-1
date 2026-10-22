@@ -1,0 +1,616 @@
+
+
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DBD::File::Developers(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">DBD__File__Developers(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/perl-dbi/">perl-dbi</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">DBD::File::Developers(3)</td>
+    <td class="head-vol">Documentación de Perl aportada por el usuario</td>
+    <td class="head-rtitle">DBD::File::Developers(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">DBD::File::Developers - Documentación para desarrolladores de DBD::File</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>package DBD::myDriver;
+use base qw( DBD::File );
+sub driver
+{
+    ...
+    my $drh = $proto-&gt;SUPER::driver ($attr);
+    ...
+    return $drh-&gt;{class};
+    }
+sub CLONE { ... }
+package DBD::myDriver::dr;
+@ISA = qw( DBD::File::dr );
+sub data_sources { ... }
+...
+package DBD::myDriver::db;
+@ISA = qw( DBD::File::db );
+sub init_valid_attributes { ... }
+sub init_default_attributes { ... }
+sub set_versions { ... }
+sub validate_STORE_attr { my ($dbh, $attrib, $value) = @_; ... }
+sub validate_FETCH_attr { my ($dbh, $attrib) = @_; ... }
+sub get_myd_versions { ... }
+package DBD::myDriver::st;
+@ISA = qw( DBD::File::st );
+sub FETCH { ... }
+sub STORE { ... }
+package DBD::myDriver::Statement;
+@ISA = qw( DBD::File::Statement );
+package DBD::myDriver::Table;
+@ISA = qw( DBD::File::Table );
+my %reset_on_modify = (
+    myd_abc =&gt; "myd_foo",
+    myd_mno =&gt; "myd_bar",
+    );
+__PACKAGE__-&gt;register_reset_on_modify (\%reset_on_modify);
+my %compat_map = (
+    abc =&gt; 'foo_abc',
+    xyz =&gt; 'foo_xyz',
+    );
+__PACKAGE__-&gt;register_compat_map (\%compat_map);
+sub bootstrap_table_meta { ... }
+sub init_table_meta { ... }
+sub table_meta_attr_changed { ... }
+sub open_data { ... }
+sub fetch_row { ... }
+sub push_row { ... }
+sub push_names { ... }
+# optimize the SQL engine by add one or more of
+sub update_current_row { ... }
+# or
+sub update_specific_row { ... }
+# or
+sub update_one_row { ... }
+# or
+sub insert_new_row { ... }
+# or
+sub delete_current_row { ... }
+# or
+sub delete_one_row { ... }</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">Este documento describe cómo los desarrolladores de DBD pueden escribir
+    controladores DBI basados en DBD::File. Complementa a DBI::DBD y
+    DBI::DBD::SqlEngine::Developers, que deberías leer primero.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='CLASSES'><a class='permalink' href='#CLASSES'>CLASES</a></h1>
+<p class="Pp">Cada controlador DBI debe proporcionar un método global de paquete
+    <span class="Li">"driver"</span> y tres clases relacionadas con DBI:</p>
+<dl class="Bl-tag">
+  <dt id="DBD::File::dr"><a class="permalink" href="#DBD::File::dr">DBD::File::dr</a></dt>
+  <dd>Paquete del controlador, contiene los métodos que DBI invoca indirectamente a través de la interfaz DBI:
+        <pre>DBI-&gt;connect ('DBI:DBM:', undef, undef, {})
+# invoca
+package DBD::DBM::dr;
+@DBD::DBM::dr::ISA = qw( DBD::File::dr );
+sub connect ($$;$$$)
+{
+    ...
+    }
+</pre>
+    <p class="Pp">Similar para <span class="Li">"data_sources"</span>
+        y <span class="Li">"disconnect_all"</span>.</p>
+    <p class="Pp">Los controladores DBI puros en Perl derivados de DBD::File normalmente
+        no necesitan sobreescribir ninguno de los métodos proporcionados a través del paquete DBD::XXX::dr,
+        sin embargo, si necesitas inicialización adicional en el método connect
+        podrías necesitarlo.</p>
+  </dd>
+  <dt id="DBD::File::db"><a class="permalink" href="#DBD::File::db">DBD::File::db</a></dt>
+  <dd>Contiene los métodos que se llaman a través de los manejadores de base de datos DBI (<span class="Li">$dbh</span>). p. ej.,
+        <pre>$sth = $dbh-&gt;prepare ("select * from foo");
+# devuelve la configuración f_encoding para la tabla foo
+$dbh-&gt;csv_get_meta ("foo", "f_encoding");
+</pre>
+    <p class="Pp">DBD::File proporciona los métodos típicos requeridos aquí.
+        Los desarrolladores que escriben controladores DBI basados en DBD::File necesitan sobreescribir los métodos <span class="Li">"set_versions"</span> y
+        <span class="Li">"init_valid_attributes"</span>.</p>
+  </dd>
+  <dt id="DBD::File::st"><a class="permalink" href="#DBD::File::st">DBD::File::st</a></dt>
+  <dd>Contiene los métodos para tratar con manejadores de sentencias preparadas. p. ej.,
+        <pre>$sth-&gt;execute () or die $sth-&gt;errstr;
+</pre>
+  </dd>
+</dl>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File'><a class='permalink' href='#DBD::File'>DBD::File</a></h2>
+<p class="Pp">Este es el paquete principal que contiene las rutinas para inicializar
+    controladores DBI basados en DBD::File. Principalmente se invoca el método
+    <span class="Li">"DBD::File::driver"</span> ,
+    ya sea directamente desde DBI cuando el controlador es inicializado o desde la clase derivada.</p>
+<pre>package DBD::DBM;
+use base qw( DBD::File );
+sub driver
+{
+    my ($class, $attr) = @_;
+    ...
+    my $drh = $class-&gt;SUPER::driver ($attr);
+    ...
+    return $drh;
+    }</pre>
+<p class="Pp">No es necesario implementar tu propio método driver siempre que
+    no se requiera inicialización adicional (p. ej. instalar más métodos privados del controlador). No necesitas llamar a
+    <span class="Li">"setup_driver"</span> ya que DBD::File se encarga de
+    ello.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::dr'><a class='permalink' href='#DBD::File::dr'>DBD::File::dr</a></h2>
+<p class="Pp">El paquete del controlador contiene los métodos que DBI invoca indirectamente a través de la interfaz DBI (ver "DBI Class Methods" en DBI).</p>
+<p class="Pp">Los controladores DBI basados en DBD::File usualmente no necesitan implementar
+    nada aquí, es suficiente hacer la inicialización básica:</p>
+<pre>package DBD:XXX::dr;
+@DBD::XXX::dr::ISA = qw (DBD::File::dr);
+$DBD::XXX::dr::imp_data_size     = 0;
+$DBD::XXX::dr::data_sources_attr = undef;
+$DBD::XXX::ATTRIBUTION = "DBD::XXX $DBD::XXX::VERSION by Hans Mustermann";</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::db'><a class='permalink' href='#DBD::File::db'>DBD::File::db</a></h2>
+<p class="Pp">Este paquete define los métodos de la base de datos, que son llamados a través del manejador de base de datos DBI <span class="Li">$dbh</span>.</p>
+<p class="Pp">Métodos proporcionados por DBD::File:</p>
+<dl class="Bl-tag">
+  <dt id="ping"><a class="permalink" href="#ping">ping</a></dt>
+  <dd>Simplemente devuelve el contenido del atributo
+      <span class="Li">"Active"</span> . Sobreescribe cuando tu
+      controlador necesita acciones más complicadas aquí.</dd>
+  <dt id="prepare"><a class="permalink" href="#prepare">prepare</a></dt>
+  <dd>Prepara una nueva sentencia SQL para ejecutar. Devuelve un manejador de sentencia,
+      <span class="Li">$sth</span> - instancia de DBD:XXX::st. No es
+      necesario ni recomendado sobreescribir este método.</dd>
+  <dt id="FETCH"><a class="permalink" href="#FETCH">FETCH</a></dt>
+  <dd>Obtiene un atributo de un objeto de base de datos DBI. Los atributos privados del manejador deben tener un prefijo (esto es obligatorio). Si un atributo solicitado es detectado como un atributo privado sin un prefijo válido, se añade el prefijo del controlador (escrito como <span class="Li">$drv_prefix</span>).
+    <p class="Pp">El prefijo del controlador es extraído del nombre del atributo y
+        verificado contra <span class="Li">"$dbh-&gt;{$drv_prefix .
+        "valid_attrs"}"</span> (cuando existe). Si el valor del atributo solicitado no está listado como un atributo válido, este método emite un error fatal (croak). Si el atributo es válido y de solo lectura (listado en
+        <span class="Li">"$dbh-&gt;{</span> <span class="Li">$drv_prefix .
+        "readonly_attrs" }"</span> cuando existe), se devuelve una copia
+        real del valor del atributo. Así que no es posible modificar
+        <span class="Li">"f_valid_attrs"</span> desde fuera de
+        DBD::File::db o una clase derivada.</p>
+  </dd>
+  <dt id="STORE"><a class="permalink" href="#STORE">STORE</a></dt>
+  <dd>Almacena un atributo privado de la base de datos. Los atributos privados del manejador deben tener un prefijo (esto es obligatorio). Si un atributo solicitado es detectado como un atributo privado sin un prefijo válido, se añade el prefijo del controlador (escrito como
+      <span class="Li">$drv_prefix</span>). Si el manejador de base de datos tiene
+      un atributo <span class="Li">"${drv_prefix}_valid_attrs"</span>
+      - para nombres de atributos que no están listados en ese hash, este método
+      emite un error fatal (croak). Si el manejador de base de datos tiene un atributo
+      <span class="Li">"${drv_prefix}_readonly_attrs"</span>, solo
+      atributos que no están listados allí pueden ser almacenados (una vez que están
+      inicializados). Intentar sobreescribir un atributo inmutable tal fuerza a este
+      método a emitir un error fatal (croak).
+    <p class="Pp">Un ejemplo de una lista de atributos válidos puede encontrarse en
+        <span class="Li">"DBD::File::db::init_valid_attributes"</span>.</p>
+  </dd>
+  <dt id="set_versions"><a class="permalink" href="#set_versions">set_versions</a></dt>
+  <dd>Este método establece el atributo
+      <span class="Li">"f_version"</span> con la versión de
+      DBD::File.
+    <p class="Pp">Este método es llamado al comienzo de la fase
+        <span class="Li">"connect ()"</span> .</p>
+    <p class="Pp">Al sobreescribir este método, no olvides invocar al
+        superior.</p>
+  </dd>
+  <dt id="init_valid_attributes"><a class="permalink" href="#init_valid_attributes">init_valid_attributes</a></dt>
+  <dd>Este método es llamado después de que el manejador de base de datos es instanciado como la primera inicialización de atributos.
+    <p class="Pp"><span class="Li">"DBD::File::db::init_valid_attributes"</span>
+        inicializa los atributos
+        <span class="Li">"f_valid_attrs"</span> y
+        <span class="Li">"f_readonly_attrs"</span>.</p>
+    <p class="Pp">Al sobreescribir este método, no olvides invocar al
+        superior, preferiblemente antes de hacer cualquier otra cosa. El acceso al atributo de tabla de compatibilidad debe sere inicializado aquí para permitir que DBD::File instancie el tie del mapa:</p>
+        <pre># para DBD::CSV
+$dbh-&gt;{csv_meta} = "csv_tables";
+# para DBD::DBM
+$dbh-&gt;{dbm_meta} = "dbm_tables";
+# para DBD::AnyData
+$dbh-&gt;{ad_meta}  = "ad_tables";
+</pre>
+  </dd>
+  <dt id="init_default_attributes"><a class="permalink" href="#init_default_attributes">init_default_attributes</a></dt>
+  <dd>Este método se llama después de que el gestor de base de datos sea instanciado para inicializar los atributos predeterminados.
+    <p class="Pp"><span class="Li">"DBD::File::db::init_default_attributes"</span>
+        inicializa los atributos <span class="Li">"f_dir"</span>,
+        <span class="Li">"f_meta"</span>,
+        <span class="Li">"f_meta_map"</span>,
+        <span class="Li">"f_version"</span>.</p>
+    <p class="Pp">Cuando la clase de implementación derivada proporciona el atributo para validar atributos (por ejemplo,
+        <span class="Li">"$dbh-&gt;{dbm_valid_attrs} = {...};"</span>)
+        o el atributo que contiene los atributos inmutables (por ejemplo,
+        <span class="Li">"$dbh-&gt;{dbm_readonly_attrs} =
+        {...};"</span>), los atributos
+        <span class="Li">"drv_valid_attrs"</span>,
+        <span class="Li">"drv_readonly_attrs"</span>,
+        <span class="Li">"drv_version"</span> y
+        <span class="Li">"drv_meta"</span> se añaden (cuando están disponibles)
+        a la lista de atributos válidos e inmutables (donde
+        <span class="Li">"drv_"</span> se interpreta como el prefijo del controlador).</p>
+    <p class="Pp">Si <span class="Li">"drv_meta"</span> está establecido, un atributo con el nombre en <span class="Li">"drv_meta"</span>
+        se inicializa proporcionando acceso de lectura/escritura restringido a los metadatos de las tablas usando
+        <span class="Li">"DBD::File::TieTables"</span> en el primer nivel (tabla) y <span class="Li">"DBD::File::TieMeta"</span>
+        para el nivel del atributo meta.
+        <span class="Li">"DBD::File::TieTables"</span> usa
+        <span class="Li">"DBD::DRV::Table::get_table_meta"</span> para inicializar el hash vinculado de segundo nivel en FETCH/STORE. La clase
+        <span class="Li">"DBD::File::TieMeta"</span> usa
+        <span class="Li">"DBD::DRV::Table::get_table_meta_attr"</span>
+        para obtener valores de atributos (FETCH) y
+        <span class="Li">"DBD::DRV::Table::set_table_meta_attr"</span>
+        para almacenar valores de atributos (STORE). Esto le permite mapear atributos meta por razones de compatibilidad.</p>
+  </dd>
+  <dt id="get_single_table_meta"><a class="permalink" href="#get_single_table_meta">get_single_table_meta</a></dt>
+  <dd></dd>
+  <dt id="get_file_meta"><a class="permalink" href="#get_file_meta">get_file_meta</a></dt>
+  <dd>Recupera un atributo de la información meta de una tabla. La firma del método es <span class="Li">"get_file_meta ($dbh, $table,
+      $attr)"</span>. Este método es llamado por el método del gestor de base de datos inyectado <span class="Li">"${drv_prefix}get_meta"</span>.
+    <p class="Pp">Mientras que get_file_meta permite que <span class="Li">$table</span> o
+        <span class="Li">$attr</span> sea una lista de tablas o atributos a recuperar, get_single_table_meta permite solo un nombre de tabla y solo un nombre de atributo. Un nombre de tabla de <span class="Li">'.'</span> (punto simple) se interpreta como la tabla predeterminada y esto recuperará el atributo apropiado globalmente desde el dbh. Esto tiene las mismas restricciones que
+      <span class="Li">"$dbh-&gt;{$attrib}"</span>.</p>
+    <p class="Pp">get_file_meta permite <span class="Li">'+'</span> y
+        <span class="Li">'*'</span> como comodines para nombres de tabla y
+        <span class="Li">$table</span> siendo una expresión regular que coincide con los nombres de tabla (evaluada sin la tabla predeterminada). El nombre de tabla <span class="Li">'*'</span> es <i>todas las tablas actualmente conocidas, incluyendo la predeterminada</i>. El nombre de tabla
+        <span class="Li">'+'</span> es <i>todos los nombres de tabla que cumplen con las</i>
+        <i>restricciones de nombre de archivo ANSI</i> (/^[_A-Za-z0-9]+$/).</p>
+    <p class="Pp">La información meta de la tabla se recupera usando los métodos get_table_meta y get_table_meta_attr de la clase de tabla de la implementación.</p>
+  </dd>
+  <dt id="set_single_table_meta"><a class="permalink" href="#set_single_table_meta">set_single_table_meta</a></dt>
+  <dd></dd>
+  <dt id="set_file_meta"><a class="permalink" href="#set_file_meta">set_file_meta</a></dt>
+  <dd>Establece un atributo en la información meta de una tabla. La firma del método es
+      <span class="Li">"set_file_meta ($dbh, $table, $attr,
+      $value)"</span>. Este método es llamado por el método del gestor de base de datos inyectado <span class="Li">"${drv_prefix}set_meta"</span>.
+    <p class="Pp">Mientras que set_file_meta permite que <span class="Li">$table</span> sea una lista de tablas y <span class="Li">$attr</span> sea un hash de varios atributos a establecer, set_single_table_meta permite solo un nombre de tabla y solo un par nombre de atributo/valor.</p>
+    <p class="Pp">Los caracteres comodín para el nombre de tabla son los mismos que para get_file_meta.</p>
+    <p class="Pp">La información meta de la tabla se actualiza usando los métodos get_table_meta y set_table_meta_attr de la clase de tabla de la implementación.</p>
+  </dd>
+  <dt id="clear_file_meta"><a class="permalink" href="#clear_file_meta">clear_file_meta</a></dt>
+  <dd>Borra toda la información meta almacenada en caché sobre una tabla. La firma del método es
+      <span class="Li">"clear_file_meta ($dbh, $table)"</span>. Este método es llamado por el método del gestor de base de datos inyectado
+      <span class="Li">"${drv_prefix}clear_meta"</span>.</dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::st'><a class='permalink' href='#DBD::File::st'>DBD::File::st</a></h2>
+<p class="Pp">Contiene los métodos para manejar gestores de sentencias preparadas:</p>
+<dl class="Bl-tag">
+  <dt id="FETCH~2"><a class="permalink" href="#FETCH~2">FETCH</a></dt>
+  <dd>Obtiene atributos del gestor de sentencias. Los atributos soportados (para una visión completa ver "Statement Handle Attributes" en DBI) son
+      <span class="Li">"NAME"</span>,
+      <span class="Li">"TYPE"</span>,
+      <span class="Li">"PRECISION"</span> y
+      <span class="Li">"NULLABLE"</span> en caso de que SQL::Statement se use como motor de ejecución SQL y una sentencia se prepare exitosamente. Cuando SQL::Statement tiene información adicional sobre una tabla, esa información es devuelta. De lo contrario, se usan los mismos valores predeterminados que en DBI::DBD::SqlEngine.
+    <p class="Pp">Este método usualmente requiere ser extendido en una implementación derivada. Ver DBD::CSV o DBD::DBM para algunos ejemplos.</p>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::TableSource::FileSystem'><a class='permalink' href='#DBD::File::TableSource::FileSystem'>DBD::File::TableSource::FileSystem</a></h2>
+<p class="Pp">Proporciona fuentes de datos e información de tablas a nivel de controlador de base de datos y gestor de base de datos.</p>
+<pre>package DBD::File::TableSource::FileSystem;
+sub data_sources ($;$)
+{
+    my ($class, $drh, $attrs) = @_;
+    ...
+    }
+sub avail_tables
+{
+    my ($class, $drh) = @_;
+    ...
+    }</pre>
+<p class="Pp">El método <span class="Li">"data_sources"</span> se llama cuando el usuario invoca cualquiera de los siguientes:</p>
+<pre>@ary = DBI-&gt;data_sources ($driver);
+@ary = DBI-&gt;data_sources ($driver, \%attr);
+
+@ary = $dbh-&gt;data_sources ();
+@ary = $dbh-&gt;data_sources (\%attr);</pre>
+<p class="Pp">El método <span class="Li">"avail_tables"</span> se llama cuando el usuario invoca cualquiera de los siguientes:</p>
+<pre>@names = $dbh-&gt;tables ($catalog, $schema, $table, $type);
+
+$sth   = $dbh-&gt;table_info ($catalog, $schema, $table, $type);
+$sth   = $dbh-&gt;table_info ($catalog, $schema, $table, $type, \%attr);
+$dbh-&gt;func ("list_tables");</pre>
+<p class="Pp">Cada vez que se pueda especificar un argumento <span class="Li">"\%attr"</span>
+    , el atributo <span class="Li">"sql_table_source"</span>
+    de este objeto <span class="Li">"\%attr"</span> tiene prioridad sobre el atributo <span class="Li">$dbh</span> o el valor predeterminado del controlador.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::DataSource::Stream'><a class='permalink' href='#DBD::File::DataSource::Stream'>DBD::File::DataSource::Stream</a></h2>
+<pre>package DBD::File::DataSource::Stream;
+@DBD::File::DataSource::Stream::ISA = 'DBI::DBD::SqlEngine::DataSource';
+sub complete_table_name
+{
+    my ($self, $meta, $file, $respect_case) = @_;
+    ...
+    }</pre>
+<p class="Pp">Borra todos los atributos meta que identifican un archivo:
+    <span class="Li">"f_fqfn"</span>,
+    <span class="Li">"f_fqbn"</span> y
+    <span class="Li">"f_fqln"</span>. El nombre de la tabla se establece de acuerdo con <span class="Li">$respect_case</span> y
+    <span class="Li">"$meta-&gt;{sql_identifier_case}"</span>
+    (SQL_IC_LOWER, SQL_IC_UPPER).</p>
+<pre>package DBD::File::DataSource::Stream;
+sub apply_encoding
+{
+    my ($self, $meta, $fn) = @_;
+    ...
+    }</pre>
+<p class="Pp">Aplica la codificación de la <i>información meta</i>
+    (<span class="Li">"$meta-&gt;{f_encoding}"</span>) al manejador de archivo
+    abierto en <span class="Li">"open_data"</span>.</p>
+<pre>package DBD::File::DataSource::Stream;
+sub open_data
+{
+    my ($self, $meta, $attrs, $flags) = @_;
+    ...
+    }</pre>
+<p class="Pp">Abre (<span class="Li">"dup (2)"</span>) el manejador de archivo proporcionado en
+  <span class="Li">"$meta-&gt;{f_file}"</span>.</p>
+<pre>package DBD::File::DataSource::Stream;
+sub can_flock { ... }</pre>
+<p class="Pp">Devuelve si <span class="Li">"flock (2)"</span> está disponible o no (evita volver a probar en subclases).</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::DataSource::File'><a class='permalink' href='#DBD::File::DataSource::File'>DBD::File::DataSource::File</a></h2>
+<pre>package DBD::File::DataSource::File;
+sub complete_table_name ($$;$)
+{
+    my ($self, $meta, $table, $respect_case) = @_;
+    ...
+    }</pre>
+<p class="Pp">El método <span class="Li">"complete_table_name"</span>
+    intenta mapear un nombre de archivo al nombre de tabla asociado. Es llamado con una estructura meta parcialmente llena para la tabla resultante que contiene al menos los siguientes atributos: <span class="Li">"f_ext"</span>,
+    <span class="Li">"f_dir"</span>,
+    <span class="Li">"f_lockfile"</span> y
+    <span class="Li">"sql_identifier_case"</span>.</p>
+<p class="Pp">Si se puede encontrar un mapa archivo/tabla, entonces este método establece los atributos
+    <span class="Li">"f_fqfn"</span>,
+    <span class="Li">"f_fqbn"</span>,
+    <span class="Li">"f_fqln"</span> y
+    <span class="Li">"table_name"</span> en la estructura meta. Si no se puede encontrar un mapa, el nombre de la tabla será undef.</p>
+<pre>package DBD::File::DataSource::File;
+sub open_data ($)
+{
+    my ($self, $meta, $attrs, $flags) = @_;
+    ...
+    }</pre>
+<p class="Pp">Dependiendo de los atributos establecidos en los metadatos de la tabla, se realizan los siguientes pasos. A menos que
+    <span class="Li">"f_dontopen"</span> se establezca en un valor verdadero,
+    <span class="Li">"f_fqfn"</span> debe contener el nombre de archivo completamente calificado para la tabla con la que trabajar (file2table asegura esto). La codificación en <span class="Li">"f_encoding"</span> se aplica si está establecida y el archivo se abre. Si <span class="Li">"&lt;f_fqln "</span>&gt; (completamente
+    se establece (nombre de bloqueo completamente calificado), este archivo también se abre. Dependiendo del valor en <span class="Li">"f_lock"</span>, se establece el bloqueo apropiado en el archivo de datos o en el archivo de bloqueo abierto.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::Statement'><a class='permalink' href='#DBD::File::Statement'>DBD::File::Statement</a></h2>
+<p class="Pp">Se deriva de DBI::SQL::Nano::Statement para proporcionar el siguiente método:</p>
+<dl class="Bl-tag">
+  <dt id="open_table"><a class="permalink" href="#open_table">open_table</a></dt>
+  <dd>Implementa el método open_table requerido por SQL::Statement y DBI::SQL::Nano. Todo el trabajo para abrir los archivos pertenecientes a la tabla se maneja y parametriza en DBD::File::Table. A menos que pretenda añadir algo a la siguiente implementación, un paquete DBD::XXX::Statement vacío satisface a DBD::File.
+        <pre>sub open_table ($$$$$)
+{
+    my ($self, $data, $table, $createMode, $lockMode) = @_;
+    my $class = ref $self;
+    $class =~ s/::Statement/::Table/;
+    my $flags = {
+        createMode =&gt; $createMode,
+        lockMode   =&gt; $lockMode,
+        };
+    $self-&gt;{command} eq "DROP" and $flags-&gt;{dropMode} = 1;
+    return $class-&gt;new ($data, { table =&gt; $table }, $flags);
+    } # open_table
+</pre>
+  </dd>
+</dl>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='DBD::File::Table'><a class='permalink' href='#DBD::File::Table'>DBD::File::Table</a></h2>
+<p class="Pp">Se deriva de DBI::SQL::Nano::Table y proporciona acceso físico a los datos de la tabla que están almacenados en los archivos.</p>
+<dl class="Bl-tag">
+  <dt id="bootstrap_table_meta"><a class="permalink" href="#bootstrap_table_meta">bootstrap_table_meta</a></dt>
+  <dd>Inicializa una estructura de metadatos de tabla. Puede ser sobrescrito de forma segura en una clase derivada, siempre que el método <span class="Li">"SUPER"</span> se llame al final del método sobrescrito.
+    <p class="Pp">Copia los siguientes atributos de la base de datos a los metadatos de la tabla: <span class="Li">"f_dir"</span>,
+        <span class="Li">"f_ext"</span>,
+        <span class="Li">"f_encoding"</span>,
+        <span class="Li">"f_lock"</span>,
+        <span class="Li">"f_schema"</span> y
+        <span class="Li">"f_lockfile"</span> y los hace permanentes en la tabla.</p>
+    <p class="Pp">Este método debe llamarse antes de intentar mapear entre el nombre del archivo y el nombre de la tabla para asegurarse de que se utilicen el directorio, la extensión, etc., correctos.</p>
+  </dd>
+  <dt id="init_table_meta"><a class="permalink" href="#init_table_meta">init_table_meta</a></dt>
+  <dd>Inicializa más atributos de los metadatos de la tabla - generalmente los más costosos (p. ej., aquellos que requieren la instanciación de clases) - cuando se ha podido mapear el nombre del archivo y el nombre de la tabla.</dd>
+  <dt id="get_table_meta"><a class="permalink" href="#get_table_meta">get_table_meta</a></dt>
+  <dd>Devuelve los metadatos de la tabla. Si no existen para la tabla requerida, se inicializa uno nuevo. Cuando falla, no se devuelve nada. En caso de éxito, se devuelve el nombre de la tabla y la estructura de metadatos.</dd>
+  <dt id="get_table_meta_attr"><a class="permalink" href="#get_table_meta_attr">get_table_meta_attr</a></dt>
+  <dd>Devuelve un único atributo de los metadatos de la tabla. Si el nombre del atributo aparece en <span class="Li">%compat_map</span>, el nombre del atributo se actualiza desde allí.</dd>
+  <dt id="set_table_meta_attr"><a class="permalink" href="#set_table_meta_attr">set_table_meta_attr</a></dt>
+  <dd>Establece un único atributo en los metadatos de la tabla. Si el nombre del atributo aparece en <span class="Li">%compat_map</span>, el nombre del atributo se actualiza desde allí.</dd>
+  <dt id="table_meta_attr_changed"><a class="permalink" href="#table_meta_attr_changed">table_meta_attr_changed</a></dt>
+  <dd>Se llama cuando se modifica un atributo de los metadatos.
+    <p class="Pp">Si el atributo modificado requiere restablecer un atributo calculado, el atributo calculado se restablece (se elimina de la estructura de metadatos) y el indicador <i>initialized</i> también se elimina. La decisión se toma basándose en <span class="Li">%register_reset_on_modify</span>.</p>
+  </dd>
+  <dt id="register_reset_on_modify"><a class="permalink" href="#register_reset_on_modify">register_reset_on_modify</a></dt>
+  <dd>Permite que <span class="Li">"set_table_meta_attr"</span> restablezca metaatributos cuando se modifican atributos especiales. Para DBD::File, modificar uno de <span class="Li">"f_file"</span>,
+      <span class="Li">"f_dir"</span>,
+      <span class="Li">"f_ext"</span> o
+      <span class="Li">"f_lockfile"</span> restablecerá
+      <span class="Li">"f_fqfn"</span>. DBD::DBM amplía la lista para
+      <span class="Li">"dbm_type"</span> y
+      <span class="Li">"dbm_mldbm"</span> para restablecer el valor de
+      <span class="Li">"dbm_tietype"</span>.
+    <p class="Pp">Si su DBD tiene valores calculados en el área de metadatos, entonces llame a <span class="Li">"register_reset_on_modify"</span>:</p>
+        <pre>my %reset_on_modify = (xxx_foo =&gt; "xxx_bar");
+__PACKAGE__-&gt;register_reset_on_modify (\%reset_on_modify);
+</pre>
+  </dd>
+  <dt id="register_compat_map"><a class="permalink" href="#register_compat_map">register_compat_map</a></dt>
+  <dd>Permite que <span class="Li">"get_table_meta_attr"</span> y
+      <span class="Li">"set_table_meta_attr"</span> actualicen el nombre del atributo al actualmente preferido:
+        <pre># from DBD::DBM
+my %compat_map = (dbm_ext =&gt; "f_ext");
+__PACKAGE__-&gt;register_compat_map (\%compat_map);
+</pre>
+  </dd>
+  <dt id="open_file"><a class="permalink" href="#open_file">open_file</a></dt>
+  <dd>Se llama para abrir el archivo de datos de la tabla.
+    <p class="Pp">Dependiendo de los atributos establecidos en los metadatos de la tabla, se realizan los siguientes pasos. A menos que
+        <span class="Li">"f_dontopen"</span> esté establecido a un valor verdadero,
+        <span class="Li">"f_fqfn"</span> debe contener el nombre de archivo completamente calificado para que la tabla funcione (file2table se asegura de esto). La codificación en <span class="Li">"f_encoding"</span> se aplica si está establecida y el archivo se abre. Si
+        <span class="Li">"&lt;f_fqln "</span>&gt; (nombre de bloqueo completamente calificado) está establecido, este archivo también se abre. Dependiendo del valor en
+        <span class="Li">"f_lock"</span>, se establece el bloqueo apropiado en el archivo de datos o en el archivo de bloqueo abierto.</p>
+    <p class="Pp">Después de que esto se haya hecho, una clase derivada podría añadir más pasos en un método <span class="Li">"open_file"</span> sobrescrito.</p>
+  </dd>
+  <dt id="new"><a class="permalink" href="#new">new</a></dt>
+  <dd>Instancia la tabla. Esto se hace en 3 pasos:
+        <pre>1. obtener los metadatos de la tabla
+2. abrir el archivo de datos
+3. hacer bless a la estructura de datos de la tabla usando el constructor heredado new
+</pre>
+    <p class="Pp">No se recomienda sobrescribir el constructor de la clase de tabla. Encuentre un lugar razonable para añadir sus extensiones en uno de los cuatro métodos anteriores.</p>
+  </dd>
+  <dt id="drop"><a class="permalink" href="#drop">drop</a></dt>
+  <dd>Implementa el método abstracto de tabla para el comando
+      <span class="Li">"DROP"</span> . Descarta los metadatos de la tabla después de que todos los archivos pertenecientes a la tabla se hayan cerrado y desvinculado.
+    <p class="Pp">Sobrescribir este método podría ser razonable en casos muy raros.</p>
+  </dd>
+  <dt id="seek"><a class="permalink" href="#seek">seek</a></dt>
+  <dd>Implementa el método abstracto de tabla utilizado al acceder a la tabla desde el motor. <span class="Li">"seek"</span> se llama cada vez que el motor usa algoritmos tontos para iterar sobre el contenido de la tabla.</dd>
+  <dt id="truncate"><a class="permalink" href="#truncate">truncate</a></dt>
+  <dd>Implementa el método abstracto de tabla utilizado cuando los algoritmos tontos de tabla para
+      <span class="Li">"UPDATE"</span> o
+      <span class="Li">"DELETE"</span> necesitan truncar el almacenamiento de la tabla después de la última fila escrita.</dd>
+</dl>
+<p class="Pp">Debería consultar la documentación de
+    <span class="Li">"SQL::Eval::Table"</span> (ver SQL::Eval) para obtener más información sobre los métodos abstractos de la clase base de la tabla que tiene que sobrescribir y una descripción de la información meta de la tabla esperada por los motores SQL.</p>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHOR'><a class='permalink' href='#AUTHOR'>AUTOR</a></h1>
+<p class="Pp">El módulo DBD::File es actualmente mantenido por</p>
+<p class="Pp">H.Merijn Brand &lt; h.m.brand at xs4all.nl &gt; y Jens Rehsack
+    &lt; rehsack at googlemail.com &gt;</p>
+<p class="Pp">El autor original es Jochen Wiedmann.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='COPYRIGHT_AND_LICENSE'><a class='permalink' href='#COPYRIGHT_AND_LICENSE'>DERECHOS DE AUTOR Y LICENCIA</a></h1>
+<p class="Pp">Copyright (C) 2010-2013 by H.Merijn Brand &amp; Jens Rehsack</p>
+<p class="Pp">Todos los derechos reservados.</p>
+<p class="Pp">Puede distribuir y/o modificar libremente este módulo bajo los términos de la Licencia Pública General de GNU (GPL) o la Licencia Artística, según se especifica en el archivo README de Perl.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2025-07-13</td>
+    <td class="foot-os">perl v5.42.0</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/perl-dbi/">extra/perl-dbi</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.647-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="http://search.cpan.org/dist/DBI/">http://search.cpan.org/dist/DBI/</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-dbi/">/listing/extra/perl-dbi/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Índice</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#CLASSES">CLASES</a></li>
+        
+            <li><a href="#AUTHOR">AUTOR</a></li>
+        
+            <li><a href="#COPYRIGHT_AND_LICENSE">DERECHOS DE AUTOR Y LICENCIA</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/DBD::File::Developers.3pm.en.txt">txt</a>, 
+        
+            <a href="/man/DBD::File::Developers.3pm.en.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+            <p>El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>
+               , excepto por el contenido de las páginas de manual, que tienen su propia licencia especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>

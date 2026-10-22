@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>fi_arch(7) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">fi_arch(7)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/x86_64/libfabric/">libfabric</a></p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">fi_arch(7)</td>
+    <td class="head-vol">Libfabric v2.3.1</td>
+    <td class="head-rtitle">fi_arch(7)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>     /
+    / (9 CONECTADO)
+</pre>
+  </dd>
+</dl>
+<p class="Pp">/Event</p>
+<p class="Pp">/</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>Las conexiones requieren el uso de puntos finales pasivos y activos.
+Para establecer una conexión, una aplicación debe primero crear un
+punto final pasivo y asociarlo con una cola de eventos. La cola de eventos
+se utilizará para informar los eventos de gestión de la conexión. La aplicación
+luego llama a listen en el punto final pasivo. Un único punto final pasivo puede
+ser utilizado para formar múltiples conexiones.
+El par que se conecta asigna un punto final activo, que también está
+asociado con una cola de eventos. Connect se llama en el punto final activo,
+lo que resulta en el envío de una solicitud de conexión (CONNREQ)
+mensaje al punto final pasivo. El evento CONNREQ se inserta en la cola de
+eventos del punto final pasivo, donde la aplicación que escucha puede
+procesarlo.
+Al procesar el CONNREQ, la aplicación que escucha asignará
+un punto final activo para usarlo con la conexión. El punto final activo está
+vinculado con una cola de eventos. Aunque el diagrama muestra el uso de una
+cola de eventos separada, el punto final activo puede usar la misma cola de
+eventos que se usa para el punto final pasivo. Accept se llama en el punto final
+activo para finalizar la formación de la conexión. Cabe señalar que la llamada
+OFI accept es diferente de la llamada accept utilizada por los sockets. Las
+diferencias se deben a que OFI admite la E/S directa de procesos.
+libfabric no define el protocolo de establecimiento de conexión, pero
+admite un handshake tradicional de tres vías utilizado por muchas tecnologías.
+Después de llamar a accept, se envía una respuesta al punto final activo que se
+conecta.
+Esa respuesta genera un evento CONNECTED en la cola de eventos remota. Si se usa
+un handshake de tres vías, el punto final remoto generará un
+mensaje de acuse de recibo que generará un evento CONNECTED para el punto final
+que acepta. Independientemente del protocolo de conexión, tanto el lado activo
+como el pasivo de la conexión recibirán un evento CONNECTED que indica que la
+conexión se ha establecido.
+## Comunicaciones sin conexión
+La comunicación sin conexión permite transferencias de datos entre puntos
+finales activos sin pasar por un proceso de configuración de conexión. El
+diagrama a continuación muestra los componentes básicos necesarios para
+configurar la comunicación sin conexión.
+La configuración de la comunicación sin conexión difiere de los sockets UDP en que
+requiere que las direcciones remotas se almacenen con libfabric.
+</pre>
+  </dd>
+</dl>
+<p class="Pp">1 insert_addr() 2 send() | | /Dirección &lt;&#x2013;3
+    buscar&gt; / Activo</p>
+<p class="Pp">/ /</p>
+<dl class="Bl-tag">
+  <dt></dt>
+  <dd>
+    <pre>libfabric requiere que las direcciones de los puntos finales pares se inserten en una
+tabla de direccionamiento local, o vector de direcciones, antes de que las
+transferencias de datos puedan iniciarse contra el punto final remoto. Los
+vectores de direcciones abstraen los requisitos de direccionamiento específicos
+de la red y evitan largos retrasos en la cola en las transferencias de datos
+cuando se necesita resolución de direcciones. Por ejemplo, las direcciones IP pueden
+necesitar ser resueltas en direcciones MAC de Ethernet. Los vectores de
+direcciones permiten que esta resolución ocurra durante el tiempo de inicialización
+de la aplicación. libfabric no define cómo se implementa un vector de
+direcciones, solo su modelo conceptual.
+Todos los puntos finales sin conexión que transfieren datos deben asociarse con un
+vector de direcciones.
+# Puntos finales
+A bajo nivel, los puntos finales suelen asociarse con un contexto de transmisión, o
+cola, y un contexto de recepción, o cola. Aunque los términos colas de
+transmisión y recepción son más fáciles de entender, libfabric utiliza la
+terminología contexto, ya que no se garantiza el comportamiento similar a una cola
+de actuar como FIFO (primero en entrar, primero en salir). Los contextos de
+transmisión y recepción pueden implementarse utilizando colas de hardware
+mapeadas directamente al espacio de direcciones del proceso. Un punto final
+puede configurarse solo para transmitir o recibir datos. Las solicitudes de
+transferencia de datos son convertidas por el proveedor subyacente en comandos
+que se insertan en los contextos de transmisión y/o recepción de hardware.
+Los puntos finales también se asocian con colas de finalización. Las colas de
+finalización se utilizan para informar la finalización de las operaciones
+asíncronas de transferencia de datos.
+## Contextos compartidos
+Un modelo de uso avanzado permite compartir recursos entre múltiples puntos
+finales. La forma más común de compartir es tener múltiples puntos finales
+conectados que utilicen un único contexto de recepción. Esto puede reducir los
+requisitos de almacenamiento en búfer del lado de la recepción, lo que permite
+que el número de puntos finales conectados que una aplicación puede gestionar
+escala a números mayores.
+# Transferencias de datos
+Obviamente, un objetivo principal de la comunicación en red es transferir
+datos entre procesos que se ejecutan en diferentes sistemas. De manera similar
+a como la API de socket define diferentes semánticas de transferencia de datos
+para sockets TCP versus UDP, es decir, mensajes de streaming versus datagramas,
+libfabric define diferentes tipos de transferencias de datos. Sin embargo, a
+diferencia de los sockets, libfabric permite diferentes semánticas sobre un
+único punto final, incluso al comunicarse con el mismo par.
+libfabric utiliza conjuntos de API separados para las diferentes semánticas de
+transferencia de datos; aunque, existen fuertes similitudes entre los conjuntos
+de API. Las diferencias son el resultado de los parámetros necesarios para invocar
+cada tipo de transferencia de datos.
+## Transferencias de mensajes
+Las transferencias de mensajes son las más similares a las transferencias de
+datagramas UDP, excepto que las transferencias pueden enviarse y recibirse de
+forma fiable. Las transferencias de mensajes también pueden tener un tamaño de
+gigabytes, dependiendo de la implementación del proveedor. El remitente solicita
+que los datos se transfieran como una única operación de transporte a un par.
+Incluso si los datos se referencian mediante un vector de E/S, se tratan como una
+única unidad lógica o mensaje. Los datos se colocan en un búfer de recepción
+en espera en el par, y el búfer de recepción se elige generalmente mediante
+ordenación FIFO.
+Tenga en cuenta que, aunque los búferes de recepción se seleccionan mediante
+ordenación FIFO, los mensajes recibidos pueden completarse fuera de orden. Esto
+puede ocurrir como resultado de que los datos entre y dentro de los mensajes
+tomen diferentes rutas a través de la red, el manejo de paquetes perdidos o
+retransmitidos, etc.
+Las transferencias de mensajes se invocan generalmente mediante llamadas a la API
+que contienen la cadena "send" o "recv". Como resultado, pueden ser
+denominadas simplemente mensajes enviados o recibidos.
+Las transferencias de mensajes implican que el proceso de destino publique búferes
+de memoria en el contexto de recepción (Rx) de su punto final. Cuando llega un
+mensaje de la red, se extrae un búfer de recepción del contexto Rx y los datos se
+copian de la red al búfer de recepción. Los mensajes se emparejan con las
+recepciones publicadas en el orden en que se reciben. Tenga en cuenta que esto
+puede diferir del orden en que se envían los mensajes, dependiendo de las
+semánticas de ordenación del lado de la transmisión.
+Conceptualmente, en el lado de la transmisión, los mensajes se publican en un
+contexto de transmisión (Tx). La red procesa los mensajes del contexto Tx,
+empaquetando los datos en mensajes salientes. Aunque muchas implementaciones
+procesan el contexto Tx en orden (es decir, el contexto Tx es una cola real), las
+garantías de ordenación especificadas a través de la API libfabric determinan
+el orden de procesamiento real. Como regla general, cuanto más relajada sea la
+aplicación en cuanto al orden de los mensajes y los datos, más optimizaciones
+podrá aprovechar el software y el hardware de red, proporcionando un mejor
+rendimiento.
+## Mensajes etiquetados
+Los mensajes etiquetados son similares a las transferencias de mensajes, excepto
+que los mensajes llevan una información adicional, una etiqueta de mensaje. Las
+etiquetas son valores definidos por la aplicación que forman parte del protocolo de
+transferencia de mensajes y se utilizan para enrutar paquetes en el receptor. A un
+alto nivel, son aproximadamente similares a los ID de mensajes. La diferencia es que
+los valores de etiqueta los establece la aplicación, pueden ser cualquier valor y se
+permiten valores de etiqueta duplicados.
+Cada mensaje enviado lleva un único valor de etiqueta, que se utiliza para
+seleccionar un búfer de recepción en el que se copian los datos. En el lado de la
+recepción, los búferes de mensajes también se marcan con una etiqueta. Los mensajes
+que llegan de la red buscan entre los mensajes de recepción publicados hasta que
+se encuentra una etiqueta coincidente.
+Las etiquetas se utilizan a menudo para identificar grupos de comunicación virtuales o
+roles. En la práctica, las etiquetas de mensajes se suelen dividir en campos. Por
+ejemplo, los 16 bits superiores de la etiqueta pueden indicar un grupo virtual, y los
+16 bits inferiores identifican el propósito del mensaje. La interfaz de mensajes
+de etiqueta en libfabric está diseñada en torno a este modelo de uso. Cada mensaje
+enviado lleva exactamente un valor de etiqueta, especificado a través de la API. En
+el receptor, los búferes se asocian con un valor de etiqueta y una máscara. La
+máscara se utiliza como parte del proceso de coincidencia de búferes. La máscara
+se aplica contra el valor de etiqueta recibido transportado en el mensaje enviado
+antes de comprobar la etiqueta contra el búfer de recepción. Por ejemplo, la
+máscara puede indicar que se ignoren los 16 bits inferiores de una etiqueta. Si los
+valores resultantes coinciden, entonces se dice que las etiquetas coinciden. Los
+datos recibidos se colocan entonces en el búfer coincidente.
+Por razones de rendimiento, la máscara se especifica como bits de 'ignorar'. Aunque
+esto es a la inversa de cómo muchos desarrolladores piensan en una máscara (donde
+los bits que son válidos se establecerían en 1), la definición finalmente se
+corresponde bien con las aplicaciones. La operación real realizada al hacer
+coincidir las etiquetas es:
+</pre>
+  </dd>
+</dl>
+<p class="Pp">send_tag | ignore == recv_tag | ignore</p>
+<p class="Pp">/* esto es equivalente a: * send_tag &amp; ~ignore == recv_tag
+    &amp; ~ignore */ ```</p>
+<p class="Pp">Los mensajes etiquetados son el equivalente a las transferencias de
+    mensajes si se utiliza un único valor de etiqueta. Pero los mensajes
+    etiquetados requieren que el receptor realice una operación de coincidencia
+    en el destino, lo que puede afectar el rendimiento en comparación con los
+    mensajes sin etiquetar.</p>
+<section class="Ss">
+<h2 class="Ss" id='RMA'><a class='permalink' href='#RMA'>RMA</a></h2>
+<p class="Pp">Las operaciones RMA están diseñadas de tal manera que pueden no
+    requerir ningún procesamiento de la CPU en el destino RMA. Las NIC que
+    descargan el transporte</p>
+</section>
+</div>
+</section>
+
+            </article>
+        </main>
+    </body>
+</html>
+    La funcionalidad RMA puede realizar operaciones RMA sin afectar el procesamiento del host.
+    Las operaciones de escritura RMA transmiten datos desde el iniciador hasta el destino.
+    La ubicación de memoria donde se deben escribir los datos se incluye dentro del propio mensaje de transporte, con comprobaciones de verificación en el destino para prevenir accesos no </p>válidos.
+<p class="Pp">Las operaciones de lectura RMA obtienen datos del sistema destino y los transfieren
+    de vuelta al iniciador de la solicitud, donde se colocan en memoria.
+    Esto también se puede hacer sin involucrar al procesador del host en el sistema
+    destino cuando la NIC soporta descarga de transporte (transport offloading)</p>.
+<p class="Pp">La ventaja de las operaciones RMA es que desacoplan el
+    procesamiento de los pares. Los datos pueden ser colocados o recuperados siempre que el
+    iniciador esté listo sin necesariamente impactar al proceso </p>par.
+<p class="Pp">Debido a que las operaciones RMA permiten a un par acceder directamente a la memoria
+    de un proceso, se utilizan mecanismos de prot</p>ección adicionales para prevenir
+    accesos no intencionados o no deseados. La memoria RMA que es actualizada por una operación
+    d</section>e escritura o es recuperada por una operación de lectura debe ser registrada para acceso
+    con los permisos correctos especificados.
+<section class="Ss">
+<h2 class="Ss" id='Atomic_operations'><a class='permalink' href='#Atomic_operations'>Operaciones </a></h2>atómicas
+<p class="Pp">Las transferencias atómicas se utilizan para leer y actualizar datos ubicados en
+    regiones de memoria remotas de manera atómica. Conceptualmente, son similares
+    a las operaciones atómicas locales de naturaleza similar (por ejemplo, incremento
+    atómico, intercambio condicional (compare and swap), etc.). El beneficio de las operaciones atómicas es que
+    permiten descargar capacidades aritméticas básicas en una NIC. A diferencia de otras
+    operaciones de transferencia de datos, que simplemente necesitan transferir bytes de datos,
+    las operaciones atómicas requieren conocimiento del formato de los datos a los que se </p>accede.
+<p class="Pp">Una única función atómica opera sobre un arreglo de datos,
+    aplicando una operación atómica a cada entrada. La atomicidad de una operación está
+ </p>   limitada a un único tipo de dato o entrada, sin embargo, no a todo el
+    arreglo. libfabric define una amplia variedad de operaciones atómicas p</section>ara todos
+    los tipos de datos comunes. Sin embargo, el soporte para una operación dada depende de la
+    implementación del proveedor (provider).
+<section class="Ss">
+<h2 class="Ss" id='Collective_operations'><a class='permalink' href='#Collective_operations'>Operaciones </a></h2>colectivas
+<p class="Pp">En general, las operaciones colectivas pueden ser consideradas como operaciones atómicas
+    coordinadas entre un conjunto de puntos finales (endpoints) pares, casi como una
+    solicitud atómica de multidifusión (multicast). Una única operación colectiva puede resultar en que datos sean
+    recolectados de múltiples pares, combinados usando un conjunto de primitivas atómicas,
+    y los resultados distribuidos a todos los pares. Una operación colectiva es un
+    intercambio de comunicación de grupo. Involucra a múltiples pares intercambiando datos con
+    otros pares que participan en la llamada colectiva. Las operaciones colectivas
+    requieren una coordinación estrecha por parte de todos los miembros participantes, y las llamadas
+    colectivas pueden saturar el fabric, así como los búferes de datos locales y </p>remotos.
+<p class="Pp">Las operaciones colectivas son un área de investigación intensa, con
+    bibliotecas dedicadas enfocadas casi exclusivamente en implementar operaciones
+    colectivas eficientemente. Dichas bibliotecas son un objeti</p>vo específico de libfabric.
+    El objetivo principal de las APIs de colectivas de libfabric es exponer
+    características de aceleración de red para implementar colectivas a bibliotecas de nivel superior
+    y ap</section>licaciones. Se recomienda que las aplicaciones que necesiten comunicación
+    colectiva se dirijan a bibliotecas de nivel superior, como MPI, en lugar de usar
+    las APIs colectivas de libfabric para ese propósito.
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS'><a class='permalink' href='#AUTHORS'>AUTORE</a></h1>S
+<p class="Pp">Ope</p>nFa</section>bri</div>cs.
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-12</td>-10
+    <td class="foot-os">Manual</td> del P</tr>rogram</table>ador </section>de Lib</article>fabric
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Search manual page" name="q" value=""
+         />
+    <input type="submit" name="go" value="Go" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del </p>paquete:
+    <dl>
+        <dt>Nombre del </dt>paquete:
+        <dd><a href="https://www.archlinux.org/packages/extra/x86_64/libfabric/">extra/lib</a></dd>fabric
+        <dt>Vers</dt>ión:
+        <dd>2.</dd>3.1-1
+        <dt>Upst</dt>ream:
+        <dd><a href="https://ofiwg.github.io/libfabric/">https://ofiwg.github.</a></dd>io/libfabric/
+        <dt>Licen</dt>cias:
+        <dd>BSD-2-Clause OR GPL-2.</dd>0-or-later
+        <dt>Manu</dt>ales:
+        <dd><a href="/listing/extra/libfabric/">/listi</a></dd>ng/ext</dl>ra/libf</section>abric/
+
+<details>
+    <summary>Tabla de </summary>contenidos
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#AUTHORS">A</a></li>UTO</ul>R</nav>E</details>S
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/fi_arch.7.en.txt">t</a>xt, 
+        
+            <a href="/man/fi_arch.7.en.raw"></a>r</p>a</nav></aside></main>w
+        <footer>
+            de manual.
+            <p>El sitio web está disponible bajo los términos de la <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
+               licencia</a>, excepto por el contenido de l</p>as páginas de manual, que tiene</footer>n su propia licencia
+          </body>     especificada en el paquete</html> correspondiente de Arch Linux.

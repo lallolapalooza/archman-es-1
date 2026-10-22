@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>POE::Filter::Stackable(3pm) — Páginas del manual de Arch</title>
+        
+        
+        
+        
+        
+    
+    
+
+    <link rel="stylesheet" href="basic.css">
+</head>
+    <body>
+<p class="back"><a href="/archman-es-1/">← Índice</a></p>
+<h1 class="page-title">POE__Filter__Stackable(3pm)</h1>
+<p class="pkg">Paquete: <a href="https://archlinux.org/packages/extra/any/perl-poe/">perl-poe</a></p>
+<p class="lic">Licencias: GPL, PerlArtistic</p>
+
+        
+        <main id="content">
+            
+            <article id="content-left">
+                
+<section class="man-page-content">
+    <table class="head">
+  <tr>
+    <td class="head-ltitle">POE::Filter::Stackable(3)</td>
+    <td class="head-vol">Documentación de Perl contribuida por el usuario</td>
+    <td class="head-rtitle">POE::Filter::Stackable(3)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<br/>
+<section class="Sh">
+<h1 class="Sh" id='NAME'><a class='permalink' href='#NAME'>NOMBRE</a></h1>
+<p class="Pp">POE::Filter::Stackable - combina múltiples objetos POE::Filter</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SYNOPSIS'><a class='permalink' href='#SYNOPSIS'>SINOPSIS</a></h1>
+<pre>#!perl
+use POE qw(
+  Wheel::FollowTail
+  Filter::Line Filter::Grep Filter::Stackable
+);
+POE::Session-&gt;create(
+  inline_states =&gt; {
+    _start =&gt; sub {
+      my $parse_input_as_lines = POE::Filter::Line-&gt;new();
+      my $select_sudo_log_lines = POE::Filter::Grep-&gt;new(
+        Put =&gt; sub { 1 },
+        Get =&gt; sub {
+          my $input = shift;
+          return $input =~ /sudo\[\d+\]/i;
+        },
+      );
+      my $filter_stack = POE::Filter::Stackable-&gt;new(
+        Filters =&gt; [
+          $parse_input_as_lines, # último en put, primero en get
+          $select_sudo_log_lines, # primero en put, último en get
+        ]
+      );
+      $_[HEAP]{tailor} = POE::Wheel::FollowTail-&gt;new(
+        Filename =&gt; &quot;/var/log/system.log&quot;,
+        InputEvent =&gt; &quot;got_log_line&quot;,
+        Filter =&gt; $filter_stack,
+      );
+    },
+    got_log_line =&gt; sub {
+      print &quot;Log: $_[ARG0]\n&quot;;
+    }
+  }
+);
+POE::Kernel-&gt;run();
+exit;</pre>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='DESCRIPTION'><a class='permalink' href='#DESCRIPTION'>DESCRIPCIÓN</a></h1>
+<p class="Pp">POE::Filter::Stackable combina múltiples filtros de tal manera que
+    parecen ser un solo filtro. Todos los métodos habituales de POE::Filter
+    funcionan, pero los datos se pasan secretamente a través de los filtros
+    apilados antes de ser devueltos. Los objetos POE::Wheel y los programas
+    independientes no necesitan modificaciones para funcionar con una pila de
+    filtros.</p>
+<p class="Pp">En la &quot;SINOPSIS&quot;, POE::Filter::Line y
+    POE::Filter::Grep se combinan en un solo filtro que solo devuelve un tipo
+    particular de línea. Esto puede ser más eficiente que filtrar líneas en el
+    espacio de la aplicación, ya que es posible que se deban despachar y
+    manejar menos eventos.</p>
+<p class="Pp">Internamente, los filtros se almacenan en un array.</p>
+<p class="Pp">Los datos añadidos por <b>get_one_start()</b> fluirán a través
+    del array de filtros en orden de índice creciente. El filtro #0 tendrá la
+    primera oportunidad, seguido por el filtro #1 y así sucesivamente. La llamada
+    a <b>get_one()</b> devolverá un elemento después de que haya pasado por el
+    último filtro.</p>
+<p class="Pp"><b>put()</b> pasa los datos a través de los filtros en orden de
+    índice descendente. Los datos pasarán primero por el filtro con el índice más
+    alto, y <b>put()</b> devolverá los resultados después de que los datos hayan
+    pasado por el filtro #0.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='PUBLIC_FILTER_METHODS'><a class='permalink' href='#PUBLIC_FILTER_METHODS'>MÉTODOS PÚBLICOS DE FILTRO</a></h1>
+<p class="Pp">Además de los métodos habituales de POE::Filter,
+    POE::Filter::Stackable también soporta lo siguiente.</p>
+<section class="Ss">
+<h2 class="Ss" id='new'><a class='permalink' href='#new'>new</a></h2>
+<p class="Pp">Por defecto, <b>new()</b> crea una pila de filtros vacía que se
+    comporta como POE::Filter::Stream. Puede recibir parámetros opcionales para
+    inicializar la pila con un array de filtros.</p>
+<pre>my $sudo_lines = POE::Filter::Stackable-&gt;new(
+  Filters =&gt; [
+    POE::Filter::Line-&gt;new(),
+    POE::Filter::Grep-&gt;new(
+      Put =&gt; sub { 1 }, # poner todos los elementos
+      Get =&gt; sub { shift() =~ /sudo\[\d+\]/i },
+    ),
+  ]
+);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='pop'><a class='permalink' href='#pop'>pop</a></h2>
+<p class="Pp">Se comporta como el <b>pop()</b> incorporado de Perl para la pila
+    de filtros. El filtro con el índice más alto se elimina de la pila y se
+    devuelve. Cualquier dato que quede en el búfer de entrada del filtro se
+    pierde, pero una aplicación siempre puede llamar a &quot;get_pending&quot; en
+    POE::Filter en el filtro devuelto.</p>
+<pre>my $last_filter = $stackable-&gt;pop();
+my $last_buffer = $last_filter-&gt;get_pending();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='shift'><a class='permalink' href='#shift'>shift</a></h2>
+<p class="Pp">Se comporta como el <b>shift()</b> incorporado de Perl para la pila
+    de filtros. El filtro 0 se elimina de la pila y se devuelve. Cualquier dato
+    que quede en el búfer de entrada del filtro se pasa al nuevo primer elemento
+    de la pila, o se pierde si la pila queda vacía. Una aplicación también puede
+    llamar a &quot;get_pending&quot; en POE::Filter en el filtro devuelto para
+    examinar el búfer de entrada del filtro.</p>
+<pre>my $first_filter = $stackable-&gt;shift();
+my $first_buffer = $first_filter-&gt;get_pending();</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='push_FILTER[,_FILTER]'><a class='permalink' href='#push_FILTER%5B,_FILTER%5D'>push   FILTRO[, FILTRO]</a></h2>
+<p class="Pp"><b>push()</b> añade uno o más FILTROs nuevos al final de la pila.
+    Los FILTROs recién añadidos procesarán la entrada en último lugar y manejarán
+    la salida en primer lugar.</p>
+<pre># Invertir datos leídos a través de la pila.
+# Codificar rot13 los datos enviados a través de la pila.
+$stackable-&gt;push(
+  POE::Filter::Map-&gt;(
+    Get =&gt; sub { return scalar reverse shift() },
+    Put =&gt; sub { local $_ = shift(); tr[a-zA-Z][n-za-mN-ZA-M]; $_ },
+  )
+);</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='unshift_FILTER[,_FILTER]'><a class='permalink' href='#unshift_FILTER%5B,_FILTER%5D'>unshift   FILTRO[, FILTRO]</a></h2>
+<p class="Pp"><b>unshift()</b> añade uno o más FILTROs nuevos al principio de la
+    pila. Los FILTROs recién añadidos procesarán la entrada en primer lugar y
+    manejarán la salida en último lugar.</p>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='filters'><a class='permalink' href='#filters'>filters</a></h2>
+<p class="Pp"><b>filters()</b> devuelve una lista de los filtros dentro del
+    filtro Stackable, en el orden nativo de la pila.</p>
+<p class="Pp">Llamar a
+    <span class="Li">&quot;$filter_stack-&gt;filters()&quot;</span> en la
+    &quot;SINOPSIS&quot; devolvería una lista de dos objetos filtro:</p>
+<pre>POE::Filter::Line=ARRAY(0x8b5ee0)
+POE::Filter::Grep=ARRAY(0x8b5f7c)</pre>
+</section>
+<section class="Ss">
+<h2 class="Ss" id='filter_types'><a class='permalink' href='#filter_types'>filter_types</a></h2>
+<p class="Pp"><b>filter_types()</b> devuelve una lista de nombres de clase para
+    cada filtro en la pila, en el orden nativo de la pila.</p>
+<p class="Pp">Llamar a
+    <span class="Li">&quot;$filter_stack-&gt;filter_types()&quot;</span> en la
+    &quot;SINOPSIS&quot; devolvería una lista de dos nombres de clase:</p>
+<pre>POE::FIlter::Line
+POE::Filter::Grep</pre>
+<p class="Pp">Podría ser fácilmente reemplazado por:</p>
+<pre>my @filter_types = map { ref } $filter_stack-&gt;filters;</pre>
+</section>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='SEE_ALSO'><a class='permalink' href='#SEE_ALSO'>VER TAMBIÉN</a></h1>
+<p class="Pp">POE para más información sobre filtros en general.</p>
+<p class="Pp">Filtros específicos, entre los que se incluyen: POE::Filter::Block,
+    POE::Filter::Grep, POE::Filter::HTTPD, POE::Filter::Line, POE::Filter::Map,
+    POE::Filter::RecordBlock, POE::Filter::Reference, POE::Filter::Stream</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='BUGS'><a class='permalink' href='#BUGS'>ERRORES</a></h1>
+<p class="Pp">Ninguno conocido actualmente.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id='AUTHORS_&amp;amp;_COPYRIGHTS'><a class='permalink' href='#AUTHORS_&amp;amp;_COPYRIGHTS'>AUTORES   &amp; COPYRIGHTS</a></h1>
+<p class="Pp">El filtro Stackable fue contribuido por Dieter Pearcey.
+    Documentación proporcionada por Rocco Caputo.</p>
+<p class="Pp">Por favor, consulte la página del manual de POE para obtener más
+    información sobre autores y colaboradores.</p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">2024-07-13</td>
+    <td class="foot-os">perl v5.38.2</td>
+  </tr>
+</table>
+
+</section>
+
+            </article>
+            <aside id="sidebar">
+                
+<section class="search">
+    <form action="/search" class="search direct-search" role="search">
+    <input type="search" placeholder="Buscar página del manual" name="q" value=""
+         />
+    <input type="submit" name="go" value="Ir" />
+</form>
+
+</section>
+
+<section class="package-info">
+    <p>Información del paquete:</p>
+    <dl>
+        <dt>Nombre del paquete:</dt>
+        <dd><a href="https://www.archlinux.org/packages/extra/any/perl-poe/">extra/perl-poe</a></dd>
+        <dt>Versión:</dt>
+        <dd>1.370-2</dd>
+        <dt>Upstream:</dt>
+        <dd><a href="https://search.cpan.org/dist/POE">https://search.cpan.org/dist/POE</a></dd>
+        <dt>Licencias:</dt>
+        <dd>GPL, PerlArtistic</dd>
+        <dt>Manuales:</dt>
+        <dd><a href="/listing/extra/perl-poe/">/listing/extra/perl-poe/</a></dd>
+    </dl>
+</section>
+
+<details>
+    <summary>Tabla de contenidos</summary>
+    <nav class="toc">
+        <ul>
+        
+            <li><a href="#NAME">NOMBRE</a></li>
+        
+            <li><a href="#SYNOPSIS">SINOPSIS</a></li>
+        
+            <li><a href="#DESCRIPTION">DESCRIPCIÓN</a></li>
+        
+            <li><a href="#PUBLIC_FILTER_METHODS">MÉTODOS PÚBLICOS DE FILTRO</a></li>
+        
+            <li><a href="#SEE_ALSO">VER TAMBIÉN</a></li>
+        
+            <li><a href="#BUGS">ERRORES</a></li>
+        
+            <li><a href="#AUTHORS_&amp;amp;_COPYRIGHTS">AUTORES &amp; COPYRIGHTS</a></li>
+        
+        </ul>
+    </nav>
+</details>
+
+
+
+
+
+
+
+<nav class="other-formats">
+    <p>Otros formatos:
+        
+            <a href="/man/POE::Filter::Stackable.3pm.es.txt">txt</a>, 
+        
+            <a href="/man/POE::Filter::Stackable.3pm.es.raw">raw</a>
+        
+    </p>
+</nav>
+
+            </aside>
+            
+        </main>
+        <footer>
+            
+        </footer>
+    </body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sobre rchmanweb</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        
+        <main>
+            <p>
+                rchmanweb es un generador de sitios web estáticos que transforma las páginas del manual de Arch Linux en un sitio web fácil de navegar. Fue desarrollado por <a href="https://github.com/rchmanweb/rchmanweb">rchmanweb</a>, utilizando <a href="https://mandoc.bsd.lv/">mandoc</a> para la conversión de las páginas del manual.
+            </p>
+        </main>
+        <footer>
+            <p>
+                El sitio web está disponible bajo los términos de la licencia <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>, excepto por el contenido de las páginas del manual, que tienen su propia licencia especificada en el paquete correspondiente de Arch Linux.
+            </p>
+        </footer>
+    </body>
+</html>
